@@ -2,11 +2,14 @@ import { ref } from 'vue'
 import type { Profile } from '~/types/chat'
 import { getAvatarColor } from '~/utils/chat'
 
-const currentProfile = ref<Profile | null>(null)
+const testProfileRef = ref<Profile | null>(null)
 
 export function useAuthProfile() {
   const supabase = useSupabaseClient()
   const user = useSupabaseUser()
+  const currentProfile = typeof useState !== 'undefined'
+    ? useState<Profile | null>('auth-profile', () => null)
+    : testProfileRef
 
   async function ensureProfile(): Promise<Profile | null> {
     const authUser = user.value

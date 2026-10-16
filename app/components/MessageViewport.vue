@@ -82,20 +82,38 @@ function formatTime(isoString: string): string {
   }
 }
 
-watch(
-  () => props.messages.length,
-  (newLen, oldLen) => {
-    if (newLen > oldLen) {
-      const newest = props.messages[props.messages.length - 1]
-      const isMine = newest && newest.user_id === props.currentUserId
+const prevNewestId = ref<string | null>(
+  props.messages.length > 0
+    ? (props.messages[props.messages.length - 1].client_id || props.messages[props.messages.length - 1].id)
+    : null,
+)
 
-      if (isMine || isNearBottom.value) {
-        scrollToBottom(true)
-      } else {
-        unreadNewCount.value += (newLen - oldLen)
-      }
+watch(
+  () => props.messages,
+  (newMessages) => {
+    if (!newMessages || newMessages.length === 0) {
+      prevNewestId.value = null
+      return
+    }
+
+    const newest = newMessages[newMessages.length - 1]
+    const currentNewestId = newest.client_id || newest.id
+
+    // Ignore history prepends or same newest message
+    if (props.isLoadingHistory || currentNewestId === prevNewestId.value) {
+      return
+    }
+
+    prevNewestId.value = currentNewestId
+    const isMine = newest && newest.user_id === props.currentUserId
+
+    if (isMine || isNearBottom.value) {
+      scrollToBottom(true)
+    } else {
+      unreadNewCount.value += 1
     }
   },
+  { deep: false },
 )
 
 onMounted(() => {

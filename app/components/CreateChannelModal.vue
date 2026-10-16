@@ -8,20 +8,31 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'create', payload: { name: string; description: string }): void
+  (
+    e: 'create',
+    payload: {
+      name: string
+      description: string
+      onSuccess: () => void
+      onError: (message: string) => void
+    }
+  ): void
 }>()
 
 const name = ref('')
 const description = ref('')
 const error = ref<string | null>(null)
+const isSubmitting = ref(false)
 
 const previewSlug = computed(() => normalizeChannelSlug(name.value))
 const isValid = computed(() => isValidChannelSlug(previewSlug.value))
 
 function handleClose() {
+  if (isSubmitting.value) return
   name.value = ''
   description.value = ''
   error.value = null
+  isSubmitting.value = false
   emit('close')
 }
 
@@ -32,11 +43,19 @@ function handleCreate() {
     return
   }
 
+  isSubmitting.value = true
   emit('create', {
     name: name.value.trim(),
     description: description.value.trim(),
+    onSuccess: () => {
+      isSubmitting.value = false
+      handleClose()
+    },
+    onError: (msg: string) => {
+      isSubmitting.value = false
+      error.value = msg
+    },
   })
-  handleClose()
 }
 </script>
 
@@ -103,10 +122,10 @@ function handleCreate() {
           </button>
           <button
             type="submit"
-            :disabled="!isValid"
+            :disabled="!isValid || isSubmitting"
             class="px-4 py-2 rounded-lg text-sm bg-sky-600 hover:bg-sky-500 text-white font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
           >
-            Create Channel
+            {{ isSubmitting ? 'Creating...' : 'Create Channel' }}
           </button>
         </div>
       </form>

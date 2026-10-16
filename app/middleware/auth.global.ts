@@ -1,7 +1,9 @@
 export default defineNuxtRouteMiddleware((to) => {
   const user = useSupabaseUser()
 
-  if (!user.value && to.path !== '/login') {
+  const isPublicRoute = to.path === '/login' || to.path === '/confirm'
+
+  if (!user.value && !isPublicRoute) {
     return navigateTo('/login')
   }
 

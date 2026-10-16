@@ -88,4 +88,44 @@ describe('useMessagesState', () => {
     expect(addedGap).toBe(1)
     expect(store.messages.value.map(m => m.id)).toEqual(['m-1', 'm-2', 'm-3', 'm-4'])
   })
+
+  it('filters pending messages by channel when setting initial history', () => {
+    const store = createMessagesStore()
+    store.addOptimisticMessage({
+      clientId: 'c-ch1',
+      channelId: 'ch-1',
+      user: alice,
+      content: 'Ch 1 pending',
+    })
+    expect(store.messages.value).toHaveLength(1)
+
+    // Switch to ch-2 with initial history
+    store.setInitialHistory([
+      { id: 'm-ch2-1', client_id: 'c-ch2-1', channel_id: 'ch-2', user_id: alice.id, content: 'Ch 2 msg', created_at: '2026-10-16T10:00:00Z' },
+    ], 'ch-2')
+
+    expect(store.messages.value).toHaveLength(1)
+    expect(store.messages.value[0].id).toBe('m-ch2-1')
+  })
+
+  it('preserves realtime messages received during history fetch', () => {
+    const store = createMessagesStore()
+    // A realtime message arrives while history query is in-flight
+    store.reconcileIncomingMessage({
+      id: 'm-live',
+      client_id: 'c-live',
+      channel_id: 'ch-1',
+      user_id: alice.id,
+      content: 'Live incoming',
+      created_at: '2026-10-16T10:05:00Z',
+    })
+
+    // History query returns older rows
+    store.setInitialHistory([
+      { id: 'm-old', client_id: 'c-old', channel_id: 'ch-1', user_id: alice.id, content: 'Old history', created_at: '2026-10-16T10:00:00Z' },
+    ], 'ch-1')
+
+    // Both should be present
+    expect(store.messages.value.map(m => m.id)).toEqual(['m-old', 'm-live'])
+  })
 })

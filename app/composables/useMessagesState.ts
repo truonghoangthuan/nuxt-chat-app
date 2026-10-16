@@ -135,10 +135,22 @@ export function createMessagesStore() {
     return 'appended'
   }
 
-  function setInitialHistory(rows: Array<Omit<ChatMessage, 'status'>>): void {
-    const pending = messages.value.filter(m => m.status === 'sending' || m.status === 'failed')
+  function setInitialHistory(rows: Array<Omit<ChatMessage, 'status'>>, currentChannelId?: string): void {
+    const pending = messages.value.filter(m => {
+      const isPending = m.status === 'sending' || m.status === 'failed'
+      if (!isPending) return false
+      return currentChannelId ? m.channel_id === currentChannelId : true
+    })
+
+    // Retain any confirmed messages that arrived during history fetch
+    const existingConfirmed = messages.value.filter(m => {
+      if (m.status !== 'sent') return false
+      if (currentChannelId && m.channel_id !== currentChannelId) return false
+      return true
+    })
+
     const mapped: ChatMessage[] = rows.map(r => ({ ...r, status: 'sent' }))
-    messages.value = [...mapped, ...pending]
+    messages.value = [...mapped, ...existingConfirmed, ...pending]
     reorderMessages()
   }
 

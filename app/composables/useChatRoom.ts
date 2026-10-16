@@ -10,6 +10,13 @@ import { useAuthProfile } from '~/composables/useAuthProfile'
 
 export const PAGE_SIZE = 40
 
+export function isDuplicateKeyError(error: any): boolean {
+  if (!error) return false
+  if (error.code === '23505') return true
+  const msg = String(error.message || '').toLowerCase()
+  return msg.includes('duplicate key') || msg.includes('unique constraint')
+}
+
 export function handleIncomingRealtimeMessage(params: {
   row: Omit<ChatMessage, 'status'>
   activeChannelId: string | null
@@ -100,19 +107,33 @@ export function useChatRoom() {
     }
   }
 
+  function subscribeWithPromise(channel: RealtimeChannel | null): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (!channel) {
+        resolve(true)
+        return
+      }
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          resolve(true)
+        } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+          resolve(false)
+        }
+      })
+    })
+  }
+
   async function reconnectChat(): Promise<boolean> {
     try {
-      if (presenceChannel) {
-        await presenceChannel.subscribe()
+      const p1 = subscribeWithPromise(presenceChannel)
+      const p2 = subscribeWithPromise(dbChangesChannel)
+      const results = await Promise.all([p1, p2])
+      const ok = results.every(Boolean)
+      if (ok) {
+        await fetchGapMessages()
+        return true
       }
-      if (dbChangesChannel) {
-        await dbChangesChannel.subscribe()
-      }
-      if (typingChannel) {
-        await typingChannel.subscribe()
-      }
-      await fetchGapMessages()
-      return true
+      return false
     } catch {
       return false
     }
@@ -254,15 +275,22 @@ export function useChatRoom() {
         .order('id', { ascending: false })
         .limit(PAGE_SIZE)
 
+      // Guard against race condition if user switched channels while query was in flight
+      if (activeChannelId.value !== channelId) {
+        return
+      }
+
       if (data && !error) {
         hasMoreHistory.value = data.length >= PAGE_SIZE
         const chronological = [...data].reverse()
-        messagesStore.setInitialHistory(chronological)
+        messagesStore.setInitialHistory(chronological, channelId)
       } else {
-        messagesStore.setInitialHistory([])
+        messagesStore.setInitialHistory([], channelId)
       }
     } catch {
-      messagesStore.setInitialHistory([])
+      if (activeChannelId.value === channelId) {
+        messagesStore.setInitialHistory([], channelId)
+      }
     }
   }
 
@@ -282,7 +310,7 @@ export function useChatRoom() {
         .from('messages')
         .select('*, author:profiles(id, display_name, avatar_color)')
         .eq('channel_id', activeChannelId.value)
-        .or(`created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`)
+        .or(`created_at.lt."${cursor.created_at}",and(created_at.eq."${cursor.created_at}",id.lt."${cursor.id}")`)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
         .limit(PAGE_SIZE)
@@ -341,7 +369,7 @@ export function useChatRoom() {
 
     const clientId = typeof crypto !== 'undefined' && crypto.randomUUID
       ? crypto.randomUUID()
-      : `c-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+      : '00000000-0000-4000-8000-' + Math.random().toString(16).slice(2, 14).padEnd(12, '0')
 
     messagesStore.addOptimisticMessage({
       clientId,
@@ -363,7 +391,20 @@ export function useChatRoom() {
         .single()
 
       if (error) {
-        messagesStore.markMessageFailed(clientId)
+        if (isDuplicateKeyError(error)) {
+          const { data: existing } = await supabase
+            .from('messages')
+            .select('*, author:profiles(id, display_name, avatar_color)')
+            .eq('client_id', clientId)
+            .single()
+          if (existing) {
+            messagesStore.markMessageSent(clientId, existing)
+          } else {
+            messagesStore.markMessageFailed(clientId)
+          }
+        } else {
+          messagesStore.markMessageFailed(clientId)
+        }
       } else if (data) {
         messagesStore.markMessageSent(clientId, data)
       }
@@ -389,7 +430,20 @@ export function useChatRoom() {
         .single()
 
       if (error) {
-        messagesStore.markMessageFailed(clientId)
+        if (isDuplicateKeyError(error)) {
+          const { data: existing } = await supabase
+            .from('messages')
+            .select('*, author:profiles(id, display_name, avatar_color)')
+            .eq('client_id', clientId)
+            .single()
+          if (existing) {
+            messagesStore.markMessageSent(clientId, existing)
+          } else {
+            messagesStore.markMessageFailed(clientId)
+          }
+        } else {
+          messagesStore.markMessageFailed(clientId)
+        }
       } else if (data) {
         messagesStore.markMessageSent(clientId, data)
       }

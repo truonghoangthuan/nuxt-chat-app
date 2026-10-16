@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { handleIncomingRealtimeMessage } from '~/composables/useChatRoom'
+import { handleIncomingRealtimeMessage, isDuplicateKeyError } from '~/composables/useChatRoom'
 import { createMessagesStore } from '~/composables/useMessagesState'
 import { createTypingTracker } from '~/composables/useTypingState'
 
@@ -46,5 +46,12 @@ describe('useChatRoom realtime message routing', () => {
     })
     expect(store.messages.value).toHaveLength(1)
     expect(typing.typingLabel.value).toBe('')
+  })
+
+  it('detects Postgres 23505 duplicate key unique constraint error for idempotent retry', () => {
+    expect(isDuplicateKeyError({ code: '23505', message: 'duplicate key value violates unique constraint' })).toBe(true)
+    expect(isDuplicateKeyError({ message: 'duplicate key value violates unique constraint "messages_client_id_key"' })).toBe(true)
+    expect(isDuplicateKeyError({ code: '42P01', message: 'relation does not exist' })).toBe(false)
+    expect(isDuplicateKeyError(null)).toBe(false)
   })
 })

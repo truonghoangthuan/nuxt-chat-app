@@ -1,8 +1,11 @@
 import { ref } from 'vue'
 
-const isDark = ref<boolean>(true)
+const testDarkRef = ref<boolean>(true)
 
 export function useTheme() {
+  const isDark = typeof useState !== 'undefined'
+    ? useState<boolean>('theme-dark', () => true)
+    : testDarkRef
   function applyClass(): void {
     if (typeof document !== 'undefined') {
       if (isDark.value) {

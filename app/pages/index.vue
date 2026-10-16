@@ -44,8 +44,19 @@ async function handleLogout() {
   await navigateTo('/login')
 }
 
-async function handleCreateChannel(payload: { name: string; description: string }) {
-  await createChannel(payload.name, payload.description)
+async function handleCreateChannel(payload: {
+  name: string
+  description: string
+  onSuccess?: () => void
+  onError?: (message: string) => void
+}) {
+  const result = await createChannel(payload.name, payload.description)
+  if (result.error) {
+    payload.onError?.(result.error)
+  } else {
+    payload.onSuccess?.()
+    isCreateChannelModalOpen.value = false
+  }
 }
 
 onMounted(async () => {
