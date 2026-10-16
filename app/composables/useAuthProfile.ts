@@ -4,6 +4,11 @@ import { getAvatarColor } from '~/utils/chat'
 
 const testProfileRef = ref<Profile | null>(null)
 
+export function extractAuthUserId(authUser: { id?: string; sub?: string } | null | undefined): string | null {
+  if (!authUser) return null
+  return authUser.id || authUser.sub || null
+}
+
 export function useAuthProfile() {
   const supabase = useSupabaseClient()
   const user = useSupabaseUser()
@@ -12,8 +17,22 @@ export function useAuthProfile() {
     : testProfileRef
 
   async function ensureProfile(): Promise<Profile | null> {
-    const authUser = user.value
-    if (!authUser) {
+    let authUser: any = user.value
+    let userId = extractAuthUserId(authUser)
+
+    if (!userId && supabase?.auth?.getUser) {
+      try {
+        const { data } = await supabase.auth.getUser()
+        if (data?.user) {
+          authUser = data.user
+          userId = extractAuthUserId(authUser)
+        }
+      } catch {
+        // Ignore auth lookup error
+      }
+    }
+
+    if (!authUser || !userId) {
       currentProfile.value = null
       return null
     }
@@ -22,7 +41,7 @@ export function useAuthProfile() {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', authUser.id)
+        .eq('id', userId)
         .single()
 
       if (data && !error) {
@@ -38,10 +57,10 @@ export function useAuthProfile() {
       || authUser.email?.split('@')[0]
       || 'Friend'
     const fallbackColor = (authUser.user_metadata?.avatar_color as string | undefined)
-      || getAvatarColor(authUser.id)
+      || getAvatarColor(userId)
 
     const fallbackProfile: Profile = {
-      id: authUser.id,
+      id: userId,
       display_name: fallbackName,
       avatar_color: fallbackColor,
     }

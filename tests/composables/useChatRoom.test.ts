@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { handleIncomingRealtimeMessage, isDuplicateKeyError } from '~/composables/useChatRoom'
+import { extractAuthUserId } from '~/composables/useAuthProfile'
 import { createMessagesStore } from '~/composables/useMessagesState'
 import { createTypingTracker } from '~/composables/useTypingState'
 
@@ -53,5 +54,11 @@ describe('useChatRoom realtime message routing', () => {
     expect(isDuplicateKeyError({ message: 'duplicate key value violates unique constraint "messages_client_id_key"' })).toBe(true)
     expect(isDuplicateKeyError({ code: '42P01', message: 'relation does not exist' })).toBe(false)
     expect(isDuplicateKeyError(null)).toBe(false)
+  })
+
+  it('extracts user UUID from either JwtPayload.sub (@nuxtjs/supabase v2) or User.id', () => {
+    expect(extractAuthUserId({ sub: 'uuid-from-jwt-sub' })).toBe('uuid-from-jwt-sub')
+    expect(extractAuthUserId({ id: 'uuid-from-user-id' })).toBe('uuid-from-user-id')
+    expect(extractAuthUserId(null)).toBeNull()
   })
 })

@@ -337,7 +337,10 @@ export function useChatRoom() {
       }
     }
 
-    const current = authProfile.currentProfile.value
+    let current = authProfile.currentProfile.value
+    if (!current?.id) {
+      current = await authProfile.ensureProfile()
+    }
     const payload = {
       slug,
       description: description?.trim() || null,
@@ -364,8 +367,11 @@ export function useChatRoom() {
 
   async function sendMessage(content: string): Promise<void> {
     if (!activeChannelId.value || !isValidMessageContent(content)) return
-    const current = authProfile.currentProfile.value
-    if (!current) return
+    let current = authProfile.currentProfile.value
+    if (!current?.id) {
+      current = await authProfile.ensureProfile()
+    }
+    if (!current?.id) return
 
     const clientId = typeof crypto !== 'undefined' && crypto.randomUUID
       ? crypto.randomUUID()
