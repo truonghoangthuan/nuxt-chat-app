@@ -1,0 +1,99 @@
+<script setup lang="ts">
+import { ref, nextTick } from 'vue'
+import { shouldSendOnKeydown } from '~/utils/chat'
+
+const props = withDefaults(
+  defineProps<{
+    channelSlug: string
+    typingLabel?: string
+    disabled?: boolean
+  }>(),
+  {
+    typingLabel: '',
+    disabled: false,
+  },
+)
+
+const emit = defineEmits<{
+  (e: 'send', content: string): void
+  (e: 'typing'): void
+}>()
+
+const content = ref('')
+const textareaRef = ref<HTMLTextAreaElement | null>(null)
+
+function autoResize() {
+  const el = textareaRef.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+}
+
+function handleInput() {
+  autoResize()
+  emit('typing')
+}
+
+function handleKeydown(event: KeyboardEvent) {
+  if (shouldSendOnKeydown(event)) {
+    event.preventDefault()
+    handleSend()
+  }
+}
+
+function handleSend() {
+  const trimmed = content.value.trim()
+  if (!trimmed || props.disabled) return
+
+  emit('send', trimmed)
+  content.value = ''
+  nextTick(() => {
+    autoResize()
+  })
+}
+</script>
+
+<template>
+  <div class="p-3 md:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+    <!-- Typing indicator bar -->
+    <div class="h-5 mb-1 px-1 flex items-center">
+      <span
+        v-if="typingLabel"
+        class="text-xs italic text-slate-500 dark:text-slate-400 flex items-center gap-1.5 transition-opacity"
+      >
+        <span class="inline-flex gap-0.5">
+          <span class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+          <span class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+          <span class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
+        </span>
+        {{ typingLabel }}
+      </span>
+    </div>
+
+    <!-- Input box -->
+    <div class="relative flex items-end rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all p-1.5">
+      <textarea
+        ref="textareaRef"
+        v-model="content"
+        rows="1"
+        :disabled="disabled"
+        :placeholder="`Message #${channelSlug || 'channel'} (Enter to send, Shift+Enter for newline)`"
+        class="w-full resize-none bg-transparent px-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none max-h-40 overflow-y-auto"
+        @input="handleInput"
+        @keydown="handleKeydown"
+      ></textarea>
+
+      <button
+        type="button"
+        :disabled="!content.trim() || disabled"
+        class="mb-1 mr-1 p-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-40 disabled:hover:bg-sky-600 disabled:cursor-not-allowed transition-colors shrink-0 shadow-sm"
+        title="Send message"
+        @click="handleSend"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+        </svg>
+      </button>
+    </div>
+  </div>
+</template>

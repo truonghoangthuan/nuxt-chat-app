@@ -22,3 +22,11 @@ logs
 .env
 .env.*
 !.env.example
+
+# Superpowers brainstorm sessions
+.superpowers/
+
+# Agent / IDE metadata
+.agents/
+.codegraph/
+
