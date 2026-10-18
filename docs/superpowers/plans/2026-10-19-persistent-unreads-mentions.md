@@ -34,7 +34,7 @@
   - `tokenizeMessageMentions(content: string, currentDisplayName?: string | null, knownDisplayNames?: string[]): MentionSegment[]` in `~/utils/chat`
   - `buildMessageTimeline(messages: ChatMessage[], now?: Date, options?: { lastReadAt?: string | null; currentUserId?: string; currentDisplayName?: string | null }): TimelineMessageItem[]` in `~/utils/chat`
 
-- [ ] **Step 1: Write failing tests in `tests/utils/chat.test.ts`**
+- [x] **Step 1: Write failing tests in `tests/utils/chat.test.ts`**
 
 Append tests for `extractActiveMentionQuery`, `applyMentionAutocomplete`, `doesMessageMentionUser`, `tokenizeMessageMentions`, and `buildMessageTimeline` with `lastReadAt` / `currentDisplayName` to `tests/utils/chat.test.ts`:
 
@@ -126,12 +126,12 @@ Append tests for `extractActiveMentionQuery`, `applyMentionAutocomplete`, `doesM
 
 And add `extractActiveMentionQuery`, `applyMentionAutocomplete`, `doesMessageMentionUser`, and `tokenizeMessageMentions` to the imports from `~/utils/chat` at the top of `tests/utils/chat.test.ts`.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/utils/chat.test.ts`
 Expected: FAIL (`extractActiveMentionQuery`, `applyMentionAutocomplete`, `doesMessageMentionUser`, `tokenizeMessageMentions` are not exported from `~/utils/chat`).
 
-- [ ] **Step 3: Implement types in `app/types/chat.ts` and pure helpers in `app/utils/chat.ts`**
+- [x] **Step 3: Implement types in `app/types/chat.ts` and pure helpers in `app/utils/chat.ts`**
 
 Update `app/types/chat.ts` to add `ChannelRead`, `MentionSegment`, `ActiveMentionQuery`, and `showUnreadDivider` / `isMentioningMe` on `TimelineMessageItem`:
 
@@ -370,12 +370,12 @@ export function buildMessageTimeline(
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/utils/chat.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/types/chat.ts app/utils/chat.ts tests/utils/chat.test.ts
@@ -398,7 +398,7 @@ git commit -m "feat(utils): add @mention query parser, tokenizer, and unread div
   - Extended `handleIncomingRealtimeMessage(params)` supporting `unreadMentions`, `currentUserId`, `currentDisplayName`
   - `unreadMentions`, `activeChannelUnreadSince`, `knownProfiles`, and `markChannelRead` on `useChatRoom()`
 
-- [ ] **Step 1: Write failing tests in `tests/composables/useChatRoom.test.ts`**
+- [x] **Step 1: Write failing tests in `tests/composables/useChatRoom.test.ts`**
 
 Append tests for `computeUnreadSnapshot` and `handleIncomingRealtimeMessage` mention tracking to `tests/composables/useChatRoom.test.ts`:
 
@@ -480,12 +480,12 @@ Append tests for `computeUnreadSnapshot` and `handleIncomingRealtimeMessage` men
 
 And add `computeUnreadSnapshot` to the import list from `~/composables/useChatRoom` at the top of `tests/composables/useChatRoom.test.ts`.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/composables/useChatRoom.test.ts`
 Expected: FAIL (`computeUnreadSnapshot` is not exported from `~/composables/useChatRoom`).
 
-- [ ] **Step 3: Update `supabase/schema.sql` and `app/composables/useChatRoom.ts`**
+- [x] **Step 3: Update `supabase/schema.sql` and `app/composables/useChatRoom.ts`**
 
 Add Section 5 (`public.channel_reads`) to `supabase/schema.sql`:
 
@@ -687,12 +687,12 @@ In `app/composables/useChatRoom.ts`:
    - Call `await loadChannelReadsAndUnreads()` in `initializeChat()` (after `loadChannels()`) and in `reconnectChat()`.
    - Expose `unreadMentions`, `activeChannelUnreadSince`, `knownProfiles`, and `markChannelRead` from `useChatRoom()`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/composables/useChatRoom.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add supabase/schema.sql app/composables/useChatRoom.ts tests/composables/useChatRoom.test.ts
@@ -717,7 +717,7 @@ git commit -m "feat(chat): add channel_reads persistence and unread/@mention tra
   - `MessageComposer.vue` with `mentionCandidates?: Profile[]` prop and `[data-test="mention-autocomplete"]`
   - `MessageViewport.vue` with `lastReadAt?: string | null` and `currentDisplayName?: string` props, `[data-test="unread-divider"]`, `[data-test="mention-row-<msg.id>"]`, and `[data-test="mention-token"]`
 
-- [ ] **Step 1: Write failing component tests in `tests/components/chatUi.test.ts`**
+- [x] **Step 1: Write failing component tests in `tests/components/chatUi.test.ts`**
 
 Append tests to `tests/components/chatUi.test.ts`:
 
@@ -811,12 +811,12 @@ Append tests to `tests/components/chatUi.test.ts`:
 
 And import `ChatSidebar` at the top of `tests/components/chatUi.test.ts` (`import ChatSidebar from '~/components/ChatSidebar.vue'`).
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/components/chatUi.test.ts`
 Expected: FAIL (`[data-test="mention-badge-ch-1"]`, `[data-test="mention-autocomplete"]`, and `[data-test="unread-divider"]` do not exist).
 
-- [ ] **Step 3: Implement updates in `ChatSidebar.vue`, `MessageComposer.vue`, `MessageViewport.vue`, and `app/pages/index.vue`**
+- [x] **Step 3: Implement updates in `ChatSidebar.vue`, `MessageComposer.vue`, `MessageViewport.vue`, and `app/pages/index.vue`**
 
 In `app/components/ChatSidebar.vue`:
 1. Add optional `unreadMentions?: Record<string, number>` prop:
@@ -1012,12 +1012,12 @@ In `app/pages/index.vue`:
 - Pass `:last-read-at="activeChannelUnreadSince"` and `:current-display-name="currentProfile?.display_name"` to `<MessageViewport>`.
 - Pass `:mention-candidates="knownProfiles"` to `<MessageComposer>`.
 
-- [ ] **Step 4: Run full test suite to verify all tests pass**
+- [x] **Step 4: Run full test suite to verify all tests pass**
 
 Run: `npm test`
 Expected: PASS (all unit and component test suites pass).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/components/ChatSidebar.vue app/components/MessageComposer.vue app/components/MessageViewport.vue app/pages/index.vue tests/components/chatUi.test.ts
