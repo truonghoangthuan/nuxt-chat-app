@@ -6,6 +6,7 @@ import {
   isDuplicateKeyError,
   resolveMessageAuthor,
   applyRealtimeProfileUpdate,
+  computeUnreadSnapshot,
 } from '~/composables/useChatRoom'
 import { extractAuthUserId } from '~/composables/useAuthProfile'
 import { createMessagesStore } from '~/composables/useMessagesState'
@@ -218,5 +219,80 @@ describe('useChatRoom realtime message routing & profile caching', () => {
     })
     expect(store.messages.value[0].reactions).toHaveLength(0)
   })
+
+  it('computes initial unread counts and @mention counts per channel from channel_reads timestamps', () => {
+    const snapshot = computeUnreadSnapshot({
+      messages: [
+        {
+          id: 'm-1',
+          channel_id: 'ch-general',
+          user_id: 'u-bob',
+          content: 'Already read in general',
+          created_at: '2026-10-18T10:00:00Z',
+        },
+        {
+          id: 'm-2',
+          channel_id: 'ch-random',
+          user_id: 'u-bob',
+          content: 'Hey @Alice check this out!',
+          created_at: '2026-10-18T10:05:00Z',
+        },
+        {
+          id: 'm-3',
+          channel_id: 'ch-random',
+          user_id: 'u-bob',
+          content: 'Another unread in random',
+          created_at: '2026-10-18T10:06:00Z',
+        },
+        {
+          id: 'm-4',
+          channel_id: 'ch-random',
+          user_id: 'u-alice',
+          content: 'Own message should not count as unread',
+          created_at: '2026-10-18T10:07:00Z',
+        },
+      ],
+      lastReadByChannel: {
+        'ch-general': '2026-10-18T10:01:00Z',
+        'ch-random': '2026-10-18T10:00:00Z',
+      },
+      activeChannelId: 'ch-general',
+      currentUserId: 'u-alice',
+      currentDisplayName: 'Alice',
+    })
+
+    expect(snapshot.unreadCounts['ch-general'] || 0).toBe(0)
+    expect(snapshot.unreadCounts['ch-random']).toBe(2)
+    expect(snapshot.unreadMentions['ch-random']).toBe(1)
+  })
+
+  it('increments unreadMentions when an incoming realtime message for an inactive channel mentions current user', () => {
+    const store = createMessagesStore()
+    const typing = createTypingTracker(() => 'u-alice', 3000)
+    const unreadCounts: Record<string, number> = {}
+    const unreadMentions: Record<string, number> = {}
+
+    handleIncomingRealtimeMessage({
+      row: {
+        id: 'm-20',
+        client_id: 'c-20',
+        channel_id: 'ch-random',
+        user_id: 'u-bob',
+        content: 'Ping @Alice for game night',
+        created_at: '2026-10-18T11:00:00Z',
+      },
+      activeChannelId: 'ch-general',
+      messagesStore: store,
+      typingTracker: typing,
+      unreadCounts,
+      unreadMentions,
+      currentUserId: 'u-alice',
+      currentDisplayName: 'Alice',
+    })
+
+    expect(unreadCounts['ch-random']).toBe(1)
+    expect(unreadMentions['ch-random']).toBe(1)
+  })
 })
+
 
