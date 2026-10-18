@@ -1,4 +1,4 @@
-import type { ChatMessage, TimelineMessageItem } from '~/types/chat'
+import type { ChatMessage, TimelineMessageItem, MessageReaction, ReactionSummary } from '~/types/chat'
 
 export const AVATAR_PALETTE = [
   '#0284c7', // Sky 600
@@ -12,6 +12,53 @@ export const AVATAR_PALETTE = [
 ] as const
 
 export const GROUPING_WINDOW_MS = 5 * 60 * 1000
+
+export const REACTION_EMOJIS = [
+  '👍',
+  '❤️',
+  '😂',
+  '🎉',
+  '🔥',
+  '😮',
+  '😢',
+  '👀',
+] as const
+
+export function isValidReactionEmoji(emoji: string): boolean {
+  return (REACTION_EMOJIS as readonly string[]).includes(emoji)
+}
+
+export function summarizeReactions(
+  reactions: MessageReaction[] | undefined,
+  currentUserId?: string,
+): ReactionSummary[] {
+  if (!reactions || reactions.length === 0) {
+    return []
+  }
+
+  const map = new Map<string, Set<string>>()
+  for (const r of reactions) {
+    if (!r || !r.emoji || !r.user_id) continue
+    let set = map.get(r.emoji)
+    if (!set) {
+      set = new Set<string>()
+      map.set(r.emoji, set)
+    }
+    set.add(r.user_id)
+  }
+
+  const summaries: ReactionSummary[] = []
+  for (const [emoji, userSet] of map.entries()) {
+    const userIds = Array.from(userSet)
+    summaries.push({
+      emoji,
+      count: userIds.length,
+      userIds,
+      reactedByMe: Boolean(currentUserId && userSet.has(currentUserId)),
+    })
+  }
+  return summaries
+}
 
 export function normalizeChannelSlug(input: string): string {
   return input
@@ -130,6 +177,7 @@ export function buildMessageTimeline(
 
     const timeDiffMs = Math.abs(currDate.getTime() - prevDate.getTime())
     const isCompact = !showDateDivider
+      && !msg.reply_to_id
       && prev.user_id === msg.user_id
       && !Number.isNaN(timeDiffMs)
       && timeDiffMs <= GROUPING_WINDOW_MS

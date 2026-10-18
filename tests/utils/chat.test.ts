@@ -12,6 +12,9 @@ import {
   formatDateDivider,
   buildMessageTimeline,
   AVATAR_PALETTE,
+  REACTION_EMOJIS,
+  isValidReactionEmoji,
+  summarizeReactions,
 } from '~/utils/chat'
 import type { ChatMessage } from '~/types/chat'
 
@@ -137,6 +140,67 @@ describe('chat utils', () => {
     expect(timeline[2]).toMatchObject({ showDateDivider: false, dateLabel: 'Today', isCompact: true })
     expect(timeline[3]).toMatchObject({ showDateDivider: false, dateLabel: 'Today', isCompact: false })
     expect(timeline[4]).toMatchObject({ showDateDivider: false, dateLabel: 'Today', isCompact: false })
+  })
+
+  it('validates reaction emojis against the 8-emoji palette and summarizes reactions per emoji', () => {
+    expect(REACTION_EMOJIS).toEqual(['👍', '❤️', '😂', '🎉', '🔥', '😮', '😢', '👀'])
+    expect(isValidReactionEmoji('👍')).toBe(true)
+    expect(isValidReactionEmoji('🔥')).toBe(true)
+    expect(isValidReactionEmoji('💩')).toBe(false)
+
+    const summary = summarizeReactions(
+      [
+        { message_id: 'm-1', channel_id: 'ch-1', user_id: 'u-alice', emoji: '👍' },
+        { message_id: 'm-1', channel_id: 'ch-1', user_id: 'u-bob', emoji: '👍' },
+        // Duplicate from same user should be deduplicated
+        { message_id: 'm-1', channel_id: 'ch-1', user_id: 'u-bob', emoji: '👍' },
+        { message_id: 'm-1', channel_id: 'ch-1', user_id: 'u-alice', emoji: '❤️' },
+      ],
+      'u-bob',
+    )
+
+    expect(summary).toEqual([
+      {
+        emoji: '👍',
+        count: 2,
+        userIds: ['u-alice', 'u-bob'],
+        reactedByMe: true,
+      },
+      {
+        emoji: '❤️',
+        count: 1,
+        userIds: ['u-alice'],
+        reactedByMe: false,
+      },
+    ])
+  })
+
+  it('forces isCompact to false when a consecutive message is a quote-reply (reply_to_id is set)', () => {
+    const now = new Date(2026, 9, 18, 15, 0, 0)
+    const messages: ChatMessage[] = [
+      {
+        id: 'm-1',
+        client_id: 'c-1',
+        channel_id: 'ch-1',
+        user_id: 'u-alice',
+        content: 'First message',
+        created_at: new Date(2026, 9, 18, 10, 0, 0).toISOString(),
+        status: 'sent',
+      },
+      {
+        id: 'm-2',
+        client_id: 'c-2',
+        channel_id: 'ch-1',
+        user_id: 'u-alice',
+        content: 'Replying 30s later to an older message',
+        created_at: new Date(2026, 9, 18, 10, 0, 30).toISOString(),
+        status: 'sent',
+        reply_to_id: 'm-1',
+      },
+    ]
+
+    const timeline = buildMessageTimeline(messages, now)
+    expect(timeline[1].isCompact).toBe(false)
   })
 })
 
