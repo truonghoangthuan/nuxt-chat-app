@@ -1,7 +1,12 @@
 import { ref, computed, type ComputedRef, type Ref } from 'vue'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import type { Channel, ChatMessage, Profile, ConnectionStatus } from '~/types/chat'
-import { normalizeChannelSlug, isValidChannelSlug, isValidMessageContent } from '~/utils/chat'
+import type { Channel, ChatMessage, MessageReaction, Profile, ReplyTarget, ConnectionStatus } from '~/types/chat'
+import {
+  normalizeChannelSlug,
+  isValidChannelSlug,
+  isValidMessageContent,
+  isValidReactionEmoji,
+} from '~/utils/chat'
 import { createMessagesStore } from '~/composables/useMessagesState'
 import { createTypingTracker } from '~/composables/useTypingState'
 import { deduplicatePresenceState } from '~/composables/usePresenceState'
@@ -29,6 +34,33 @@ export function handleIncomingRealtimeMessage(params: {
     params.typingTracker.clearUserTyping(params.row.user_id)
   } else {
     params.unreadCounts[params.row.channel_id] = (params.unreadCounts[params.row.channel_id] || 0) + 1
+  }
+}
+
+export function handleRealtimeMessageUpdate(params: {
+  row: Partial<ChatMessage> & { id: string; channel_id?: string }
+  activeChannelId: string | null
+  messagesStore: ReturnType<typeof createMessagesStore>
+}): void {
+  if (params.row.channel_id && params.row.channel_id !== params.activeChannelId) {
+    return
+  }
+  params.messagesStore.reconcileUpdatedMessage(params.row)
+}
+
+export function handleRealtimeReactionEvent(params: {
+  eventType: 'INSERT' | 'DELETE'
+  reaction: MessageReaction
+  activeChannelId: string | null
+  messagesStore: ReturnType<typeof createMessagesStore>
+}): void {
+  if (params.reaction.channel_id && params.reaction.channel_id !== params.activeChannelId) {
+    return
+  }
+  if (params.eventType === 'INSERT') {
+    params.messagesStore.applyReactionAdded(params.reaction)
+  } else {
+    params.messagesStore.applyReactionRemoved(params.reaction)
   }
 }
 
@@ -74,7 +106,6 @@ export function applyRealtimeProfileUpdate(params: {
   return updatedFriends
 }
 
-
 export function useChatRoom() {
   const supabase = useSupabaseClient()
   const authProfile = useAuthProfile()
@@ -109,6 +140,57 @@ export function useChatRoom() {
         profilesCache.set(row.author.id, row.author)
       }
     }
+  }
+
+  async function hydrateMessagesWithReactionsAndReplies(
+    rows: any[],
+  ): Promise<Array<Omit<ChatMessage, 'status'>>> {
+    if (!rows || rows.length === 0) return []
+
+    const messageIds = rows.map(r => r.id)
+    const reactionsByMsgId = new Map<string, MessageReaction[]>()
+
+    try {
+      const { data: reactionRows } = await supabase
+        .from('message_reactions')
+        .select('*')
+        .in('message_id', messageIds)
+
+      if (reactionRows) {
+        for (const r of reactionRows as MessageReaction[]) {
+          const list = reactionsByMsgId.get(r.message_id) || []
+          list.push(r)
+          reactionsByMsgId.set(r.message_id, list)
+        }
+      }
+    } catch {
+      // Ignore reaction hydration errors
+    }
+
+    const knownById = new Map<string, any>()
+    for (const m of messages.value) {
+      knownById.set(m.id, m)
+    }
+    for (const r of rows) {
+      knownById.set(r.id, r)
+    }
+
+    return rows.map((r) => {
+      const parent = r.reply_to_id ? knownById.get(r.reply_to_id) : null
+      return {
+        ...r,
+        reactions: reactionsByMsgId.get(r.id) || r.reactions || [],
+        reply_to: parent
+          ? {
+              id: parent.id,
+              user_id: parent.user_id,
+              content: parent.content,
+              deleted_at: parent.deleted_at || null,
+              author: parent.author,
+            }
+          : (r.reply_to || null),
+      }
+    })
   }
 
   const connectionManager = createConnectionManager(async () => {
@@ -159,7 +241,8 @@ export function useChatRoom() {
 
       if (data && !error && data.length > 0) {
         cacheProfilesFromMessages(data)
-        messagesStore.mergeGapMessages(data)
+        const hydrated = await hydrateMessagesWithReactionsAndReplies(data)
+        messagesStore.mergeGapMessages(hydrated)
       }
     } catch {
       // Ignored
@@ -198,7 +281,6 @@ export function useChatRoom() {
       return false
     }
   }
-
 
   function setupPresenceSubscription(): void {
     if (presenceChannel) {
@@ -264,12 +346,60 @@ export function useChatRoom() {
             },
           })
 
+          const parentMsg = newRow.reply_to_id
+            ? messages.value.find(m => m.id === newRow.reply_to_id)
+            : undefined
+          const replyTarget: ReplyTarget | null = parentMsg
+            ? {
+                id: parentMsg.id,
+                user_id: parentMsg.user_id,
+                content: parentMsg.content,
+                deleted_at: parentMsg.deleted_at || null,
+                author: parentMsg.author,
+              }
+            : null
+
           handleIncomingRealtimeMessage({
-            row: { ...newRow, author },
+            row: { ...newRow, author, reply_to: replyTarget, reactions: [] },
             activeChannelId: activeChannelId.value,
             messagesStore,
             typingTracker,
             unreadCounts: unreadCounts.value,
+          })
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages' },
+        (payload) => {
+          handleRealtimeMessageUpdate({
+            row: payload.new as any,
+            activeChannelId: activeChannelId.value,
+            messagesStore,
+          })
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'message_reactions' },
+        (payload) => {
+          handleRealtimeReactionEvent({
+            eventType: 'INSERT',
+            reaction: payload.new as MessageReaction,
+            activeChannelId: activeChannelId.value,
+            messagesStore,
+          })
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'message_reactions' },
+        (payload) => {
+          handleRealtimeReactionEvent({
+            eventType: 'DELETE',
+            reaction: payload.old as MessageReaction,
+            activeChannelId: activeChannelId.value,
+            messagesStore,
           })
         },
       )
@@ -366,7 +496,11 @@ export function useChatRoom() {
         hasMoreHistory.value = data.length >= PAGE_SIZE
         const chronological = [...data].reverse()
         cacheProfilesFromMessages(chronological)
-        messagesStore.setInitialHistory(chronological, channelId)
+        const hydrated = await hydrateMessagesWithReactionsAndReplies(chronological)
+        if (activeChannelId.value !== channelId) {
+          return
+        }
+        messagesStore.setInitialHistory(hydrated, channelId)
       } else {
         messagesStore.setInitialHistory([], channelId)
       }
@@ -404,10 +538,10 @@ export function useChatRoom() {
         }
         const chronological = [...data].reverse()
         cacheProfilesFromMessages(chronological)
-        return messagesStore.prependHistoryPage(chronological)
+        const hydrated = await hydrateMessagesWithReactionsAndReplies(chronological)
+        return messagesStore.prependHistoryPage(hydrated)
       }
     } finally {
-
       isLoadingHistory.value = false
     }
     return 0
@@ -450,7 +584,7 @@ export function useChatRoom() {
     return { channel: newChannel, error: null }
   }
 
-  async function sendMessage(content: string): Promise<void> {
+  async function sendMessage(content: string, replyToId?: string | null): Promise<void> {
     if (!activeChannelId.value || !isValidMessageContent(content)) return
     let current = authProfile.currentProfile.value
     if (!current?.id) {
@@ -462,11 +596,24 @@ export function useChatRoom() {
       ? crypto.randomUUID()
       : '00000000-0000-4000-8000-' + Math.random().toString(16).slice(2, 14).padEnd(12, '0')
 
+    const parentMsg = replyToId ? messages.value.find(m => m.id === replyToId) : undefined
+    const replyTarget: ReplyTarget | null = parentMsg
+      ? {
+          id: parentMsg.id,
+          user_id: parentMsg.user_id,
+          content: parentMsg.content,
+          deleted_at: parentMsg.deleted_at || null,
+          author: parentMsg.author,
+        }
+      : null
+
     messagesStore.addOptimisticMessage({
       clientId,
       channelId: activeChannelId.value,
       user: current,
       content: content.trim(),
+      replyToId: replyToId || null,
+      replyTo: replyTarget,
     })
 
     try {
@@ -477,6 +624,7 @@ export function useChatRoom() {
           channel_id: activeChannelId.value,
           user_id: current.id,
           content: content.trim(),
+          reply_to_id: replyToId || null,
         })
         .select('*, author:profiles(id, display_name, avatar_color)')
         .single()
@@ -489,7 +637,7 @@ export function useChatRoom() {
             .eq('client_id', clientId)
             .single()
           if (existing) {
-            messagesStore.markMessageSent(clientId, existing)
+            messagesStore.markMessageSent(clientId, { ...existing, reply_to: replyTarget })
           } else {
             messagesStore.markMessageFailed(clientId)
           }
@@ -497,7 +645,7 @@ export function useChatRoom() {
           messagesStore.markMessageFailed(clientId)
         }
       } else if (data) {
-        messagesStore.markMessageSent(clientId, data)
+        messagesStore.markMessageSent(clientId, { ...data, reply_to: replyTarget })
       }
     } catch {
       messagesStore.markMessageFailed(clientId)
@@ -516,6 +664,7 @@ export function useChatRoom() {
           channel_id: retrying.channel_id,
           user_id: retrying.user_id,
           content: retrying.content,
+          reply_to_id: retrying.reply_to_id || null,
         })
         .select('*, author:profiles(id, display_name, avatar_color)')
         .single()
@@ -528,7 +677,7 @@ export function useChatRoom() {
             .eq('client_id', clientId)
             .single()
           if (existing) {
-            messagesStore.markMessageSent(clientId, existing)
+            messagesStore.markMessageSent(clientId, { ...existing, reply_to: retrying.reply_to })
           } else {
             messagesStore.markMessageFailed(clientId)
           }
@@ -536,7 +685,7 @@ export function useChatRoom() {
           messagesStore.markMessageFailed(clientId)
         }
       } else if (data) {
-        messagesStore.markMessageSent(clientId, data)
+        messagesStore.markMessageSent(clientId, { ...data, reply_to: retrying.reply_to })
       }
     } catch {
       messagesStore.markMessageFailed(clientId)
@@ -545,6 +694,99 @@ export function useChatRoom() {
 
   function dismissMessage(clientId: string): void {
     messagesStore.dismissMessage(clientId)
+  }
+
+  async function editMessage(
+    messageId: string,
+    newContent: string,
+  ): Promise<{ error: string | null }> {
+    if (!isValidMessageContent(newContent)) {
+      return { error: 'Message content must be 1–4000 characters.' }
+    }
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    if (!current?.id) {
+      return { error: 'Not authenticated.' }
+    }
+
+    const trimmed = newContent.trim()
+    const editedAt = new Date().toISOString()
+    messagesStore.reconcileUpdatedMessage({
+      id: messageId,
+      content: trimmed,
+      edited_at: editedAt,
+    })
+
+    const { error } = await supabase
+      .from('messages')
+      .update({ content: trimmed, edited_at: editedAt })
+      .eq('id', messageId)
+      .eq('user_id', current.id)
+
+    return { error: error ? error.message : null }
+  }
+
+  async function deleteMessage(messageId: string): Promise<{ error: string | null }> {
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    if (!current?.id) {
+      return { error: 'Not authenticated.' }
+    }
+
+    const deletedAt = new Date().toISOString()
+    messagesStore.reconcileUpdatedMessage({
+      id: messageId,
+      deleted_at: deletedAt,
+    })
+
+    const { error } = await supabase
+      .from('messages')
+      .update({ deleted_at: deletedAt })
+      .eq('id', messageId)
+      .eq('user_id', current.id)
+
+    return { error: error ? error.message : null }
+  }
+
+  async function toggleReaction(
+    messageId: string,
+    emoji: string,
+  ): Promise<{ error: string | null }> {
+    if (!isValidReactionEmoji(emoji) || !activeChannelId.value) {
+      return { error: 'Invalid reaction.' }
+    }
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    if (!current?.id) {
+      return { error: 'Not authenticated.' }
+    }
+
+    const targetMsg = messages.value.find(m => m.id === messageId)
+    const alreadyReacted = Boolean(
+      targetMsg?.reactions?.some(r => r.user_id === current.id && r.emoji === emoji),
+    )
+
+    if (alreadyReacted) {
+      messagesStore.applyReactionRemoved({
+        message_id: messageId,
+        user_id: current.id,
+        emoji,
+      })
+      const { error } = await supabase
+        .from('message_reactions')
+        .delete()
+        .match({ message_id: messageId, user_id: current.id, emoji })
+      return { error: error ? error.message : null }
+    } else {
+      const optimisticReaction: MessageReaction = {
+        message_id: messageId,
+        channel_id: activeChannelId.value,
+        user_id: current.id,
+        emoji,
+      }
+      messagesStore.applyReactionAdded(optimisticReaction)
+      const { error } = await supabase
+        .from('message_reactions')
+        .insert(optimisticReaction)
+      return { error: error ? error.message : null }
+    }
   }
 
   async function retryConnectionNow(): Promise<void> {
@@ -622,6 +864,9 @@ export function useChatRoom() {
     sendMessage,
     retryMessage,
     dismissMessage,
+    editMessage,
+    deleteMessage,
+    toggleReaction,
     loadOlderMessages,
     notifyTyping,
     retryConnectionNow,
@@ -629,4 +874,3 @@ export function useChatRoom() {
     cleanupChat,
   }
 }
-

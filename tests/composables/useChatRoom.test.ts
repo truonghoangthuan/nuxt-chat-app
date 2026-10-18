@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   handleIncomingRealtimeMessage,
+  handleRealtimeMessageUpdate,
+  handleRealtimeReactionEvent,
   isDuplicateKeyError,
   resolveMessageAuthor,
   applyRealtimeProfileUpdate,
@@ -145,6 +147,76 @@ describe('useChatRoom realtime message routing & profile caching', () => {
     expect(extractAuthUserId({ sub: 'uuid-from-jwt-sub' })).toBe('uuid-from-jwt-sub')
     expect(extractAuthUserId({ id: 'uuid-from-user-id' })).toBe('uuid-from-user-id')
     expect(extractAuthUserId(null)).toBeNull()
+  })
+
+  it('routes realtime message UPDATE and reaction INSERT/DELETE events for the active channel', () => {
+    const store = createMessagesStore()
+    store.setInitialHistory([
+      {
+        id: 'm-1',
+        client_id: 'c-1',
+        channel_id: 'ch-general',
+        user_id: 'u-alice',
+        content: 'Initial text',
+        created_at: '2026-10-18T10:00:00Z',
+      },
+    ])
+
+    // Ignore UPDATE from inactive channel
+    handleRealtimeMessageUpdate({
+      row: {
+        id: 'm-1',
+        channel_id: 'ch-random',
+        content: 'Should be ignored',
+        edited_at: '2026-10-18T10:01:00Z',
+      },
+      activeChannelId: 'ch-general',
+      messagesStore: store,
+    })
+    expect(store.messages.value[0].content).toBe('Initial text')
+
+    // Apply UPDATE for active channel
+    handleRealtimeMessageUpdate({
+      row: {
+        id: 'm-1',
+        channel_id: 'ch-general',
+        content: 'Updated text',
+        edited_at: '2026-10-18T10:01:00Z',
+      },
+      activeChannelId: 'ch-general',
+      messagesStore: store,
+    })
+    expect(store.messages.value[0].content).toBe('Updated text')
+    expect(store.messages.value[0].edited_at).toBe('2026-10-18T10:01:00Z')
+
+    // Reaction INSERT & DELETE
+    handleRealtimeReactionEvent({
+      eventType: 'INSERT',
+      reaction: {
+        id: 'r-1',
+        message_id: 'm-1',
+        channel_id: 'ch-general',
+        user_id: 'u-bob',
+        emoji: '🔥',
+      },
+      activeChannelId: 'ch-general',
+      messagesStore: store,
+    })
+    expect(store.messages.value[0].reactions).toHaveLength(1)
+
+    handleRealtimeReactionEvent({
+      eventType: 'DELETE',
+      reaction: {
+        id: 'r-1',
+        message_id: 'm-1',
+        channel_id: 'ch-general',
+        user_id: 'u-bob',
+        emoji: '🔥',
+      },
+      activeChannelId: 'ch-general',
+      messagesStore: store,
+    })
+    expect(store.messages.value[0].reactions).toHaveLength(0)
   })
 })
 
