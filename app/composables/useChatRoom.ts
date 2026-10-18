@@ -1,11 +1,12 @@
 import { ref, computed, type ComputedRef, type Ref } from 'vue'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import type { Channel, ChatMessage, MessageReaction, Profile, ReplyTarget, ConnectionStatus } from '~/types/chat'
+import type { Channel, ChatMessage, MessageReaction, Profile, ReplyTarget, ConnectionStatus, ChannelRead } from '~/types/chat'
 import {
   normalizeChannelSlug,
   isValidChannelSlug,
   isValidMessageContent,
   isValidReactionEmoji,
+  doesMessageMentionUser,
 } from '~/utils/chat'
 import { createMessagesStore } from '~/composables/useMessagesState'
 import { createTypingTracker } from '~/composables/useTypingState'
@@ -22,18 +23,64 @@ export function isDuplicateKeyError(error: any): boolean {
   return msg.includes('duplicate key') || msg.includes('unique constraint')
 }
 
+export function computeUnreadSnapshot(params: {
+  messages: Array<Pick<ChatMessage, 'id' | 'channel_id' | 'user_id' | 'content' | 'created_at' | 'deleted_at' | 'reply_to_id'>>
+  lastReadByChannel: Record<string, string>
+  activeChannelId: string | null
+  currentUserId: string
+  currentDisplayName?: string | null
+}): {
+  unreadCounts: Record<string, number>
+  unreadMentions: Record<string, number>
+} {
+  const unreadCounts: Record<string, number> = {}
+  const unreadMentions: Record<string, number> = {}
+
+  for (const msg of params.messages) {
+    if (!msg || msg.deleted_at) continue
+    if (msg.channel_id === params.activeChannelId) continue
+    if (params.currentUserId && msg.user_id === params.currentUserId) continue
+
+    const lastReadIso = params.lastReadByChannel[msg.channel_id]
+    if (lastReadIso && Date.parse(msg.created_at) <= Date.parse(lastReadIso)) {
+      continue
+    }
+
+    unreadCounts[msg.channel_id] = (unreadCounts[msg.channel_id] || 0) + 1
+    if (doesMessageMentionUser(msg.content, params.currentDisplayName)) {
+      unreadMentions[msg.channel_id] = (unreadMentions[msg.channel_id] || 0) + 1
+    }
+  }
+
+  return { unreadCounts, unreadMentions }
+}
+
 export function handleIncomingRealtimeMessage(params: {
   row: Omit<ChatMessage, 'status'>
   activeChannelId: string | null
   messagesStore: ReturnType<typeof createMessagesStore>
   typingTracker: ReturnType<typeof createTypingTracker>
   unreadCounts: Record<string, number>
+  unreadMentions?: Record<string, number>
+  currentUserId?: string
+  currentDisplayName?: string | null
 }): void {
   if (params.row.channel_id === params.activeChannelId) {
     params.messagesStore.reconcileIncomingMessage(params.row)
     params.typingTracker.clearUserTyping(params.row.user_id)
   } else {
     params.unreadCounts[params.row.channel_id] = (params.unreadCounts[params.row.channel_id] || 0) + 1
+    if (
+      params.unreadMentions
+      && !params.row.deleted_at
+      && (!params.currentUserId || params.row.user_id !== params.currentUserId)
+      && (
+        doesMessageMentionUser(params.row.content, params.currentDisplayName)
+        || (params.currentUserId && params.row.reply_to?.user_id === params.currentUserId)
+      )
+    ) {
+      params.unreadMentions[params.row.channel_id] = (params.unreadMentions[params.row.channel_id] || 0) + 1
+    }
   }
 }
 
@@ -117,6 +164,22 @@ export function useChatRoom() {
   })
 
   const unreadCounts = ref<Record<string, number>>({})
+  const unreadMentions = ref<Record<string, number>>({})
+  const lastReadByChannel = ref<Record<string, string>>({})
+  const activeChannelUnreadSince = ref<string | null>(null)
+  const knownProfiles = computed<Profile[]>(() => {
+    const map = new Map<string, Profile>()
+    for (const p of profilesCache.values()) {
+      map.set(p.id, p)
+    }
+    for (const f of onlineFriends.value) {
+      map.set(f.id, f)
+    }
+    if (authProfile.currentProfile.value) {
+      map.set(authProfile.currentProfile.value.id, authProfile.currentProfile.value)
+    }
+    return Array.from(map.values()).sort((a, b) => a.display_name.localeCompare(b.display_name))
+  })
   const onlineFriends = ref<Profile[]>([])
   const hasMoreHistory = ref<boolean>(true)
   const isLoadingHistory = ref<boolean>(false)
@@ -139,6 +202,75 @@ export function useChatRoom() {
       if (row.author?.id) {
         profilesCache.set(row.author.id, row.author)
       }
+    }
+  }
+
+  async function markChannelRead(channelId: string): Promise<void> {
+    const current = authProfile.currentProfile.value
+    const nowIso = new Date().toISOString()
+    lastReadByChannel.value[channelId] = nowIso
+    if (!current?.id) return
+
+    try {
+      await supabase
+        .from('channel_reads')
+        .upsert({
+          user_id: current.id,
+          channel_id: channelId,
+          last_read_at: nowIso,
+        })
+    } catch {
+      // Ignore channel_reads upsert error
+    }
+  }
+
+  async function loadChannelReadsAndUnreads(): Promise<void> {
+    const current = authProfile.currentProfile.value
+    if (!current?.id || channels.value.length === 0) return
+
+    try {
+      const { data: readRows } = await supabase
+        .from('channel_reads')
+        .select('*')
+        .eq('user_id', current.id)
+
+      const map: Record<string, string> = {}
+      const nowIso = new Date().toISOString()
+      if (readRows) {
+        for (const r of readRows as ChannelRead[]) {
+          map[r.channel_id] = r.last_read_at
+        }
+      }
+      for (const ch of channels.value) {
+        if (!map[ch.id]) {
+          map[ch.id] = nowIso
+        }
+      }
+      lastReadByChannel.value = map
+
+      const timestamps = Object.values(map)
+      if (timestamps.length === 0) return
+      const oldestRead = timestamps.reduce((a, b) => (a < b ? a : b))
+
+      const { data: recentMessages } = await supabase
+        .from('messages')
+        .select('id, channel_id, user_id, content, created_at, deleted_at, reply_to_id')
+        .gt('created_at', oldestRead)
+        .order('created_at', { ascending: true })
+
+      if (recentMessages) {
+        const snapshot = computeUnreadSnapshot({
+          messages: recentMessages as any,
+          lastReadByChannel: map,
+          activeChannelId: activeChannelId.value,
+          currentUserId: current.id,
+          currentDisplayName: current.display_name,
+        })
+        unreadCounts.value = snapshot.unreadCounts
+        unreadMentions.value = snapshot.unreadMentions
+      }
+    } catch {
+      // Ignore unread hydration failure
     }
   }
 
@@ -274,6 +406,7 @@ export function useChatRoom() {
       const ok = results.every(Boolean)
       if (ok) {
         await fetchGapMessages()
+        await loadChannelReadsAndUnreads()
         return true
       }
       return false
@@ -365,7 +498,13 @@ export function useChatRoom() {
             messagesStore,
             typingTracker,
             unreadCounts: unreadCounts.value,
+            unreadMentions: unreadMentions.value,
+            currentUserId: authProfile.currentProfile.value?.id,
+            currentDisplayName: authProfile.currentProfile.value?.display_name,
           })
+          if (newRow.channel_id === activeChannelId.value) {
+            markChannelRead(newRow.channel_id)
+          }
         },
       )
       .on(
@@ -474,8 +613,13 @@ export function useChatRoom() {
   }
 
   async function selectChannel(channelId: string): Promise<void> {
+    const priorLastRead = lastReadByChannel.value[channelId] || null
+    const hadUnreads = (unreadCounts.value[channelId] || 0) > 0
+    activeChannelUnreadSince.value = hadUnreads ? priorLastRead : null
     activeChannelId.value = channelId
     unreadCounts.value[channelId] = 0
+    unreadMentions.value[channelId] = 0
+    markChannelRead(channelId)
     setupTypingSubscription(channelId)
 
     try {
@@ -804,6 +948,7 @@ export function useChatRoom() {
   async function initializeChat(): Promise<void> {
     await authProfile.ensureProfile()
     await loadChannels()
+    await loadChannelReadsAndUnreads()
     setupPresenceSubscription()
     setupDbChangesSubscription()
 
@@ -854,6 +999,9 @@ export function useChatRoom() {
     hasMoreHistory,
     isLoadingHistory,
     unreadCounts,
+    unreadMentions,
+    activeChannelUnreadSince,
+    knownProfiles,
     onlineFriends,
     typingLabel,
     connectionStatus,
@@ -871,6 +1019,7 @@ export function useChatRoom() {
     notifyTyping,
     retryConnectionNow,
     syncOwnProfile,
+    markChannelRead,
     cleanupChat,
   }
 }

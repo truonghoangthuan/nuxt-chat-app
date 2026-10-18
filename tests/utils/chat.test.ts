@@ -15,6 +15,10 @@ import {
   REACTION_EMOJIS,
   isValidReactionEmoji,
   summarizeReactions,
+  extractActiveMentionQuery,
+  applyMentionAutocomplete,
+  doesMessageMentionUser,
+  tokenizeMessageMentions,
 } from '~/utils/chat'
 import type { ChatMessage } from '~/types/chat'
 
@@ -201,6 +205,90 @@ describe('chat utils', () => {
 
     const timeline = buildMessageTimeline(messages, now)
     expect(timeline[1].isCompact).toBe(false)
+  })
+
+  it('detects active @mention query at cursor and replaces it with selected display name', () => {
+    const text = 'Hey @ali how are you?'
+    const active = extractActiveMentionQuery(text, 8) // cursor right after "@ali"
+    expect(active).toEqual({
+      query: 'ali',
+      startIndex: 4,
+      endIndex: 8,
+    })
+
+    const replaced = applyMentionAutocomplete(text, active!, 'Alice Wonderland')
+    expect(replaced).toBe('Hey @Alice Wonderland  how are you?')
+
+    // Email address should not trigger @mention autocomplete
+    expect(extractActiveMentionQuery('contact me@example.com', 18)).toBeNull()
+  })
+
+  it('detects whether a message mentions a display name and tokenizes mention segments', () => {
+    expect(doesMessageMentionUser('Hello @Alice!', 'Alice')).toBe(true)
+    expect(doesMessageMentionUser('Hey @Alice Wonderland, ready?', 'Alice Wonderland')).toBe(true)
+    expect(doesMessageMentionUser('Hello @Alicia', 'Alice')).toBe(false)
+
+    const segments = tokenizeMessageMentions(
+      'Hey @Alice Wonderland and @Bob!',
+      'Alice Wonderland',
+      ['Alice Wonderland', 'Bob'],
+    )
+    expect(segments).toEqual([
+      { text: 'Hey ', isMention: false, isMe: false },
+      { text: '@Alice Wonderland', isMention: true, isMe: true },
+      { text: ' and ', isMention: false, isMe: false },
+      { text: '@Bob', isMention: true, isMe: false },
+      { text: '!', isMention: false, isMe: false },
+    ])
+  })
+
+  it('places showUnreadDivider on the first unread message from another user and flags isMentioningMe', () => {
+    const now = new Date(2026, 9, 18, 15, 0, 0)
+    const lastReadAt = new Date(2026, 9, 18, 10, 0, 30).toISOString()
+
+    const messages: ChatMessage[] = [
+      {
+        id: 'm-1',
+        client_id: 'c-1',
+        channel_id: 'ch-1',
+        user_id: 'u-bob',
+        content: 'Already read message',
+        created_at: new Date(2026, 9, 18, 10, 0, 0).toISOString(),
+        status: 'sent',
+      },
+      {
+        id: 'm-2',
+        client_id: 'c-2',
+        channel_id: 'ch-1',
+        user_id: 'u-bob',
+        content: 'First unread message mentioning @Alice',
+        created_at: new Date(2026, 9, 18, 10, 1, 0).toISOString(),
+        status: 'sent',
+      },
+      {
+        id: 'm-3',
+        client_id: 'c-3',
+        channel_id: 'ch-1',
+        user_id: 'u-bob',
+        content: 'Second unread message 30s later',
+        created_at: new Date(2026, 9, 18, 10, 1, 30).toISOString(),
+        status: 'sent',
+      },
+    ]
+
+    const timeline = buildMessageTimeline(messages, now, {
+      lastReadAt,
+      currentUserId: 'u-alice',
+      currentDisplayName: 'Alice',
+    })
+
+    expect(timeline[0].showUnreadDivider).toBe(false)
+    expect(timeline[1].showUnreadDivider).toBe(true)
+    expect(timeline[1].isCompact).toBe(false) // Unread boundary breaks compact grouping
+    expect(timeline[1].isMentioningMe).toBe(true)
+    expect(timeline[2].showUnreadDivider).toBe(false)
+    expect(timeline[2].isCompact).toBe(true)
+    expect(timeline[2].isMentioningMe).toBe(false)
   })
 })
 
