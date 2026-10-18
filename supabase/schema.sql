@@ -108,6 +108,50 @@ create policy "Authenticated users can insert messages"
 create index if not exists messages_channel_cursor_idx
   on public.messages (channel_id, created_at desc, id desc);
 
+-- 3b. Message Lifecycle Extensions (Edit, Soft-Delete, Replies)
+alter table public.messages
+  add column if not exists reply_to_id uuid references public.messages(id) on delete set null,
+  add column if not exists edited_at timestamptz,
+  add column if not exists deleted_at timestamptz;
+
+create policy "Users can update their own messages"
+  on public.messages for update
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- 4. Message Reactions Table
+create table if not exists public.message_reactions (
+  id uuid primary key default gen_random_uuid(),
+  message_id uuid not null references public.messages(id) on delete cascade,
+  channel_id uuid not null references public.channels(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  emoji text not null,
+  created_at timestamptz not null default now(),
+  unique (message_id, user_id, emoji)
+);
+
+alter table public.message_reactions replica identity full;
+alter table public.message_reactions enable row level security;
+
+create policy "Authenticated users can view message reactions"
+  on public.message_reactions for select
+  to authenticated
+  using (true);
+
+create policy "Authenticated users can insert their own reactions"
+  on public.message_reactions for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "Authenticated users can delete their own reactions"
+  on public.message_reactions for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
+create index if not exists message_reactions_channel_idx
+  on public.message_reactions (channel_id, message_id);
+
 -- Realtime Publication
 do $$
 begin
@@ -127,6 +171,16 @@ begin
   end if;
 exception when duplicate_object then
   -- table already in publication
+  null;
+end;
+$$;
+
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    alter publication supabase_realtime add table public.message_reactions;
+  end if;
+exception when duplicate_object then
   null;
 end;
 $$;

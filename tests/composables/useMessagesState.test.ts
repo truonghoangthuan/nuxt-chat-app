@@ -166,5 +166,102 @@ describe('useMessagesState', () => {
     })
     expect(store.messages.value[1].author?.display_name).toBe('Bob')
   })
+
+  it('reconciles message edits and soft-deletes in-place and cascades updates to child reply_to previews', () => {
+    const store = createMessagesStore()
+    store.setInitialHistory([
+      {
+        id: 'm-parent',
+        client_id: 'c-parent',
+        channel_id: 'ch-1',
+        user_id: alice.id,
+        content: 'Original parent text',
+        created_at: '2026-10-18T10:00:00Z',
+        author: alice,
+      },
+      {
+        id: 'm-reply',
+        client_id: 'c-reply',
+        channel_id: 'ch-1',
+        user_id: 'u-bob',
+        content: 'Replying to Alice',
+        created_at: '2026-10-18T10:01:00Z',
+        reply_to_id: 'm-parent',
+        reply_to: {
+          id: 'm-parent',
+          user_id: alice.id,
+          content: 'Original parent text',
+          author: alice,
+        },
+      },
+    ])
+
+    // 1. Edit parent message
+    const edited = store.reconcileUpdatedMessage({
+      id: 'm-parent',
+      content: 'Edited parent text',
+      edited_at: '2026-10-18T10:02:00Z',
+      deleted_at: null,
+    })
+    expect(edited).toBe(true)
+    expect(store.messages.value[0].content).toBe('Edited parent text')
+    expect(store.messages.value[0].edited_at).toBe('2026-10-18T10:02:00Z')
+    expect(store.messages.value[1].reply_to?.content).toBe('Edited parent text')
+
+    // 2. Soft-delete parent message
+    const deleted = store.reconcileUpdatedMessage({
+      id: 'm-parent',
+      content: 'Edited parent text',
+      edited_at: '2026-10-18T10:02:00Z',
+      deleted_at: '2026-10-18T10:03:00Z',
+    })
+    expect(deleted).toBe(true)
+    expect(store.messages.value[0].deleted_at).toBe('2026-10-18T10:03:00Z')
+    expect(store.messages.value[1].reply_to?.deleted_at).toBe('2026-10-18T10:03:00Z')
+  })
+
+  it('adds and removes message reactions idempotently', () => {
+    const store = createMessagesStore()
+    store.setInitialHistory([
+      {
+        id: 'm-1',
+        client_id: 'c-1',
+        channel_id: 'ch-1',
+        user_id: alice.id,
+        content: 'React to me!',
+        created_at: '2026-10-18T10:00:00Z',
+        author: alice,
+      },
+    ])
+
+    const added1 = store.applyReactionAdded({
+      id: 'r-1',
+      message_id: 'm-1',
+      channel_id: 'ch-1',
+      user_id: 'u-bob',
+      emoji: '👍',
+    })
+    expect(added1).toBe(true)
+    expect(store.messages.value[0].reactions).toHaveLength(1)
+
+    // Duplicate (same user_id + emoji) is ignored
+    const addedDup = store.applyReactionAdded({
+      id: 'r-1',
+      message_id: 'm-1',
+      channel_id: 'ch-1',
+      user_id: 'u-bob',
+      emoji: '👍',
+    })
+    expect(addedDup).toBe(false)
+    expect(store.messages.value[0].reactions).toHaveLength(1)
+
+    const removed = store.applyReactionRemoved({
+      message_id: 'm-1',
+      user_id: 'u-bob',
+      emoji: '👍',
+    })
+    expect(removed).toBe(true)
+    expect(store.messages.value[0].reactions).toHaveLength(0)
+  })
 })
 

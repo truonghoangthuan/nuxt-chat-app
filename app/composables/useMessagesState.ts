@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import type { ChatMessage, Profile } from '~/types/chat'
+import type { ChatMessage, MessageReaction, Profile, ReplyTarget } from '~/types/chat'
 import { isValidMessageContent } from '~/utils/chat'
 
 export function createMessagesStore() {
@@ -40,6 +40,8 @@ export function createMessagesStore() {
     user: Profile
     content: string
     createdAt?: string
+    replyToId?: string | null
+    replyTo?: ReplyTarget | null
   }): ChatMessage | null {
     if (!isValidMessageContent(params.content)) {
       return null
@@ -59,6 +61,11 @@ export function createMessagesStore() {
       created_at: params.createdAt || new Date().toISOString(),
       status: 'sending',
       author: params.user,
+      reply_to_id: params.replyToId || null,
+      reply_to: params.replyTo || null,
+      edited_at: null,
+      deleted_at: null,
+      reactions: [],
     }
 
     messages.value.push(newMessage)
@@ -78,6 +85,21 @@ export function createMessagesStore() {
       current.status = 'sent'
       if (serverRow.author) {
         current.author = serverRow.author
+      }
+      if (serverRow.reply_to_id !== undefined) {
+        current.reply_to_id = serverRow.reply_to_id
+      }
+      if (serverRow.reply_to !== undefined) {
+        current.reply_to = serverRow.reply_to
+      }
+      if (serverRow.edited_at !== undefined) {
+        current.edited_at = serverRow.edited_at
+      }
+      if (serverRow.deleted_at !== undefined) {
+        current.deleted_at = serverRow.deleted_at
+      }
+      if (serverRow.reactions !== undefined) {
+        current.reactions = serverRow.reactions
       }
     } else {
       messages.value.push({
@@ -123,6 +145,21 @@ export function createMessagesStore() {
       if (serverRow.author) {
         existingByClientId.author = serverRow.author
       }
+      if (serverRow.reply_to_id !== undefined) {
+        existingByClientId.reply_to_id = serverRow.reply_to_id
+      }
+      if (serverRow.reply_to !== undefined) {
+        existingByClientId.reply_to = serverRow.reply_to
+      }
+      if (serverRow.edited_at !== undefined) {
+        existingByClientId.edited_at = serverRow.edited_at
+      }
+      if (serverRow.deleted_at !== undefined) {
+        existingByClientId.deleted_at = serverRow.deleted_at
+      }
+      if (serverRow.reactions !== undefined) {
+        existingByClientId.reactions = serverRow.reactions
+      }
       reorderMessages()
       return 'updated'
     }
@@ -133,6 +170,82 @@ export function createMessagesStore() {
     })
     reorderMessages()
     return 'appended'
+  }
+
+  function reconcileUpdatedMessage(
+    serverRow: Partial<ChatMessage> & { id: string },
+  ): boolean {
+    let found = false
+    messages.value = messages.value.map((msg) => {
+      let updated = msg
+      if (msg.id === serverRow.id) {
+        found = true
+        updated = {
+          ...msg,
+          content: serverRow.content !== undefined ? serverRow.content : msg.content,
+          edited_at: serverRow.edited_at !== undefined ? serverRow.edited_at : msg.edited_at,
+          deleted_at: serverRow.deleted_at !== undefined ? serverRow.deleted_at : msg.deleted_at,
+        }
+      }
+      if (updated.reply_to_id === serverRow.id && updated.reply_to) {
+        updated = {
+          ...updated,
+          reply_to: {
+            ...updated.reply_to,
+            content: serverRow.content !== undefined ? serverRow.content : updated.reply_to.content,
+            deleted_at: serverRow.deleted_at !== undefined ? serverRow.deleted_at : updated.reply_to.deleted_at,
+          },
+        }
+      }
+      return updated
+    })
+    return found
+  }
+
+  function applyReactionAdded(reaction: MessageReaction): boolean {
+    const idx = messages.value.findIndex(m => m.id === reaction.message_id)
+    if (idx === -1) return false
+
+    const target = messages.value[idx]
+    const currentReactions = target.reactions || []
+    const exists = currentReactions.some(
+      r => r.user_id === reaction.user_id && r.emoji === reaction.emoji,
+    )
+    if (exists) return false
+
+    const copy = [...messages.value]
+    copy[idx] = {
+      ...target,
+      reactions: [...currentReactions, reaction],
+    }
+    messages.value = copy
+    return true
+  }
+
+  function applyReactionRemoved(target: {
+    message_id: string
+    user_id: string
+    emoji: string
+  }): boolean {
+    const idx = messages.value.findIndex(m => m.id === target.message_id)
+    if (idx === -1) return false
+
+    const msg = messages.value[idx]
+    const currentReactions = msg.reactions || []
+    const nextReactions = currentReactions.filter(
+      r => !(r.user_id === target.user_id && r.emoji === target.emoji),
+    )
+    if (nextReactions.length === currentReactions.length) {
+      return false
+    }
+
+    const copy = [...messages.value]
+    copy[idx] = {
+      ...msg,
+      reactions: nextReactions,
+    }
+    messages.value = copy
+    return true
   }
 
   function setInitialHistory(rows: Array<Omit<ChatMessage, 'status'>>, currentChannelId?: string): void {
@@ -210,14 +323,24 @@ export function createMessagesStore() {
   function updateAuthorProfile(profile: Profile): number {
     let count = 0
     messages.value = messages.value.map((msg) => {
+      let updated = msg
       if (msg.user_id === profile.id) {
         count += 1
-        return {
-          ...msg,
+        updated = {
+          ...updated,
           author: { ...profile },
         }
       }
-      return msg
+      if (updated.reply_to?.user_id === profile.id) {
+        updated = {
+          ...updated,
+          reply_to: {
+            ...updated.reply_to,
+            author: { ...profile },
+          },
+        }
+      }
+      return updated
     })
     return count
   }
@@ -230,6 +353,9 @@ export function createMessagesStore() {
     markMessageRetrying,
     dismissMessage,
     reconcileIncomingMessage,
+    reconcileUpdatedMessage,
+    applyReactionAdded,
+    applyReactionRemoved,
     setInitialHistory,
     prependHistoryPage,
     mergeGapMessages,
@@ -238,4 +364,3 @@ export function createMessagesStore() {
     updateAuthorProfile,
   }
 }
-

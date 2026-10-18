@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
+import type { ChatMessage } from '~/types/chat'
 import { shouldSendOnKeydown } from '~/utils/chat'
 
 const props = withDefaults(
@@ -7,16 +8,19 @@ const props = withDefaults(
     channelSlug: string
     typingLabel?: string
     disabled?: boolean
+    replyingTo?: ChatMessage | null
   }>(),
   {
     typingLabel: '',
     disabled: false,
+    replyingTo: null,
   },
 )
 
 const emit = defineEmits<{
   (e: 'send', content: string): void
   (e: 'typing'): void
+  (e: 'cancelReply'): void
 }>()
 
 const content = ref('')
@@ -55,6 +59,26 @@ function handleSend() {
 
 <template>
   <div class="p-3 md:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+    <!-- Replying To Banner -->
+    <div
+      v-if="replyingTo"
+      data-test="reply-banner"
+      class="mb-2 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border-l-2 border-sky-500 flex items-center justify-between gap-2 text-xs"
+    >
+      <div class="truncate text-slate-600 dark:text-slate-300">
+        Replying to <span class="font-semibold text-slate-900 dark:text-white">@{{ replyingTo.author?.display_name || 'Friend' }}</span>:
+        <span class="italic ml-1">{{ replyingTo.content }}</span>
+      </div>
+      <button
+        type="button"
+        data-test="cancel-reply"
+        class="text-slate-400 hover:text-slate-700 dark:hover:text-white font-bold px-1 cursor-pointer"
+        @click="emit('cancelReply')"
+      >
+        ×
+      </button>
+    </div>
+
     <!-- Typing indicator bar -->
     <div class="h-5 mb-1 px-1 flex items-center">
       <span

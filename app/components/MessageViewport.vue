@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import type { ChatMessage } from '~/types/chat'
-import { buildMessageTimeline } from '~/utils/chat'
+import { buildMessageTimeline, REACTION_EMOJIS, summarizeReactions } from '~/utils/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
 
 const props = withDefaults(
@@ -24,14 +24,38 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'retry', clientId: string): void
   (e: 'dismiss', clientId: string): void
+  (e: 'reply', message: ChatMessage): void
+  (e: 'edit', payload: { messageId: string; content: string }): void
+  (e: 'delete', messageId: string): void
+  (e: 'toggleReaction', payload: { messageId: string; emoji: string }): void
 }>()
 
 const viewportRef = ref<HTMLDivElement | null>(null)
 const unreadNewCount = ref(0)
 const isNearBottom = ref(true)
 
-const timelineItems = computed(() => buildMessageTimeline(props.messages))
+const editingMessageId = ref<string | null>(null)
+const editingContent = ref('')
 
+function startEdit(msg: ChatMessage) {
+  editingMessageId.value = msg.id
+  editingContent.value = msg.content
+}
+
+function cancelEdit() {
+  editingMessageId.value = null
+  editingContent.value = ''
+}
+
+function saveEdit(messageId: string) {
+  const trimmed = editingContent.value.trim()
+  if (!trimmed) return
+  emit('edit', { messageId, content: trimmed })
+  editingMessageId.value = null
+  editingContent.value = ''
+}
+
+const timelineItems = computed(() => buildMessageTimeline(props.messages))
 
 function checkScrollPosition() {
   const el = viewportRef.value
@@ -138,7 +162,6 @@ onMounted(() => {
 })
 </script>
 
-
 <template>
   <div class="relative flex-1 flex flex-col min-h-0 bg-slate-50 dark:bg-slate-950">
     <!-- Messages Scroll Container -->
@@ -191,7 +214,7 @@ onMounted(() => {
         <div
           v-if="item.isCompact"
           data-test="compact-message"
-          class="flex items-start gap-3 group -mt-2.5 py-0.5 hover:bg-slate-100/60 dark:hover:bg-slate-900/50 rounded-lg px-1 -mx-1 transition-colors"
+          class="relative flex items-start gap-3 group -mt-2.5 py-0.5 hover:bg-slate-100/60 dark:hover:bg-slate-900/50 rounded-lg px-1 -mx-1 transition-colors"
         >
           <div class="w-9 shrink-0 text-right pr-1 select-none">
             <span class="text-[10px] text-slate-400 dark:text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -200,11 +223,59 @@ onMounted(() => {
           </div>
 
           <div class="flex-1 min-w-0">
+            <!-- Deleted Tombstone -->
+            <p
+              v-if="item.message.deleted_at"
+              :data-test="`deleted-tombstone-${item.message.id}`"
+              class="text-sm italic text-slate-400 dark:text-slate-500 mt-0.5"
+            >
+              This message was deleted
+            </p>
+
+            <!-- Inline Edit Box -->
+            <div v-else-if="editingMessageId === item.message.id" class="mt-1 space-y-1.5">
+              <input
+                v-model="editingContent"
+                type="text"
+                :data-test="`edit-input-${item.message.id}`"
+                class="w-full px-2.5 py-1.5 text-sm rounded-lg border border-sky-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none"
+                @keydown.enter.prevent="saveEdit(item.message.id)"
+                @keydown.esc.prevent="cancelEdit"
+              />
+              <div class="flex items-center gap-2 text-xs">
+                <button
+                  type="button"
+                  :data-test="`save-edit-${item.message.id}`"
+                  class="px-2.5 py-1 rounded bg-sky-600 text-white font-medium hover:bg-sky-500"
+                  @click="saveEdit(item.message.id)"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  :data-test="`cancel-edit-${item.message.id}`"
+                  class="px-2.5 py-1 rounded text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  @click="cancelEdit"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+
+            <!-- Message content + edited badge -->
             <div
+              v-else
               class="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words leading-relaxed"
               :class="{ 'opacity-60': item.message.status === 'sending', 'text-rose-400': item.message.status === 'failed' }"
             >
               {{ item.message.content }}
+              <span
+                v-if="item.message.edited_at && !item.message.deleted_at"
+                :data-test="`edited-badge-${item.message.id}`"
+                class="ml-1 text-[11px] text-slate-400 italic"
+              >
+                (edited)
+              </span>
             </div>
 
             <div v-if="item.message.status !== 'sent'" class="mt-0.5 flex items-center gap-2">
@@ -237,6 +308,69 @@ onMounted(() => {
                 </button>
               </span>
             </div>
+
+            <!-- Reaction Pills -->
+            <div
+              v-if="!item.message.deleted_at && summarizeReactions(item.message.reactions, currentUserId).length > 0"
+              class="mt-1.5 flex items-center flex-wrap gap-1"
+            >
+              <button
+                v-for="summary in summarizeReactions(item.message.reactions, currentUserId)"
+                :key="summary.emoji"
+                type="button"
+                :data-test="`reaction-pill-${item.message.id}-${summary.emoji}`"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors cursor-pointer"
+                :class="summary.reactedByMe ? 'bg-sky-500/15 border-sky-500/50 text-sky-600 dark:text-sky-300 font-semibold' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                @click="emit('toggleReaction', { messageId: item.message.id, emoji: summary.emoji })"
+              >
+                <span>{{ summary.emoji }}</span>
+                <span>{{ summary.count }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Hover Action Toolbar -->
+          <div
+            v-if="item.message.status === 'sent' && !item.message.deleted_at"
+            class="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-1.5 py-0.5 shadow-sm shrink-0 self-start"
+          >
+            <button
+              v-for="emoji in REACTION_EMOJIS"
+              :key="emoji"
+              type="button"
+              :data-test="`react-${item.message.id}-${emoji}`"
+              class="p-1 text-xs hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-transform hover:scale-110 cursor-pointer"
+              :title="`React ${emoji}`"
+              @click="emit('toggleReaction', { messageId: item.message.id, emoji })"
+            >
+              {{ emoji }}
+            </button>
+            <button
+              type="button"
+              :data-test="`reply-${item.message.id}`"
+              class="px-1.5 py-0.5 text-[11px] font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+              @click="emit('reply', item.message)"
+            >
+              Reply
+            </button>
+            <template v-if="item.message.user_id === currentUserId">
+              <button
+                type="button"
+                :data-test="`edit-${item.message.id}`"
+                class="px-1.5 py-0.5 text-[11px] font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+                @click="startEdit(item.message)"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                :data-test="`delete-${item.message.id}`"
+                class="px-1.5 py-0.5 text-[11px] font-medium text-rose-500 hover:text-rose-600 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                @click="emit('delete', item.message.id)"
+              >
+                Delete
+              </button>
+            </template>
           </div>
         </div>
 
@@ -244,7 +378,7 @@ onMounted(() => {
         <div
           v-else
           data-test="full-message"
-          class="flex items-start gap-3 group hover:bg-slate-100/60 dark:hover:bg-slate-900/50 rounded-lg p-1 -mx-1 transition-colors"
+          class="relative flex items-start gap-3 group hover:bg-slate-100/60 dark:hover:bg-slate-900/50 rounded-lg p-1 -mx-1 transition-colors"
         >
           <UserAvatar
             :display-name="item.message.author?.display_name || 'Friend'"
@@ -253,6 +387,20 @@ onMounted(() => {
           />
 
           <div class="flex-1 min-w-0">
+            <!-- Quoted Reply Preview -->
+            <div
+              v-if="item.message.reply_to_id"
+              :data-test="`reply-quote-${item.message.id}`"
+              class="mb-1 pl-2.5 border-l-2 border-sky-500 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 truncate"
+            >
+              <span class="font-semibold text-slate-700 dark:text-slate-300">
+                @{{ item.message.reply_to?.author?.display_name || 'Friend' }}
+              </span>
+              <span class="truncate italic">
+                {{ item.message.reply_to?.deleted_at ? 'Original message was deleted' : (item.message.reply_to?.content || 'Message') }}
+              </span>
+            </div>
+
             <div class="flex items-baseline gap-2">
               <span class="text-sm font-semibold text-slate-900 dark:text-white">
                 {{ item.message.author?.display_name || 'Friend' }}
@@ -292,17 +440,127 @@ onMounted(() => {
               </span>
             </div>
 
+            <!-- Deleted Tombstone -->
+            <p
+              v-if="item.message.deleted_at"
+              :data-test="`deleted-tombstone-${item.message.id}`"
+              class="text-sm italic text-slate-400 dark:text-slate-500 mt-0.5"
+            >
+              This message was deleted
+            </p>
+
+            <!-- Inline Edit Box -->
+            <div v-else-if="editingMessageId === item.message.id" class="mt-1 space-y-1.5">
+              <input
+                v-model="editingContent"
+                type="text"
+                :data-test="`edit-input-${item.message.id}`"
+                class="w-full px-2.5 py-1.5 text-sm rounded-lg border border-sky-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none"
+                @keydown.enter.prevent="saveEdit(item.message.id)"
+                @keydown.esc.prevent="cancelEdit"
+              />
+              <div class="flex items-center gap-2 text-xs">
+                <button
+                  type="button"
+                  :data-test="`save-edit-${item.message.id}`"
+                  class="px-2.5 py-1 rounded bg-sky-600 text-white font-medium hover:bg-sky-500"
+                  @click="saveEdit(item.message.id)"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  :data-test="`cancel-edit-${item.message.id}`"
+                  class="px-2.5 py-1 rounded text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  @click="cancelEdit"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+
+            <!-- Message content + edited badge -->
             <div
+              v-else
               class="text-sm text-slate-800 dark:text-slate-200 mt-0.5 whitespace-pre-wrap break-words leading-relaxed"
               :class="{ 'opacity-60': item.message.status === 'sending', 'text-rose-400': item.message.status === 'failed' }"
             >
               {{ item.message.content }}
+              <span
+                v-if="item.message.edited_at && !item.message.deleted_at"
+                :data-test="`edited-badge-${item.message.id}`"
+                class="ml-1 text-[11px] text-slate-400 italic"
+              >
+                (edited)
+              </span>
             </div>
+
+            <!-- Reaction Pills -->
+            <div
+              v-if="!item.message.deleted_at && summarizeReactions(item.message.reactions, currentUserId).length > 0"
+              class="mt-1.5 flex items-center flex-wrap gap-1"
+            >
+              <button
+                v-for="summary in summarizeReactions(item.message.reactions, currentUserId)"
+                :key="summary.emoji"
+                type="button"
+                :data-test="`reaction-pill-${item.message.id}-${summary.emoji}`"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors cursor-pointer"
+                :class="summary.reactedByMe ? 'bg-sky-500/15 border-sky-500/50 text-sky-600 dark:text-sky-300 font-semibold' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                @click="emit('toggleReaction', { messageId: item.message.id, emoji: summary.emoji })"
+              >
+                <span>{{ summary.emoji }}</span>
+                <span>{{ summary.count }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Hover Action Toolbar -->
+          <div
+            v-if="item.message.status === 'sent' && !item.message.deleted_at"
+            class="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-1.5 py-0.5 shadow-sm shrink-0 self-start"
+          >
+            <button
+              v-for="emoji in REACTION_EMOJIS"
+              :key="emoji"
+              type="button"
+              :data-test="`react-${item.message.id}-${emoji}`"
+              class="p-1 text-xs hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-transform hover:scale-110 cursor-pointer"
+              :title="`React ${emoji}`"
+              @click="emit('toggleReaction', { messageId: item.message.id, emoji })"
+            >
+              {{ emoji }}
+            </button>
+            <button
+              type="button"
+              :data-test="`reply-${item.message.id}`"
+              class="px-1.5 py-0.5 text-[11px] font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+              @click="emit('reply', item.message)"
+            >
+              Reply
+            </button>
+            <template v-if="item.message.user_id === currentUserId">
+              <button
+                type="button"
+                :data-test="`edit-${item.message.id}`"
+                class="px-1.5 py-0.5 text-[11px] font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+                @click="startEdit(item.message)"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                :data-test="`delete-${item.message.id}`"
+                class="px-1.5 py-0.5 text-[11px] font-medium text-rose-500 hover:text-rose-600 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                @click="emit('delete', item.message.id)"
+              >
+                Delete
+              </button>
+            </template>
           </div>
         </div>
       </template>
     </div>
-
 
     <!-- Floating "New Messages" Pill -->
     <button
