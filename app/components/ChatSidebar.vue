@@ -2,16 +2,22 @@
 import type { Channel, Profile, ConnectionStatus } from '~/types/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
 
-const props = defineProps<{
-  channels: Channel[]
-  activeChannelId: string | null
-  unreadCounts: Record<string, number>
-  onlineFriends: Profile[]
-  currentUser: Profile | null
-  isDark: boolean
-  connectionStatus: ConnectionStatus
-  isOpenMobile: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    channels: Channel[]
+    activeChannelId: string | null
+    unreadCounts: Record<string, number>
+    unreadMentions?: Record<string, number>
+    onlineFriends: Profile[]
+    currentUser: Profile | null
+    isDark: boolean
+    connectionStatus: ConnectionStatus
+    isOpenMobile: boolean
+  }>(),
+  {
+    unreadMentions: () => ({}),
+  },
+)
 
 const emit = defineEmits<{
   (e: 'selectChannel', channelId: string): void
@@ -96,13 +102,23 @@ function onChannelClick(channelId: string) {
                 <span class="truncate">{{ ch.slug }}</span>
               </div>
 
-              <!-- Unread badge -->
-              <span
-                v-if="(unreadCounts[ch.id] || 0) > 0"
-                class="px-1.5 py-0.5 rounded-full text-xs font-bold bg-sky-500 text-white min-w-5 text-center shadow-sm"
-              >
-                {{ unreadCounts[ch.id] }}
-              </span>
+              <!-- Unread & Mention badges -->
+              <div class="flex items-center gap-1 shrink-0">
+                <span
+                  v-if="(unreadMentions?.[ch.id] || 0) > 0"
+                  :data-test="`mention-badge-${ch.id}`"
+                  class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-slate-950 shadow-sm"
+                  title="You were mentioned"
+                >
+                  @
+                </span>
+                <span
+                  v-if="(unreadCounts[ch.id] || 0) > 0"
+                  class="px-1.5 py-0.5 rounded-full text-xs font-bold bg-sky-500 text-white min-w-5 text-center shadow-sm"
+                >
+                  {{ unreadCounts[ch.id] }}
+                </span>
+              </div>
             </button>
           </div>
         </div>

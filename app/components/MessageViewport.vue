@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import type { ChatMessage } from '~/types/chat'
-import { buildMessageTimeline, REACTION_EMOJIS, summarizeReactions } from '~/utils/chat'
+import { buildMessageTimeline, REACTION_EMOJIS, summarizeReactions, tokenizeMessageMentions } from '~/utils/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
 
 const props = withDefaults(
@@ -11,6 +11,8 @@ const props = withDefaults(
     hasMoreHistory?: boolean
     isLoadingHistory?: boolean
     currentUserId?: string
+    currentDisplayName?: string
+    lastReadAt?: string | null
     loadOlder: () => Promise<number>
   }>(),
   {
@@ -18,6 +20,8 @@ const props = withDefaults(
     hasMoreHistory: false,
     isLoadingHistory: false,
     currentUserId: '',
+    currentDisplayName: '',
+    lastReadAt: null,
   },
 )
 
@@ -55,7 +59,13 @@ function saveEdit(messageId: string) {
   editingContent.value = ''
 }
 
-const timelineItems = computed(() => buildMessageTimeline(props.messages))
+const timelineItems = computed(() =>
+  buildMessageTimeline(props.messages, new Date(), {
+    lastReadAt: props.lastReadAt,
+    currentUserId: props.currentUserId,
+    currentDisplayName: props.currentDisplayName,
+  }),
+)
 
 function checkScrollPosition() {
   const el = viewportRef.value
@@ -210,11 +220,25 @@ onMounted(() => {
           <div class="flex-1 h-px bg-slate-200 dark:bg-slate-800"></div>
         </div>
 
+        <!-- Unread Messages Divider -->
+        <div
+          v-if="item.showUnreadDivider"
+          data-test="unread-divider"
+          class="flex items-center gap-3 my-3"
+        >
+          <div class="flex-1 h-px bg-rose-500/60"></div>
+          <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800">
+            New messages
+          </span>
+          <div class="flex-1 h-px bg-rose-500/60"></div>
+        </div>
+
         <!-- Compact Message Row (same author within 5m on same day) -->
         <div
           v-if="item.isCompact"
-          data-test="compact-message"
+          :data-test="item.isMentioningMe ? `mention-row-${item.message.id}` : 'compact-message'"
           class="relative flex items-start gap-3 group -mt-2.5 py-0.5 hover:bg-slate-100/60 dark:hover:bg-slate-900/50 rounded-lg px-1 -mx-1 transition-colors"
+          :class="item.isMentioningMe ? 'bg-amber-500/10 border-l-2 border-amber-500 pl-2' : ''"
         >
           <div class="w-9 shrink-0 text-right pr-1 select-none">
             <span class="text-[10px] text-slate-400 dark:text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -268,7 +292,18 @@ onMounted(() => {
               class="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words leading-relaxed"
               :class="{ 'opacity-60': item.message.status === 'sending', 'text-rose-400': item.message.status === 'failed' }"
             >
-              {{ item.message.content }}
+              <template
+                v-for="(seg, sIdx) in tokenizeMessageMentions(item.message.content, currentDisplayName)"
+                :key="sIdx"
+              >
+                <span
+                  v-if="seg.isMention"
+                  data-test="mention-token"
+                  class="px-1 py-0.5 rounded font-medium"
+                  :class="seg.isMe ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300' : 'bg-sky-500/15 text-sky-600 dark:text-sky-300'"
+                >{{ seg.text }}</span>
+                <span v-else>{{ seg.text }}</span>
+              </template>
               <span
                 v-if="item.message.edited_at && !item.message.deleted_at"
                 :data-test="`edited-badge-${item.message.id}`"
@@ -377,8 +412,9 @@ onMounted(() => {
         <!-- Full Message Row -->
         <div
           v-else
-          data-test="full-message"
+          :data-test="item.isMentioningMe ? `mention-row-${item.message.id}` : 'full-message'"
           class="relative flex items-start gap-3 group hover:bg-slate-100/60 dark:hover:bg-slate-900/50 rounded-lg p-1 -mx-1 transition-colors"
+          :class="item.isMentioningMe ? 'bg-amber-500/10 border-l-2 border-amber-500 pl-2' : ''"
         >
           <UserAvatar
             :display-name="item.message.author?.display_name || 'Friend'"
@@ -485,7 +521,18 @@ onMounted(() => {
               class="text-sm text-slate-800 dark:text-slate-200 mt-0.5 whitespace-pre-wrap break-words leading-relaxed"
               :class="{ 'opacity-60': item.message.status === 'sending', 'text-rose-400': item.message.status === 'failed' }"
             >
-              {{ item.message.content }}
+              <template
+                v-for="(seg, sIdx) in tokenizeMessageMentions(item.message.content, currentDisplayName)"
+                :key="sIdx"
+              >
+                <span
+                  v-if="seg.isMention"
+                  data-test="mention-token"
+                  class="px-1 py-0.5 rounded font-medium"
+                  :class="seg.isMe ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300' : 'bg-sky-500/15 text-sky-600 dark:text-sky-300'"
+                >{{ seg.text }}</span>
+                <span v-else>{{ seg.text }}</span>
+              </template>
               <span
                 v-if="item.message.edited_at && !item.message.deleted_at"
                 :data-test="`edited-badge-${item.message.id}`"

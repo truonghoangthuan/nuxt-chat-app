@@ -19,6 +19,9 @@ const {
   hasMoreHistory,
   isLoadingHistory,
   unreadCounts,
+  unreadMentions,
+  activeChannelUnreadSince,
+  knownProfiles,
   onlineFriends,
   typingLabel,
   connectionStatus,
@@ -110,6 +113,7 @@ onUnmounted(() => {
       :channels="channels"
       :active-channel-id="activeChannelId"
       :unread-counts="unreadCounts"
+      :unread-mentions="unreadMentions"
       :online-friends="onlineFriends"
       :current-user="currentProfile"
       :is-dark="isDark"
@@ -164,6 +168,8 @@ onUnmounted(() => {
         :has-more-history="hasMoreHistory"
         :is-loading-history="isLoadingHistory"
         :current-user-id="currentProfile?.id"
+        :current-display-name="currentProfile?.display_name"
+        :last-read-at="activeChannelUnreadSince"
         :load-older="loadOlderMessages"
         @retry="retryMessage"
         @dismiss="dismissMessage"
@@ -179,6 +185,7 @@ onUnmounted(() => {
         :typing-label="typingLabel"
         :disabled="connectionStatus !== 'connected'"
         :replying-to="replyingTo"
+        :mention-candidates="knownProfiles"
         @send="handleSendMessage"
         @typing="notifyTyping"
         @cancel-reply="replyingTo = null"

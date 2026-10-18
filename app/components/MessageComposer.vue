@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
-import type { ChatMessage } from '~/types/chat'
-import { shouldSendOnKeydown } from '~/utils/chat'
+import { ref, computed, nextTick } from 'vue'
+import type { ChatMessage, Profile } from '~/types/chat'
+import { shouldSendOnKeydown, extractActiveMentionQuery, applyMentionAutocomplete } from '~/utils/chat'
+import UserAvatar from '~/components/UserAvatar.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -9,11 +10,13 @@ const props = withDefaults(
     typingLabel?: string
     disabled?: boolean
     replyingTo?: ChatMessage | null
+    mentionCandidates?: Profile[]
   }>(),
   {
     typingLabel: '',
     disabled: false,
     replyingTo: null,
+    mentionCandidates: () => [],
   },
 )
 
@@ -25,6 +28,40 @@ const emit = defineEmits<{
 
 const content = ref('')
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
+const cursorIndex = ref(0)
+const selectedMentionIndex = ref(0)
+
+const activeMention = computed(() => {
+  return extractActiveMentionQuery(content.value, cursorIndex.value)
+})
+
+const filteredMentions = computed(() => {
+  if (!activeMention.value) return []
+  const q = activeMention.value.query.toLowerCase()
+  return (props.mentionCandidates || [])
+    .filter(p => p.display_name.toLowerCase().includes(q))
+    .slice(0, 6)
+})
+
+function syncCursor() {
+  const el = textareaRef.value
+  cursorIndex.value = el?.selectionStart ?? content.value.length
+}
+
+function selectMention(profile: Profile) {
+  if (!activeMention.value) return
+  content.value = applyMentionAutocomplete(
+    content.value,
+    activeMention.value,
+    profile.display_name,
+  )
+  cursorIndex.value = content.value.length
+  selectedMentionIndex.value = 0
+  nextTick(() => {
+    textareaRef.value?.focus()
+    autoResize()
+  })
+}
 
 function autoResize() {
   const el = textareaRef.value
@@ -34,11 +71,34 @@ function autoResize() {
 }
 
 function handleInput() {
+  syncCursor()
+  selectedMentionIndex.value = 0
   autoResize()
   emit('typing')
 }
 
 function handleKeydown(event: KeyboardEvent) {
+  if (filteredMentions.value.length > 0) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      selectedMentionIndex.value = (selectedMentionIndex.value + 1) % filteredMentions.value.length
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      selectedMentionIndex.value = (selectedMentionIndex.value - 1 + filteredMentions.value.length) % filteredMentions.value.length
+      return
+    }
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault()
+      const chosen = filteredMentions.value[selectedMentionIndex.value] || filteredMentions.value[0]
+      if (chosen) {
+        selectMention(chosen)
+      }
+      return
+    }
+  }
+
   if (shouldSendOnKeydown(event)) {
     event.preventDefault()
     handleSend()
@@ -51,6 +111,8 @@ function handleSend() {
 
   emit('send', trimmed)
   content.value = ''
+  cursorIndex.value = 0
+  selectedMentionIndex.value = 0
   nextTick(() => {
     autoResize()
   })
@@ -94,6 +156,33 @@ function handleSend() {
       </span>
     </div>
 
+    <!-- @Mention Autocomplete Menu -->
+    <div
+      v-if="filteredMentions.length > 0"
+      data-test="mention-autocomplete"
+      class="mb-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg overflow-hidden"
+    >
+      <div class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-700/60">
+        Mention a friend
+      </div>
+      <button
+        v-for="(candidate, idx) in filteredMentions"
+        :key="candidate.id"
+        type="button"
+        :data-test="`mention-option-${candidate.id}`"
+        class="w-full px-3 py-1.5 flex items-center gap-2 text-xs text-left transition-colors cursor-pointer"
+        :class="idx === selectedMentionIndex ? 'bg-sky-500/15 text-sky-600 dark:text-sky-300 font-semibold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'"
+        @click="selectMention(candidate)"
+      >
+        <UserAvatar
+          :display-name="candidate.display_name"
+          :avatar-color="candidate.avatar_color"
+          size="sm"
+        />
+        <span>@{{ candidate.display_name }}</span>
+      </button>
+    </div>
+
     <!-- Input box -->
     <div class="relative flex items-end rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all p-1.5">
       <textarea
@@ -104,6 +193,8 @@ function handleSend() {
         :placeholder="`Message #${channelSlug || 'channel'} (Enter to send, Shift+Enter for newline)`"
         class="w-full resize-none bg-transparent px-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none max-h-40 overflow-y-auto"
         @input="handleInput"
+        @click="syncCursor"
+        @keyup="syncCursor"
         @keydown="handleKeydown"
       ></textarea>
 

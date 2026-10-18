@@ -4,6 +4,7 @@ import MessageComposer from '~/components/MessageComposer.vue'
 import ConnectionBanner from '~/components/ConnectionBanner.vue'
 import MessageViewport from '~/components/MessageViewport.vue'
 import CreateChannelModal from '~/components/CreateChannelModal.vue'
+import ChatSidebar from '~/components/ChatSidebar.vue'
 
 describe('Chat UI components', () => {
   it('MessageComposer emits send on Enter, newline on Shift+Enter, and renders typingLabel', async () => {
@@ -342,5 +343,92 @@ describe('Chat UI components', () => {
     await wrapper.find('[data-test="cancel-reply"]').trigger('click')
     expect(wrapper.emitted('cancelReply')).toBeTruthy()
   })
+
+  it('ChatSidebar renders @ mention badge alongside unread count when unreadMentions > 0', () => {
+    const wrapper = mount(ChatSidebar, {
+      props: {
+        channels: [
+          { id: 'ch-1', slug: 'general', description: null, created_by: null, created_at: '2026-10-16T00:00:00Z' },
+        ],
+        activeChannelId: null,
+        unreadCounts: { 'ch-1': 3 },
+        unreadMentions: { 'ch-1': 1 },
+        onlineFriends: [],
+        currentUser: null,
+        isDark: true,
+        connectionStatus: 'connected',
+        isOpenMobile: false,
+      },
+    })
+
+    const mentionBadge = wrapper.find('[data-test="mention-badge-ch-1"]')
+    expect(mentionBadge.exists()).toBe(true)
+    expect(mentionBadge.text()).toContain('@')
+  })
+
+  it('MessageComposer shows @mention autocomplete popup when typing @ and inserts selected display name', async () => {
+    const wrapper = mount(MessageComposer, {
+      props: {
+        channelSlug: 'general',
+        mentionCandidates: [
+          { id: 'u-alice', display_name: 'Alice', avatar_color: '#0284c7' },
+          { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+        ],
+      },
+    })
+
+    const textarea = wrapper.find('textarea')
+    ;(textarea.element as HTMLTextAreaElement).value = 'Hello @al'
+    ;(textarea.element as HTMLTextAreaElement).selectionStart = 9
+    await textarea.trigger('input')
+
+    const popup = wrapper.find('[data-test="mention-autocomplete"]')
+    expect(popup.exists()).toBe(true)
+    expect(popup.text()).toContain('Alice')
+
+    await wrapper.find('[data-test="mention-option-u-alice"]').trigger('click')
+    expect((textarea.element as HTMLTextAreaElement).value).toBe('Hello @Alice ')
+  })
+
+  it('MessageViewport renders New messages unread divider and highlights @mentions for current user', () => {
+    const wrapper = mount(MessageViewport, {
+      props: {
+        channelId: 'ch-1',
+        hasMoreHistory: false,
+        isLoadingHistory: false,
+        currentUserId: 'u-alice',
+        currentDisplayName: 'Alice',
+        lastReadAt: '2026-10-18T10:00:30.000Z',
+        loadOlder: vi.fn().mockResolvedValue(0),
+        messages: [
+          {
+            id: 'm-1',
+            client_id: 'c-1',
+            channel_id: 'ch-1',
+            user_id: 'u-bob',
+            content: 'Older read message',
+            created_at: '2026-10-18T10:00:00.000Z',
+            status: 'sent',
+            author: { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+          },
+          {
+            id: 'm-2',
+            client_id: 'c-2',
+            channel_id: 'ch-1',
+            user_id: 'u-bob',
+            content: 'Hey @Alice welcome back!',
+            created_at: '2026-10-18T10:01:00.000Z',
+            status: 'sent',
+            author: { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+          },
+        ],
+      },
+    })
+
+    expect(wrapper.find('[data-test="unread-divider"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="mention-row-m-2"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="mention-token"]').text()).toBe('@Alice')
+  })
 })
+
 
