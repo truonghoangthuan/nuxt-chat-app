@@ -128,4 +128,43 @@ describe('useMessagesState', () => {
     // Both should be present
     expect(store.messages.value.map(m => m.id)).toEqual(['m-old', 'm-live'])
   })
+
+  it('updates author profile in-place across all matching messages when a user edits their profile', () => {
+    const store = createMessagesStore()
+    store.setInitialHistory([
+      {
+        id: 'm-1',
+        client_id: 'c-1',
+        channel_id: 'ch-1',
+        user_id: alice.id,
+        content: 'First from Alice',
+        created_at: '2026-10-16T10:00:00Z',
+        author: alice,
+      },
+      {
+        id: 'm-2',
+        client_id: 'c-2',
+        channel_id: 'ch-1',
+        user_id: 'u-bob',
+        content: 'From Bob',
+        created_at: '2026-10-16T10:01:00Z',
+        author: { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+      },
+    ])
+
+    const updatedCount = store.updateAuthorProfile({
+      id: alice.id,
+      display_name: 'Alice Updated',
+      avatar_color: '#e11d48',
+    })
+
+    expect(updatedCount).toBe(1)
+    expect(store.messages.value[0].author).toEqual({
+      id: alice.id,
+      display_name: 'Alice Updated',
+      avatar_color: '#e11d48',
+    })
+    expect(store.messages.value[1].author?.display_name).toBe('Bob')
+  })
 })
+
