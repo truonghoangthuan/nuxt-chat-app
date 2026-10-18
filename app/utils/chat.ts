@@ -1,4 +1,11 @@
-import type { ChatMessage, TimelineMessageItem, MessageReaction, ReactionSummary } from '~/types/chat'
+import type {
+  ChatMessage,
+  TimelineMessageItem,
+  MessageReaction,
+  ReactionSummary,
+  MentionSegment,
+  ActiveMentionQuery,
+} from '~/types/chat'
 
 export const AVATAR_PALETTE = [
   '#0284c7', // Sky 600
@@ -152,14 +159,155 @@ export function formatDateDivider(isoString: string, now: Date = new Date()): st
   })
 }
 
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+export function extractActiveMentionQuery(
+  text: string,
+  cursorIndex: number,
+): ActiveMentionQuery | null {
+  if (!text || cursorIndex < 0) return null
+  const prefix = text.slice(0, cursorIndex)
+  const match = prefix.match(/(?:^|\s)@([^\s@]{0,40})$/)
+  if (!match) return null
+
+  const query = match[1] || ''
+  const startIndex = cursorIndex - query.length - 1
+  return {
+    query,
+    startIndex,
+    endIndex: cursorIndex,
+  }
+}
+
+export function applyMentionAutocomplete(
+  text: string,
+  activeQuery: ActiveMentionQuery,
+  displayName: string,
+): string {
+  const before = text.slice(0, activeQuery.startIndex)
+  const after = text.slice(activeQuery.endIndex)
+  return `${before}@${displayName} ${after}`
+}
+
+export function doesMessageMentionUser(
+  content: string,
+  displayName?: string | null,
+): boolean {
+  const cleanName = displayName?.trim()
+  if (!content || !cleanName) return false
+
+  const escaped = escapeRegExp(cleanName)
+  const regex = new RegExp(`(?:^|\\s)@${escaped}(?=$|\\s|[.,!?:;])`, 'i')
+  return regex.test(content)
+}
+
+export function tokenizeMessageMentions(
+  content: string,
+  currentDisplayName?: string | null,
+  knownDisplayNames: string[] = [],
+): MentionSegment[] {
+  if (!content) return []
+
+  const cleanCurrent = currentDisplayName?.trim() || ''
+  const namesSet = new Set<string>()
+  if (cleanCurrent) namesSet.add(cleanCurrent)
+  for (const name of knownDisplayNames) {
+    if (name && name.trim()) namesSet.add(name.trim())
+  }
+
+  // Sort longer names first so "@Alice Wonderland" matches before "@Alice"
+  const sortedNames = Array.from(namesSet).sort((a, b) => b.length - a.length)
+  const escapedKnown = sortedNames.map(escapeRegExp)
+  const patternParts = [...escapedKnown, '[A-Za-z0-9_.-]+']
+  const mentionRegex = new RegExp(`(@(?:${patternParts.join('|')}))(?=$|\\s|[.,!?:;])`, 'gi')
+
+  const segments: MentionSegment[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = mentionRegex.exec(content)) !== null) {
+    const matchIndex = match.index
+    const token = match[1]
+    const prevChar = matchIndex > 0 ? content[matchIndex - 1] : ''
+    if (prevChar && !/\s/.test(prevChar)) {
+      continue
+    }
+
+    if (matchIndex > lastIndex) {
+      segments.push({
+        text: content.slice(lastIndex, matchIndex),
+        isMention: false,
+        isMe: false,
+      })
+    }
+
+    const rawName = token.slice(1)
+    const isMe = Boolean(cleanCurrent && rawName.toLowerCase() === cleanCurrent.toLowerCase())
+    segments.push({
+      text: token,
+      isMention: true,
+      isMe,
+    })
+
+    lastIndex = matchIndex + token.length
+  }
+
+  if (lastIndex < content.length) {
+    segments.push({
+      text: content.slice(lastIndex),
+      isMention: false,
+      isMe: false,
+    })
+  }
+
+  return segments.length > 0
+    ? segments
+    : [{ text: content, isMention: false, isMe: false }]
+}
+
 export function buildMessageTimeline(
   messages: ChatMessage[],
   now: Date = new Date(),
+  options?: {
+    lastReadAt?: string | null
+    currentUserId?: string
+    currentDisplayName?: string | null
+  },
 ): TimelineMessageItem[] {
+  const lastReadMs = options?.lastReadAt ? Date.parse(options.lastReadAt) : Number.NaN
+  const hasValidLastRead = !Number.isNaN(lastReadMs)
+  let unreadDividerPlaced = false
+
   return messages.map((msg, index) => {
     const currDate = new Date(msg.created_at)
-    const currDayKey = Number.isNaN(currDate.getTime()) ? '' : getLocalDayKey(currDate)
+    const currTimeMs = currDate.getTime()
+    const currDayKey = Number.isNaN(currTimeMs) ? '' : getLocalDayKey(currDate)
     const dateLabel = formatDateDivider(msg.created_at, now)
+
+    const isFromOtherUser = !options?.currentUserId || msg.user_id !== options.currentUserId
+    let showUnreadDivider = false
+    if (
+      !unreadDividerPlaced
+      && hasValidLastRead
+      && !msg.deleted_at
+      && isFromOtherUser
+      && !Number.isNaN(currTimeMs)
+      && currTimeMs > lastReadMs
+    ) {
+      showUnreadDivider = true
+      unreadDividerPlaced = true
+    }
+
+    const isMentioningMe = Boolean(
+      !msg.deleted_at
+      && isFromOtherUser
+      && (
+        doesMessageMentionUser(msg.content, options?.currentDisplayName)
+        || (options?.currentUserId && msg.reply_to?.user_id === options.currentUserId)
+      ),
+    )
 
     if (index === 0) {
       return {
@@ -167,6 +315,8 @@ export function buildMessageTimeline(
         showDateDivider: true,
         dateLabel,
         isCompact: false,
+        showUnreadDivider,
+        isMentioningMe,
       }
     }
 
@@ -175,8 +325,9 @@ export function buildMessageTimeline(
     const prevDayKey = Number.isNaN(prevDate.getTime()) ? '' : getLocalDayKey(prevDate)
     const showDateDivider = currDayKey !== prevDayKey
 
-    const timeDiffMs = Math.abs(currDate.getTime() - prevDate.getTime())
+    const timeDiffMs = Math.abs(currTimeMs - prevDate.getTime())
     const isCompact = !showDateDivider
+      && !showUnreadDivider
       && !msg.reply_to_id
       && prev.user_id === msg.user_id
       && !Number.isNaN(timeDiffMs)
@@ -187,6 +338,8 @@ export function buildMessageTimeline(
       showDateDivider,
       dateLabel,
       isCompact,
+      showUnreadDivider,
+      isMentioningMe,
     }
   })
 }
@@ -198,3 +351,4 @@ export function shouldSendOnKeydown(event: {
 }): boolean {
   return event.key === 'Enter' && !event.shiftKey && !event.isComposing
 }
+

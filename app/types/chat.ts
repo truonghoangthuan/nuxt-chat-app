@@ -56,11 +56,31 @@ export interface ChatMessage {
   reactions?: MessageReaction[]
 }
 
+export interface ChannelRead {
+  user_id: string
+  channel_id: string
+  last_read_at: string
+}
+
+export interface MentionSegment {
+  text: string
+  isMention: boolean
+  isMe: boolean
+}
+
+export interface ActiveMentionQuery {
+  query: string
+  startIndex: number
+  endIndex: number
+}
+
 export interface TimelineMessageItem {
   message: ChatMessage
   showDateDivider: boolean
   dateLabel: string
   isCompact: boolean
+  showUnreadDivider?: boolean
+  isMentioningMe?: boolean
 }
 
 export interface TypingUser {
