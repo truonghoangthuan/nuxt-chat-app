@@ -8,6 +8,7 @@ import ConnectionBanner from '~/components/ConnectionBanner.vue'
 import MessageViewport from '~/components/MessageViewport.vue'
 import MessageComposer from '~/components/MessageComposer.vue'
 import CreateChannelModal from '~/components/CreateChannelModal.vue'
+import ProfileSettingsModal from '~/components/ProfileSettingsModal.vue'
 
 const {
   channels,
@@ -30,18 +31,36 @@ const {
   loadOlderMessages,
   notifyTyping,
   retryConnectionNow,
+  syncOwnProfile,
   cleanupChat,
 } = useChatRoom()
 
-const { currentProfile, signOut } = useAuthProfile()
+const { currentProfile, updateProfile, signOut } = useAuthProfile()
 const { isDark, toggleTheme } = useTheme()
 
 const isMobileSidebarOpen = ref(false)
 const isCreateChannelModalOpen = ref(false)
+const isProfileSettingsModalOpen = ref(false)
 
 async function handleLogout() {
   await signOut()
   await navigateTo('/login')
+}
+
+async function handleSaveProfile(payload: {
+  displayName: string
+  avatarColor: string
+  onSuccess?: () => void
+  onError?: (message: string) => void
+}) {
+  const result = await updateProfile(payload.displayName, payload.avatarColor)
+  if (result.error || !result.profile) {
+    payload.onError?.(result.error || 'Failed to update profile')
+  } else {
+    await syncOwnProfile(result.profile)
+    payload.onSuccess?.()
+    isProfileSettingsModalOpen.value = false
+  }
 }
 
 async function handleCreateChannel(payload: {
@@ -58,6 +77,7 @@ async function handleCreateChannel(payload: {
     isCreateChannelModalOpen.value = false
   }
 }
+
 
 onMounted(async () => {
   await initializeChat()
@@ -82,6 +102,7 @@ onUnmounted(() => {
       :is-open-mobile="isMobileSidebarOpen"
       @select-channel="selectChannel"
       @open-create-channel="isCreateChannelModalOpen = true"
+      @open-profile-settings="isProfileSettingsModalOpen = true"
       @toggle-theme="toggleTheme"
       @logout="handleLogout"
       @close-mobile="isMobileSidebarOpen = false"
@@ -124,6 +145,7 @@ onUnmounted(() => {
       <!-- Message Viewport -->
       <MessageViewport
         :messages="messages"
+        :channel-id="activeChannelId"
         :has-more-history="hasMoreHistory"
         :is-loading-history="isLoadingHistory"
         :current-user-id="currentProfile?.id"
@@ -148,5 +170,14 @@ onUnmounted(() => {
       @close="isCreateChannelModalOpen = false"
       @create="handleCreateChannel"
     />
+
+    <!-- Profile Settings Modal -->
+    <ProfileSettingsModal
+      :is-open="isProfileSettingsModalOpen"
+      :profile="currentProfile"
+      @close="isProfileSettingsModalOpen = false"
+      @save="handleSaveProfile"
+    />
   </div>
 </template>
+
