@@ -27,6 +27,5 @@ logs
 .superpowers/
 
 # Agent / IDE metadata
-.agents/
 .codegraph/
 
