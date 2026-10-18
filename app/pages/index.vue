@@ -10,9 +10,13 @@ import MessageViewport from '~/components/MessageViewport.vue'
 import MessageComposer from '~/components/MessageComposer.vue'
 import CreateChannelModal from '~/components/CreateChannelModal.vue'
 import ProfileSettingsModal from '~/components/ProfileSettingsModal.vue'
+import StartDmModal from '~/components/StartDmModal.vue'
+import UserAvatar from '~/components/UserAvatar.vue'
 
 const {
   channels,
+  publicChannels,
+  dmChannels,
   activeChannelId,
   activeChannel,
   messages,
@@ -21,6 +25,7 @@ const {
   unreadCounts,
   unreadMentions,
   activeChannelUnreadSince,
+  allProfiles,
   knownProfiles,
   onlineFriends,
   typingLabel,
@@ -29,6 +34,7 @@ const {
   initializeChat,
   selectChannel,
   createChannel,
+  openOrCreateDm,
   sendMessage,
   retryMessage,
   dismissMessage,
@@ -48,7 +54,20 @@ const { isDark, toggleTheme } = useTheme()
 const isMobileSidebarOpen = ref(false)
 const isCreateChannelModalOpen = ref(false)
 const isProfileSettingsModalOpen = ref(false)
+const isStartDmModalOpen = ref(false)
+const startDmError = ref<string | null>(null)
 const replyingTo = ref<ChatMessage | null>(null)
+
+async function handleStartDm(userId: string) {
+  startDmError.value = null
+  replyingTo.value = null
+  const result = await openOrCreateDm(userId)
+  if (result.error) {
+    startDmError.value = result.error
+  } else {
+    isStartDmModalOpen.value = false
+  }
+}
 
 async function handleLogout() {
   await signOut()
@@ -110,7 +129,8 @@ onUnmounted(() => {
   <div class="h-screen flex overflow-hidden bg-slate-100 dark:bg-slate-900 font-sans transition-colors">
     <!-- Sidebar -->
     <ChatSidebar
-      :channels="channels"
+      :channels="publicChannels"
+      :dm-channels="dmChannels"
       :active-channel-id="activeChannelId"
       :unread-counts="unreadCounts"
       :unread-mentions="unreadMentions"
@@ -121,6 +141,8 @@ onUnmounted(() => {
       :is-open-mobile="isMobileSidebarOpen"
       @select-channel="handleSelectChannel"
       @open-create-channel="isCreateChannelModalOpen = true"
+      @open-start-dm="isStartDmModalOpen = true"
+      @start-dm-with-user="handleStartDm"
       @open-profile-settings="isProfileSettingsModalOpen = true"
       @toggle-theme="toggleTheme"
       @logout="handleLogout"
@@ -149,14 +171,32 @@ onUnmounted(() => {
             </svg>
           </button>
 
-          <div class="min-w-0">
-            <h2 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
-              <span class="text-slate-400 font-mono">#</span>
-              <span class="truncate">{{ activeChannel?.slug || 'general' }}</span>
-            </h2>
-            <p v-if="activeChannel?.description" class="text-xs text-slate-500 dark:text-slate-400 truncate">
-              {{ activeChannel.description }}
-            </p>
+          <div class="min-w-0 flex items-center gap-2">
+            <template v-if="activeChannel?.is_dm">
+              <UserAvatar
+                :display-name="activeChannel.peer?.display_name || 'Friend'"
+                :avatar-color="activeChannel.peer?.avatar_color"
+                :show-online="onlineFriends.some(f => f.id === activeChannel?.peer?.id)"
+                size="sm"
+              />
+              <div class="min-w-0">
+                <h2 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1 truncate">
+                  <span class="text-slate-400 font-mono">@</span>
+                  <span class="truncate">{{ activeChannel.peer?.display_name || 'Direct Message' }}</span>
+                </h2>
+              </div>
+            </template>
+            <template v-else>
+              <div class="min-w-0">
+                <h2 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
+                  <span class="text-slate-400 font-mono">#</span>
+                  <span class="truncate">{{ activeChannel?.slug || 'general' }}</span>
+                </h2>
+                <p v-if="activeChannel?.description" class="text-xs text-slate-500 dark:text-slate-400 truncate">
+                  {{ activeChannel.description }}
+                </p>
+              </div>
+            </template>
           </div>
         </div>
       </header>
@@ -181,7 +221,8 @@ onUnmounted(() => {
 
       <!-- Message Composer -->
       <MessageComposer
-        :channel-slug="activeChannel?.slug || 'general'"
+        :channel-slug="activeChannel?.is_dm ? (activeChannel.peer?.display_name || 'friend') : (activeChannel?.slug || 'general')"
+        :is-dm="Boolean(activeChannel?.is_dm)"
         :typing-label="typingLabel"
         :disabled="connectionStatus !== 'connected'"
         :replying-to="replyingTo"
@@ -197,6 +238,17 @@ onUnmounted(() => {
       :is-open="isCreateChannelModalOpen"
       @close="isCreateChannelModalOpen = false"
       @create="handleCreateChannel"
+    />
+
+    <!-- Start DM Modal -->
+    <StartDmModal
+      :is-open="isStartDmModalOpen"
+      :friends="knownProfiles"
+      :online-friends="onlineFriends"
+      :current-user-id="currentProfile?.id"
+      :error-message="startDmError"
+      @close="isStartDmModalOpen = false"
+      @select-friend="handleStartDm"
     />
 
     <!-- Profile Settings Modal -->

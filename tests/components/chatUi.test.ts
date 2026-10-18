@@ -5,6 +5,7 @@ import ConnectionBanner from '~/components/ConnectionBanner.vue'
 import MessageViewport from '~/components/MessageViewport.vue'
 import CreateChannelModal from '~/components/CreateChannelModal.vue'
 import ChatSidebar from '~/components/ChatSidebar.vue'
+import StartDmModal from '~/components/StartDmModal.vue'
 
 describe('Chat UI components', () => {
   it('MessageComposer emits send on Enter, newline on Shift+Enter, and renders typingLabel', async () => {
@@ -428,6 +429,82 @@ describe('Chat UI components', () => {
     expect(wrapper.find('[data-test="unread-divider"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="mention-row-m-2"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="mention-token"]').text()).toBe('@Alice')
+  })
+
+  describe('Direct Messages UI in ChatSidebar and StartDmModal (Sub-Project 4)', () => {
+    it('ChatSidebar renders dmChannels with peer name and emits startDmWithUser when clicking an online friend', async () => {
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          channels: [
+            { id: 'c1', slug: 'general', description: 'General', created_by: null, created_at: '' },
+          ],
+          dmChannels: [
+            {
+              id: 'dm-1',
+              slug: 'dm:u1:u2',
+              description: null,
+              created_by: 'u1',
+              created_at: '',
+              is_dm: true,
+              dm_user_a: 'u1',
+              dm_user_b: 'u2',
+              peer: { id: 'u2', display_name: 'Bob', avatar_color: '#7c3aed' },
+            },
+          ],
+          activeChannelId: 'c1',
+          unreadCounts: { 'dm-1': 3 },
+          unreadMentions: {},
+          onlineFriends: [
+            { id: 'u1', display_name: 'Alice', avatar_color: '#0284c7' },
+            { id: 'u2', display_name: 'Bob', avatar_color: '#7c3aed' },
+          ],
+          currentUser: { id: 'u1', display_name: 'Alice', avatar_color: '#0284c7' },
+          isDark: true,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+
+      const dmBtn = wrapper.find('[data-test="dm-channel-dm-1"]')
+      expect(dmBtn.exists()).toBe(true)
+      expect(dmBtn.text()).toContain('Bob')
+      expect(dmBtn.text()).toContain('3')
+
+      const onlineFriendBtn = wrapper.find('[data-test="online-friend-u2"]')
+      expect(onlineFriendBtn.exists()).toBe(true)
+      await onlineFriendBtn.trigger('click')
+      expect(wrapper.emitted('startDmWithUser')?.[0]).toEqual(['u2'])
+    })
+
+    it('StartDmModal filters friends by search query and emits selectFriend on click', async () => {
+      const wrapper = mount(StartDmModal, {
+        props: {
+          isOpen: true,
+          friends: [
+            { id: 'u1', display_name: 'Alice', avatar_color: '#0284c7' },
+            { id: 'u2', display_name: 'Bob', avatar_color: '#7c3aed' },
+            { id: 'u3', display_name: 'Charlie', avatar_color: '#059669' },
+          ],
+          onlineFriends: [{ id: 'u2', display_name: 'Bob', avatar_color: '#7c3aed' }],
+          currentUserId: 'u1',
+        },
+      })
+
+      // Self (Alice) should not be listed
+      expect(wrapper.find('[data-test="start-dm-friend-u1"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="start-dm-friend-u2"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="start-dm-friend-u3"]').exists()).toBe(true)
+
+      const searchInput = wrapper.find('[data-test="dm-search-input"]')
+      await searchInput.setValue('char')
+
+      expect(wrapper.find('[data-test="start-dm-friend-u2"]').exists()).toBe(false)
+      const charlieBtn = wrapper.find('[data-test="start-dm-friend-u3"]')
+      expect(charlieBtn.exists()).toBe(true)
+
+      await charlieBtn.trigger('click')
+      expect(wrapper.emitted('selectFriend')?.[0]).toEqual(['u3'])
+    })
   })
 })
 

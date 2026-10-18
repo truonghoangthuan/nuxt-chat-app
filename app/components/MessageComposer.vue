@@ -7,12 +7,14 @@ import UserAvatar from '~/components/UserAvatar.vue'
 const props = withDefaults(
   defineProps<{
     channelSlug: string
+    isDm?: boolean
     typingLabel?: string
     disabled?: boolean
     replyingTo?: ChatMessage | null
     mentionCandidates?: Profile[]
   }>(),
   {
+    isDm: false,
     typingLabel: '',
     disabled: false,
     replyingTo: null,
@@ -190,7 +192,7 @@ function handleSend() {
         v-model="content"
         rows="1"
         :disabled="disabled"
-        :placeholder="`Message #${channelSlug || 'channel'} (Enter to send, Shift+Enter for newline)`"
+        :placeholder="`Message ${isDm ? '@' : '#'}${channelSlug || 'channel'} (Enter to send, Shift+Enter for newline)`"
         class="w-full resize-none bg-transparent px-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none max-h-40 overflow-y-auto"
         @input="handleInput"
         @click="syncCursor"

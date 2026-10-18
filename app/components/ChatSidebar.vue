@@ -5,6 +5,7 @@ import UserAvatar from '~/components/UserAvatar.vue'
 const props = withDefaults(
   defineProps<{
     channels: Channel[]
+    dmChannels?: Channel[]
     activeChannelId: string | null
     unreadCounts: Record<string, number>
     unreadMentions?: Record<string, number>
@@ -15,6 +16,7 @@ const props = withDefaults(
     isOpenMobile: boolean
   }>(),
   {
+    dmChannels: () => [],
     unreadMentions: () => ({}),
   },
 )
@@ -22,15 +24,28 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'selectChannel', channelId: string): void
   (e: 'openCreateChannel'): void
+  (e: 'openStartDm'): void
+  (e: 'startDmWithUser', userId: string): void
   (e: 'openProfileSettings'): void
   (e: 'toggleTheme'): void
   (e: 'logout'): void
   (e: 'closeMobile'): void
 }>()
 
-
 function onChannelClick(channelId: string) {
   emit('selectChannel', channelId)
+  emit('closeMobile')
+}
+
+function isPeerOnline(dm: Channel): boolean {
+  const peerId = dm.peer?.id
+  if (!peerId) return false
+  return props.onlineFriends.some(f => f.id === peerId)
+}
+
+function onOnlineFriendClick(friend: Profile) {
+  if (props.currentUser && friend.id === props.currentUser.id) return
+  emit('startDmWithUser', friend.id)
   emit('closeMobile')
 }
 </script>
@@ -123,6 +138,64 @@ function onChannelClick(channelId: string) {
           </div>
         </div>
 
+        <!-- Direct Messages Section -->
+        <div>
+          <div class="flex items-center justify-between px-2 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <span>Direct Messages</span>
+            <button
+              type="button"
+              data-test="open-start-dm"
+              class="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1 font-medium transition-colors"
+              @click="emit('openStartDm')"
+            >
+              + New
+            </button>
+          </div>
+
+          <div v-if="!dmChannels || dmChannels.length === 0" class="px-2 py-2 text-xs text-slate-500 italic">
+            No conversations yet
+          </div>
+
+          <div v-else class="space-y-0.5">
+            <button
+              v-for="dm in dmChannels"
+              :key="dm.id"
+              type="button"
+              :data-test="`dm-channel-${dm.id}`"
+              class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-sm font-medium transition-all group"
+              :class="activeChannelId === dm.id ? 'bg-sky-600/20 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'"
+              @click="onChannelClick(dm.id)"
+            >
+              <div class="flex items-center gap-2 truncate">
+                <UserAvatar
+                  :display-name="dm.peer?.display_name || 'Friend'"
+                  :avatar-color="dm.peer?.avatar_color"
+                  :show-online="isPeerOnline(dm)"
+                  size="sm"
+                />
+                <span class="truncate">{{ dm.peer?.display_name || 'Direct Message' }}</span>
+              </div>
+
+              <div class="flex items-center gap-1 shrink-0">
+                <span
+                  v-if="(unreadMentions?.[dm.id] || 0) > 0"
+                  :data-test="`mention-badge-${dm.id}`"
+                  class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-slate-950 shadow-sm"
+                  title="You were mentioned"
+                >
+                  @
+                </span>
+                <span
+                  v-if="(unreadCounts[dm.id] || 0) > 0"
+                  class="px-1.5 py-0.5 rounded-full text-xs font-bold bg-sky-500 text-white min-w-5 text-center shadow-sm"
+                >
+                  {{ unreadCounts[dm.id] }}
+                </span>
+              </div>
+            </button>
+          </div>
+        </div>
+
         <!-- Online Friends Section -->
         <div>
           <div class="flex items-center justify-between px-2 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -137,22 +210,34 @@ function onChannelClick(channelId: string) {
           </div>
 
           <div v-else class="space-y-1">
-            <div
+            <button
               v-for="friend in onlineFriends"
               :key="friend.id"
-              class="flex items-center gap-2 px-2 py-1 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-colors"
+              type="button"
+              :data-test="`online-friend-${friend.id}`"
+              class="w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-colors text-left"
+              :class="currentUser && friend.id === currentUser.id ? 'cursor-default' : 'cursor-pointer'"
+              @click="onOnlineFriendClick(friend)"
             >
-              <UserAvatar
-                :display-name="friend.display_name"
-                :avatar-color="friend.avatar_color"
-                :show-online="true"
-                size="sm"
-              />
-              <span class="truncate">
-                {{ friend.display_name }}
-                <span v-if="currentUser && friend.id === currentUser.id" class="text-slate-500 text-[10px] ml-1">(you)</span>
+              <div class="flex items-center gap-2 truncate">
+                <UserAvatar
+                  :display-name="friend.display_name"
+                  :avatar-color="friend.avatar_color"
+                  :show-online="true"
+                  size="sm"
+                />
+                <span class="truncate">
+                  {{ friend.display_name }}
+                  <span v-if="currentUser && friend.id === currentUser.id" class="text-slate-500 text-[10px] ml-1">(you)</span>
+                </span>
+              </div>
+              <span
+                v-if="!currentUser || friend.id !== currentUser.id"
+                class="text-[10px] text-slate-500 hover:text-sky-400 shrink-0"
+              >
+                DM
               </span>
-            </div>
+            </button>
           </div>
         </div>
       </div>
