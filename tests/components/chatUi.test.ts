@@ -232,5 +232,115 @@ describe('Chat UI components', () => {
     await wrapper.vm.$nextTick()
     expect(wrapper.emitted('close')).toBeTruthy()
   })
+
+  it('MessageViewport supports inline editing, soft-delete tombstones, quote-reply headers, and reaction pills', async () => {
+    const wrapper = mount(MessageViewport, {
+      props: {
+        channelId: 'ch-1',
+        hasMoreHistory: false,
+        isLoadingHistory: false,
+        currentUserId: 'u-alice',
+        loadOlder: vi.fn().mockResolvedValue(0),
+        messages: [
+          {
+            id: 'm-1',
+            client_id: 'c-1',
+            channel_id: 'ch-1',
+            user_id: 'u-alice',
+            content: 'Editable message',
+            created_at: '2026-10-18T10:00:00Z',
+            edited_at: '2026-10-18T10:01:00Z',
+            status: 'sent',
+            author: { id: 'u-alice', display_name: 'Alice', avatar_color: '#0284c7' },
+            reactions: [
+              { message_id: 'm-1', channel_id: 'ch-1', user_id: 'u-alice', emoji: '👍' },
+            ],
+          },
+          {
+            id: 'm-2',
+            client_id: 'c-2',
+            channel_id: 'ch-1',
+            user_id: 'u-bob',
+            content: 'Deleted message',
+            created_at: '2026-10-18T10:02:00Z',
+            deleted_at: '2026-10-18T10:03:00Z',
+            status: 'sent',
+            author: { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+          },
+          {
+            id: 'm-3',
+            client_id: 'c-3',
+            channel_id: 'ch-1',
+            user_id: 'u-bob',
+            content: 'Reply message',
+            created_at: '2026-10-18T10:04:00Z',
+            status: 'sent',
+            reply_to_id: 'm-1',
+            reply_to: {
+              id: 'm-1',
+              user_id: 'u-alice',
+              content: 'Editable message',
+              author: { id: 'u-alice', display_name: 'Alice', avatar_color: '#0284c7' },
+            },
+            author: { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+          },
+        ],
+      },
+    })
+
+    // 1. Edited badge & reaction pill
+    expect(wrapper.find('[data-test="edited-badge-m-1"]').exists()).toBe(true)
+    const reactionPill = wrapper.find('[data-test="reaction-pill-m-1-👍"]')
+    expect(reactionPill.exists()).toBe(true)
+    expect(reactionPill.text()).toContain('1')
+    await reactionPill.trigger('click')
+    expect(wrapper.emitted('toggleReaction')?.[0]).toEqual([{ messageId: 'm-1', emoji: '👍' }])
+
+    // 2. Deleted tombstone hides original content
+    expect(wrapper.find('[data-test="deleted-tombstone-m-2"]').text()).toContain('This message was deleted')
+    expect(wrapper.text()).not.toContain('Deleted message')
+
+    // 3. Quoted reply preview
+    expect(wrapper.find('[data-test="reply-quote-m-3"]').text()).toContain('Editable message')
+
+    // 4. Inline edit flow for own message (m-1)
+    await wrapper.find('[data-test="edit-m-1"]').trigger('click')
+    const editInput = wrapper.find('[data-test="edit-input-m-1"]')
+    await editInput.setValue('Updated message text')
+    await wrapper.find('[data-test="save-edit-m-1"]').trigger('click')
+    expect(wrapper.emitted('edit')?.[0]).toEqual([
+      { messageId: 'm-1', content: 'Updated message text' },
+    ])
+
+    // 5. Delete button for own message (m-1)
+    await wrapper.find('[data-test="delete-m-1"]').trigger('click')
+    expect(wrapper.emitted('delete')?.[0]).toEqual(['m-1'])
+  })
+
+  it('MessageComposer displays replyingTo banner and emits cancelReply when dismissed', async () => {
+    const wrapper = mount(MessageComposer, {
+      props: {
+        channelSlug: 'general',
+        replyingTo: {
+          id: 'm-1',
+          client_id: 'c-1',
+          channel_id: 'ch-1',
+          user_id: 'u-alice',
+          content: 'Original message to quote',
+          created_at: '2026-10-18T10:00:00Z',
+          status: 'sent',
+          author: { id: 'u-alice', display_name: 'Alice', avatar_color: '#0284c7' },
+        },
+      },
+    })
+
+    const banner = wrapper.find('[data-test="reply-banner"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('Alice')
+    expect(banner.text()).toContain('Original message to quote')
+
+    await wrapper.find('[data-test="cancel-reply"]').trigger('click')
+    expect(wrapper.emitted('cancelReply')).toBeTruthy()
+  })
 })
 

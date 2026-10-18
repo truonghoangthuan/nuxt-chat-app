@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import type { ChatMessage } from '~/types/chat'
 import { useChatRoom } from '~/composables/useChatRoom'
 import { useAuthProfile } from '~/composables/useAuthProfile'
 import { useTheme } from '~/composables/useTheme'
@@ -28,6 +29,9 @@ const {
   sendMessage,
   retryMessage,
   dismissMessage,
+  editMessage,
+  deleteMessage,
+  toggleReaction,
   loadOlderMessages,
   notifyTyping,
   retryConnectionNow,
@@ -41,10 +45,22 @@ const { isDark, toggleTheme } = useTheme()
 const isMobileSidebarOpen = ref(false)
 const isCreateChannelModalOpen = ref(false)
 const isProfileSettingsModalOpen = ref(false)
+const replyingTo = ref<ChatMessage | null>(null)
 
 async function handleLogout() {
   await signOut()
   await navigateTo('/login')
+}
+
+async function handleSelectChannel(channelId: string) {
+  replyingTo.value = null
+  await selectChannel(channelId)
+}
+
+async function handleSendMessage(content: string) {
+  const replyId = replyingTo.value?.id || null
+  replyingTo.value = null
+  await sendMessage(content, replyId)
 }
 
 async function handleSaveProfile(payload: {
@@ -78,7 +94,6 @@ async function handleCreateChannel(payload: {
   }
 }
 
-
 onMounted(async () => {
   await initializeChat()
 })
@@ -100,7 +115,7 @@ onUnmounted(() => {
       :is-dark="isDark"
       :connection-status="connectionStatus"
       :is-open-mobile="isMobileSidebarOpen"
-      @select-channel="selectChannel"
+      @select-channel="handleSelectChannel"
       @open-create-channel="isCreateChannelModalOpen = true"
       @open-profile-settings="isProfileSettingsModalOpen = true"
       @toggle-theme="toggleTheme"
@@ -152,6 +167,10 @@ onUnmounted(() => {
         :load-older="loadOlderMessages"
         @retry="retryMessage"
         @dismiss="dismissMessage"
+        @reply="replyingTo = $event"
+        @edit="editMessage($event.messageId, $event.content)"
+        @delete="deleteMessage($event)"
+        @toggle-reaction="toggleReaction($event.messageId, $event.emoji)"
       />
 
       <!-- Message Composer -->
@@ -159,8 +178,10 @@ onUnmounted(() => {
         :channel-slug="activeChannel?.slug || 'general'"
         :typing-label="typingLabel"
         :disabled="connectionStatus !== 'connected'"
-        @send="sendMessage"
+        :replying-to="replyingTo"
+        @send="handleSendMessage"
         @typing="notifyTyping"
+        @cancel-reply="replyingTo = null"
       />
     </main>
 
@@ -180,4 +201,3 @@ onUnmounted(() => {
     />
   </div>
 </template>
-
