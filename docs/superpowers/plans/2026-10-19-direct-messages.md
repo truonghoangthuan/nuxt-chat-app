@@ -44,7 +44,7 @@
 - Modify: `app/utils/chat.ts`
 - Modify: `tests/utils/chat.test.ts`
 
-- [ ] **Step 1: Write failing unit tests in `tests/utils/chat.test.ts`**
+- [x] **Step 1: Write failing unit tests in `tests/utils/chat.test.ts`**
 
 Append the following `describe` block to `tests/utils/chat.test.ts` (and add `normalizeDmPair, getDmPeerId, canUserAccessChannel` to the import from `~/utils/chat`):
 
@@ -93,12 +93,12 @@ describe('direct message (DM) pure helpers (Sub-Project 4)', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/utils/chat.test.ts`
 Expected: FAIL (`normalizeDmPair is not a function` / export missing).
 
-- [ ] **Step 3: Extend `Channel` in `app/types/chat.ts` and implement DM helpers in `app/utils/chat.ts`**
+- [x] **Step 3: Extend `Channel` in `app/types/chat.ts` and implement DM helpers in `app/utils/chat.ts`**
 
 In `app/types/chat.ts`, update `Channel`:
 
@@ -166,12 +166,12 @@ export function canUserAccessChannel(
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/utils/chat.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/types/chat.ts app/utils/chat.ts tests/utils/chat.test.ts
@@ -187,7 +187,7 @@ git commit -m "feat(chat): add pure DM pair normalization and access helpers"
 - Modify: `app/composables/useChatRoom.ts`
 - Modify: `tests/composables/useChatRoom.test.ts`
 
-- [ ] **Step 1: Write failing unit tests in `tests/composables/useChatRoom.test.ts`**
+- [x] **Step 1: Write failing unit tests in `tests/composables/useChatRoom.test.ts`**
 
 Append the following tests to `tests/composables/useChatRoom.test.ts` (and import `hydrateDmChannelPeers` from `~/composables/useChatRoom`):
 
@@ -244,12 +244,12 @@ describe('hydrateDmChannelPeers (Sub-Project 4)', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/composables/useChatRoom.test.ts`
 Expected: FAIL (`hydrateDmChannelPeers is not a function`).
 
-- [ ] **Step 3: Update `supabase/schema.sql` with DM columns, constraints, `can_access_channel`, and strict RLS**
+- [x] **Step 3: Update `supabase/schema.sql` with DM columns, constraints, `can_access_channel`, and strict RLS**
 
 In `supabase/schema.sql`, update `public.channels`, `public.messages`, and `public.message_reactions` definitions and policies by appending the idempotent DM migration block right before Section 5 (`Realtime Publication Setup`):
 
@@ -341,7 +341,7 @@ create policy "Authenticated users can insert accessible reactions"
   with check (auth.uid() = user_id and public.can_access_channel(channel_id));
 ```
 
-- [ ] **Step 4: Implement `hydrateDmChannelPeers`, `loadAllProfiles`, `publicChannels`, `dmChannels`, and `openOrCreateDm` in `app/composables/useChatRoom.ts`**
+- [x] **Step 4: Implement `hydrateDmChannelPeers`, `loadAllProfiles`, `publicChannels`, `dmChannels`, and `openOrCreateDm` in `app/composables/useChatRoom.ts`**
 
 1. Import `normalizeDmPair`, `getDmPeerId`, and `canUserAccessChannel` from `~/utils/chat` in `app/composables/useChatRoom.ts`.
 2. Export `hydrateDmChannelPeers` above `useChatRoom()`:
@@ -538,12 +538,12 @@ export function hydrateDmChannelPeers(params: {
    - Call `await loadAllProfiles()` inside `initializeChat()` right before `await loadChannels()`.
    - Return `publicChannels`, `dmChannels`, and `openOrCreateDm` from `useChatRoom()`.
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `npx vitest run tests/composables/useChatRoom.test.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add supabase/schema.sql app/composables/useChatRoom.ts tests/composables/useChatRoom.test.ts
@@ -561,7 +561,7 @@ git commit -m "feat(dm): add DM schema, RLS policies, peer hydration, and openOr
 - Modify: `app/pages/index.vue`
 - Modify: `tests/components/chatUi.test.ts`
 
-- [ ] **Step 1: Write failing component tests in `tests/components/chatUi.test.ts`**
+- [x] **Step 1: Write failing component tests in `tests/components/chatUi.test.ts`**
 
 Add `StartDmModal` import to `tests/components/chatUi.test.ts` and append:
 
@@ -643,12 +643,12 @@ describe('Direct Messages UI in ChatSidebar and StartDmModal (Sub-Project 4)', (
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/components/chatUi.test.ts`
 Expected: FAIL (`Failed to resolve import "~/components/StartDmModal.vue"`).
 
-- [ ] **Step 3: Create `app/components/StartDmModal.vue`**
+- [x] **Step 3: Create `app/components/StartDmModal.vue`**
 
 Create `app/components/StartDmModal.vue`:
 
@@ -778,7 +778,7 @@ const filteredFriends = computed(() => {
 </template>
 ```
 
-- [ ] **Step 4: Update `app/components/ChatSidebar.vue`, `app/components/MessageComposer.vue`, and `app/pages/index.vue`**
+- [x] **Step 4: Update `app/components/ChatSidebar.vue`, `app/components/MessageComposer.vue`, and `app/pages/index.vue`**
 
 1. In `app/components/ChatSidebar.vue`:
    - Add `dmChannels?: Channel[]` to props with default `() => []`.
@@ -918,12 +918,12 @@ const filteredFriends = computed(() => {
    - Pass `:channel-slug="activeChannel?.is_dm ? (activeChannel.peer?.display_name || 'friend') : (activeChannel?.slug || 'general')"` and `:is-dm="Boolean(activeChannel?.is_dm)"` to `MessageComposer`.
    - Mount `<StartDmModal>` at the bottom of `app/pages/index.vue`.
 
-- [ ] **Step 5: Run full test suite to verify everything passes**
+- [x] **Step 5: Run full test suite to verify everything passes**
 
 Run: `npm test`
 Expected: PASS across all test files (`tests/utils/chat.test.ts`, `tests/composables/useMessagesState.test.ts`, `tests/composables/useRealtimeStates.test.ts`, `tests/composables/useTheme.test.ts`, `tests/composables/useChatRoom.test.ts`, `tests/components/chatUi.test.ts`).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/components/ChatSidebar.vue app/components/StartDmModal.vue app/components/MessageComposer.vue app/pages/index.vue tests/components/chatUi.test.ts
