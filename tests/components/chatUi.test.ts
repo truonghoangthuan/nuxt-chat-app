@@ -141,4 +141,96 @@ describe('Chat UI components', () => {
     await wrapper.vm.$nextTick()
     expect(wrapper.emitted('close')).toBeTruthy()
   })
+
+  it('MessageViewport groups consecutive same-author messages within 5m and resets unread pill on channel switch', async () => {
+    const wrapper = mount(MessageViewport, {
+      props: {
+        channelId: 'ch-1',
+        hasMoreHistory: false,
+        isLoadingHistory: false,
+        currentUserId: 'u-me',
+        loadOlder: vi.fn().mockResolvedValue(0),
+        messages: [
+          {
+            id: 'm-1',
+            client_id: 'c-1',
+            channel_id: 'ch-1',
+            user_id: 'u-alice',
+            content: 'First line',
+            created_at: '2026-10-18T10:00:00.000Z',
+            status: 'sent',
+            author: { id: 'u-alice', display_name: 'Alice', avatar_color: '#0284c7' },
+          },
+          {
+            id: 'm-2',
+            client_id: 'c-2',
+            channel_id: 'ch-1',
+            user_id: 'u-alice',
+            content: 'Second line 1 min later',
+            created_at: '2026-10-18T10:01:00.000Z',
+            status: 'sent',
+            author: { id: 'u-alice', display_name: 'Alice', avatar_color: '#0284c7' },
+          },
+        ],
+      },
+    })
+
+    expect(wrapper.findAll('[data-test="date-divider"]')).toHaveLength(1)
+    expect(wrapper.findAll('[data-test="compact-message"]')).toHaveLength(1)
+
+    // Switch channelId -> should not show unread pill
+    await wrapper.setProps({
+      channelId: 'ch-2',
+      messages: [
+        {
+          id: 'm-99',
+          client_id: 'c-99',
+          channel_id: 'ch-2',
+          user_id: 'u-bob',
+          content: 'Welcome to random',
+          created_at: '2026-10-18T11:00:00.000Z',
+          status: 'sent',
+          author: { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+        },
+      ],
+    })
+    expect(wrapper.find('button.animate-bounce').exists()).toBe(false)
+  })
+
+  it('ProfileSettingsModal allows editing display name and selecting an avatar color', async () => {
+    const ProfileSettingsModal = (await import('~/components/ProfileSettingsModal.vue')).default
+    const wrapper = mount(ProfileSettingsModal, {
+      props: {
+        isOpen: true,
+        profile: {
+          id: 'u-1',
+          display_name: 'Alice',
+          avatar_color: '#0284c7',
+        },
+      },
+    })
+
+    const input = wrapper.find('input[type="text"]')
+    await input.setValue('Alice Wonderland')
+
+    const roseSwatch = wrapper.find('[data-test="color-swatch-#e11d48"]')
+    await roseSwatch.trigger('click')
+
+    await wrapper.find('form').trigger('submit')
+
+    const saveEvents = wrapper.emitted('save')
+    expect(saveEvents).toBeTruthy()
+    const payload = saveEvents?.[0][0] as {
+      displayName: string
+      avatarColor: string
+      onSuccess: () => void
+    }
+    expect(payload.displayName).toBe('Alice Wonderland')
+    expect(payload.avatarColor).toBe('#e11d48')
+
+    payload.onSuccess()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted('close')).toBeTruthy()
+  })
 })
+

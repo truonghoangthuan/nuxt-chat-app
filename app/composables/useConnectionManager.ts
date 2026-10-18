@@ -9,12 +9,28 @@ export function createConnectionManager(
   const attempt = ref<number>(0)
   const nextRetryMs = ref<number>(0)
   let retryTimer: ReturnType<typeof setTimeout> | null = null
+  let countdownTimer: ReturnType<typeof setInterval> | null = null
 
   function clearTimer(): void {
     if (retryTimer !== null) {
       clearTimeout(retryTimer)
       retryTimer = null
     }
+    if (countdownTimer !== null) {
+      clearInterval(countdownTimer)
+      countdownTimer = null
+    }
+  }
+
+  function scheduleRetry(delayMs: number): void {
+    clearTimer()
+    nextRetryMs.value = delayMs
+    countdownTimer = setInterval(() => {
+      nextRetryMs.value = Math.max(0, nextRetryMs.value - 1000)
+    }, 1000)
+    retryTimer = setTimeout(async () => {
+      await executeAttempt()
+    }, delayMs)
   }
 
   async function executeAttempt(): Promise<void> {
@@ -30,10 +46,7 @@ export function createConnectionManager(
       handleConnected()
     } else {
       attempt.value += 1
-      nextRetryMs.value = calculateBackoffMs(attempt.value)
-      retryTimer = setTimeout(async () => {
-        await executeAttempt()
-      }, nextRetryMs.value)
+      scheduleRetry(calculateBackoffMs(attempt.value))
     }
   }
 
@@ -43,11 +56,7 @@ export function createConnectionManager(
     }
 
     status.value = 'reconnecting'
-    clearTimer()
-    nextRetryMs.value = calculateBackoffMs(attempt.value)
-    retryTimer = setTimeout(async () => {
-      await executeAttempt()
-    }, nextRetryMs.value)
+    scheduleRetry(calculateBackoffMs(attempt.value))
   }
 
   function handleConnected(): void {
@@ -76,3 +85,4 @@ export function createConnectionManager(
     dispose,
   }
 }
+

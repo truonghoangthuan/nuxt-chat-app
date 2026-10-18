@@ -32,6 +32,49 @@ export function handleIncomingRealtimeMessage(params: {
   }
 }
 
+export async function resolveMessageAuthor(params: {
+  userId: string
+  existingAuthor?: Profile
+  channelId: string
+  activeChannelId: string | null
+  profilesCache: Map<string, Profile>
+  fetchProfile: (userId: string) => Promise<Profile | undefined>
+}): Promise<Profile | undefined> {
+  if (params.existingAuthor) {
+    params.profilesCache.set(params.existingAuthor.id, params.existingAuthor)
+    return params.existingAuthor
+  }
+  if (params.channelId !== params.activeChannelId) {
+    return undefined
+  }
+  const cached = params.profilesCache.get(params.userId)
+  if (cached) {
+    return cached
+  }
+  const fetched = await params.fetchProfile(params.userId)
+  if (fetched) {
+    params.profilesCache.set(fetched.id, fetched)
+  }
+  return fetched
+}
+
+export function applyRealtimeProfileUpdate(params: {
+  profile: Profile
+  profilesCache: Map<string, Profile>
+  messagesStore: ReturnType<typeof createMessagesStore>
+  onlineFriends: Profile[]
+}): Profile[] {
+  params.profilesCache.set(params.profile.id, params.profile)
+  params.messagesStore.updateAuthorProfile(params.profile)
+
+  const updatedFriends = params.onlineFriends.map(friend =>
+    friend.id === params.profile.id ? { ...friend, ...params.profile } : friend,
+  )
+  updatedFriends.sort((a, b) => a.display_name.localeCompare(b.display_name))
+  return updatedFriends
+}
+
+
 export function useChatRoom() {
   const supabase = useSupabaseClient()
   const authProfile = useAuthProfile()
@@ -57,6 +100,16 @@ export function useChatRoom() {
   let dbChangesChannel: RealtimeChannel | null = null
   let typingChannel: RealtimeChannel | null = null
   let lastTypingSentAt = 0
+
+  const profilesCache = new Map<string, Profile>()
+
+  function cacheProfilesFromMessages(rows: Array<{ author?: Profile }>): void {
+    for (const row of rows) {
+      if (row.author?.id) {
+        profilesCache.set(row.author.id, row.author)
+      }
+    }
+  }
 
   const connectionManager = createConnectionManager(async () => {
     return await reconnectChat()
@@ -89,17 +142,23 @@ export function useChatRoom() {
   async function fetchGapMessages(): Promise<void> {
     if (!activeChannelId.value) return
     const lastTimestamp = messagesStore.getLastConfirmedTimestamp()
-    if (!lastTimestamp) return
 
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('messages')
         .select('*, author:profiles(id, display_name, avatar_color)')
         .eq('channel_id', activeChannelId.value)
-        .gt('created_at', lastTimestamp)
-        .order('created_at', { ascending: true })
+
+      if (lastTimestamp) {
+        query = query.gt('created_at', lastTimestamp).order('created_at', { ascending: true })
+      } else {
+        query = query.order('created_at', { ascending: true }).limit(PAGE_SIZE)
+      }
+
+      const { data, error } = await query
 
       if (data && !error && data.length > 0) {
+        cacheProfilesFromMessages(data)
         messagesStore.mergeGapMessages(data)
       }
     } catch {
@@ -127,7 +186,8 @@ export function useChatRoom() {
     try {
       const p1 = subscribeWithPromise(presenceChannel)
       const p2 = subscribeWithPromise(dbChangesChannel)
-      const results = await Promise.all([p1, p2])
+      const p3 = activeChannelId.value ? subscribeWithPromise(typingChannel) : Promise.resolve(true)
+      const results = await Promise.all([p1, p2, p3])
       const ok = results.every(Boolean)
       if (ok) {
         await fetchGapMessages()
@@ -138,6 +198,7 @@ export function useChatRoom() {
       return false
     }
   }
+
 
   function setupPresenceSubscription(): void {
     if (presenceChannel) {
@@ -183,19 +244,25 @@ export function useChatRoom() {
         { event: 'INSERT', schema: 'public', table: 'messages' },
         async (payload) => {
           const newRow = payload.new as any
-          let author = newRow.author
-          if (!author) {
-            try {
-              const { data } = await supabase
-                .from('profiles')
-                .select('id, display_name, avatar_color')
-                .eq('id', newRow.user_id)
-                .single()
-              author = data || undefined
-            } catch {
-              author = undefined
-            }
-          }
+          const author = await resolveMessageAuthor({
+            userId: newRow.user_id,
+            existingAuthor: newRow.author,
+            channelId: newRow.channel_id,
+            activeChannelId: activeChannelId.value,
+            profilesCache,
+            fetchProfile: async (userId: string) => {
+              try {
+                const { data } = await supabase
+                  .from('profiles')
+                  .select('id, display_name, avatar_color')
+                  .eq('id', userId)
+                  .single()
+                return (data as Profile) || undefined
+              } catch {
+                return undefined
+              }
+            },
+          })
 
           handleIncomingRealtimeMessage({
             row: { ...newRow, author },
@@ -213,6 +280,21 @@ export function useChatRoom() {
           const newChannel = payload.new as Channel
           if (!channels.value.some(c => c.id === newChannel.id)) {
             channels.value = [...channels.value, newChannel]
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles' },
+        (payload) => {
+          const updatedProfile = payload.new as Profile
+          if (updatedProfile?.id) {
+            onlineFriends.value = applyRealtimeProfileUpdate({
+              profile: updatedProfile,
+              profilesCache,
+              messagesStore,
+              onlineFriends: onlineFriends.value,
+            })
           }
         },
       )
@@ -283,6 +365,7 @@ export function useChatRoom() {
       if (data && !error) {
         hasMoreHistory.value = data.length >= PAGE_SIZE
         const chronological = [...data].reverse()
+        cacheProfilesFromMessages(chronological)
         messagesStore.setInitialHistory(chronological, channelId)
       } else {
         messagesStore.setInitialHistory([], channelId)
@@ -320,9 +403,11 @@ export function useChatRoom() {
           hasMoreHistory.value = false
         }
         const chronological = [...data].reverse()
+        cacheProfilesFromMessages(chronological)
         return messagesStore.prependHistoryPage(chronological)
       }
     } finally {
+
       isLoadingHistory.value = false
     }
     return 0
@@ -486,6 +571,27 @@ export function useChatRoom() {
     }
   }
 
+  async function syncOwnProfile(profile: Profile): Promise<void> {
+    onlineFriends.value = applyRealtimeProfileUpdate({
+      profile,
+      profilesCache,
+      messagesStore,
+      onlineFriends: onlineFriends.value,
+    })
+    if (presenceChannel) {
+      try {
+        await presenceChannel.track({
+          user_id: profile.id,
+          display_name: profile.display_name,
+          avatar_color: profile.avatar_color,
+          online_at: new Date().toISOString(),
+        })
+      } catch {
+        // Ignore presence track error
+      }
+    }
+  }
+
   function cleanupChat(): void {
     if (presenceChannel) supabase.removeChannel(presenceChannel)
     if (dbChangesChannel) supabase.removeChannel(dbChangesChannel)
@@ -519,6 +625,8 @@ export function useChatRoom() {
     loadOlderMessages,
     notifyTyping,
     retryConnectionNow,
+    syncOwnProfile,
     cleanupChat,
   }
 }
+

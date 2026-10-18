@@ -207,6 +207,21 @@ export function createMessagesStore() {
     return confirmed[confirmed.length - 1].created_at
   }
 
+  function updateAuthorProfile(profile: Profile): number {
+    let count = 0
+    messages.value = messages.value.map((msg) => {
+      if (msg.user_id === profile.id) {
+        count += 1
+        return {
+          ...msg,
+          author: { ...profile },
+        }
+      }
+      return msg
+    })
+    return count
+  }
+
   return {
     messages,
     addOptimisticMessage,
@@ -220,5 +235,7 @@ export function createMessagesStore() {
     mergeGapMessages,
     getOldestCursor,
     getLastConfirmedTimestamp,
+    updateAuthorProfile,
   }
 }
+

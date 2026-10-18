@@ -43,7 +43,7 @@ describe('realtime state managers', () => {
     expect(online.map(u => u.display_name)).toEqual(['Alice', 'Bob'])
   })
 
-  it('schedules exponential backoff on disconnect and resets on connect or retryNow', async () => {
+  it('schedules exponential backoff on disconnect, ticks nextRetryMs every second, and resets on connect or retryNow', async () => {
     const attempts: number[] = []
     const manager = createConnectionManager(() => {
       attempts.push(Date.now())
@@ -60,6 +60,10 @@ describe('realtime state managers', () => {
     expect(manager.attempt.value).toBe(1)
     expect(manager.nextRetryMs.value).toBe(2000)
 
+    // After 1000ms of waiting, nextRetryMs ticks down from 2000ms to 1000ms
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(manager.nextRetryMs.value).toBe(1000)
+
     // Manual retryNow triggers immediately
     await manager.retryNow()
     expect(attempts).toHaveLength(2)
@@ -67,6 +71,8 @@ describe('realtime state managers', () => {
     manager.handleConnected()
     expect(manager.status.value).toBe('connected')
     expect(manager.attempt.value).toBe(0)
+    expect(manager.nextRetryMs.value).toBe(0)
     manager.dispose()
   })
+
 })

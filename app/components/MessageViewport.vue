@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import type { ChatMessage } from '~/types/chat'
+import { buildMessageTimeline } from '~/utils/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
 
 const props = withDefaults(
   defineProps<{
     messages: ChatMessage[]
+    channelId?: string | null
     hasMoreHistory?: boolean
     isLoadingHistory?: boolean
     currentUserId?: string
     loadOlder: () => Promise<number>
   }>(),
   {
+    channelId: null,
     hasMoreHistory: false,
     isLoadingHistory: false,
     currentUserId: '',
@@ -26,6 +29,9 @@ const emit = defineEmits<{
 const viewportRef = ref<HTMLDivElement | null>(null)
 const unreadNewCount = ref(0)
 const isNearBottom = ref(true)
+
+const timelineItems = computed(() => buildMessageTimeline(props.messages))
+
 
 function checkScrollPosition() {
   const el = viewportRef.value
@@ -116,10 +122,22 @@ watch(
   { deep: false },
 )
 
+watch(
+  () => props.channelId,
+  () => {
+    unreadNewCount.value = 0
+    isNearBottom.value = true
+    const newest = props.messages[props.messages.length - 1]
+    prevNewestId.value = newest ? (newest.client_id || newest.id) : null
+    scrollToBottom(false)
+  },
+)
+
 onMounted(() => {
   scrollToBottom(false)
 })
 </script>
+
 
 <template>
   <div class="relative flex-1 flex flex-col min-h-0 bg-slate-50 dark:bg-slate-950">
@@ -152,67 +170,139 @@ onMounted(() => {
       </div>
 
       <!-- Messages List -->
-      <div
-        v-for="msg in messages"
-        :key="msg.client_id || msg.id"
-        class="flex items-start gap-3 group"
+      <template
+        v-for="item in timelineItems"
+        :key="item.message.client_id || item.message.id"
       >
-        <UserAvatar
-          :display-name="msg.author?.display_name || 'Friend'"
-          :avatar-color="msg.author?.avatar_color"
-          size="md"
-        />
+        <!-- Date Divider -->
+        <div
+          v-if="item.showDateDivider"
+          data-test="date-divider"
+          class="flex items-center gap-3 my-4"
+        >
+          <div class="flex-1 h-px bg-slate-200 dark:bg-slate-800"></div>
+          <span class="px-3 py-0.5 rounded-full text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+            {{ item.dateLabel }}
+          </span>
+          <div class="flex-1 h-px bg-slate-200 dark:bg-slate-800"></div>
+        </div>
 
-        <div class="flex-1 min-w-0">
-          <div class="flex items-baseline gap-2">
-            <span class="text-sm font-semibold text-slate-900 dark:text-white">
-              {{ msg.author?.display_name || 'Friend' }}
-            </span>
-            <span class="text-xs text-slate-400 dark:text-slate-500">
-              {{ formatTime(msg.created_at) }}
-            </span>
-
-            <!-- Status Indicator -->
-            <span
-              v-if="msg.status === 'sending'"
-              class="text-xs text-slate-400 italic flex items-center gap-1"
-            >
-              Sending...
-            </span>
-
-            <span
-              v-else-if="msg.status === 'failed'"
-              class="text-xs text-rose-500 font-medium flex items-center gap-1.5"
-            >
-              Failed to send
-              <button
-                type="button"
-                :data-test="`retry-${msg.client_id}`"
-                class="underline hover:text-rose-600 font-semibold cursor-pointer ml-1"
-                @click="emit('retry', msg.client_id)"
-              >
-                Retry
-              </button>
-              <button
-                type="button"
-                :data-test="`dismiss-${msg.client_id}`"
-                class="underline hover:text-rose-600 cursor-pointer ml-1 text-slate-400"
-                @click="emit('dismiss', msg.client_id)"
-              >
-                Dismiss
-              </button>
+        <!-- Compact Message Row (same author within 5m on same day) -->
+        <div
+          v-if="item.isCompact"
+          data-test="compact-message"
+          class="flex items-start gap-3 group -mt-2.5 py-0.5 hover:bg-slate-100/60 dark:hover:bg-slate-900/50 rounded-lg px-1 -mx-1 transition-colors"
+        >
+          <div class="w-9 shrink-0 text-right pr-1 select-none">
+            <span class="text-[10px] text-slate-400 dark:text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">
+              {{ formatTime(item.message.created_at) }}
             </span>
           </div>
 
-          <div
-            class="text-sm text-slate-800 dark:text-slate-200 mt-0.5 whitespace-pre-wrap break-words leading-relaxed"
-            :class="{ 'opacity-60': msg.status === 'sending', 'text-rose-400': msg.status === 'failed' }"
-          >
-            {{ msg.content }}
+          <div class="flex-1 min-w-0">
+            <div
+              class="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words leading-relaxed"
+              :class="{ 'opacity-60': item.message.status === 'sending', 'text-rose-400': item.message.status === 'failed' }"
+            >
+              {{ item.message.content }}
+            </div>
+
+            <div v-if="item.message.status !== 'sent'" class="mt-0.5 flex items-center gap-2">
+              <span
+                v-if="item.message.status === 'sending'"
+                class="text-xs text-slate-400 italic"
+              >
+                Sending...
+              </span>
+              <span
+                v-else-if="item.message.status === 'failed'"
+                class="text-xs text-rose-500 font-medium flex items-center gap-1.5"
+              >
+                Failed to send
+                <button
+                  type="button"
+                  :data-test="`retry-${item.message.client_id}`"
+                  class="underline hover:text-rose-600 font-semibold cursor-pointer ml-1"
+                  @click="emit('retry', item.message.client_id)"
+                >
+                  Retry
+                </button>
+                <button
+                  type="button"
+                  :data-test="`dismiss-${item.message.client_id}`"
+                  class="underline hover:text-rose-600 cursor-pointer ml-1 text-slate-400"
+                  @click="emit('dismiss', item.message.client_id)"
+                >
+                  Dismiss
+                </button>
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+
+        <!-- Full Message Row -->
+        <div
+          v-else
+          data-test="full-message"
+          class="flex items-start gap-3 group hover:bg-slate-100/60 dark:hover:bg-slate-900/50 rounded-lg p-1 -mx-1 transition-colors"
+        >
+          <UserAvatar
+            :display-name="item.message.author?.display_name || 'Friend'"
+            :avatar-color="item.message.author?.avatar_color"
+            size="md"
+          />
+
+          <div class="flex-1 min-w-0">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-semibold text-slate-900 dark:text-white">
+                {{ item.message.author?.display_name || 'Friend' }}
+              </span>
+              <span class="text-xs text-slate-400 dark:text-slate-500">
+                {{ formatTime(item.message.created_at) }}
+              </span>
+
+              <span
+                v-if="item.message.status === 'sending'"
+                class="text-xs text-slate-400 italic flex items-center gap-1"
+              >
+                Sending...
+              </span>
+
+              <span
+                v-else-if="item.message.status === 'failed'"
+                class="text-xs text-rose-500 font-medium flex items-center gap-1.5"
+              >
+                Failed to send
+                <button
+                  type="button"
+                  :data-test="`retry-${item.message.client_id}`"
+                  class="underline hover:text-rose-600 font-semibold cursor-pointer ml-1"
+                  @click="emit('retry', item.message.client_id)"
+                >
+                  Retry
+                </button>
+                <button
+                  type="button"
+                  :data-test="`dismiss-${item.message.client_id}`"
+                  class="underline hover:text-rose-600 cursor-pointer ml-1 text-slate-400"
+                  @click="emit('dismiss', item.message.client_id)"
+                >
+                  Dismiss
+                </button>
+              </span>
+            </div>
+
+            <div
+              class="text-sm text-slate-800 dark:text-slate-200 mt-0.5 whitespace-pre-wrap break-words leading-relaxed"
+              :class="{ 'opacity-60': item.message.status === 'sending', 'text-rose-400': item.message.status === 'failed' }"
+            >
+              {{ item.message.content }}
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
+
 
     <!-- Floating "New Messages" Pill -->
     <button
