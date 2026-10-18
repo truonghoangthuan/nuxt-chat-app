@@ -119,3 +119,15 @@ exception when duplicate_object then
   null;
 end;
 $$;
+
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    alter publication supabase_realtime add table public.profiles;
+  end if;
+exception when duplicate_object then
+  -- table already in publication
+  null;
+end;
+$$;
+

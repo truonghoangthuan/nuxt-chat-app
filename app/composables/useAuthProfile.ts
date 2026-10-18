@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import type { Profile } from '~/types/chat'
-import { getAvatarColor } from '~/utils/chat'
+import { getAvatarColor, isValidDisplayName, isValidAvatarColor } from '~/utils/chat'
 
 const testProfileRef = ref<Profile | null>(null)
 
@@ -75,6 +75,60 @@ export function useAuthProfile() {
     return currentProfile.value
   }
 
+  async function updateProfile(
+    displayName: string,
+    avatarColor: string,
+  ): Promise<{ profile: Profile | null; error: string | null }> {
+    const cleanName = displayName.trim()
+    if (!isValidDisplayName(cleanName)) {
+      return { profile: null, error: 'Display name must be between 1 and 40 characters.' }
+    }
+    if (!isValidAvatarColor(avatarColor)) {
+      return { profile: null, error: 'Please select a valid avatar color.' }
+    }
+
+    let authUser: any = user.value
+    let userId = extractAuthUserId(authUser) || currentProfile.value?.id || null
+
+    if (!userId && supabase?.auth?.getUser) {
+      try {
+        const { data } = await supabase.auth.getUser()
+        if (data?.user) {
+          authUser = data.user
+          userId = extractAuthUserId(authUser)
+        }
+      } catch {
+        // Ignore auth lookup error
+      }
+    }
+
+    if (!userId) {
+      return { profile: null, error: 'You must be signed in to update your profile.' }
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        display_name: cleanName,
+        avatar_color: avatarColor,
+      })
+      .eq('id', userId)
+      .select('*')
+      .single()
+
+    if (error) {
+      return { profile: null, error: error.message }
+    }
+
+    const updated = (data as Profile) || {
+      id: userId,
+      display_name: cleanName,
+      avatar_color: avatarColor,
+    }
+    currentProfile.value = updated
+    return { profile: updated, error: null }
+  }
+
   async function signInWithPassword(email: string, password: string): Promise<{ error: string | null }> {
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
@@ -129,8 +183,10 @@ export function useAuthProfile() {
   return {
     currentProfile,
     ensureProfile,
+    updateProfile,
     signInWithPassword,
     signUpWithProfile,
     signOut,
   }
 }
+
