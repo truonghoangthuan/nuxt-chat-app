@@ -325,15 +325,39 @@ describe('chat utils', () => {
       expect(getDmPeerId({ is_dm: false, dm_user_a: null, dm_user_b: null }, 'user-111')).toBeNull()
     })
 
-    it('canUserAccessChannel allows all public channels and restricts DMs to the two participants', () => {
+    it('normalizeDmPair normalizes case-insensitively and trims whitespace', () => {
+      const res = normalizeDmPair('  USER-222  ', '  user-111  ')
+      expect(res).toEqual({
+        dm_user_a: 'user-111',
+        dm_user_b: 'user-222',
+        slug: 'dm:user-111:user-222',
+      })
+      expect(normalizeDmPair('USER-111', 'user-111')).toBeNull()
+      expect(normalizeDmPair(null as any, 'user-111')).toBeNull()
+    })
+
+    it('getDmPeerId handles case-insensitive participant comparisons', () => {
+      const dmChannel = {
+        is_dm: true,
+        dm_user_a: 'user-111',
+        dm_user_b: 'user-222',
+      }
+      expect(getDmPeerId(dmChannel, 'USER-111')).toBe('user-222')
+      expect(getDmPeerId(dmChannel, 'USER-222')).toBe('user-111')
+      expect(getDmPeerId(dmChannel, '  user-111  ')).toBe('user-222')
+      expect(getDmPeerId(dmChannel, undefined as any)).toBeNull()
+    })
+
+    it('canUserAccessChannel handles case-insensitive comparisons and invalid inputs safely', () => {
       const publicCh = { is_dm: false, dm_user_a: null, dm_user_b: null }
       const dmCh = { is_dm: true, dm_user_a: 'user-111', dm_user_b: 'user-222' }
 
-      expect(canUserAccessChannel(publicCh, 'user-999')).toBe(true)
-      expect(canUserAccessChannel(dmCh, 'user-111')).toBe(true)
-      expect(canUserAccessChannel(dmCh, 'user-222')).toBe(true)
-      expect(canUserAccessChannel(dmCh, 'user-333')).toBe(false)
+      expect(canUserAccessChannel(publicCh, 'USER-999')).toBe(true)
+      expect(canUserAccessChannel(dmCh, 'USER-111')).toBe(true)
+      expect(canUserAccessChannel(dmCh, 'USER-222')).toBe(true)
+      expect(canUserAccessChannel(dmCh, 'USER-333')).toBe(false)
       expect(canUserAccessChannel(dmCh, null)).toBe(false)
+      expect(canUserAccessChannel(dmCh, undefined)).toBe(false)
     })
   })
 })

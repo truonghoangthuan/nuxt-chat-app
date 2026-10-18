@@ -205,6 +205,8 @@ onUnmounted(() => {
       <MessageViewport
         :messages="messages"
         :channel-id="activeChannelId"
+        :is-dm="Boolean(activeChannel?.is_dm)"
+        :peer-name="activeChannel?.peer?.display_name || ''"
         :has-more-history="hasMoreHistory"
         :is-loading-history="isLoadingHistory"
         :current-user-id="currentProfile?.id"

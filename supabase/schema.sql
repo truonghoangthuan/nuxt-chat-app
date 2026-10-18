@@ -220,6 +220,8 @@ as $$
   );
 $$;
 
+grant execute on function public.can_access_channel(uuid) to authenticated, anon;
+
 drop policy if exists "Authenticated users can view channels" on public.channels;
 drop policy if exists "Authenticated users can view accessible channels" on public.channels;
 create policy "Authenticated users can view accessible channels"
@@ -250,6 +252,14 @@ create policy "Authenticated users can insert accessible messages"
   to authenticated
   with check (auth.uid() = user_id and public.can_access_channel(channel_id));
 
+drop policy if exists "Users can update their own messages" on public.messages;
+drop policy if exists "Users can update accessible messages" on public.messages;
+create policy "Users can update accessible messages"
+  on public.messages for update
+  to authenticated
+  using (auth.uid() = user_id and public.can_access_channel(channel_id))
+  with check (auth.uid() = user_id and public.can_access_channel(channel_id));
+
 drop policy if exists "Authenticated users can view message reactions" on public.message_reactions;
 drop policy if exists "Authenticated users can view accessible message reactions" on public.message_reactions;
 create policy "Authenticated users can view accessible message reactions"
@@ -262,6 +272,28 @@ drop policy if exists "Authenticated users can insert accessible reactions" on p
 create policy "Authenticated users can insert accessible reactions"
   on public.message_reactions for insert
   to authenticated
+  with check (auth.uid() = user_id and public.can_access_channel(channel_id));
+
+drop policy if exists "Authenticated users can delete their own reactions" on public.message_reactions;
+drop policy if exists "Authenticated users can delete accessible reactions" on public.message_reactions;
+create policy "Authenticated users can delete accessible reactions"
+  on public.message_reactions for delete
+  to authenticated
+  using (auth.uid() = user_id and public.can_access_channel(channel_id));
+
+drop policy if exists "Users can insert their own channel reads" on public.channel_reads;
+drop policy if exists "Users can insert accessible channel reads" on public.channel_reads;
+create policy "Users can insert accessible channel reads"
+  on public.channel_reads for insert
+  to authenticated
+  with check (auth.uid() = user_id and public.can_access_channel(channel_id));
+
+drop policy if exists "Users can update their own channel reads" on public.channel_reads;
+drop policy if exists "Users can update accessible channel reads" on public.channel_reads;
+create policy "Users can update accessible channel reads"
+  on public.channel_reads for update
+  to authenticated
+  using (auth.uid() = user_id and public.can_access_channel(channel_id))
   with check (auth.uid() = user_id and public.can_access_channel(channel_id));
 
 -- Realtime Publication

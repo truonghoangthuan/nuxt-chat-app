@@ -357,8 +357,8 @@ export function normalizeDmPair(
   userId1: string,
   userId2: string,
 ): { dm_user_a: string; dm_user_b: string; slug: string } | null {
-  const u1 = userId1?.trim() || ''
-  const u2 = userId2?.trim() || ''
+  const u1 = (typeof userId1 === 'string' ? userId1.trim() : '').toLowerCase()
+  const u2 = (typeof userId2 === 'string' ? userId2.trim() : '').toLowerCase()
   if (!u1 || !u2 || u1 === u2) {
     return null
   }
@@ -374,13 +374,16 @@ export function getDmPeerId(
   channel: Pick<Channel, 'is_dm' | 'dm_user_a' | 'dm_user_b'>,
   currentUserId?: string | null,
 ): string | null {
-  if (!channel?.is_dm || !currentUserId) {
+  if (!channel?.is_dm || !currentUserId || typeof currentUserId !== 'string') {
     return null
   }
-  if (channel.dm_user_a === currentUserId) {
+  const cid = currentUserId.trim().toLowerCase()
+  const ua = channel.dm_user_a ? channel.dm_user_a.trim().toLowerCase() : null
+  const ub = channel.dm_user_b ? channel.dm_user_b.trim().toLowerCase() : null
+  if (ua === cid) {
     return channel.dm_user_b || null
   }
-  if (channel.dm_user_b === currentUserId) {
+  if (ub === cid) {
     return channel.dm_user_a || null
   }
   return null
@@ -393,9 +396,12 @@ export function canUserAccessChannel(
   if (!channel?.is_dm) {
     return true
   }
-  if (!currentUserId) {
+  if (!currentUserId || typeof currentUserId !== 'string') {
     return false
   }
-  return channel.dm_user_a === currentUserId || channel.dm_user_b === currentUserId
+  const cid = currentUserId.trim().toLowerCase()
+  const ua = channel.dm_user_a ? channel.dm_user_a.trim().toLowerCase() : null
+  const ub = channel.dm_user_b ? channel.dm_user_b.trim().toLowerCase() : null
+  return ua === cid || ub === cid
 }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import type { Profile } from '~/types/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
 
@@ -24,15 +24,37 @@ const emit = defineEmits<{
 }>()
 
 const searchQuery = ref('')
+const isSubmitting = ref(false)
+
+function onKeyDown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && props.isOpen) {
+    emit('close')
+  }
+}
 
 watch(
   () => props.isOpen,
   (open) => {
     if (open) {
       searchQuery.value = ''
+      isSubmitting.value = false
+      if (typeof window !== 'undefined') {
+        window.addEventListener('keydown', onKeyDown)
+      }
+    } else {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('keydown', onKeyDown)
+      }
     }
   },
+  { immediate: true },
 )
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('keydown', onKeyDown)
+  }
+})
 
 const onlineSet = computed(() => {
   return new Set((props.onlineFriends || []).map(f => f.id))
@@ -44,6 +66,21 @@ const filteredFriends = computed(() => {
     .filter(f => !props.currentUserId || f.id !== props.currentUserId)
     .filter(f => !q || f.display_name.toLowerCase().includes(q))
 })
+
+function handleSelect(friendId: string) {
+  if (isSubmitting.value) return
+  isSubmitting.value = true
+  emit('selectFriend', friendId)
+  setTimeout(() => {
+    isSubmitting.value = false
+  }, 1000)
+}
+
+function handleSearchEnter() {
+  if (filteredFriends.value.length > 0) {
+    handleSelect(filteredFriends.value[0].id)
+  }
+}
 </script>
 
 <template>
@@ -73,6 +110,7 @@ const filteredFriends = computed(() => {
           data-test="dm-search-input"
           placeholder="Search friends by name..."
           class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+          @keydown.enter.prevent="handleSearchEnter"
         />
 
         <p v-if="errorMessage" class="text-xs text-rose-500 font-medium">
@@ -92,8 +130,9 @@ const filteredFriends = computed(() => {
             :key="friend.id"
             type="button"
             :data-test="`start-dm-friend-${friend.id}`"
-            class="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-colors rounded-lg text-left cursor-pointer"
-            @click="emit('selectFriend', friend.id)"
+            :disabled="isSubmitting"
+            class="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-colors rounded-lg text-left cursor-pointer disabled:opacity-50"
+            @click="handleSelect(friend.id)"
           >
             <div class="flex items-center gap-3 min-w-0">
               <UserAvatar

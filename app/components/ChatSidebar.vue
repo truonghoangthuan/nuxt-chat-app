@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Channel, Profile, ConnectionStatus } from '~/types/chat'
+import { getDmPeerId } from '~/utils/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
 
 const props = withDefaults(
@@ -38,7 +39,7 @@ function onChannelClick(channelId: string) {
 }
 
 function isPeerOnline(dm: Channel): boolean {
-  const peerId = dm.peer?.id
+  const peerId = dm.peer?.id || (props.currentUser ? getDmPeerId(dm, props.currentUser.id) : null)
   if (!peerId) return false
   return props.onlineFriends.some(f => f.id === peerId)
 }

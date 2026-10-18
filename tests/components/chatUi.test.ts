@@ -487,6 +487,7 @@ describe('Chat UI components', () => {
           ],
           onlineFriends: [{ id: 'u2', display_name: 'Bob', avatar_color: '#7c3aed' }],
           currentUserId: 'u1',
+          errorMessage: 'Unable to start DM',
         },
       })
 
@@ -494,6 +495,7 @@ describe('Chat UI components', () => {
       expect(wrapper.find('[data-test="start-dm-friend-u1"]').exists()).toBe(false)
       expect(wrapper.find('[data-test="start-dm-friend-u2"]').exists()).toBe(true)
       expect(wrapper.find('[data-test="start-dm-friend-u3"]').exists()).toBe(true)
+      expect(wrapper.text()).toContain('Unable to start DM')
 
       const searchInput = wrapper.find('[data-test="dm-search-input"]')
       await searchInput.setValue('char')
@@ -502,8 +504,62 @@ describe('Chat UI components', () => {
       const charlieBtn = wrapper.find('[data-test="start-dm-friend-u3"]')
       expect(charlieBtn.exists()).toBe(true)
 
-      await charlieBtn.trigger('click')
+      // Enter key triggers selection of the first matching friend
+      await searchInput.trigger('keydown.enter')
       expect(wrapper.emitted('selectFriend')?.[0]).toEqual(['u3'])
+
+      // Escape key emits close
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      expect(wrapper.emitted('close')).toBeTruthy()
+    })
+
+    it('ChatSidebar displays empty state for DMs and prevents clicking on own user row', async () => {
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          channels: [],
+          dmChannels: [],
+          activeChannelId: null,
+          unreadCounts: {},
+          unreadMentions: {},
+          onlineFriends: [
+            { id: 'u1', display_name: 'Alice', avatar_color: '#0284c7' },
+          ],
+          currentUser: { id: 'u1', display_name: 'Alice', avatar_color: '#0284c7' },
+          isDark: true,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+
+      expect(wrapper.text()).toContain('No conversations yet')
+
+      // Clicking own online friend row does NOT emit startDmWithUser
+      const ownRow = wrapper.find('[data-test="online-friend-u1"]')
+      expect(ownRow.exists()).toBe(true)
+      await ownRow.trigger('click')
+      expect(wrapper.emitted('startDmWithUser')).toBeUndefined()
+
+      // Clicking + New emits openStartDm
+      const newDmBtn = wrapper.find('[data-test="open-start-dm"]')
+      expect(newDmBtn.exists()).toBe(true)
+      await newDmBtn.trigger('click')
+      expect(wrapper.emitted('openStartDm')).toBeTruthy()
+    })
+
+    it('MessageViewport renders DM-specific @ icon and peer name when isDm is true', () => {
+      const wrapper = mount(MessageViewport, {
+        props: {
+          messages: [],
+          isDm: true,
+          peerName: 'Bob',
+          loadOlder: vi.fn().mockResolvedValue(0),
+        },
+      })
+
+      const empty = wrapper.find('[data-test="empty-channel-placeholder"]')
+      expect(empty.exists()).toBe(true)
+      expect(empty.text()).toContain('@')
+      expect(empty.text()).toContain('This is the start of your direct message history with @Bob')
     })
   })
 })

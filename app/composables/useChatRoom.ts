@@ -72,6 +72,9 @@ export function handleIncomingRealtimeMessage(params: {
     params.messagesStore.reconcileIncomingMessage(params.row)
     params.typingTracker.clearUserTyping(params.row.user_id)
   } else {
+    if (params.currentUserId && params.row.user_id === params.currentUserId) {
+      return
+    }
     params.unreadCounts[params.row.channel_id] = (params.unreadCounts[params.row.channel_id] || 0) + 1
     if (
       params.unreadMentions
@@ -533,6 +536,52 @@ export function useChatRoom() {
         { event: 'INSERT', schema: 'public', table: 'messages' },
         async (payload) => {
           const newRow = payload.new as any
+          const currentId = authProfile.currentProfile.value?.id
+
+          let targetChannel = channels.value.find(c => c.id === newRow.channel_id)
+          if (!targetChannel) {
+            try {
+              const { data: fetchedChannel } = await supabase
+                .from('channels')
+                .select('*')
+                .eq('id', newRow.channel_id)
+                .single()
+              if (fetchedChannel && canUserAccessChannel(fetchedChannel as Channel, currentId)) {
+                targetChannel = fetchedChannel as Channel
+                if (!channels.value.some(c => c.id === targetChannel!.id)) {
+                  channels.value = [...channels.value, targetChannel]
+                }
+              }
+            } catch {
+              // ignore fetch failure
+            }
+          }
+
+          if (targetChannel && !canUserAccessChannel(targetChannel, currentId)) {
+            return
+          }
+
+          if (targetChannel?.is_dm && currentId) {
+            const peerId = getDmPeerId(targetChannel, currentId)
+            if (peerId && !profilesCache.has(peerId)) {
+              try {
+                const { data: peerProfile } = await supabase
+                  .from('profiles')
+                  .select('id, display_name, avatar_color')
+                  .eq('id', peerId)
+                  .single()
+                if (peerProfile) {
+                  profilesCache.set(peerProfile.id, peerProfile as Profile)
+                  if (!allProfiles.value.some(p => p.id === peerProfile.id)) {
+                    allProfiles.value = [...allProfiles.value, peerProfile as Profile]
+                  }
+                }
+              } catch {
+                // ignore
+              }
+            }
+          }
+
           const author = await resolveMessageAuthor({
             userId: newRow.user_id,
             existingAuthor: newRow.author,
@@ -621,11 +670,45 @@ export function useChatRoom() {
         { event: 'INSERT', schema: 'public', table: 'channels' },
         (payload) => {
           const newChannel = payload.new as Channel
-          if (!canUserAccessChannel(newChannel, authProfile.currentProfile.value?.id)) {
+          const currentId = authProfile.currentProfile.value?.id
+          if (!canUserAccessChannel(newChannel, currentId)) {
             return
           }
           if (!channels.value.some(c => c.id === newChannel.id)) {
             channels.value = [...channels.value, newChannel]
+          }
+          if (newChannel.is_dm && currentId) {
+            const peerId = getDmPeerId(newChannel, currentId)
+            if (peerId && !profilesCache.has(peerId)) {
+              supabase
+                .from('profiles')
+                .select('id, display_name, avatar_color')
+                .eq('id', peerId)
+                .single()
+                .then(({ data: peerProfile }) => {
+                  if (peerProfile) {
+                    profilesCache.set(peerProfile.id, peerProfile as Profile)
+                    if (!allProfiles.value.some(p => p.id === peerProfile.id)) {
+                      allProfiles.value = [...allProfiles.value, peerProfile as Profile]
+                    }
+                  }
+                })
+            }
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'profiles' },
+        (payload) => {
+          const newProfile = payload.new as Profile
+          if (newProfile?.id) {
+            profilesCache.set(newProfile.id, newProfile)
+            if (!allProfiles.value.some(p => p.id === newProfile.id)) {
+              allProfiles.value = [...allProfiles.value, newProfile].sort((a, b) =>
+                a.display_name.localeCompare(b.display_name),
+              )
+            }
           }
         },
       )
@@ -820,6 +903,24 @@ export function useChatRoom() {
     const pair = normalizeDmPair(current.id, peerUserId)
     if (!pair) {
       return { channel: null, error: 'Cannot start a direct message with yourself.' }
+    }
+
+    if (peerUserId && !profilesCache.has(peerUserId)) {
+      try {
+        const { data: peerProfile } = await supabase
+          .from('profiles')
+          .select('id, display_name, avatar_color')
+          .eq('id', peerUserId)
+          .single()
+        if (peerProfile) {
+          profilesCache.set(peerProfile.id, peerProfile as Profile)
+          if (!allProfiles.value.some(p => p.id === peerProfile.id)) {
+            allProfiles.value = [...allProfiles.value, peerProfile as Profile]
+          }
+        }
+      } catch {
+        // ignore profile fetch failure
+      }
     }
 
     const existingInMemory = channels.value.find(

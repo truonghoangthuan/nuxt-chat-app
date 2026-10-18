@@ -295,6 +295,43 @@ describe('useChatRoom realtime message routing & profile caching', () => {
     expect(unreadMentions['ch-random']).toBe(1)
   })
 
+  it('does NOT increment unread counts or mentions when incoming realtime message was sent by current user', () => {
+    const store = createMessagesStore()
+    const typing = createTypingTracker(() => 'u-alice', 3000)
+    const unreadCounts: Record<string, number> = {}
+    const unreadMentions: Record<string, number> = {}
+
+    handleIncomingRealtimeMessage({
+      row: {
+        id: 'm-30',
+        client_id: 'c-30',
+        channel_id: 'ch-random',
+        user_id: 'u-alice',
+        content: 'Own message in another channel with @Alice mention',
+        created_at: '2026-10-18T11:05:00Z',
+      },
+      activeChannelId: 'ch-general',
+      messagesStore: store,
+      typingTracker: typing,
+      unreadCounts,
+      unreadMentions,
+      currentUserId: 'u-alice',
+      currentDisplayName: 'Alice',
+    })
+
+    expect(unreadCounts['ch-random']).toBeUndefined()
+    expect(unreadMentions['ch-random']).toBeUndefined()
+  })
+
+  it('isDuplicateKeyError accurately detects Postgres code 23505 and message variants', () => {
+    expect(isDuplicateKeyError({ code: '23505' })).toBe(true)
+    expect(isDuplicateKeyError({ message: 'duplicate key value violates unique constraint' })).toBe(true)
+    expect(isDuplicateKeyError({ message: 'Unique constraint "channels_slug_key" violated' })).toBe(true)
+    expect(isDuplicateKeyError({ code: '42P01', message: 'relation does not exist' })).toBe(false)
+    expect(isDuplicateKeyError(null)).toBe(false)
+    expect(isDuplicateKeyError(undefined)).toBe(false)
+  })
+
   describe('hydrateDmChannelPeers (Sub-Project 4)', () => {
     it('filters DM channels accessible to currentUserId and attaches the peer Profile', () => {
       const profilesCache = new Map<string, Profile>([
@@ -343,6 +380,61 @@ describe('useChatRoom realtime message routing & profile caching', () => {
       expect(hydratedForAlice).toHaveLength(1)
       expect(hydratedForAlice[0]!.id).toBe('dm-1-2')
       expect(hydratedForAlice[0]!.peer?.display_name).toBe('Bob')
+    })
+
+    it('hydrates peer correctly when current user is dm_user_b or falls back to fallbackProfiles', () => {
+      const emptyCache = new Map<string, Profile>()
+      const fallbackProfiles: Profile[] = [
+        { id: 'user-1', display_name: 'Alice', avatar_color: '#0284c7' },
+      ]
+
+      const channels = [
+        {
+          id: 'dm-1-2',
+          slug: 'dm:user-1:user-2',
+          description: null,
+          created_by: 'user-1',
+          created_at: '2026-10-19T00:01:00Z',
+          is_dm: true,
+          dm_user_a: 'user-1',
+          dm_user_b: 'user-2',
+        },
+      ]
+
+      const hydratedForBob = hydrateDmChannelPeers({
+        channels,
+        currentUserId: 'user-2',
+        profilesCache: emptyCache,
+        fallbackProfiles,
+      })
+
+      expect(hydratedForBob).toHaveLength(1)
+      expect(hydratedForBob[0]!.peer?.display_name).toBe('Alice')
+    })
+
+    it('returns empty array when currentUserId is missing and sets peer to null when unresolvable', () => {
+      const channels = [
+        {
+          id: 'dm-1-2',
+          slug: 'dm:user-1:user-2',
+          description: null,
+          created_by: 'user-1',
+          created_at: '2026-10-19T00:01:00Z',
+          is_dm: true,
+          dm_user_a: 'user-1',
+          dm_user_b: 'user-2',
+        },
+      ]
+
+      expect(hydrateDmChannelPeers({ channels, currentUserId: null, profilesCache: new Map() })).toEqual([])
+
+      const unresolvable = hydrateDmChannelPeers({
+        channels,
+        currentUserId: 'user-1',
+        profilesCache: new Map(),
+      })
+      expect(unresolvable).toHaveLength(1)
+      expect(unresolvable[0]!.peer).toBeNull()
     })
   })
 })
