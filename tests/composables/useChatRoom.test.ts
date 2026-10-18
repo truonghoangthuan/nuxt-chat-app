@@ -7,6 +7,7 @@ import {
   resolveMessageAuthor,
   applyRealtimeProfileUpdate,
   computeUnreadSnapshot,
+  hydrateDmChannelPeers,
 } from '~/composables/useChatRoom'
 import { extractAuthUserId } from '~/composables/useAuthProfile'
 import { createMessagesStore } from '~/composables/useMessagesState'
@@ -292,6 +293,57 @@ describe('useChatRoom realtime message routing & profile caching', () => {
 
     expect(unreadCounts['ch-random']).toBe(1)
     expect(unreadMentions['ch-random']).toBe(1)
+  })
+
+  describe('hydrateDmChannelPeers (Sub-Project 4)', () => {
+    it('filters DM channels accessible to currentUserId and attaches the peer Profile', () => {
+      const profilesCache = new Map<string, Profile>([
+        ['user-1', { id: 'user-1', display_name: 'Alice', avatar_color: '#0284c7' }],
+        ['user-2', { id: 'user-2', display_name: 'Bob', avatar_color: '#7c3aed' }],
+        ['user-3', { id: 'user-3', display_name: 'Charlie', avatar_color: '#059669' }],
+      ])
+
+      const channels = [
+        {
+          id: 'ch-general',
+          slug: 'general',
+          description: 'General',
+          created_by: null,
+          created_at: '2026-10-19T00:00:00Z',
+          is_dm: false,
+        },
+        {
+          id: 'dm-1-2',
+          slug: 'dm:user-1:user-2',
+          description: null,
+          created_by: 'user-1',
+          created_at: '2026-10-19T00:01:00Z',
+          is_dm: true,
+          dm_user_a: 'user-1',
+          dm_user_b: 'user-2',
+        },
+        {
+          id: 'dm-2-3',
+          slug: 'dm:user-2:user-3',
+          description: null,
+          created_by: 'user-2',
+          created_at: '2026-10-19T00:02:00Z',
+          is_dm: true,
+          dm_user_a: 'user-2',
+          dm_user_b: 'user-3',
+        },
+      ]
+
+      const hydratedForAlice = hydrateDmChannelPeers({
+        channels,
+        currentUserId: 'user-1',
+        profilesCache,
+      })
+
+      expect(hydratedForAlice).toHaveLength(1)
+      expect(hydratedForAlice[0]!.id).toBe('dm-1-2')
+      expect(hydratedForAlice[0]!.peer?.display_name).toBe('Bob')
+    })
   })
 })
 

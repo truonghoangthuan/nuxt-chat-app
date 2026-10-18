@@ -178,6 +178,92 @@ create policy "Users can update their own channel reads"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+-- ============================================================================
+-- 3.7 Direct Messages (1-on-1 Private Conversations) & Strict Channel RLS
+-- ============================================================================
+alter table public.channels
+  add column if not exists is_dm boolean not null default false,
+  add column if not exists dm_user_a uuid references public.profiles(id) on delete cascade,
+  add column if not exists dm_user_b uuid references public.profiles(id) on delete cascade;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'channels_dm_pair_check'
+  ) then
+    alter table public.channels
+      add constraint channels_dm_pair_check
+      check (
+        (not is_dm and dm_user_a is null and dm_user_b is null)
+        or (is_dm and dm_user_a is not null and dm_user_b is not null and dm_user_a < dm_user_b)
+      );
+  end if;
+end;
+$$;
+
+create unique index if not exists channels_dm_pair_unique_idx
+  on public.channels (dm_user_a, dm_user_b)
+  where is_dm = true;
+
+create or replace function public.can_access_channel(cid uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.channels c
+    where c.id = cid
+      and (not c.is_dm or auth.uid() = c.dm_user_a or auth.uid() = c.dm_user_b)
+  );
+$$;
+
+drop policy if exists "Authenticated users can view channels" on public.channels;
+drop policy if exists "Authenticated users can view accessible channels" on public.channels;
+create policy "Authenticated users can view accessible channels"
+  on public.channels for select
+  to authenticated
+  using (not is_dm or auth.uid() = dm_user_a or auth.uid() = dm_user_b);
+
+drop policy if exists "Authenticated users can create channels" on public.channels;
+create policy "Authenticated users can create channels"
+  on public.channels for insert
+  to authenticated
+  with check (
+    (not is_dm and (auth.uid() = created_by or created_by is null))
+    or (is_dm and (auth.uid() = dm_user_a or auth.uid() = dm_user_b))
+  );
+
+drop policy if exists "Authenticated users can view messages" on public.messages;
+drop policy if exists "Authenticated users can view accessible messages" on public.messages;
+create policy "Authenticated users can view accessible messages"
+  on public.messages for select
+  to authenticated
+  using (public.can_access_channel(channel_id));
+
+drop policy if exists "Authenticated users can insert messages" on public.messages;
+drop policy if exists "Authenticated users can insert accessible messages" on public.messages;
+create policy "Authenticated users can insert accessible messages"
+  on public.messages for insert
+  to authenticated
+  with check (auth.uid() = user_id and public.can_access_channel(channel_id));
+
+drop policy if exists "Authenticated users can view message reactions" on public.message_reactions;
+drop policy if exists "Authenticated users can view accessible message reactions" on public.message_reactions;
+create policy "Authenticated users can view accessible message reactions"
+  on public.message_reactions for select
+  to authenticated
+  using (public.can_access_channel(channel_id));
+
+drop policy if exists "Authenticated users can insert their own reactions" on public.message_reactions;
+drop policy if exists "Authenticated users can insert accessible reactions" on public.message_reactions;
+create policy "Authenticated users can insert accessible reactions"
+  on public.message_reactions for insert
+  to authenticated
+  with check (auth.uid() = user_id and public.can_access_channel(channel_id));
+
 -- Realtime Publication
 do $$
 begin

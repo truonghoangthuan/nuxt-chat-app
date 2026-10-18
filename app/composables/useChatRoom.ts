@@ -7,6 +7,9 @@ import {
   isValidMessageContent,
   isValidReactionEmoji,
   doesMessageMentionUser,
+  normalizeDmPair,
+  getDmPeerId,
+  canUserAccessChannel,
 } from '~/utils/chat'
 import { createMessagesStore } from '~/composables/useMessagesState'
 import { createTypingTracker } from '~/composables/useTypingState'
@@ -153,22 +156,51 @@ export function applyRealtimeProfileUpdate(params: {
   return updatedFriends
 }
 
+export function hydrateDmChannelPeers(params: {
+  channels: Channel[]
+  currentUserId?: string | null
+  profilesCache: Map<string, Profile>
+  fallbackProfiles?: Profile[]
+}): Channel[] {
+  if (!params.currentUserId) return []
+  return params.channels
+    .filter(ch => Boolean(ch.is_dm) && canUserAccessChannel(ch, params.currentUserId))
+    .map((ch) => {
+      const peerId = getDmPeerId(ch, params.currentUserId)
+      const peer = peerId
+        ? params.profilesCache.get(peerId)
+          || params.fallbackProfiles?.find(p => p.id === peerId)
+          || ch.peer
+          || null
+        : null
+      return {
+        ...ch,
+        peer,
+      }
+    })
+}
+
 export function useChatRoom() {
   const supabase = useSupabaseClient()
   const authProfile = useAuthProfile()
 
   const channels = ref<Channel[]>([])
   const activeChannelId = ref<string | null>(null)
-  const activeChannel = computed<Channel | null>(() => {
-    return channels.value.find(c => c.id === activeChannelId.value) || null
-  })
+  const allProfiles = ref<Profile[]>([])
+  const profilesCache = new Map<string, Profile>()
 
   const unreadCounts = ref<Record<string, number>>({})
   const unreadMentions = ref<Record<string, number>>({})
   const lastReadByChannel = ref<Record<string, string>>({})
   const activeChannelUnreadSince = ref<string | null>(null)
+
+  const onlineFriends = ref<Profile[]>([])
+
   const knownProfiles = computed<Profile[]>(() => {
     const map = new Map<string, Profile>()
+    for (const p of allProfiles.value) {
+      map.set(p.id, p)
+    }
     for (const p of profilesCache.values()) {
       map.set(p.id, p)
     }
@@ -180,7 +212,29 @@ export function useChatRoom() {
     }
     return Array.from(map.values()).sort((a, b) => a.display_name.localeCompare(b.display_name))
   })
-  const onlineFriends = ref<Profile[]>([])
+
+  const publicChannels = computed<Channel[]>(() => {
+    return channels.value.filter(c => !c.is_dm)
+  })
+
+  const dmChannels = computed<Channel[]>(() => {
+    return hydrateDmChannelPeers({
+      channels: channels.value,
+      currentUserId: authProfile.currentProfile.value?.id,
+      profilesCache,
+      fallbackProfiles: knownProfiles.value,
+    })
+  })
+
+  const activeChannel = computed<Channel | null>(() => {
+    const raw = channels.value.find(c => c.id === activeChannelId.value) || null
+    if (!raw) return null
+    if (raw.is_dm) {
+      return dmChannels.value.find(c => c.id === raw.id) || raw
+    }
+    return raw
+  })
+
   const hasMoreHistory = ref<boolean>(true)
   const isLoadingHistory = ref<boolean>(false)
 
@@ -194,8 +248,6 @@ export function useChatRoom() {
   let dbChangesChannel: RealtimeChannel | null = null
   let typingChannel: RealtimeChannel | null = null
   let lastTypingSentAt = 0
-
-  const profilesCache = new Map<string, Profile>()
 
   function cacheProfilesFromMessages(rows: Array<{ author?: Profile }>): void {
     for (const row of rows) {
@@ -334,6 +386,24 @@ export function useChatRoom() {
     return Math.ceil(connectionManager.nextRetryMs.value / 1000)
   })
 
+  async function loadAllProfiles(): Promise<void> {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, display_name, avatar_color')
+        .order('display_name', { ascending: true })
+
+      if (data && !error) {
+        allProfiles.value = data as Profile[]
+        for (const p of data as Profile[]) {
+          profilesCache.set(p.id, p)
+        }
+      }
+    } catch {
+      // Ignore profile directory load error
+    }
+  }
+
   async function loadChannels(): Promise<void> {
     try {
       const { data, error } = await supabase
@@ -344,8 +414,12 @@ export function useChatRoom() {
       if (data && !error) {
         channels.value = data as Channel[]
         if (!activeChannelId.value && data.length > 0) {
-          const general = (data as Channel[]).find(c => c.slug === 'general')
-          await selectChannel(general ? general.id : data[0].id)
+          const general = (data as Channel[]).find(c => !c.is_dm && c.slug === 'general')
+          const firstPublic = (data as Channel[]).find(c => !c.is_dm)
+          const initial = general || firstPublic || (data as Channel[])[0]
+          if (initial) {
+            await selectChannel(initial.id)
+          }
         }
       }
     } catch {
@@ -547,6 +621,9 @@ export function useChatRoom() {
         { event: 'INSERT', schema: 'public', table: 'channels' },
         (payload) => {
           const newChannel = payload.new as Channel
+          if (!canUserAccessChannel(newChannel, authProfile.currentProfile.value?.id)) {
+            return
+          }
           if (!channels.value.some(c => c.id === newChannel.id)) {
             channels.value = [...channels.value, newChannel]
           }
@@ -558,6 +635,9 @@ export function useChatRoom() {
         (payload) => {
           const updatedProfile = payload.new as Profile
           if (updatedProfile?.id) {
+            allProfiles.value = allProfiles.value.map(p =>
+              p.id === updatedProfile.id ? { ...p, ...updatedProfile } : p,
+            )
             onlineFriends.value = applyRealtimeProfileUpdate({
               profile: updatedProfile,
               profilesCache,
@@ -726,6 +806,69 @@ export function useChatRoom() {
     }
     await selectChannel(newChannel.id)
     return { channel: newChannel, error: null }
+  }
+
+  async function openOrCreateDm(peerUserId: string): Promise<{ channel: Channel | null; error: string | null }> {
+    let current = authProfile.currentProfile.value
+    if (!current?.id) {
+      current = await authProfile.ensureProfile()
+    }
+    if (!current?.id) {
+      return { channel: null, error: 'Not authenticated.' }
+    }
+
+    const pair = normalizeDmPair(current.id, peerUserId)
+    if (!pair) {
+      return { channel: null, error: 'Cannot start a direct message with yourself.' }
+    }
+
+    const existingInMemory = channels.value.find(
+      c => c.slug === pair.slug || (c.is_dm && c.dm_user_a === pair.dm_user_a && c.dm_user_b === pair.dm_user_b),
+    )
+    if (existingInMemory) {
+      await selectChannel(existingInMemory.id)
+      return { channel: existingInMemory, error: null }
+    }
+
+    const payload = {
+      slug: pair.slug,
+      description: null,
+      created_by: current.id,
+      is_dm: true,
+      dm_user_a: pair.dm_user_a,
+      dm_user_b: pair.dm_user_b,
+    }
+
+    const { data, error } = await supabase
+      .from('channels')
+      .insert(payload)
+      .select('*')
+      .single()
+
+    let resolvedChannel: Channel | null = (data as Channel) || null
+
+    if (error) {
+      if (isDuplicateKeyError(error)) {
+        const { data: existingRow } = await supabase
+          .from('channels')
+          .select('*')
+          .eq('slug', pair.slug)
+          .single()
+        resolvedChannel = (existingRow as Channel) || null
+      }
+      if (!resolvedChannel) {
+        return { channel: null, error: error.message }
+      }
+    }
+
+    if (resolvedChannel) {
+      if (!channels.value.some(c => c.id === resolvedChannel!.id)) {
+        channels.value = [...channels.value, resolvedChannel]
+      }
+      await selectChannel(resolvedChannel.id)
+    }
+
+    return { channel: resolvedChannel, error: null }
   }
 
   async function sendMessage(content: string, replyToId?: string | null): Promise<void> {
@@ -947,6 +1090,7 @@ export function useChatRoom() {
 
   async function initializeChat(): Promise<void> {
     await authProfile.ensureProfile()
+    await loadAllProfiles()
     await loadChannels()
     await loadChannelReadsAndUnreads()
     setupPresenceSubscription()
@@ -993,6 +1137,8 @@ export function useChatRoom() {
 
   return {
     channels,
+    publicChannels,
+    dmChannels,
     activeChannelId,
     activeChannel,
     messages,
@@ -1001,6 +1147,7 @@ export function useChatRoom() {
     unreadCounts,
     unreadMentions,
     activeChannelUnreadSince,
+    allProfiles,
     knownProfiles,
     onlineFriends,
     typingLabel,
@@ -1009,6 +1156,7 @@ export function useChatRoom() {
     initializeChat,
     selectChannel,
     createChannel,
+    openOrCreateDm,
     sendMessage,
     retryMessage,
     dismissMessage,
