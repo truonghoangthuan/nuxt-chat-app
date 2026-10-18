@@ -27,6 +27,13 @@ export interface ChatMessage {
   author?: Profile
 }
 
+export interface TimelineMessageItem {
+  message: ChatMessage
+  showDateDivider: boolean
+  dateLabel: string
+  isCompact: boolean
+}
+
 export interface TypingUser {
   user_id: string
   display_name: string

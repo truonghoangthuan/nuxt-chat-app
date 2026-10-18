@@ -1,3 +1,5 @@
+import type { ChatMessage, TimelineMessageItem } from '~/types/chat'
+
 export const AVATAR_PALETTE = [
   '#0284c7', // Sky 600
   '#7c3aed', // Violet 600
@@ -8,6 +10,8 @@ export const AVATAR_PALETTE = [
   '#0891b2', // Cyan 600
   '#c026d3', // Fuchsia 600
 ] as const
+
+export const GROUPING_WINDOW_MS = 5 * 60 * 1000
 
 export function normalizeChannelSlug(input: string): string {
   return input
@@ -59,6 +63,84 @@ export function calculateBackoffMs(attempt: number): number {
 export function isValidMessageContent(content: string): boolean {
   const trimmed = content.trim()
   return trimmed.length > 0 && content.length <= 4000
+}
+
+export function isValidDisplayName(name: string): boolean {
+  const trimmed = name.trim()
+  return trimmed.length >= 1 && trimmed.length <= 40
+}
+
+export function isValidAvatarColor(color: string): boolean {
+  return (AVATAR_PALETTE as readonly string[]).includes(color)
+}
+
+function getLocalDayKey(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+export function formatDateDivider(isoString: string, now: Date = new Date()): string {
+  const date = new Date(isoString)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  const targetKey = getLocalDayKey(date)
+  const todayKey = getLocalDayKey(now)
+  if (targetKey === todayKey) {
+    return 'Today'
+  }
+
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+  if (targetKey === getLocalDayKey(yesterday)) {
+    return 'Yesterday'
+  }
+
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+export function buildMessageTimeline(
+  messages: ChatMessage[],
+  now: Date = new Date(),
+): TimelineMessageItem[] {
+  return messages.map((msg, index) => {
+    const currDate = new Date(msg.created_at)
+    const currDayKey = Number.isNaN(currDate.getTime()) ? '' : getLocalDayKey(currDate)
+    const dateLabel = formatDateDivider(msg.created_at, now)
+
+    if (index === 0) {
+      return {
+        message: msg,
+        showDateDivider: true,
+        dateLabel,
+        isCompact: false,
+      }
+    }
+
+    const prev = messages[index - 1]
+    const prevDate = new Date(prev.created_at)
+    const prevDayKey = Number.isNaN(prevDate.getTime()) ? '' : getLocalDayKey(prevDate)
+    const showDateDivider = currDayKey !== prevDayKey
+
+    const timeDiffMs = Math.abs(currDate.getTime() - prevDate.getTime())
+    const isCompact = !showDateDivider
+      && prev.user_id === msg.user_id
+      && !Number.isNaN(timeDiffMs)
+      && timeDiffMs <= GROUPING_WINDOW_MS
+
+    return {
+      message: msg,
+      showDateDivider,
+      dateLabel,
+      isCompact,
+    }
+  })
 }
 
 export function shouldSendOnKeydown(event: {
