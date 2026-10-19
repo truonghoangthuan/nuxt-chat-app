@@ -1,6 +1,6 @@
 import { ref, computed, shallowReactive, type ComputedRef, type Ref } from 'vue'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import type { Channel, ChatMessage, MessageReaction, Profile, ReplyTarget, ConnectionStatus, ChannelRead } from '~/types/chat'
+import type { Channel, ChatMessage, MessageReaction, Profile, ReplyTarget, ConnectionStatus, ChannelRead, MessageEncryptionState } from '~/types/chat'
 import {
   normalizeChannelSlug,
   isValidChannelSlug,
@@ -11,11 +11,13 @@ import {
   getDmPeerId,
   canUserAccessChannel,
 } from '~/utils/chat'
+import { isEncryptedEnvelope, encryptContent, decryptContent } from '~/utils/crypto'
 import { createMessagesStore } from '~/composables/useMessagesState'
 import { createTypingTracker } from '~/composables/useTypingState'
 import { deduplicatePresenceState } from '~/composables/usePresenceState'
 import { createConnectionManager } from '~/composables/useConnectionManager'
 import { useAuthProfile } from '~/composables/useAuthProfile'
+import { useE2ee } from '~/composables/useE2ee'
 
 export const PAGE_SIZE = 40
 
@@ -24,6 +26,85 @@ export function isDuplicateKeyError(error: any): boolean {
   if (error.code === '23505') return true
   const msg = String(error.message || '').toLowerCase()
   return msg.includes('duplicate key') || msg.includes('unique constraint')
+}
+
+export async function decryptMessageRow<
+  T extends {
+    content?: string
+    channel_id?: string
+    reply_to?: ReplyTarget | null
+    encryption?: MessageEncryptionState
+  },
+>(row: T, key: CryptoKey | null, fallbackChannelId?: string | null): Promise<T> {
+  if (typeof row.content !== 'string') {
+    return row
+  }
+
+  const channelId = row.channel_id || fallbackChannelId || ''
+  let content = row.content
+  let encryption: MessageEncryptionState
+
+  if (!content.startsWith('e2ee:v1:')) {
+    encryption = 'legacy'
+  } else if (!key || !channelId || !isEncryptedEnvelope(content)) {
+    content = ''
+    encryption = 'undecryptable'
+  } else {
+    try {
+      content = await decryptContent(key, content, channelId)
+      encryption = 'e2ee'
+    } catch {
+      content = ''
+      encryption = 'undecryptable'
+    }
+  }
+
+  let replyTo = row.reply_to
+  if (replyTo && typeof replyTo.content === 'string' && replyTo.encryption === undefined) {
+    let replyContent = replyTo.content
+    let replyEncryption: MessageEncryptionState
+    if (!replyContent.startsWith('e2ee:v1:')) {
+      replyEncryption = 'legacy'
+    } else if (!key || !channelId || !isEncryptedEnvelope(replyContent)) {
+      replyContent = ''
+      replyEncryption = 'undecryptable'
+    } else {
+      try {
+        replyContent = await decryptContent(key, replyContent, channelId)
+        replyEncryption = 'e2ee'
+      } catch {
+        replyContent = ''
+        replyEncryption = 'undecryptable'
+      }
+    }
+    replyTo = {
+      ...replyTo,
+      content: replyContent,
+      encryption: replyEncryption,
+    }
+  }
+
+  return {
+    ...row,
+    content,
+    encryption,
+    ...(row.reply_to !== undefined ? { reply_to: replyTo } : {}),
+  }
+}
+
+export async function decryptMessageRows<
+  T extends {
+    content?: string
+    channel_id?: string
+    reply_to?: ReplyTarget | null
+    encryption?: MessageEncryptionState
+  },
+>(
+  rows: T[],
+  key: CryptoKey | null,
+  fallbackChannelId?: string | null,
+): Promise<T[]> {
+  return Promise.all(rows.map(row => decryptMessageRow(row, key, fallbackChannelId)))
 }
 
 export function computeUnreadSnapshot(params: {
@@ -331,6 +412,7 @@ export function shouldProcessChannelMessage(
 export function useChatRoom() {
   const supabase = useSupabaseClient()
   const authProfile = useAuthProfile()
+  const e2ee = useE2ee()
 
   const channels = ref<Channel[]>([])
   const activeChannelId = ref<string | null>(null)
@@ -459,8 +541,9 @@ export function useChatRoom() {
         .order('created_at', { ascending: true })
 
       if (recentMessages) {
+        const decryptedRecent = await decryptMessageRows(recentMessages as any, e2ee.key.value)
         const snapshot = computeUnreadSnapshot({
-          messages: recentMessages as any,
+          messages: decryptedRecent as any,
           lastReadByChannel: map,
           activeChannelId: activeChannelId.value,
           currentUserId: current.id,
@@ -479,7 +562,9 @@ export function useChatRoom() {
   ): Promise<Array<Omit<ChatMessage, 'status'>>> {
     if (!rows || rows.length === 0) return []
 
-    const messageIds = rows.map(r => r.id)
+    const decryptedRows = await decryptMessageRows(rows, e2ee.key.value, activeChannelId.value)
+
+    const messageIds = decryptedRows.map(r => r.id)
     const reactionsByMsgId = new Map<string, MessageReaction[]>()
 
     try {
@@ -503,11 +588,11 @@ export function useChatRoom() {
     for (const m of messages.value) {
       knownById.set(m.id, m)
     }
-    for (const r of rows) {
+    for (const r of decryptedRows) {
       knownById.set(r.id, r)
     }
 
-    return rows.map((r) => {
+    return decryptedRows.map((r) => {
       const parent = r.reply_to_id ? knownById.get(r.reply_to_id) : null
       return {
         ...r,
@@ -519,6 +604,7 @@ export function useChatRoom() {
               content: parent.content,
               deleted_at: parent.deleted_at || null,
               author: parent.author,
+              encryption: parent.encryption,
             }
           : (r.reply_to || null),
       }
@@ -712,10 +798,16 @@ export function useChatRoom() {
             }
           }
 
+          const decryptedRow = await decryptMessageRow(
+            newRow,
+            e2ee.key.value,
+            activeChannelId.value,
+          )
+
           const author = await resolveMessageAuthor({
-            userId: newRow.user_id,
-            existingAuthor: newRow.author,
-            channelId: newRow.channel_id,
+            userId: decryptedRow.user_id,
+            existingAuthor: decryptedRow.author,
+            channelId: decryptedRow.channel_id,
             activeChannelId: activeChannelId.value,
             profilesCache,
             fetchProfile: async (userId: string) => {
@@ -732,8 +824,8 @@ export function useChatRoom() {
             },
           })
 
-          const parentMsg = newRow.reply_to_id
-            ? messages.value.find(m => m.id === newRow.reply_to_id)
+          const parentMsg = decryptedRow.reply_to_id
+            ? messages.value.find(m => m.id === decryptedRow.reply_to_id)
             : undefined
           const replyTarget: ReplyTarget | null = parentMsg
             ? {
@@ -742,11 +834,12 @@ export function useChatRoom() {
                 content: parentMsg.content,
                 deleted_at: parentMsg.deleted_at || null,
                 author: parentMsg.author,
+                encryption: parentMsg.encryption,
               }
-            : null
+            : (decryptedRow.reply_to || null)
 
           handleIncomingRealtimeMessage({
-            row: { ...newRow, author, reply_to: replyTarget, reactions: [] },
+            row: { ...decryptedRow, author, reply_to: replyTarget, reactions: [] },
             activeChannelId: activeChannelId.value,
             messagesStore,
             typingTracker,
@@ -755,18 +848,25 @@ export function useChatRoom() {
             currentUserId: authProfile.currentProfile.value?.id,
             currentDisplayName: authProfile.currentProfile.value?.display_name,
           })
-          if (newRow.channel_id === activeChannelId.value) {
-            markChannelRead(newRow.channel_id, false)
+          if (decryptedRow.channel_id === activeChannelId.value) {
+            markChannelRead(decryptedRow.channel_id, false)
           }
         },
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'messages' },
-        (payload) => {
+        async (payload) => {
+          const decryptedNew = payload.new
+            ? await decryptMessageRow(payload.new as any, e2ee.key.value, activeChannelId.value)
+            : payload.new
+          const decryptedOld = payload.old
+            ? await decryptMessageRow(payload.old as any, e2ee.key.value, activeChannelId.value)
+            : payload.old
+
           handleRealtimeMessageUpdate({
-            row: payload.new as any,
-            oldRow: payload.old as any,
+            row: decryptedNew as any,
+            oldRow: decryptedOld as any,
             activeChannelId: activeChannelId.value,
             messagesStore,
             unreadCounts: unreadCounts.value,
@@ -1132,23 +1232,34 @@ export function useChatRoom() {
         }
       : null
 
+    const plaintext = content.trim()
+    const channelId = activeChannelId.value
+
     messagesStore.addOptimisticMessage({
       clientId,
-      channelId: activeChannelId.value,
+      channelId,
       user: current,
-      content: content.trim(),
+      content: plaintext,
       replyToId: replyToId || null,
       replyTo: replyTarget,
+      encryption: 'e2ee',
     })
 
+    if (!e2ee.key.value) {
+      messagesStore.markMessageFailed(clientId)
+      return
+    }
+
     try {
+      const encryptedContent = await encryptContent(e2ee.key.value, plaintext, channelId)
+
       const { data, error } = await supabase
         .from('messages')
         .insert({
           client_id: clientId,
-          channel_id: activeChannelId.value,
+          channel_id: channelId,
           user_id: current.id,
-          content: content.trim(),
+          content: encryptedContent,
           reply_to_id: replyToId || null,
         })
         .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
@@ -1162,7 +1273,8 @@ export function useChatRoom() {
             .eq('client_id', clientId)
             .single()
           if (existing) {
-            messagesStore.markMessageSent(clientId, { ...existing, reply_to: replyTarget })
+            const decryptedExisting = await decryptMessageRow(existing, e2ee.key.value, channelId)
+            messagesStore.markMessageSent(clientId, { ...decryptedExisting, reply_to: replyTarget })
           } else {
             messagesStore.markMessageFailed(clientId)
           }
@@ -1170,7 +1282,8 @@ export function useChatRoom() {
           messagesStore.markMessageFailed(clientId)
         }
       } else if (data) {
-        messagesStore.markMessageSent(clientId, { ...data, reply_to: replyTarget })
+        const decryptedData = await decryptMessageRow(data, e2ee.key.value, channelId)
+        messagesStore.markMessageSent(clientId, { ...decryptedData, reply_to: replyTarget })
       }
     } catch {
       messagesStore.markMessageFailed(clientId)
@@ -1181,14 +1294,25 @@ export function useChatRoom() {
     const retrying = messagesStore.markMessageRetrying(clientId)
     if (!retrying) return
 
+    if (!e2ee.key.value) {
+      messagesStore.markMessageFailed(clientId)
+      return
+    }
+
     try {
+      const encryptedContent = await encryptContent(
+        e2ee.key.value,
+        retrying.content,
+        retrying.channel_id,
+      )
+
       const { data, error } = await supabase
         .from('messages')
         .insert({
           client_id: clientId,
           channel_id: retrying.channel_id,
           user_id: retrying.user_id,
-          content: retrying.content,
+          content: encryptedContent,
           reply_to_id: retrying.reply_to_id || null,
         })
         .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
@@ -1202,7 +1326,12 @@ export function useChatRoom() {
             .eq('client_id', clientId)
             .single()
           if (existing) {
-            messagesStore.markMessageSent(clientId, { ...existing, reply_to: retrying.reply_to })
+            const decryptedExisting = await decryptMessageRow(
+              existing,
+              e2ee.key.value,
+              retrying.channel_id,
+            )
+            messagesStore.markMessageSent(clientId, { ...decryptedExisting, reply_to: retrying.reply_to })
           } else {
             messagesStore.markMessageFailed(clientId)
           }
@@ -1210,7 +1339,12 @@ export function useChatRoom() {
           messagesStore.markMessageFailed(clientId)
         }
       } else if (data) {
-        messagesStore.markMessageSent(clientId, { ...data, reply_to: retrying.reply_to })
+        const decryptedData = await decryptMessageRow(
+          data,
+          e2ee.key.value,
+          retrying.channel_id,
+        )
+        messagesStore.markMessageSent(clientId, { ...decryptedData, reply_to: retrying.reply_to })
       }
     } catch {
       messagesStore.markMessageFailed(clientId)
@@ -1232,22 +1366,38 @@ export function useChatRoom() {
     if (!current?.id) {
       return { error: 'Not authenticated.' }
     }
+    if (!e2ee.key.value) {
+      return { error: 'Encryption key is locked.' }
+    }
 
     const trimmed = newContent.trim()
     const editedAt = new Date().toISOString()
+    const targetMsg = messages.value.find(m => m.id === messageId)
+    const channelId = targetMsg?.channel_id || activeChannelId.value
+    if (!channelId) {
+      return { error: 'Channel not found.' }
+    }
+
     messagesStore.reconcileUpdatedMessage({
       id: messageId,
       content: trimmed,
       edited_at: editedAt,
+      encryption: 'e2ee',
     })
 
-    const { error } = await supabase
-      .from('messages')
-      .update({ content: trimmed, edited_at: editedAt })
-      .eq('id', messageId)
-      .eq('user_id', current.id)
+    try {
+      const encryptedContent = await encryptContent(e2ee.key.value, trimmed, channelId)
 
-    return { error: error ? error.message : null }
+      const { error } = await supabase
+        .from('messages')
+        .update({ content: encryptedContent, edited_at: editedAt })
+        .eq('id', messageId)
+        .eq('user_id', current.id)
+
+      return { error: error ? error.message : null }
+    } catch (err: any) {
+      return { error: err?.message || 'Failed to encrypt message.' }
+    }
   }
 
   async function deleteMessage(messageId: string): Promise<{ error: string | null }> {

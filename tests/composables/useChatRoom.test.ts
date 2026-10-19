@@ -14,11 +14,14 @@ import {
   subscribeWithPromise,
   hydrateDmChannelPeers,
   shouldProcessChannelMessage,
+  decryptMessageRow,
+  decryptMessageRows,
 } from '~/composables/useChatRoom'
 import { extractAuthUserId } from '~/composables/useAuthProfile'
 import { createMessagesStore } from '~/composables/useMessagesState'
 import { createTypingTracker } from '~/composables/useTypingState'
 import type { Profile } from '~/types/chat'
+import { createPhraseConfig, deriveKey, encryptContent } from '~/utils/crypto'
 
 describe('useChatRoom realtime message routing & profile caching', () => {
   it('increments unread count for inactive channels and reconciles messages for active channel', () => {
@@ -725,6 +728,91 @@ describe('useChatRoom realtime message routing & profile caching', () => {
       expect(dmChannels.value[0].peer?.display_name).toBe('Bob Ross')
     })
   })
+
+  describe('E2EE message row decryption and mention handling', () => {
+    it('decryptMessageRow classifies e2ee, legacy, and undecryptable rows (including AAD mismatch and reply_to)', async () => {
+      const cfg = await createPhraseConfig('chat room test phrase', 1000)
+      const key = await deriveKey('chat room test phrase', cfg.salt, 1000)
+      const cipher = await encryptContent(key, 'Hello @Alice!', 'ch-general')
+      const parentCipher = await encryptContent(key, 'Quoted parent', 'ch-general')
+
+      // Valid e2ee row + encrypted reply_to
+      const okRow = await decryptMessageRow(
+        {
+          id: 'm-1',
+          channel_id: 'ch-general',
+          content: cipher,
+          reply_to: { id: 'm-0', user_id: 'u-bob', content: parentCipher },
+        },
+        key,
+      )
+      expect(okRow.content).toBe('Hello @Alice!')
+      expect(okRow.encryption).toBe('e2ee')
+      expect(okRow.reply_to?.content).toBe('Quoted parent')
+      expect(okRow.reply_to?.encryption).toBe('e2ee')
+
+      // Legacy plaintext row
+      const legacyRow = await decryptMessageRow(
+        { id: 'm-2', channel_id: 'ch-general', content: 'Old unencrypted text' },
+        key,
+      )
+      expect(legacyRow.content).toBe('Old unencrypted text')
+      expect(legacyRow.encryption).toBe('legacy')
+
+      // Cross-channel AAD mismatch -> undecryptable with empty content
+      const replayedRow = await decryptMessageRow(
+        { id: 'm-3', channel_id: 'ch-random', content: cipher },
+        key,
+      )
+      expect(replayedRow.content).toBe('')
+      expect(replayedRow.encryption).toBe('undecryptable')
+
+      // Partial UPDATE row without content (e.g. soft-delete) leaves content undefined
+      const softDeleteRow = await decryptMessageRow(
+        { id: 'm-1', channel_id: 'ch-general', deleted_at: '2026-10-19T12:00:00Z' },
+        key,
+      )
+      expect(softDeleteRow.content).toBeUndefined()
+      expect(softDeleteRow.encryption).toBeUndefined()
+    })
+
+    it('counts @mentions on decrypted e2ee rows and never false-triggers on undecryptable rows', async () => {
+      const cfg = await createPhraseConfig('unread mention phrase', 1000)
+      const key = await deriveKey('unread mention phrase', cfg.salt, 1000)
+      const mentionCipher = await encryptContent(key, 'Ping @Alice in encrypted channel', 'ch-random')
+
+      const decryptedRows = await decryptMessageRows(
+        [
+          {
+            id: 'm-enc-1',
+            channel_id: 'ch-random',
+            user_id: 'u-bob',
+            content: mentionCipher,
+            created_at: '2026-10-19T10:05:00Z',
+          },
+          {
+            id: 'm-bad-1',
+            channel_id: 'ch-random',
+            user_id: 'u-bob',
+            content: 'e2ee:v1:AAAAAAAAAAAAAAAA:BBBBBBBBBBBBBBBBBBBBBB',
+            created_at: '2026-10-19T10:06:00Z',
+          },
+        ],
+        key,
+      )
+
+      const snapshot = computeUnreadSnapshot({
+        messages: decryptedRows as any,
+        lastReadByChannel: { 'ch-random': '2026-10-19T10:00:00Z' },
+        activeChannelId: 'ch-general',
+        currentUserId: 'u-alice',
+        currentDisplayName: 'Alice',
+      })
+      expect(snapshot.unreadCounts['ch-random']).toBe(2)
+      expect(snapshot.unreadMentions['ch-random']).toBe(1)
+    })
+  })
 })
+
 
 

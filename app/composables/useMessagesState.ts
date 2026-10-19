@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import type { ChatMessage, MessageReaction, Profile, ReplyTarget } from '~/types/chat'
+import type { ChatMessage, MessageEncryptionState, MessageReaction, Profile, ReplyTarget } from '~/types/chat'
 import { isValidMessageContent } from '~/utils/chat'
 
 export function createMessagesStore() {
@@ -52,6 +52,7 @@ export function createMessagesStore() {
     createdAt?: string
     replyToId?: string | null
     replyTo?: ReplyTarget | null
+    encryption?: MessageEncryptionState
   }): ChatMessage | null {
     if (!isValidMessageContent(params.content)) {
       return null
@@ -76,6 +77,7 @@ export function createMessagesStore() {
       edited_at: null,
       deleted_at: null,
       reactions: [],
+      encryption: params.encryption || 'e2ee',
     }
 
     messages.value.push(newMessage)
@@ -110,6 +112,9 @@ export function createMessagesStore() {
       }
       if (serverRow.reactions !== undefined) {
         current.reactions = serverRow.reactions
+      }
+      if (serverRow.encryption !== undefined) {
+        current.encryption = serverRow.encryption
       }
     } else {
       messages.value.push({
@@ -170,6 +175,9 @@ export function createMessagesStore() {
       if (serverRow.reactions !== undefined) {
         existingByClientId.reactions = serverRow.reactions
       }
+      if (serverRow.encryption !== undefined) {
+        existingByClientId.encryption = serverRow.encryption
+      }
       reorderMessages()
       return 'updated'
     }
@@ -195,6 +203,7 @@ export function createMessagesStore() {
           content: serverRow.content !== undefined ? serverRow.content : msg.content,
           edited_at: serverRow.edited_at !== undefined ? serverRow.edited_at : msg.edited_at,
           deleted_at: serverRow.deleted_at !== undefined ? serverRow.deleted_at : msg.deleted_at,
+          encryption: serverRow.encryption !== undefined ? serverRow.encryption : msg.encryption,
         }
       }
       if (updated.reply_to_id === serverRow.id && updated.reply_to) {
@@ -204,6 +213,7 @@ export function createMessagesStore() {
             ...updated.reply_to,
             content: serverRow.content !== undefined ? serverRow.content : updated.reply_to.content,
             deleted_at: serverRow.deleted_at !== undefined ? serverRow.deleted_at : updated.reply_to.deleted_at,
+            encryption: serverRow.encryption !== undefined ? serverRow.encryption : updated.reply_to.encryption,
           },
         }
       }
