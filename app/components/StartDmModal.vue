@@ -50,7 +50,13 @@ watch(
   { immediate: true },
 )
 
+let submitTimeout: ReturnType<typeof setTimeout> | null = null
+
 onUnmounted(() => {
+  if (submitTimeout) {
+    clearTimeout(submitTimeout)
+    submitTimeout = null
+  }
   if (typeof window !== 'undefined') {
     window.removeEventListener('keydown', onKeyDown)
   }
@@ -71,8 +77,10 @@ function handleSelect(friendId: string) {
   if (isSubmitting.value) return
   isSubmitting.value = true
   emit('selectFriend', friendId)
-  setTimeout(() => {
+  if (submitTimeout) clearTimeout(submitTimeout)
+  submitTimeout = setTimeout(() => {
     isSubmitting.value = false
+    submitTimeout = null
   }, 1000)
 }
 
@@ -96,6 +104,7 @@ function handleSearchEnter() {
         </h3>
         <button
           type="button"
+          aria-label="Close"
           class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-xl font-bold leading-none"
           @click="emit('close')"
         >

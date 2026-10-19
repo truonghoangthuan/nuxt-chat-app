@@ -582,6 +582,33 @@ describe('Chat UI components', () => {
       expect(empty.text()).toContain('@')
       expect(empty.text()).toContain('This is the start of your direct message history with @Bob')
     })
+
+    it('StartDmModal close button has aria-label Close', () => {
+      const wrapper = mount(StartDmModal, {
+        props: { isOpen: true, friends: [] },
+      })
+      const closeBtn = wrapper.find('button[aria-label="Close"]')
+      expect(closeBtn.exists()).toBe(true)
+      expect(closeBtn.text()).toBe('×')
+      wrapper.unmount()
+    })
+
+    it('ChatSidebar disables button for self in online friends', () => {
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          channels: [],
+          activeChannelId: null,
+          unreadCounts: {},
+          onlineFriends: [{ id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' }],
+          currentUser: { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' },
+          isDark: false,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+      const selfBtn = wrapper.find('[data-test="online-friend-u-1"]')
+      expect(selfBtn.attributes('disabled')).toBeDefined()
+    })
   })
 })
 
