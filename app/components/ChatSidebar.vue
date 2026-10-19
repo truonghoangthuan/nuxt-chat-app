@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { Sun, Moon, X, Settings, LogOut, Plus } from '@lucide/vue'
 import type { Channel, Profile, ConnectionStatus } from '~/types/chat'
 import { getDmPeerId } from '~/utils/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
+import { Button } from '~/components/ui/button'
 
 const props = withDefaults(
   defineProps<{
@@ -62,7 +64,7 @@ function onOnlineFriendClick(friend: Profile) {
 
     <!-- Desktop Precision Icon Rail (64px) -->
     <nav
-      aria-label="Precision Rail"
+      aria-label="Workspace navigation"
       class="hidden md:flex w-16 h-full flex-col items-center justify-between py-3 bg-[var(--fp-rail)] rounded-[14px] border border-[var(--fp-border)] shadow-[var(--fp-specular)] shrink-0 mr-2.5"
     >
       <div class="flex flex-col items-center gap-2.5 w-full">
@@ -116,20 +118,18 @@ function onOnlineFriendClick(friend: Profile) {
 
       <!-- Rail Bottom Utilities -->
       <div class="flex flex-col items-center gap-2 w-full">
-        <button
+        <Button
           type="button"
-          class="w-10 h-10 rounded-[10px] flex items-center justify-center text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] transition-colors cursor-pointer"
+          variant="ghost"
+          size="icon"
+          class="size-10 rounded-[10px] text-[var(--fp-text-secondary)] hover:bg-[var(--fp-hover)] hover:text-[var(--fp-text-primary)]"
+          :aria-label="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
           :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
           @click="emit('toggleTheme')"
         >
-          <svg v-if="isDark" xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-            <circle cx="12" cy="12" r="4" />
-            <path stroke-linecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41" />
-          </svg>
-          <svg v-else xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-          </svg>
-        </button>
+          <Sun v-if="isDark" class="size-[18px]" aria-hidden="true" />
+          <Moon v-else class="size-[18px]" aria-hidden="true" />
+        </Button>
 
         <button
           type="button"
@@ -176,7 +176,7 @@ function onOnlineFriendClick(friend: Profile) {
               class="w-1.5 h-1.5 rounded-full inline-block"
               :class="connectionStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_6px_#10b981]' : 'bg-amber-500 animate-pulse'"
             ></span>
-            <span>{{ connectionStatus === 'connected' ? '14ms' : 'sync' }}</span>
+            <span>{{ connectionStatus === 'connected' ? 'Live' : 'Syncing' }}</span>
           </div>
 
           <button
@@ -184,7 +184,7 @@ function onOnlineFriendClick(friend: Profile) {
             class="md:hidden text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] p-1 text-lg font-bold leading-none"
             @click="emit('closeMobile')"
           >
-            ×
+            <X class="size-4" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -200,7 +200,7 @@ function onOnlineFriendClick(friend: Profile) {
               class="text-xs text-[var(--fp-accent-bright)] hover:underline flex items-center gap-0.5 font-semibold transition-colors cursor-pointer"
               @click="emit('openCreateChannel')"
             >
-              + New
+              <Plus class="size-3" aria-hidden="true" /> New
             </button>
           </div>
 
@@ -252,7 +252,7 @@ function onOnlineFriendClick(friend: Profile) {
               class="text-xs text-[var(--fp-accent-bright)] hover:underline flex items-center gap-0.5 font-semibold transition-colors cursor-pointer"
               @click="emit('openStartDm')"
             >
-              + New
+              <Plus class="size-3" aria-hidden="true" /> New
             </button>
           </div>
 
@@ -371,40 +371,45 @@ function onOnlineFriendClick(friend: Profile) {
 
         <div class="flex items-center gap-0.5 shrink-0">
           <!-- Profile Settings -->
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             data-test="open-profile-settings"
-            class="p-1.5 text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] rounded-lg hover:bg-[var(--fp-hover)] transition-colors cursor-pointer"
+            class="size-8 rounded-lg text-[var(--fp-text-secondary)] hover:bg-[var(--fp-hover)] hover:text-[var(--fp-text-primary)]"
+            aria-label="Profile Settings"
             title="Profile Settings"
             @click="emit('openProfileSettings')"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
-            </svg>
-          </button>
+            <Settings class="size-4" aria-hidden="true" />
+          </Button>
 
           <!-- Theme Toggle -->
-          <button
+          <Button
             type="button"
-            class="p-1.5 text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] rounded-lg hover:bg-[var(--fp-hover)] transition-colors cursor-pointer"
+            variant="ghost"
+            size="icon"
+            class="size-8 rounded-lg text-[var(--fp-text-secondary)] hover:bg-[var(--fp-hover)] hover:text-[var(--fp-text-primary)]"
+            :aria-label="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
             :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
             @click="emit('toggleTheme')"
           >
-            <span v-if="isDark" class="text-xs">☀️</span>
-            <span v-else class="text-xs">🌙</span>
-          </button>
+            <Sun v-if="isDark" class="size-4" aria-hidden="true" />
+            <Moon v-else class="size-4" aria-hidden="true" />
+          </Button>
 
           <!-- Logout -->
-          <button
+          <Button
             type="button"
-            class="p-1.5 text-[var(--fp-text-secondary)] hover:text-rose-500 rounded-lg hover:bg-[var(--fp-hover)] transition-colors cursor-pointer"
+            variant="ghost"
+            size="icon"
+            class="size-8 rounded-lg text-[var(--fp-text-secondary)] hover:bg-rose-500/10 hover:text-rose-500"
+            aria-label="Log out"
             title="Log Out"
             @click="emit('logout')"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd" />
-            </svg>
-          </button>
+            <LogOut class="size-4" aria-hidden="true" />
+          </Button>
         </div>
       </div>
     </aside>

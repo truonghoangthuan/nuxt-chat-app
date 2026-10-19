@@ -700,9 +700,9 @@ describe('Chat UI components', () => {
         },
       })
 
-      expect(sidebar.find('nav[aria-label="Precision Rail"]').exists()).toBe(true)
+      expect(sidebar.find('nav[aria-label="Workspace navigation"]').exists()).toBe(true)
       expect(sidebar.find('aside[aria-label="Channel and Friends Directory"]').exists()).toBe(true)
-      expect(sidebar.text()).toContain('14ms')
+      expect(sidebar.text()).toContain('Live')
 
       const lgAvatar = mount(UserAvatar, {
         props: {

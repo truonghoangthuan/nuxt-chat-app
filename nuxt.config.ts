@@ -1,3 +1,5 @@
+import tailwindcss from '@tailwindcss/vite'
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
@@ -17,9 +19,15 @@ export default defineNuxtConfig({
     },
   },
   modules: [
-    '@nuxtjs/tailwindcss',
     '@nuxtjs/supabase',
+    'shadcn-nuxt',
   ],
+  shadcn: {
+    componentDir: './app/components/ui',
+  },
+  vite: {
+    plugins: [tailwindcss()],
+  },
   supabase: {
     redirectOptions: {
       login: '/login',
