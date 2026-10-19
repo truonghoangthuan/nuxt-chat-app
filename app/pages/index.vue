@@ -12,6 +12,8 @@ import CreateChannelModal from '~/components/CreateChannelModal.vue'
 import ProfileSettingsModal from '~/components/ProfileSettingsModal.vue'
 import StartDmModal from '~/components/StartDmModal.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
+import E2eeGate from '~/components/E2eeGate.vue'
+import { useE2ee } from '~/composables/useE2ee'
 
 const {
   channels,
@@ -50,6 +52,14 @@ const {
 
 const { currentProfile, updateProfile, signOut } = useAuthProfile()
 const { isDark, toggleTheme } = useTheme()
+const {
+  status: e2eeStatus,
+  error: e2eeError,
+  isUnlocking: e2eeIsUnlocking,
+  initializeE2ee,
+  unlockWithPhrase,
+  clearE2eeSession,
+} = useE2ee()
 
 const isMobileSidebarOpen = ref(false)
 const isCreateChannelModalOpen = ref(false)
@@ -70,8 +80,23 @@ async function handleStartDm(userId: string) {
 }
 
 async function handleLogout() {
+  clearE2eeSession()
   await signOut()
   await navigateTo('/login')
+}
+
+async function handleUnlock(phrase: string) {
+  const success = await unlockWithPhrase(phrase)
+  if (success) {
+    await initializeChat()
+  }
+}
+
+async function handleRetryConfig() {
+  const status = await initializeE2ee()
+  if (status === 'unlocked') {
+    await initializeChat()
+  }
 }
 
 async function handleSelectChannel(channelId: string) {
@@ -118,7 +143,10 @@ async function handleCreateChannel(payload: {
 }
 
 onMounted(async () => {
-  await initializeChat()
+  const status = await initializeE2ee()
+  if (status === 'unlocked') {
+    await initializeChat()
+  }
 })
 
 onUnmounted(() => {
@@ -150,8 +178,21 @@ onUnmounted(() => {
       @close-mobile="isMobileSidebarOpen = false"
     />
 
-    <!-- Main Floating Inset Chat Stage -->
-    <main class="flex-1 flex flex-col min-w-0 h-full overflow-hidden fp-stage-surface md:rounded-[14px] md:border md:border-[var(--fp-border)]">
+    <!-- Main Floating Inset Chat Stage or E2EE Gate -->
+    <E2eeGate
+      v-if="e2eeStatus !== 'unlocked'"
+      :status="e2eeStatus"
+      :error="e2eeError"
+      :is-unlocking="e2eeIsUnlocking"
+      @unlock="handleUnlock"
+      @retry-config="handleRetryConfig"
+      @logout="handleLogout"
+    />
+
+    <main
+      v-else
+      class="flex-1 flex flex-col min-w-0 h-full overflow-hidden fp-stage-surface md:rounded-[14px] md:border md:border-[var(--fp-border)]"
+    >
       <!-- Connection Banner -->
       <ConnectionBanner
         :status="connectionStatus"

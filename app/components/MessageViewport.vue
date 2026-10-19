@@ -262,6 +262,15 @@ onMounted(() => {
               This message was deleted
             </p>
 
+            <!-- Undecryptable Placeholder -->
+            <p
+              v-else-if="item.message.encryption === 'undecryptable'"
+              :data-test="`undecryptable-${item.message.id}`"
+              class="text-xs italic text-[var(--fp-text-muted)] px-2.5 py-1 rounded-md bg-[var(--fp-hover)] border border-dashed border-[var(--fp-border)] inline-block mt-0.5"
+            >
+              🔒 Unable to decrypt this message
+            </p>
+
             <!-- Inline Edit Box -->
             <div v-else-if="editingMessageId === item.message.id" class="mt-1 space-y-2">
               <input
@@ -316,6 +325,13 @@ onMounted(() => {
                 class="ml-1 text-[11px] text-[var(--fp-text-muted)] italic"
               >
                 (edited)
+              </span>
+              <span
+                v-if="item.message.encryption === 'legacy' && !item.message.deleted_at"
+                :data-test="`legacy-badge-${item.message.id}`"
+                class="ml-1.5 text-[11px] px-1.5 py-0.5 rounded text-[var(--fp-text-muted)] bg-[var(--fp-hover)] border border-[var(--fp-border)]"
+              >
+                Legacy · unencrypted
               </span>
             </div>
 
@@ -396,6 +412,7 @@ onMounted(() => {
             </button>
             <template v-if="item.message.user_id === currentUserId">
               <button
+                v-if="item.message.encryption !== 'undecryptable'"
                 type="button"
                 :data-test="`edit-${item.message.id}`"
                 class="px-1.5 py-0.5 text-[11px] font-medium text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] rounded hover:bg-[var(--fp-hover)] cursor-pointer"
@@ -440,7 +457,7 @@ onMounted(() => {
                 @{{ item.message.reply_to?.author?.display_name || 'Friend' }}
               </span>
               <span class="truncate italic">
-                {{ item.message.reply_to?.deleted_at ? 'Original message was deleted' : (item.message.reply_to?.content || 'Message') }}
+                {{ item.message.reply_to?.deleted_at ? 'Original message was deleted' : (item.message.reply_to?.encryption === 'undecryptable' ? '🔒 Unable to decrypt this message' : (item.message.reply_to?.content || 'Message')) }}
               </span>
             </div>
 
@@ -450,6 +467,13 @@ onMounted(() => {
               </span>
               <span class="text-xs text-[var(--fp-text-secondary)]">
                 {{ formatTime(item.message.created_at) }}
+              </span>
+              <span
+                v-if="item.message.encryption === 'legacy' && !item.message.deleted_at"
+                :data-test="`legacy-badge-${item.message.id}`"
+                class="text-[11px] px-1.5 py-0.5 rounded text-[var(--fp-text-muted)] bg-[var(--fp-hover)] border border-[var(--fp-border)]"
+              >
+                Legacy · unencrypted
               </span>
 
               <span
@@ -490,6 +514,15 @@ onMounted(() => {
               class="text-xs italic text-[var(--fp-text-muted)] px-2.5 py-1 rounded-md bg-[var(--fp-hover)] border border-dashed border-[var(--fp-border)] inline-block mt-1"
             >
               This message was deleted
+            </p>
+
+            <!-- Undecryptable Placeholder -->
+            <p
+              v-else-if="item.message.encryption === 'undecryptable'"
+              :data-test="`undecryptable-${item.message.id}`"
+              class="text-xs italic text-[var(--fp-text-muted)] px-2.5 py-1 rounded-md bg-[var(--fp-hover)] border border-dashed border-[var(--fp-border)] inline-block mt-1"
+            >
+              🔒 Unable to decrypt this message
             </p>
 
             <!-- Inline Edit Box -->
@@ -595,6 +628,7 @@ onMounted(() => {
             </button>
             <template v-if="item.message.user_id === currentUserId">
               <button
+                v-if="item.message.encryption !== 'undecryptable'"
                 type="button"
                 :data-test="`edit-${item.message.id}`"
                 class="px-1.5 py-0.5 text-[11px] font-medium text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] rounded hover:bg-[var(--fp-hover)] cursor-pointer"

@@ -7,6 +7,7 @@ import CreateChannelModal from '~/components/CreateChannelModal.vue'
 import ChatSidebar from '~/components/ChatSidebar.vue'
 import StartDmModal from '~/components/StartDmModal.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
+import E2eeGate from '~/components/E2eeGate.vue'
 import { isValidAvatarUrl } from '~/utils/chat'
 
 describe('Chat UI components', () => {
@@ -713,6 +714,75 @@ describe('Chat UI components', () => {
       })
       expect(lgAvatar.text()).toBe('AW')
       expect(lgAvatar.html()).toContain('w-11 h-11')
+    })
+
+    it('E2eeGate renders locked passphrase form, emits unlock, and shows unconfigured state', async () => {
+      const wrapper = mount(E2eeGate, {
+        props: {
+          status: 'locked',
+          error: 'Incorrect secret phrase.',
+          isUnlocking: false,
+        },
+      })
+
+      expect(wrapper.text()).toContain('Incorrect secret phrase.')
+      const input = wrapper.find('[data-test="e2ee-phrase-input"]')
+      await input.setValue('my shared secret phrase')
+      await wrapper.find('form').trigger('submit')
+      expect(wrapper.emitted('unlock')?.[0]).toEqual(['my shared secret phrase'])
+
+      await wrapper.setProps({ status: 'unconfigured', error: null })
+      expect(wrapper.text()).toContain('Encryption not configured')
+      await wrapper.find('[data-test="e2ee-retry-config"]').trigger('click')
+      expect(wrapper.emitted('retryConfig')).toBeTruthy()
+    })
+
+    it('MessageViewport renders legacy badge, undecryptable placeholder, and hides Edit on undecryptable messages', () => {
+      const wrapper = mount(MessageViewport, {
+        props: {
+          channelId: 'ch-1',
+          currentUserId: 'u-1',
+          loadOlder: vi.fn().mockResolvedValue(0),
+          messages: [
+            {
+              id: 'm-leg',
+              client_id: 'c-leg',
+              channel_id: 'ch-1',
+              user_id: 'u-1',
+              content: 'Plaintext before E2EE',
+              encryption: 'legacy',
+              created_at: '2026-10-19T10:00:00Z',
+              status: 'sent',
+              author: { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' },
+            },
+            {
+              id: 'm-bad',
+              client_id: 'c-bad',
+              channel_id: 'ch-1',
+              user_id: 'u-1',
+              content: '',
+              encryption: 'undecryptable',
+              created_at: '2026-10-19T10:10:00Z',
+              status: 'sent',
+              author: { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' },
+              reply_to_id: 'm-parent-bad',
+              reply_to: {
+                id: 'm-parent-bad',
+                user_id: 'u-2',
+                content: '',
+                encryption: 'undecryptable',
+              },
+            },
+          ],
+        },
+      })
+
+      expect(wrapper.find('[data-test="legacy-badge-m-leg"]').text()).toContain('Legacy · unencrypted')
+      expect(wrapper.find('[data-test="edit-m-leg"]').exists()).toBe(true)
+
+      expect(wrapper.find('[data-test="undecryptable-m-bad"]').text()).toContain('🔒 Unable to decrypt this message')
+      expect(wrapper.find('[data-test="reply-quote-m-bad"]').text()).toContain('🔒 Unable to decrypt this message')
+      expect(wrapper.find('[data-test="edit-m-bad"]').exists()).toBe(false)
     })
   })
 })
