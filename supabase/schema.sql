@@ -39,7 +39,11 @@ declare
   d_name text;
   a_color text;
 begin
-  d_name := coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1));
+  d_name := coalesce(
+    nullif(trim(new.raw_user_meta_data->>'display_name'), ''),
+    nullif(split_part(coalesce(new.email, ''), '@', 1), ''),
+    'Friend'
+  );
   a_color := coalesce(new.raw_user_meta_data->>'avatar_color', '#0284c7');
 
   insert into public.profiles (id, display_name, avatar_color)
@@ -109,6 +113,9 @@ create policy "Authenticated users can insert messages"
 -- Index for composite cursor pagination
 create index if not exists messages_channel_cursor_idx
   on public.messages (channel_id, created_at desc, id desc);
+
+create index if not exists messages_created_at_idx
+  on public.messages (created_at desc);
 
 -- 3b. Message Lifecycle Extensions (Edit, Soft-Delete, Replies)
 alter table public.messages

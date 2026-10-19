@@ -32,9 +32,15 @@ const content = ref('')
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const cursorIndex = ref(0)
 const selectedMentionIndex = ref(0)
+const dismissedMentionStartIndex = ref<number | null>(null)
 
 const activeMention = computed(() => {
-  return extractActiveMentionQuery(content.value, cursorIndex.value)
+  const current = extractActiveMentionQuery(content.value, cursorIndex.value)
+  if (!current) return null
+  if (dismissedMentionStartIndex.value !== null && current.startIndex === dismissedMentionStartIndex.value) {
+    return null
+  }
+  return current
 })
 
 const filteredMentions = computed(() => {
@@ -48,6 +54,10 @@ const filteredMentions = computed(() => {
 function syncCursor() {
   const el = textareaRef.value
   cursorIndex.value = el?.selectionStart ?? content.value.length
+  const current = extractActiveMentionQuery(content.value, cursorIndex.value)
+  if (!current || (dismissedMentionStartIndex.value !== null && current.startIndex !== dismissedMentionStartIndex.value)) {
+    dismissedMentionStartIndex.value = null
+  }
 }
 
 function selectMention(profile: Profile) {
@@ -63,6 +73,7 @@ function selectMention(profile: Profile) {
   )
   cursorIndex.value = newCaretPos
   selectedMentionIndex.value = 0
+  dismissedMentionStartIndex.value = null
   nextTick(() => {
     const el = textareaRef.value
     if (el) {
@@ -80,7 +91,13 @@ function autoResize() {
   el.style.height = `${Math.min(el.scrollHeight, 160)}px`
 }
 
+function handleClick() {
+  dismissedMentionStartIndex.value = null
+  syncCursor()
+}
+
 function handleInput() {
+  dismissedMentionStartIndex.value = null
   syncCursor()
   selectedMentionIndex.value = 0
   autoResize()
@@ -89,6 +106,13 @@ function handleInput() {
 
 function handleKeydown(event: KeyboardEvent) {
   if (filteredMentions.value.length > 0) {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      if (activeMention.value) {
+        dismissedMentionStartIndex.value = activeMention.value.startIndex
+      }
+      return
+    }
     if (event.key === 'ArrowDown') {
       event.preventDefault()
       selectedMentionIndex.value = (selectedMentionIndex.value + 1) % filteredMentions.value.length
@@ -206,7 +230,7 @@ function handleSend() {
           :placeholder="`Message ${isDm ? '@' : '#'}${channelSlug || 'channel'} (Enter to send, Shift+Enter for newline)`"
           class="w-full resize-none bg-transparent px-2.5 py-1.5 text-[14.5px] text-[var(--fp-text-primary)] placeholder-[var(--fp-text-muted)] focus:outline-none max-h-40 overflow-y-auto leading-relaxed"
           @input="handleInput"
-          @click="syncCursor"
+          @click="handleClick"
           @keyup="syncCursor"
           @keydown="handleKeydown"
         ></textarea>

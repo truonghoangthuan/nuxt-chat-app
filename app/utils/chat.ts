@@ -89,16 +89,16 @@ export function getAvatarInitials(displayName: string): string {
 
   const parts = clean.split(/\s+/).filter(Boolean)
   if (parts.length >= 2) {
-    const first = parts[0][0] || ''
-    const second = parts[1][0] || ''
+    const first = Array.from(parts[0])[0] || ''
+    const second = Array.from(parts[1])[0] || ''
     return `${first}${second}`.toUpperCase()
   }
 
-  const single = parts[0] || ''
-  if (single.length >= 2) {
-    return single.slice(0, 2).toUpperCase()
+  const singleChars = Array.from(parts[0] || '')
+  if (singleChars.length >= 2) {
+    return singleChars.slice(0, 2).join('').toUpperCase()
   }
-  return single.toUpperCase()
+  return singleChars.join('').toUpperCase()
 }
 
 export function getAvatarColor(seed: string): string {

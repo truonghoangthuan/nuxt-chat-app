@@ -1,4 +1,4 @@
-import { ref, computed, type ComputedRef, type Ref } from 'vue'
+import { ref, computed, shallowReactive, type ComputedRef, type Ref } from 'vue'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { Channel, ChatMessage, MessageReaction, Profile, ReplyTarget, ConnectionStatus, ChannelRead } from '~/types/chat'
 import {
@@ -58,6 +58,115 @@ export function computeUnreadSnapshot(params: {
   return { unreadCounts, unreadMentions }
 }
 
+export function computeOldestReadTimestamp(timestamps: string[]): string | null {
+  if (timestamps.length === 0) return null
+  return timestamps.reduce((a, b) => {
+    const tA = Date.parse(a)
+    const tB = Date.parse(b)
+    if (!Number.isNaN(tA) && !Number.isNaN(tB)) {
+      return tA < tB ? a : b
+    }
+    return a < b ? a : b
+  })
+}
+
+export function computeChannelReadMap(params: {
+  channels: Array<{ id: string }>
+  readRows?: Array<{ channel_id: string; last_read_at: string }> | null
+  existingMap?: Record<string, string>
+  defaultReadTimestamp: string
+}): Record<string, string> {
+  const map: Record<string, string> = {}
+  if (params.readRows) {
+    for (const r of params.readRows) {
+      map[r.channel_id] = r.last_read_at
+    }
+  }
+  for (const ch of params.channels) {
+    if (!map[ch.id]) {
+      map[ch.id] = params.existingMap?.[ch.id] || params.defaultReadTimestamp
+    }
+  }
+  return map
+}
+
+export function createChannelReadDebouncer(
+  upsertFn: (channelId: string, timestamp: string) => Promise<any>,
+  delayMs = 2000,
+) {
+  const timers = new Map<string, any>()
+  const pendingTimestamps = new Map<string, string>()
+
+  function schedule(channelId: string, timestamp: string, immediate = false): Promise<void> | void {
+    pendingTimestamps.set(channelId, timestamp)
+    const existing = timers.get(channelId)
+    if (existing) {
+      clearTimeout(existing)
+      timers.delete(channelId)
+    }
+
+    const flush = async () => {
+      timers.delete(channelId)
+      const ts = pendingTimestamps.get(channelId) || timestamp
+      pendingTimestamps.delete(channelId)
+      try {
+        await upsertFn(channelId, ts)
+      } catch {
+        // Ignored
+      }
+    }
+
+    if (immediate) {
+      return flush()
+    }
+
+    const timer = setTimeout(flush, delayMs)
+    timers.set(channelId, timer)
+  }
+
+  function cancelAll() {
+    for (const t of timers.values()) {
+      clearTimeout(t)
+    }
+    timers.clear()
+    pendingTimestamps.clear()
+  }
+
+  return { schedule, cancelAll, timers }
+}
+
+export function subscribeWithPromise(
+  channel: { subscribe: (callback: (status: string) => void) => any } | null,
+  timeoutMs = 5000,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!channel) {
+      resolve(true)
+      return
+    }
+    let settled = false
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true
+        resolve(false)
+      }
+    }, timeoutMs)
+
+    channel.subscribe((status: string) => {
+      if (settled) return
+      if (status === 'SUBSCRIBED') {
+        settled = true
+        clearTimeout(timer)
+        resolve(true)
+      } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR' || status === 'CLOSED') {
+        settled = true
+        clearTimeout(timer)
+        resolve(false)
+      }
+    })
+  })
+}
+
 export function handleIncomingRealtimeMessage(params: {
   row: Omit<ChatMessage, 'status'>
   activeChannelId: string | null
@@ -92,10 +201,38 @@ export function handleIncomingRealtimeMessage(params: {
 
 export function handleRealtimeMessageUpdate(params: {
   row: Partial<ChatMessage> & { id: string; channel_id?: string }
+  oldRow?: Partial<ChatMessage> | null
   activeChannelId: string | null
   messagesStore: ReturnType<typeof createMessagesStore>
+  unreadCounts?: Record<string, number>
+  unreadMentions?: Record<string, number>
+  lastReadByChannel?: Record<string, string>
+  currentUserId?: string
+  currentDisplayName?: string | null
 }): void {
-  if (params.row.channel_id && params.row.channel_id !== params.activeChannelId) {
+  const isInactive = Boolean(params.row.channel_id && params.row.channel_id !== params.activeChannelId)
+  if (isInactive) {
+    const channelId = params.row.channel_id!
+    const isSoftDeleted = Boolean(params.row.deleted_at && !params.oldRow?.deleted_at)
+    const isFromOtherUser = !params.currentUserId || !params.row.user_id || params.row.user_id !== params.currentUserId
+
+    if (isSoftDeleted && isFromOtherUser) {
+      const lastReadIso = params.lastReadByChannel?.[channelId]
+      const isUnread = !lastReadIso || !params.row.created_at || Date.parse(params.row.created_at) > Date.parse(lastReadIso)
+
+      if (isUnread) {
+        if (params.unreadCounts && (params.unreadCounts[channelId] || 0) > 0) {
+          params.unreadCounts[channelId] -= 1
+        }
+        const wasMention = Boolean(
+          params.row.content
+          && doesMessageMentionUser(params.row.content, params.currentDisplayName),
+        )
+        if (wasMention && params.unreadMentions && (params.unreadMentions[channelId] || 0) > 0) {
+          params.unreadMentions[channelId] -= 1
+        }
+      }
+    }
     return
   }
   params.messagesStore.reconcileUpdatedMessage(params.row)
@@ -198,7 +335,23 @@ export function useChatRoom() {
   const channels = ref<Channel[]>([])
   const activeChannelId = ref<string | null>(null)
   const allProfiles = ref<Profile[]>([])
-  const profilesCache = new Map<string, Profile>()
+  const profilesCache = shallowReactive(new Map<string, Profile>())
+  let isDisposed = false
+  const readDebouncer = createChannelReadDebouncer(async (channelId, timestamp) => {
+    const current = authProfile.currentProfile.value
+    if (!current?.id) return
+    try {
+      await supabase
+        .from('channel_reads')
+        .upsert({
+          user_id: current.id,
+          channel_id: channelId,
+          last_read_at: timestamp,
+        })
+    } catch {
+      // Ignore channel_reads upsert error
+    }
+  }, 2000)
 
   const unreadCounts = ref<Record<string, number>>({})
   const unreadMentions = ref<Record<string, number>>({})
@@ -268,23 +421,13 @@ export function useChatRoom() {
     }
   }
 
-  async function markChannelRead(channelId: string): Promise<void> {
+  async function markChannelRead(channelId: string, immediate = true): Promise<void> {
     const current = authProfile.currentProfile.value
     const nowIso = new Date().toISOString()
     lastReadByChannel.value[channelId] = nowIso
     if (!current?.id) return
 
-    try {
-      await supabase
-        .from('channel_reads')
-        .upsert({
-          user_id: current.id,
-          channel_id: channelId,
-          last_read_at: nowIso,
-        })
-    } catch {
-      // Ignore channel_reads upsert error
-    }
+    await readDebouncer.schedule(channelId, nowIso, immediate)
   }
 
   async function loadChannelReadsAndUnreads(): Promise<void> {
@@ -297,23 +440,17 @@ export function useChatRoom() {
         .select('*')
         .eq('user_id', current.id)
 
-      const map: Record<string, string> = {}
-      const nowIso = new Date().toISOString()
-      if (readRows) {
-        for (const r of readRows as ChannelRead[]) {
-          map[r.channel_id] = r.last_read_at
-        }
-      }
-      for (const ch of channels.value) {
-        if (!map[ch.id]) {
-          map[ch.id] = nowIso
-        }
-      }
+      const defaultRead = current.created_at || '1970-01-01T00:00:00.000Z'
+      const map = computeChannelReadMap({
+        channels: channels.value,
+        readRows: readRows as ChannelRead[],
+        existingMap: lastReadByChannel.value,
+        defaultReadTimestamp: defaultRead,
+      })
       lastReadByChannel.value = map
 
-      const timestamps = Object.values(map)
-      if (timestamps.length === 0) return
-      const oldestRead = timestamps.reduce((a, b) => (a < b ? a : b))
+      const oldestRead = computeOldestReadTimestamp(Object.values(map))
+      if (!oldestRead) return
 
       const { data: recentMessages } = await supabase
         .from('messages')
@@ -464,22 +601,6 @@ export function useChatRoom() {
     } catch {
       // Ignored
     }
-  }
-
-  function subscribeWithPromise(channel: RealtimeChannel | null): Promise<boolean> {
-    return new Promise((resolve) => {
-      if (!channel) {
-        resolve(true)
-        return
-      }
-      channel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          resolve(true)
-        } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
-          resolve(false)
-        }
-      })
-    })
   }
 
   async function reconnectChat(): Promise<boolean> {
@@ -635,7 +756,7 @@ export function useChatRoom() {
             currentDisplayName: authProfile.currentProfile.value?.display_name,
           })
           if (newRow.channel_id === activeChannelId.value) {
-            markChannelRead(newRow.channel_id)
+            markChannelRead(newRow.channel_id, false)
           }
         },
       )
@@ -645,8 +766,14 @@ export function useChatRoom() {
         (payload) => {
           handleRealtimeMessageUpdate({
             row: payload.new as any,
+            oldRow: payload.old as any,
             activeChannelId: activeChannelId.value,
             messagesStore,
+            unreadCounts: unreadCounts.value,
+            unreadMentions: unreadMentions.value,
+            lastReadByChannel: lastReadByChannel.value,
+            currentUserId: authProfile.currentProfile.value?.id,
+            currentDisplayName: authProfile.currentProfile.value?.display_name,
           })
         },
       )
@@ -1200,10 +1327,16 @@ export function useChatRoom() {
   }
 
   async function initializeChat(): Promise<void> {
+    isDisposed = false
     await authProfile.ensureProfile()
+    if (isDisposed) return
     await loadAllProfiles()
+    if (isDisposed) return
     await loadChannels()
+    if (isDisposed) return
     await loadChannelReadsAndUnreads()
+    if (isDisposed) return
+
     setupPresenceSubscription()
     setupDbChangesSubscription()
 
@@ -1236,6 +1369,8 @@ export function useChatRoom() {
   }
 
   function cleanupChat(): void {
+    isDisposed = true
+    readDebouncer.cancelAll()
     if (presenceChannel) supabase.removeChannel(presenceChannel)
     if (dbChangesChannel) supabase.removeChannel(dbChangesChannel)
     if (typingChannel) supabase.removeChannel(typingChannel)

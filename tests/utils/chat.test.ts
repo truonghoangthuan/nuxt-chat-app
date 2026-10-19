@@ -41,6 +41,10 @@ describe('chat utils', () => {
   it('extracts 1-2 uppercase initials and deterministic palette color', () => {
     expect(getAvatarInitials('Alice Wonderland')).toBe('AW')
     expect(getAvatarInitials('bob')).toBe('BO')
+    expect(getAvatarInitials('🚀 Space')).toBe('🚀S')
+    expect(getAvatarInitials('🚀')).toBe('🚀')
+    expect(getAvatarInitials('𠮷野 家')).toBe('𠮷家')
+    expect(getAvatarInitials('𠮷')).toBe('𠮷')
     const color = getAvatarColor('user-123')
     expect(AVATAR_PALETTE).toContain(color)
     expect(getAvatarColor('user-123')).toBe(color)
