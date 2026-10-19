@@ -6,11 +6,13 @@ const props = withDefaults(
   defineProps<{
     displayName: string
     avatarColor?: string
+    avatarUrl?: string | null
     showOnline?: boolean
     size?: 'sm' | 'md' | 'lg'
   }>(),
   {
     avatarColor: '',
+    avatarUrl: '',
     showOnline: false,
     size: 'md',
   },
@@ -40,6 +42,15 @@ const dotClasses = computed(() => {
       :style="{ backgroundColor: bgColor }"
       :title="displayName"
     >
+      <img
+        v-if="avatarUrl"
+        :key="avatarUrl"
+        :src="avatarUrl"
+        alt=""
+        class="absolute inset-0 w-full h-full object-cover rounded-[inherit]"
+        referrerpolicy="no-referrer"
+        @error="($event.target as HTMLImageElement).style.display = 'none'"
+      />
       {{ initials }}
     </div>
     <span

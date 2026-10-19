@@ -88,10 +88,11 @@ async function handleSendMessage(content: string) {
 async function handleSaveProfile(payload: {
   displayName: string
   avatarColor: string
+  avatarUrl: string
   onSuccess?: () => void
   onError?: (message: string) => void
 }) {
-  const result = await updateProfile(payload.displayName, payload.avatarColor)
+  const result = await updateProfile(payload.displayName, payload.avatarColor, payload.avatarUrl)
   if (result.error || !result.profile) {
     payload.onError?.(result.error || 'Failed to update profile')
   } else {
@@ -176,6 +177,7 @@ onUnmounted(() => {
               <UserAvatar
                 :display-name="activeChannel.peer?.display_name || 'Friend'"
                 :avatar-color="activeChannel.peer?.avatar_color"
+                :avatar-url="activeChannel.peer?.avatar_url"
                 :show-online="onlineFriends.some(f => f.id === activeChannel?.peer?.id)"
                 size="sm"
               />
@@ -217,6 +219,7 @@ onUnmounted(() => {
               :key="friend.id"
               :display-name="friend.display_name"
               :avatar-color="friend.avatar_color"
+              :avatar-url="friend.avatar_url"
               size="sm"
               class="ring-2 ring-[var(--fp-stage)] rounded-[7px]"
             />

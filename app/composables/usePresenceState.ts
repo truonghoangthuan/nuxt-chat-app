@@ -1,7 +1,7 @@
 import type { Profile } from '~/types/chat'
 
 export function deduplicatePresenceState(
-  rawState: Record<string, Array<{ user_id: string; display_name: string; avatar_color: string; online_at?: string }>>,
+  rawState: Record<string, Array<{ user_id: string; display_name: string; avatar_color: string; avatar_url?: string | null; online_at?: string }>>,
 ): Profile[] {
   const profileMap = new Map<string, Profile>()
 
@@ -17,6 +17,7 @@ export function deduplicatePresenceState(
           id: presence.user_id,
           display_name: presence.display_name,
           avatar_color: presence.avatar_color,
+          ...(presence.avatar_url ? { avatar_url: presence.avatar_url } : {}),
         })
       }
     }

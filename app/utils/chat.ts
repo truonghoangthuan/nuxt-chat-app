@@ -129,6 +129,18 @@ export function isValidAvatarColor(color: string): boolean {
   return (AVATAR_PALETTE as readonly string[]).includes(color)
 }
 
+export function isValidAvatarUrl(value: string): boolean {
+  const url = value.trim()
+  if (!url) return true
+  if (url.length > 2048) return false
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
 function getLocalDayKey(date: Date): string {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')

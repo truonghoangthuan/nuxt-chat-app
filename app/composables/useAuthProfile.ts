@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import type { Profile } from '~/types/chat'
-import { getAvatarColor, isValidDisplayName, isValidAvatarColor } from '~/utils/chat'
+import { getAvatarColor, isValidDisplayName, isValidAvatarColor, isValidAvatarUrl } from '~/utils/chat'
 
 const testProfileRef = ref<Profile | null>(null)
 
@@ -78,6 +78,7 @@ export function useAuthProfile() {
   async function updateProfile(
     displayName: string,
     avatarColor: string,
+    avatarUrl = '',
   ): Promise<{ profile: Profile | null; error: string | null }> {
     const cleanName = displayName.trim()
     if (!isValidDisplayName(cleanName)) {
@@ -85,6 +86,10 @@ export function useAuthProfile() {
     }
     if (!isValidAvatarColor(avatarColor)) {
       return { profile: null, error: 'Please select a valid avatar color.' }
+    }
+    const cleanAvatarUrl = avatarUrl.trim()
+    if (!isValidAvatarUrl(cleanAvatarUrl)) {
+      return { profile: null, error: 'Avatar URL must be a valid HTTP or HTTPS URL.' }
     }
 
     let authUser: any = user.value
@@ -111,6 +116,7 @@ export function useAuthProfile() {
       .update({
         display_name: cleanName,
         avatar_color: avatarColor,
+        avatar_url: cleanAvatarUrl || null,
       })
       .eq('id', userId)
       .select('*')
@@ -124,6 +130,7 @@ export function useAuthProfile() {
       id: userId,
       display_name: cleanName,
       avatar_color: avatarColor,
+      avatar_url: cleanAvatarUrl || null,
     }
     currentProfile.value = updated
     return { profile: updated, error: null }

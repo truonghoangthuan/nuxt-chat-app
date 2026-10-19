@@ -147,6 +147,7 @@ function handleSearchEnter() {
               <UserAvatar
                 :display-name="friend.display_name"
                 :avatar-color="friend.avatar_color"
+                :avatar-url="friend.avatar_url"
                 :show-online="onlineSet.has(friend.id)"
                 size="sm"
               />

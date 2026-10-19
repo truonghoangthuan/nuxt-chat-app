@@ -11,6 +11,8 @@ create table if not exists public.profiles (
 
 alter table public.profiles enable row level security;
 
+alter table public.profiles add column if not exists avatar_url text;
+
 create policy "Authenticated users can view profiles"
   on public.profiles for select
   to authenticated

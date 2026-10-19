@@ -425,6 +425,7 @@ onMounted(() => {
           <UserAvatar
             :display-name="item.message.author?.display_name || 'Friend'"
             :avatar-color="item.message.author?.avatar_color"
+            :avatar-url="item.message.author?.avatar_url"
             size="md"
           />
 

@@ -140,6 +140,7 @@ function onOnlineFriendClick(friend: Profile) {
           <UserAvatar
             :display-name="currentUser?.display_name || 'You'"
             :avatar-color="currentUser?.avatar_color"
+            :avatar-url="currentUser?.avatar_url"
             :show-online="true"
             size="sm"
           />
@@ -273,6 +274,7 @@ function onOnlineFriendClick(friend: Profile) {
                 <UserAvatar
                   :display-name="dm.peer?.display_name || 'Friend'"
                   :avatar-color="dm.peer?.avatar_color"
+                  :avatar-url="dm.peer?.avatar_url"
                   :show-online="isPeerOnline(dm)"
                   size="sm"
                 />
@@ -327,6 +329,7 @@ function onOnlineFriendClick(friend: Profile) {
                 <UserAvatar
                   :display-name="friend.display_name"
                   :avatar-color="friend.avatar_color"
+                  :avatar-url="friend.avatar_url"
                   :show-online="true"
                   size="sm"
                 />
@@ -352,6 +355,7 @@ function onOnlineFriendClick(friend: Profile) {
           <UserAvatar
             :display-name="currentUser?.display_name || 'You'"
             :avatar-color="currentUser?.avatar_color"
+            :avatar-url="currentUser?.avatar_url"
             :show-online="true"
             size="sm"
           />

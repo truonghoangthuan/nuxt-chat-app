@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import type { Profile } from '~/types/chat'
-import { AVATAR_PALETTE, isValidDisplayName, isValidAvatarColor } from '~/utils/chat'
+import { AVATAR_PALETTE, isValidDisplayName, isValidAvatarColor, isValidAvatarUrl } from '~/utils/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
 
 const props = defineProps<{
@@ -16,6 +16,7 @@ const emit = defineEmits<{
     payload: {
       displayName: string
       avatarColor: string
+      avatarUrl: string
       onSuccess: () => void
       onError: (message: string) => void
     }
@@ -24,6 +25,7 @@ const emit = defineEmits<{
 
 const displayName = ref(props.profile?.display_name || '')
 const avatarColor = ref<string>(props.profile?.avatar_color || AVATAR_PALETTE[0])
+const avatarUrl = ref(props.profile?.avatar_url || '')
 const error = ref<string | null>(null)
 const isSubmitting = ref(false)
 
@@ -33,6 +35,7 @@ watch(
     if (open && prof) {
       displayName.value = prof.display_name
       avatarColor.value = prof.avatar_color || AVATAR_PALETTE[0]
+      avatarUrl.value = prof.avatar_url || ''
       error.value = null
       isSubmitting.value = false
     }
@@ -41,7 +44,7 @@ watch(
 )
 
 const isValid = computed(() => {
-  return isValidDisplayName(displayName.value) && isValidAvatarColor(avatarColor.value)
+  return isValidDisplayName(displayName.value) && isValidAvatarColor(avatarColor.value) && isValidAvatarUrl(avatarUrl.value)
 })
 
 function handleClose() {
@@ -62,6 +65,7 @@ function handleSave() {
   emit('save', {
     displayName: displayName.value.trim(),
     avatarColor: avatarColor.value,
+    avatarUrl: avatarUrl.value.trim(),
     onSuccess: () => {
       isSubmitting.value = false
       handleClose()
@@ -104,6 +108,7 @@ function handleSave() {
           <UserAvatar
             :display-name="displayName || 'Friend'"
             :avatar-color="avatarColor"
+            :avatar-url="avatarUrl"
             :show-online="true"
             size="lg"
           />
@@ -130,6 +135,22 @@ function handleSave() {
             placeholder="Your display name"
             class="w-full px-3 py-2 rounded-[8px] border border-[var(--fp-border)] bg-[var(--fp-input-bg)] text-[var(--fp-text-primary)] placeholder-[var(--fp-text-muted)] text-[14.5px] focus:outline-none focus:border-indigo-500 transition-colors"
           />
+        </div>
+
+        <!-- Avatar Color Swatches -->
+        <div>
+          <label for="avatar-url" class="block text-xs font-semibold text-[var(--fp-text-secondary)] mb-1.5">Avatar image URL</label>
+          <input
+            id="avatar-url"
+            v-model="avatarUrl"
+            data-test="avatar-url"
+            type="url"
+            maxlength="2048"
+            placeholder="https://example.com/avatar.jpg"
+            class="w-full px-3 py-2 rounded-[8px] border border-[var(--fp-border)] bg-[var(--fp-input-bg)] text-[var(--fp-text-primary)] placeholder-[var(--fp-text-muted)] text-[14.5px] focus:outline-none focus:border-indigo-500 transition-colors"
+          />
+          <p class="mt-1 text-[11px] text-[var(--fp-text-muted)]">Optional. Leave blank to use your initials.</p>
+          <p v-if="avatarUrl && !isValidAvatarUrl(avatarUrl)" class="mt-1 text-xs text-rose-500">Enter a valid HTTP or HTTPS URL.</p>
         </div>
 
         <!-- Avatar Color Swatches -->

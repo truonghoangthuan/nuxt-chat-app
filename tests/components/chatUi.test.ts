@@ -7,8 +7,24 @@ import CreateChannelModal from '~/components/CreateChannelModal.vue'
 import ChatSidebar from '~/components/ChatSidebar.vue'
 import StartDmModal from '~/components/StartDmModal.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
+import { isValidAvatarUrl } from '~/utils/chat'
 
 describe('Chat UI components', () => {
+  it('accepts only optional HTTP(S) avatar URLs', () => {
+    expect(isValidAvatarUrl('')).toBe(true)
+    expect(isValidAvatarUrl('https://example.com/avatar.png')).toBe(true)
+    expect(isValidAvatarUrl('javascript:alert(1)')).toBe(false)
+    expect(isValidAvatarUrl('not a url')).toBe(false)
+  })
+
+  it('UserAvatar renders an image URL while retaining the initials fallback', () => {
+    const wrapper = mount(UserAvatar, {
+      props: { displayName: 'Alice', avatarUrl: 'https://example.com/avatar.png' },
+    })
+    expect(wrapper.find('img').attributes('src')).toBe('https://example.com/avatar.png')
+    expect(wrapper.text()).toContain('AL')
+  })
+
   it('MessageComposer emits send on Enter, newline on Shift+Enter, and renders typingLabel', async () => {
     const wrapper = mount(MessageComposer, {
       props: { channelSlug: 'general', typingLabel: 'Alice is typing...' },
@@ -215,6 +231,7 @@ describe('Chat UI components', () => {
 
     const input = wrapper.find('input[type="text"]')
     await input.setValue('Alice Wonderland')
+    await wrapper.find('[data-test="avatar-url"]').setValue('https://example.com/alice.png')
 
     const roseSwatch = wrapper.find('[data-test="color-swatch-#e11d48"]')
     await roseSwatch.trigger('click')
@@ -226,10 +243,12 @@ describe('Chat UI components', () => {
     const payload = saveEvents?.[0][0] as {
       displayName: string
       avatarColor: string
+      avatarUrl: string
       onSuccess: () => void
     }
     expect(payload.displayName).toBe('Alice Wonderland')
     expect(payload.avatarColor).toBe('#e11d48')
+    expect(payload.avatarUrl).toBe('https://example.com/alice.png')
 
     payload.onSuccess()
     await wrapper.vm.$nextTick()

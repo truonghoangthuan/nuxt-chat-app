@@ -167,6 +167,7 @@ function handleSend() {
         <UserAvatar
           :display-name="candidate.display_name"
           :avatar-color="candidate.avatar_color"
+          :avatar-url="candidate.avatar_url"
           size="sm"
         />
         <span>@{{ candidate.display_name }}</span>

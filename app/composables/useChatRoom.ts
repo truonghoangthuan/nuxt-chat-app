@@ -401,7 +401,7 @@ export function useChatRoom() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, display_name, avatar_color')
+        .select('id, display_name, avatar_color, avatar_url')
         .order('display_name', { ascending: true })
 
       if (data && !error) {
@@ -445,7 +445,7 @@ export function useChatRoom() {
     try {
       let query = supabase
         .from('messages')
-        .select('*, author:profiles(id, display_name, avatar_color)')
+        .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
         .eq('channel_id', activeChannelId.value)
 
       if (lastTimestamp) {
@@ -523,6 +523,7 @@ export function useChatRoom() {
             user_id: current.id,
             display_name: current.display_name,
             avatar_color: current.avatar_color,
+            avatar_url: current.avatar_url || null,
             online_at: new Date().toISOString(),
           })
           connectionManager.handleConnected()
@@ -575,7 +576,7 @@ export function useChatRoom() {
               try {
                 const { data: peerProfile } = await supabase
                   .from('profiles')
-                  .select('id, display_name, avatar_color')
+                  .select('id, display_name, avatar_color, avatar_url')
                   .eq('id', peerId)
                   .single()
                 if (peerProfile) {
@@ -600,7 +601,7 @@ export function useChatRoom() {
               try {
                 const { data } = await supabase
                   .from('profiles')
-                  .select('id, display_name, avatar_color')
+                  .select('id, display_name, avatar_color, avatar_url')
                   .eq('id', userId)
                   .single()
                 return (data as Profile) || undefined
@@ -690,7 +691,7 @@ export function useChatRoom() {
             if (peerId && !profilesCache.has(peerId)) {
               supabase
                 .from('profiles')
-                .select('id, display_name, avatar_color')
+                .select('id, display_name, avatar_color, avatar_url')
                 .eq('id', peerId)
                 .single()
                 .then(({ data: peerProfile }) => {
@@ -797,7 +798,7 @@ export function useChatRoom() {
     try {
       const { data, error } = await supabase
         .from('messages')
-        .select('*, author:profiles(id, display_name, avatar_color)')
+        .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
         .eq('channel_id', channelId)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
@@ -841,7 +842,7 @@ export function useChatRoom() {
     try {
       const { data, error } = await supabase
         .from('messages')
-        .select('*, author:profiles(id, display_name, avatar_color)')
+        .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
         .eq('channel_id', activeChannelId.value)
         .or(`created_at.lt."${cursor.created_at}",and(created_at.eq."${cursor.created_at}",id.lt."${cursor.id}")`)
         .order('created_at', { ascending: false })
@@ -918,7 +919,7 @@ export function useChatRoom() {
       try {
         const { data: peerProfile } = await supabase
           .from('profiles')
-          .select('id, display_name, avatar_color')
+          .select('id, display_name, avatar_color, avatar_url')
           .eq('id', peerUserId)
           .single()
         if (peerProfile) {
@@ -1023,14 +1024,14 @@ export function useChatRoom() {
           content: content.trim(),
           reply_to_id: replyToId || null,
         })
-        .select('*, author:profiles(id, display_name, avatar_color)')
+        .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
         .single()
 
       if (error) {
         if (isDuplicateKeyError(error)) {
           const { data: existing } = await supabase
             .from('messages')
-            .select('*, author:profiles(id, display_name, avatar_color)')
+            .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
             .eq('client_id', clientId)
             .single()
           if (existing) {
@@ -1063,14 +1064,14 @@ export function useChatRoom() {
           content: retrying.content,
           reply_to_id: retrying.reply_to_id || null,
         })
-        .select('*, author:profiles(id, display_name, avatar_color)')
+        .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
         .single()
 
       if (error) {
         if (isDuplicateKeyError(error)) {
           const { data: existing } = await supabase
             .from('messages')
-            .select('*, author:profiles(id, display_name, avatar_color)')
+            .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
             .eq('client_id', clientId)
             .single()
           if (existing) {
@@ -1225,6 +1226,7 @@ export function useChatRoom() {
           user_id: profile.id,
           display_name: profile.display_name,
           avatar_color: profile.avatar_color,
+          avatar_url: profile.avatar_url || null,
           online_at: new Date().toISOString(),
         })
       } catch {
