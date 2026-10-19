@@ -52,15 +52,23 @@ function syncCursor() {
 
 function selectMention(profile: Profile) {
   if (!activeMention.value) return
+  const prefix = content.value.slice(0, activeMention.value.startIndex)
+  const insertedToken = `@${profile.display_name} `
+  const newCaretPos = prefix.length + insertedToken.length
+
   content.value = applyMentionAutocomplete(
     content.value,
     activeMention.value,
     profile.display_name,
   )
-  cursorIndex.value = content.value.length
+  cursorIndex.value = newCaretPos
   selectedMentionIndex.value = 0
   nextTick(() => {
-    textareaRef.value?.focus()
+    const el = textareaRef.value
+    if (el) {
+      el.focus()
+      el.setSelectionRange(newCaretPos, newCaretPos)
+    }
     autoResize()
   })
 }
@@ -122,39 +130,19 @@ function handleSend() {
 </script>
 
 <template>
-  <div class="p-3 md:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
-    <!-- Replying To Banner -->
-    <div
-      v-if="replyingTo"
-      data-test="reply-banner"
-      class="mb-2 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border-l-2 border-sky-500 flex items-center justify-between gap-2 text-xs"
-    >
-      <div class="truncate text-slate-600 dark:text-slate-300">
-        Replying to <span class="font-semibold text-slate-900 dark:text-white">@{{ replyingTo.author?.display_name || 'Friend' }}</span>:
-        <span class="italic ml-1">{{ replyingTo.content }}</span>
-      </div>
-      <button
-        type="button"
-        data-test="cancel-reply"
-        class="text-slate-400 hover:text-slate-700 dark:hover:text-white font-bold px-1 cursor-pointer"
-        @click="emit('cancelReply')"
-      >
-        ×
-      </button>
-    </div>
-
+  <div class="px-3 md:px-4 pb-3 md:pb-3.5 pt-1 bg-transparent shrink-0">
     <!-- Typing indicator bar -->
-    <div class="h-5 mb-1 px-1 flex items-center">
+    <div class="h-5 mb-1 px-2 flex items-center">
       <span
         v-if="typingLabel"
-        class="text-xs italic text-slate-500 dark:text-slate-400 flex items-center gap-1.5 transition-opacity"
+        class="text-xs text-[var(--fp-text-secondary)] flex items-center gap-2 transition-opacity"
       >
-        <span class="inline-flex gap-0.5">
-          <span class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-          <span class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-          <span class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
+        <span class="inline-flex gap-1">
+          <span class="w-1.5 h-1.5 bg-[var(--fp-accent-bright)] rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+          <span class="w-1.5 h-1.5 bg-[var(--fp-accent-bright)] rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+          <span class="w-1.5 h-1.5 bg-[var(--fp-accent-bright)] rounded-full animate-bounce"></span>
         </span>
-        {{ typingLabel }}
+        <span>{{ typingLabel }}</span>
       </span>
     </div>
 
@@ -162,9 +150,9 @@ function handleSend() {
     <div
       v-if="filteredMentions.length > 0"
       data-test="mention-autocomplete"
-      class="mb-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg overflow-hidden"
+      class="mb-2 rounded-[12px] border border-[var(--fp-border-strong)] bg-[var(--fp-surface-elevated)] shadow-2xl overflow-hidden"
     >
-      <div class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-700/60">
+      <div class="px-3.5 py-1.5 text-[11px] font-semibold tracking-wide text-[var(--fp-text-secondary)] border-b border-[var(--fp-border)]">
         Mention a friend
       </div>
       <button
@@ -172,8 +160,8 @@ function handleSend() {
         :key="candidate.id"
         type="button"
         :data-test="`mention-option-${candidate.id}`"
-        class="w-full px-3 py-1.5 flex items-center gap-2 text-xs text-left transition-colors cursor-pointer"
-        :class="idx === selectedMentionIndex ? 'bg-sky-500/15 text-sky-600 dark:text-sky-300 font-semibold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'"
+        class="w-full px-3.5 py-2 flex items-center gap-2.5 text-xs text-left transition-colors cursor-pointer"
+        :class="idx === selectedMentionIndex ? 'bg-[var(--fp-active)] text-[var(--fp-text-primary)] font-semibold' : 'text-[var(--fp-text-secondary)] hover:bg-[var(--fp-hover)] hover:text-[var(--fp-text-primary)]'"
         @click="selectMention(candidate)"
       >
         <UserAvatar
@@ -185,32 +173,61 @@ function handleSend() {
       </button>
     </div>
 
-    <!-- Input box -->
-    <div class="relative flex items-end rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all p-1.5">
-      <textarea
-        ref="textareaRef"
-        v-model="content"
-        rows="1"
-        :disabled="disabled"
-        :placeholder="`Message ${isDm ? '@' : '#'}${channelSlug || 'channel'} (Enter to send, Shift+Enter for newline)`"
-        class="w-full resize-none bg-transparent px-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none max-h-40 overflow-y-auto"
-        @input="handleInput"
-        @click="syncCursor"
-        @keyup="syncCursor"
-        @keydown="handleKeydown"
-      ></textarea>
-
-      <button
-        type="button"
-        :disabled="!content.trim() || disabled"
-        class="mb-1 mr-1 p-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-40 disabled:hover:bg-sky-600 disabled:cursor-not-allowed transition-colors shrink-0 shadow-sm"
-        title="Send message"
-        @click="handleSend"
+    <!-- Floating Command-Bar Deck -->
+    <div class="fp-composer-surface rounded-[12px] border border-[var(--fp-border)] focus-within:border-indigo-500/60 transition-colors overflow-hidden">
+      <!-- Replying To Banner -->
+      <div
+        v-if="replyingTo"
+        data-test="reply-banner"
+        class="px-3.5 py-1.5 bg-indigo-500/10 border-b border-indigo-500/20 flex items-center justify-between gap-2 text-xs"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-        </svg>
-      </button>
+        <div class="truncate text-[var(--fp-text-secondary)]">
+          Replying to <span class="font-semibold text-[var(--fp-accent-bright)]">@{{ replyingTo.author?.display_name || 'Friend' }}</span>:
+          <span class="italic ml-1">{{ replyingTo.content }}</span>
+        </div>
+        <button
+          type="button"
+          data-test="cancel-reply"
+          class="text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] font-bold px-1.5 cursor-pointer"
+          @click="emit('cancelReply')"
+        >
+          ×
+        </button>
+      </div>
+
+      <!-- Input Row -->
+      <div class="flex items-end gap-2 p-2">
+        <textarea
+          ref="textareaRef"
+          v-model="content"
+          rows="1"
+          :disabled="disabled"
+          :placeholder="`Message ${isDm ? '@' : '#'}${channelSlug || 'channel'} (Enter to send, Shift+Enter for newline)`"
+          class="w-full resize-none bg-transparent px-2.5 py-1.5 text-[14.5px] text-[var(--fp-text-primary)] placeholder-[var(--fp-text-muted)] focus:outline-none max-h-40 overflow-y-auto leading-relaxed"
+          @input="handleInput"
+          @click="syncCursor"
+          @keyup="syncCursor"
+          @keydown="handleKeydown"
+        ></textarea>
+
+        <div class="flex items-center gap-2 shrink-0 pb-0.5 pr-0.5">
+          <span class="hidden lg:inline-block text-[11px] text-[var(--fp-text-muted)] select-none">
+            Enter ↵
+          </span>
+          <button
+            type="button"
+            :disabled="!content.trim() || disabled"
+            class="px-3.5 py-1.5 rounded-[8px] fp-btn-primary text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
+            title="Send message"
+            @click="handleSend"
+          >
+            <span>Send</span>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>

@@ -177,11 +177,11 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="relative flex-1 flex flex-col min-h-0 bg-slate-50 dark:bg-slate-950">
+  <div class="relative flex-1 flex flex-col min-h-0 bg-transparent">
     <!-- Messages Scroll Container -->
     <div
       ref="viewportRef"
-      class="flex-1 overflow-y-auto px-4 py-4 space-y-4"
+      class="flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-2.5"
       @scroll="handleScroll"
     >
       <!-- History Loader -->
@@ -189,7 +189,7 @@ onMounted(() => {
         <button
           type="button"
           :disabled="isLoadingHistory"
-          class="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
+          class="px-3.5 py-1.5 text-xs font-semibold text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] bg-[var(--fp-stage-subtle)] rounded-full border border-[var(--fp-border)] shadow-[var(--fp-specular)] hover:bg-[var(--fp-hover)] disabled:opacity-50 transition-colors cursor-pointer"
           @click="handleLoadOlder"
         >
           <span v-if="isLoadingHistory">Loading older messages...</span>
@@ -199,13 +199,13 @@ onMounted(() => {
 
       <!-- Empty Channel / DM Placeholder -->
       <div v-if="messages.length === 0" data-test="empty-channel-placeholder" class="h-full flex flex-col items-center justify-center text-center py-16">
-        <div class="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-400 mb-3 text-lg font-bold">
+        <div class="fp-font-display w-12 h-12 rounded-[14px] bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-[var(--fp-accent-bright)] mb-3.5 text-xl font-extrabold shadow-[var(--fp-specular)]">
           {{ isDm ? '@' : '#' }}
         </div>
-        <p class="text-slate-700 dark:text-slate-300 font-medium">
+        <p class="fp-font-display text-[15px] text-[var(--fp-text-primary)] font-semibold">
           {{ isDm ? `This is the start of your direct message history with ${peerName ? '@' + peerName : 'your friend'}` : 'This is the start of this channel' }}
         </p>
-        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Send a message below to start the conversation!</p>
+        <p class="text-xs text-[var(--fp-text-secondary)] mt-1">Send a message below to start the conversation!</p>
       </div>
 
       <!-- Messages List -->
@@ -217,13 +217,13 @@ onMounted(() => {
         <div
           v-if="item.showDateDivider"
           data-test="date-divider"
-          class="flex items-center gap-3 my-4"
+          class="flex items-center gap-3 my-3.5"
         >
-          <div class="flex-1 h-px bg-slate-200 dark:bg-slate-800"></div>
-          <span class="px-3 py-0.5 rounded-full text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div class="flex-1 h-px bg-[var(--fp-border)]"></div>
+          <span class="px-3 py-0.5 rounded-full text-[11px] font-semibold text-[var(--fp-text-secondary)] bg-[var(--fp-stage-subtle)] border border-[var(--fp-border)]">
             {{ item.dateLabel }}
           </span>
-          <div class="flex-1 h-px bg-slate-200 dark:bg-slate-800"></div>
+          <div class="flex-1 h-px bg-[var(--fp-border)]"></div>
         </div>
 
         <!-- Unread Messages Divider -->
@@ -232,22 +232,22 @@ onMounted(() => {
           data-test="unread-divider"
           class="flex items-center gap-3 my-3"
         >
-          <div class="flex-1 h-px bg-rose-500/60"></div>
-          <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800">
+          <div class="flex-1 h-px bg-rose-500/50"></div>
+          <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide text-rose-600 dark:text-rose-300 bg-rose-500/15 border border-rose-500/35">
             New messages
           </span>
-          <div class="flex-1 h-px bg-rose-500/60"></div>
+          <div class="flex-1 h-px bg-rose-500/50"></div>
         </div>
 
         <!-- Compact Message Row (same author within 5m on same day) -->
         <div
           v-if="item.isCompact"
           :data-test="item.isMentioningMe ? `mention-row-${item.message.id}` : 'compact-message'"
-          class="relative flex items-start gap-3 group -mt-2.5 py-0.5 hover:bg-slate-100/60 dark:hover:bg-slate-900/50 rounded-lg px-1 -mx-1 transition-colors"
-          :class="item.isMentioningMe ? 'bg-amber-500/10 border-l-2 border-amber-500 pl-2' : ''"
+          class="relative flex items-start gap-3 group -mt-1.5 py-1 hover:bg-[var(--fp-hover)] rounded-[10px] px-2.5 -mx-1.5 transition-colors"
+          :class="item.isMentioningMe ? 'bg-amber-500/10 border-l-2 border-amber-500 pl-3' : ''"
         >
-          <div class="w-9 shrink-0 text-right pr-1 select-none">
-            <span class="text-[10px] text-slate-400 dark:text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div class="w-9 shrink-0 text-right pr-1 select-none pt-0.5">
+            <span class="text-[11px] text-[var(--fp-text-muted)] opacity-0 group-hover:opacity-100 transition-opacity">
               {{ formatTime(item.message.created_at) }}
             </span>
           </div>
@@ -257,18 +257,18 @@ onMounted(() => {
             <p
               v-if="item.message.deleted_at"
               :data-test="`deleted-tombstone-${item.message.id}`"
-              class="text-sm italic text-slate-400 dark:text-slate-500 mt-0.5"
+              class="text-xs italic text-[var(--fp-text-muted)] px-2.5 py-1 rounded-md bg-[var(--fp-hover)] border border-dashed border-[var(--fp-border)] inline-block mt-0.5"
             >
               This message was deleted
             </p>
 
             <!-- Inline Edit Box -->
-            <div v-else-if="editingMessageId === item.message.id" class="mt-1 space-y-1.5">
+            <div v-else-if="editingMessageId === item.message.id" class="mt-1 space-y-2">
               <input
                 v-model="editingContent"
                 type="text"
                 :data-test="`edit-input-${item.message.id}`"
-                class="w-full px-2.5 py-1.5 text-sm rounded-lg border border-sky-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none"
+                class="w-full px-3 py-1.5 text-sm rounded-lg border border-indigo-500 bg-[var(--fp-input-bg)] text-[var(--fp-text-primary)] focus:outline-none"
                 @keydown.enter.prevent="saveEdit(item.message.id)"
                 @keydown.esc.prevent="cancelEdit"
               />
@@ -276,7 +276,7 @@ onMounted(() => {
                 <button
                   type="button"
                   :data-test="`save-edit-${item.message.id}`"
-                  class="px-2.5 py-1 rounded bg-sky-600 text-white font-medium hover:bg-sky-500"
+                  class="px-2.5 py-1 rounded-md fp-btn-primary font-semibold cursor-pointer"
                   @click="saveEdit(item.message.id)"
                 >
                   Save
@@ -284,7 +284,7 @@ onMounted(() => {
                 <button
                   type="button"
                   :data-test="`cancel-edit-${item.message.id}`"
-                  class="px-2.5 py-1 rounded text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  class="px-2.5 py-1 rounded-md text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] cursor-pointer"
                   @click="cancelEdit"
                 >
                   Cancel
@@ -295,7 +295,7 @@ onMounted(() => {
             <!-- Message content + edited badge -->
             <div
               v-else
-              class="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words leading-relaxed"
+              class="text-[14.5px] text-[var(--fp-text-primary)] whitespace-pre-wrap break-words leading-[1.52]"
               :class="{ 'opacity-60': item.message.status === 'sending', 'text-rose-400': item.message.status === 'failed' }"
             >
               <template
@@ -305,36 +305,36 @@ onMounted(() => {
                 <span
                   v-if="seg.isMention"
                   data-test="mention-token"
-                  class="px-1 py-0.5 rounded font-medium"
-                  :class="seg.isMe ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300' : 'bg-sky-500/15 text-sky-600 dark:text-sky-300'"
+                  class="px-1.5 py-0.5 rounded-[5px] text-[13.5px] font-semibold"
+                  :class="seg.isMe ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30' : 'bg-indigo-500/18 text-[var(--fp-accent-bright)] border border-indigo-500/30'"
                 >{{ seg.text }}</span>
                 <span v-else>{{ seg.text }}</span>
               </template>
               <span
                 v-if="item.message.edited_at && !item.message.deleted_at"
                 :data-test="`edited-badge-${item.message.id}`"
-                class="ml-1 text-[11px] text-slate-400 italic"
+                class="ml-1 text-[11px] text-[var(--fp-text-muted)] italic"
               >
                 (edited)
               </span>
             </div>
 
-            <div v-if="item.message.status !== 'sent'" class="mt-0.5 flex items-center gap-2">
+            <div v-if="item.message.status !== 'sent'" class="mt-1 flex items-center gap-2">
               <span
                 v-if="item.message.status === 'sending'"
-                class="text-xs text-slate-400 italic"
+                class="text-xs text-[var(--fp-text-secondary)] italic"
               >
                 Sending...
               </span>
               <span
                 v-else-if="item.message.status === 'failed'"
-                class="text-xs text-rose-500 font-medium flex items-center gap-1.5"
+                class="text-xs text-rose-500 font-medium inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-rose-500/10 border border-rose-500/25"
               >
                 Failed to send
                 <button
                   type="button"
                   :data-test="`retry-${item.message.client_id}`"
-                  class="underline hover:text-rose-600 font-semibold cursor-pointer ml-1"
+                  class="underline hover:text-rose-400 font-semibold cursor-pointer ml-1"
                   @click="emit('retry', item.message.client_id)"
                 >
                   Retry
@@ -342,7 +342,7 @@ onMounted(() => {
                 <button
                   type="button"
                   :data-test="`dismiss-${item.message.client_id}`"
-                  class="underline hover:text-rose-600 cursor-pointer ml-1 text-slate-400"
+                  class="underline hover:text-rose-400 cursor-pointer ml-1 text-[var(--fp-text-secondary)]"
                   @click="emit('dismiss', item.message.client_id)"
                 >
                   Dismiss
@@ -353,15 +353,15 @@ onMounted(() => {
             <!-- Reaction Pills -->
             <div
               v-if="!item.message.deleted_at && summarizeReactions(item.message.reactions, currentUserId).length > 0"
-              class="mt-1.5 flex items-center flex-wrap gap-1"
+              class="mt-1.5 flex items-center flex-wrap gap-1.5"
             >
               <button
                 v-for="summary in summarizeReactions(item.message.reactions, currentUserId)"
                 :key="summary.emoji"
                 type="button"
                 :data-test="`reaction-pill-${item.message.id}-${summary.emoji}`"
-                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors cursor-pointer"
-                :class="summary.reactedByMe ? 'bg-sky-500/15 border-sky-500/50 text-sky-600 dark:text-sky-300 font-semibold' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs border transition-all cursor-pointer"
+                :class="summary.reactedByMe ? 'bg-indigo-500/20 border-indigo-500/50 text-[var(--fp-text-primary)] font-semibold' : 'bg-[var(--fp-hover)] border-[var(--fp-border)] text-[var(--fp-text-secondary)] hover:border-[var(--fp-border-strong)] hover:text-[var(--fp-text-primary)]'"
                 @click="emit('toggleReaction', { messageId: item.message.id, emoji: summary.emoji })"
               >
                 <span>{{ summary.emoji }}</span>
@@ -373,14 +373,14 @@ onMounted(() => {
           <!-- Hover Action Toolbar -->
           <div
             v-if="item.message.status === 'sent' && !item.message.deleted_at"
-            class="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-1.5 py-0.5 shadow-sm shrink-0 self-start"
+            class="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-0.5 bg-[var(--fp-surface-elevated)] border border-[var(--fp-border)] rounded-[8px] px-1.5 py-0.5 shadow-lg shrink-0 self-start"
           >
             <button
               v-for="emoji in REACTION_EMOJIS"
               :key="emoji"
               type="button"
               :data-test="`react-${item.message.id}-${emoji}`"
-              class="p-1 text-xs hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-transform hover:scale-110 cursor-pointer"
+              class="p-1 text-xs hover:bg-[var(--fp-hover)] rounded transition-transform hover:scale-110 cursor-pointer"
               :title="`React ${emoji}`"
               @click="emit('toggleReaction', { messageId: item.message.id, emoji })"
             >
@@ -389,7 +389,7 @@ onMounted(() => {
             <button
               type="button"
               :data-test="`reply-${item.message.id}`"
-              class="px-1.5 py-0.5 text-[11px] font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+              class="px-1.5 py-0.5 text-[11px] font-medium text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] rounded hover:bg-[var(--fp-hover)] cursor-pointer"
               @click="emit('reply', item.message)"
             >
               Reply
@@ -398,7 +398,7 @@ onMounted(() => {
               <button
                 type="button"
                 :data-test="`edit-${item.message.id}`"
-                class="px-1.5 py-0.5 text-[11px] font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+                class="px-1.5 py-0.5 text-[11px] font-medium text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] rounded hover:bg-[var(--fp-hover)] cursor-pointer"
                 @click="startEdit(item.message)"
               >
                 Edit
@@ -406,7 +406,7 @@ onMounted(() => {
               <button
                 type="button"
                 :data-test="`delete-${item.message.id}`"
-                class="px-1.5 py-0.5 text-[11px] font-medium text-rose-500 hover:text-rose-600 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                class="px-1.5 py-0.5 text-[11px] font-medium text-rose-500 hover:text-rose-400 rounded hover:bg-rose-500/10 cursor-pointer"
                 @click="emit('delete', item.message.id)"
               >
                 Delete
@@ -419,8 +419,8 @@ onMounted(() => {
         <div
           v-else
           :data-test="item.isMentioningMe ? `mention-row-${item.message.id}` : 'full-message'"
-          class="relative flex items-start gap-3 group hover:bg-slate-100/60 dark:hover:bg-slate-900/50 rounded-lg p-1 -mx-1 transition-colors"
-          :class="item.isMentioningMe ? 'bg-amber-500/10 border-l-2 border-amber-500 pl-2' : ''"
+          class="relative flex items-start gap-3 group hover:bg-[var(--fp-hover)] rounded-[10px] px-2.5 py-2 -mx-1.5 transition-colors"
+          :class="item.isMentioningMe ? 'bg-amber-500/10 border-l-2 border-amber-500 pl-3' : ''"
         >
           <UserAvatar
             :display-name="item.message.author?.display_name || 'Friend'"
@@ -433,9 +433,9 @@ onMounted(() => {
             <div
               v-if="item.message.reply_to_id"
               :data-test="`reply-quote-${item.message.id}`"
-              class="mb-1 pl-2.5 border-l-2 border-sky-500 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 truncate"
+              class="mb-1.5 px-2.5 py-1 rounded-r-md bg-indigo-500/10 border-l-2 border-indigo-500 text-xs text-[var(--fp-text-secondary)] flex items-center gap-1.5 truncate"
             >
-              <span class="font-semibold text-slate-700 dark:text-slate-300">
+              <span class="font-semibold text-[var(--fp-accent-bright)]">
                 @{{ item.message.reply_to?.author?.display_name || 'Friend' }}
               </span>
               <span class="truncate italic">
@@ -444,29 +444,29 @@ onMounted(() => {
             </div>
 
             <div class="flex items-baseline gap-2">
-              <span class="text-sm font-semibold text-slate-900 dark:text-white">
+              <span class="fp-font-display text-[14px] font-semibold text-[var(--fp-text-primary)]">
                 {{ item.message.author?.display_name || 'Friend' }}
               </span>
-              <span class="text-xs text-slate-400 dark:text-slate-500">
+              <span class="text-xs text-[var(--fp-text-secondary)]">
                 {{ formatTime(item.message.created_at) }}
               </span>
 
               <span
                 v-if="item.message.status === 'sending'"
-                class="text-xs text-slate-400 italic flex items-center gap-1"
+                class="text-xs text-[var(--fp-text-secondary)] italic flex items-center gap-1"
               >
                 Sending...
               </span>
 
               <span
                 v-else-if="item.message.status === 'failed'"
-                class="text-xs text-rose-500 font-medium flex items-center gap-1.5"
+                class="text-xs text-rose-500 font-medium inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-rose-500/10 border border-rose-500/25"
               >
                 Failed to send
                 <button
                   type="button"
                   :data-test="`retry-${item.message.client_id}`"
-                  class="underline hover:text-rose-600 font-semibold cursor-pointer ml-1"
+                  class="underline hover:text-rose-400 font-semibold cursor-pointer ml-1"
                   @click="emit('retry', item.message.client_id)"
                 >
                   Retry
@@ -474,7 +474,7 @@ onMounted(() => {
                 <button
                   type="button"
                   :data-test="`dismiss-${item.message.client_id}`"
-                  class="underline hover:text-rose-600 cursor-pointer ml-1 text-slate-400"
+                  class="underline hover:text-rose-400 cursor-pointer ml-1 text-[var(--fp-text-secondary)]"
                   @click="emit('dismiss', item.message.client_id)"
                 >
                   Dismiss
@@ -486,18 +486,18 @@ onMounted(() => {
             <p
               v-if="item.message.deleted_at"
               :data-test="`deleted-tombstone-${item.message.id}`"
-              class="text-sm italic text-slate-400 dark:text-slate-500 mt-0.5"
+              class="text-xs italic text-[var(--fp-text-muted)] px-2.5 py-1 rounded-md bg-[var(--fp-hover)] border border-dashed border-[var(--fp-border)] inline-block mt-1"
             >
               This message was deleted
             </p>
 
             <!-- Inline Edit Box -->
-            <div v-else-if="editingMessageId === item.message.id" class="mt-1 space-y-1.5">
+            <div v-else-if="editingMessageId === item.message.id" class="mt-1.5 space-y-2">
               <input
                 v-model="editingContent"
                 type="text"
                 :data-test="`edit-input-${item.message.id}`"
-                class="w-full px-2.5 py-1.5 text-sm rounded-lg border border-sky-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none"
+                class="w-full px-3 py-1.5 text-sm rounded-lg border border-indigo-500 bg-[var(--fp-input-bg)] text-[var(--fp-text-primary)] focus:outline-none"
                 @keydown.enter.prevent="saveEdit(item.message.id)"
                 @keydown.esc.prevent="cancelEdit"
               />
@@ -505,7 +505,7 @@ onMounted(() => {
                 <button
                   type="button"
                   :data-test="`save-edit-${item.message.id}`"
-                  class="px-2.5 py-1 rounded bg-sky-600 text-white font-medium hover:bg-sky-500"
+                  class="px-2.5 py-1 rounded-md fp-btn-primary font-semibold cursor-pointer"
                   @click="saveEdit(item.message.id)"
                 >
                   Save
@@ -513,7 +513,7 @@ onMounted(() => {
                 <button
                   type="button"
                   :data-test="`cancel-edit-${item.message.id}`"
-                  class="px-2.5 py-1 rounded text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  class="px-2.5 py-1 rounded-md text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] cursor-pointer"
                   @click="cancelEdit"
                 >
                   Cancel
@@ -524,7 +524,7 @@ onMounted(() => {
             <!-- Message content + edited badge -->
             <div
               v-else
-              class="text-sm text-slate-800 dark:text-slate-200 mt-0.5 whitespace-pre-wrap break-words leading-relaxed"
+              class="text-[14.5px] text-[var(--fp-text-primary)] mt-0.5 whitespace-pre-wrap break-words leading-[1.52]"
               :class="{ 'opacity-60': item.message.status === 'sending', 'text-rose-400': item.message.status === 'failed' }"
             >
               <template
@@ -534,15 +534,15 @@ onMounted(() => {
                 <span
                   v-if="seg.isMention"
                   data-test="mention-token"
-                  class="px-1 py-0.5 rounded font-medium"
-                  :class="seg.isMe ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300' : 'bg-sky-500/15 text-sky-600 dark:text-sky-300'"
+                  class="px-1.5 py-0.5 rounded-[5px] text-[13.5px] font-semibold"
+                  :class="seg.isMe ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30' : 'bg-indigo-500/18 text-[var(--fp-accent-bright)] border border-indigo-500/30'"
                 >{{ seg.text }}</span>
                 <span v-else>{{ seg.text }}</span>
               </template>
               <span
                 v-if="item.message.edited_at && !item.message.deleted_at"
                 :data-test="`edited-badge-${item.message.id}`"
-                class="ml-1 text-[11px] text-slate-400 italic"
+                class="ml-1 text-[11px] text-[var(--fp-text-muted)] italic"
               >
                 (edited)
               </span>
@@ -551,15 +551,15 @@ onMounted(() => {
             <!-- Reaction Pills -->
             <div
               v-if="!item.message.deleted_at && summarizeReactions(item.message.reactions, currentUserId).length > 0"
-              class="mt-1.5 flex items-center flex-wrap gap-1"
+              class="mt-1.5 flex items-center flex-wrap gap-1.5"
             >
               <button
                 v-for="summary in summarizeReactions(item.message.reactions, currentUserId)"
                 :key="summary.emoji"
                 type="button"
                 :data-test="`reaction-pill-${item.message.id}-${summary.emoji}`"
-                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors cursor-pointer"
-                :class="summary.reactedByMe ? 'bg-sky-500/15 border-sky-500/50 text-sky-600 dark:text-sky-300 font-semibold' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs border transition-all cursor-pointer"
+                :class="summary.reactedByMe ? 'bg-indigo-500/20 border-indigo-500/50 text-[var(--fp-text-primary)] font-semibold' : 'bg-[var(--fp-hover)] border-[var(--fp-border)] text-[var(--fp-text-secondary)] hover:border-[var(--fp-border-strong)] hover:text-[var(--fp-text-primary)]'"
                 @click="emit('toggleReaction', { messageId: item.message.id, emoji: summary.emoji })"
               >
                 <span>{{ summary.emoji }}</span>
@@ -571,14 +571,14 @@ onMounted(() => {
           <!-- Hover Action Toolbar -->
           <div
             v-if="item.message.status === 'sent' && !item.message.deleted_at"
-            class="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-1.5 py-0.5 shadow-sm shrink-0 self-start"
+            class="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-0.5 bg-[var(--fp-surface-elevated)] border border-[var(--fp-border)] rounded-[8px] px-1.5 py-0.5 shadow-lg shrink-0 self-start"
           >
             <button
               v-for="emoji in REACTION_EMOJIS"
               :key="emoji"
               type="button"
               :data-test="`react-${item.message.id}-${emoji}`"
-              class="p-1 text-xs hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-transform hover:scale-110 cursor-pointer"
+              class="p-1 text-xs hover:bg-[var(--fp-hover)] rounded transition-transform hover:scale-110 cursor-pointer"
               :title="`React ${emoji}`"
               @click="emit('toggleReaction', { messageId: item.message.id, emoji })"
             >
@@ -587,7 +587,7 @@ onMounted(() => {
             <button
               type="button"
               :data-test="`reply-${item.message.id}`"
-              class="px-1.5 py-0.5 text-[11px] font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+              class="px-1.5 py-0.5 text-[11px] font-medium text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] rounded hover:bg-[var(--fp-hover)] cursor-pointer"
               @click="emit('reply', item.message)"
             >
               Reply
@@ -596,7 +596,7 @@ onMounted(() => {
               <button
                 type="button"
                 :data-test="`edit-${item.message.id}`"
-                class="px-1.5 py-0.5 text-[11px] font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+                class="px-1.5 py-0.5 text-[11px] font-medium text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] rounded hover:bg-[var(--fp-hover)] cursor-pointer"
                 @click="startEdit(item.message)"
               >
                 Edit
@@ -604,7 +604,7 @@ onMounted(() => {
               <button
                 type="button"
                 :data-test="`delete-${item.message.id}`"
-                class="px-1.5 py-0.5 text-[11px] font-medium text-rose-500 hover:text-rose-600 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                class="px-1.5 py-0.5 text-[11px] font-medium text-rose-500 hover:text-rose-400 rounded hover:bg-rose-500/10 cursor-pointer"
                 @click="emit('delete', item.message.id)"
               >
                 Delete
@@ -619,7 +619,7 @@ onMounted(() => {
     <button
       v-if="unreadNewCount > 0"
       type="button"
-      class="absolute bottom-3 right-6 z-10 px-3.5 py-1.5 rounded-full bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-lg transition-transform animate-bounce flex items-center gap-1.5"
+      class="absolute bottom-3 right-6 z-10 px-4 py-1.5 rounded-full fp-btn-primary text-xs font-semibold shadow-lg transition-transform animate-bounce flex items-center gap-1.5 cursor-pointer"
       @click="scrollToBottom(true)"
     >
       <span>↓ {{ unreadNewCount }} new message{{ unreadNewCount > 1 ? 's' : '' }}</span>

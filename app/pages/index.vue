@@ -126,8 +126,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="h-screen flex overflow-hidden bg-slate-100 dark:bg-slate-900 font-sans transition-colors">
-    <!-- Sidebar -->
+  <div class="h-screen flex overflow-hidden bg-[var(--fp-void)] md:p-3 md:gap-2.5 transition-colors">
+    <!-- Sidebar (Icon Rail + Tree Drawer) -->
     <ChatSidebar
       :channels="publicChannels"
       :dm-channels="dmChannels"
@@ -149,8 +149,8 @@ onUnmounted(() => {
       @close-mobile="isMobileSidebarOpen = false"
     />
 
-    <!-- Main Chat Column -->
-    <main class="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+    <!-- Main Floating Inset Chat Stage -->
+    <main class="flex-1 flex flex-col min-w-0 h-full overflow-hidden fp-stage-surface md:rounded-[14px] md:border md:border-[var(--fp-border)]">
       <!-- Connection Banner -->
       <ConnectionBanner
         :status="connectionStatus"
@@ -158,12 +158,12 @@ onUnmounted(() => {
         @retry="retryConnectionNow"
       />
 
-      <!-- Active Channel Top Header -->
-      <header class="h-14 px-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 shadow-sm">
+      <!-- Active Channel / DM Precision Top Header -->
+      <header class="h-[54px] px-4 md:px-5 bg-[var(--fp-stage)]/90 border-b border-[var(--fp-border)] flex items-center justify-between gap-4 shrink-0">
         <div class="flex items-center gap-3 min-w-0">
           <button
             type="button"
-            class="md:hidden p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+            class="md:hidden p-1.5 rounded-lg text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] cursor-pointer"
             @click="isMobileSidebarOpen = true"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -171,7 +171,7 @@ onUnmounted(() => {
             </svg>
           </button>
 
-          <div class="min-w-0 flex items-center gap-2">
+          <div class="min-w-0 flex items-center gap-2.5">
             <template v-if="activeChannel?.is_dm">
               <UserAvatar
                 :display-name="activeChannel.peer?.display_name || 'Friend'"
@@ -179,24 +179,51 @@ onUnmounted(() => {
                 :show-online="onlineFriends.some(f => f.id === activeChannel?.peer?.id)"
                 size="sm"
               />
-              <div class="min-w-0">
-                <h2 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1 truncate">
-                  <span class="text-slate-400 font-mono">@</span>
+              <div class="min-w-0 flex items-center gap-2">
+                <h2 class="fp-font-display text-[15px] font-bold text-[var(--fp-text-primary)] flex items-center gap-1 truncate">
+                  <span class="text-[var(--fp-accent-bright)] fp-font-mono">@</span>
                   <span class="truncate">{{ activeChannel.peer?.display_name || 'Direct Message' }}</span>
                 </h2>
+                <span
+                  class="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border"
+                  :class="onlineFriends.some(f => f.id === activeChannel?.peer?.id) ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-500' : 'bg-[var(--fp-hover)] border-[var(--fp-border)] text-[var(--fp-text-muted)]'"
+                >
+                  {{ onlineFriends.some(f => f.id === activeChannel?.peer?.id) ? 'Active now' : 'Offline' }}
+                </span>
               </div>
             </template>
             <template v-else>
-              <div class="min-w-0">
-                <h2 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
-                  <span class="text-slate-400 font-mono">#</span>
-                  <span class="truncate">{{ activeChannel?.slug || 'general' }}</span>
+              <div class="min-w-0 flex items-center gap-2.5">
+                <h2 class="fp-font-display text-[15px] font-bold text-[var(--fp-text-primary)] flex items-center gap-1 shrink-0">
+                  <span class="text-[var(--fp-accent-bright)] fp-font-mono">#</span>
+                  <span>{{ activeChannel?.slug || 'general' }}</span>
                 </h2>
-                <p v-if="activeChannel?.description" class="text-xs text-slate-500 dark:text-slate-400 truncate">
-                  {{ activeChannel.description }}
-                </p>
+                <template v-if="activeChannel?.description">
+                  <span class="hidden sm:inline-block w-px h-3.5 bg-[var(--fp-border)] shrink-0"></span>
+                  <p class="hidden sm:block text-[13px] text-[var(--fp-text-secondary)] truncate">
+                    {{ activeChannel.description }}
+                  </p>
+                </template>
               </div>
             </template>
+          </div>
+        </div>
+
+        <!-- Header Right: Online Friends Avatar Stack & Count Pill -->
+        <div class="hidden sm:flex items-center gap-2.5 shrink-0">
+          <div v-if="onlineFriends.length > 0" class="flex items-center -space-x-1.5">
+            <UserAvatar
+              v-for="friend in onlineFriends.slice(0, 4)"
+              :key="friend.id"
+              :display-name="friend.display_name"
+              :avatar-color="friend.avatar_color"
+              size="sm"
+              class="ring-2 ring-[var(--fp-stage)] rounded-[7px]"
+            />
+          </div>
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--fp-hover)] border border-[var(--fp-border)] text-xs font-medium text-[var(--fp-text-secondary)]">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span>{{ onlineFriends.length }} online</span>
           </div>
         </div>
       </header>
