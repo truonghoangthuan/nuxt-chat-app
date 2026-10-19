@@ -183,6 +183,14 @@ export function hydrateDmChannelPeers(params: {
     })
 }
 
+export function shouldProcessChannelMessage(
+  channel: Channel | undefined | null,
+  currentUserId?: string | null,
+): boolean {
+  if (!channel) return false
+  return canUserAccessChannel(channel, currentUserId)
+}
+
 export function useChatRoom() {
   const supabase = useSupabaseClient()
   const authProfile = useAuthProfile()
@@ -557,7 +565,7 @@ export function useChatRoom() {
             }
           }
 
-          if (targetChannel && !canUserAccessChannel(targetChannel, currentId)) {
+          if (!shouldProcessChannelMessage(targetChannel, currentId)) {
             return
           }
 
@@ -693,6 +701,7 @@ export function useChatRoom() {
                     }
                   }
                 })
+                .catch(() => {})
             }
           }
         },
