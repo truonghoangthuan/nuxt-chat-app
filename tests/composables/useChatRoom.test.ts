@@ -8,6 +8,7 @@ import {
   applyRealtimeProfileUpdate,
   computeUnreadSnapshot,
   hydrateDmChannelPeers,
+  shouldProcessChannelMessage,
 } from '~/composables/useChatRoom'
 import { extractAuthUserId } from '~/composables/useAuthProfile'
 import { createMessagesStore } from '~/composables/useMessagesState'
@@ -435,6 +436,41 @@ describe('useChatRoom realtime message routing & profile caching', () => {
       })
       expect(unresolvable).toHaveLength(1)
       expect(unresolvable[0]!.peer).toBeNull()
+    })
+
+    it('shouldProcessChannelMessage returns false for null/undefined channel or unauthorized DM', () => {
+      expect(shouldProcessChannelMessage(undefined, 'u-1')).toBe(false)
+      expect(shouldProcessChannelMessage(null, 'u-1')).toBe(false)
+
+      const unauthorizedDm = {
+        id: 'dm-1',
+        is_dm: true,
+        dm_user_a: 'u-2',
+        dm_user_b: 'u-3',
+      } as any
+      expect(shouldProcessChannelMessage(unauthorizedDm, 'u-1')).toBe(false)
+
+      const authorizedDmA = {
+        id: 'dm-2',
+        is_dm: true,
+        dm_user_a: 'u-1',
+        dm_user_b: 'u-2',
+      } as any
+      expect(shouldProcessChannelMessage(authorizedDmA, 'u-1')).toBe(true)
+
+      const authorizedDmB = {
+        id: 'dm-3',
+        is_dm: true,
+        dm_user_a: 'u-2',
+        dm_user_b: 'u-1',
+      } as any
+      expect(shouldProcessChannelMessage(authorizedDmB, 'u-1')).toBe(true)
+
+      const publicChannel = {
+        id: 'c-1',
+        is_dm: false,
+      } as any
+      expect(shouldProcessChannelMessage(publicChannel, 'u-1')).toBe(true)
     })
   })
 })

@@ -216,6 +216,7 @@ function onOnlineFriendClick(friend: Profile) {
               :key="friend.id"
               type="button"
               :data-test="`online-friend-${friend.id}`"
+              :disabled="Boolean(currentUser && friend.id === currentUser.id)"
               class="w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-colors text-left"
               :class="currentUser && friend.id === currentUser.id ? 'cursor-default' : 'cursor-pointer'"
               @click="onOnlineFriendClick(friend)"
