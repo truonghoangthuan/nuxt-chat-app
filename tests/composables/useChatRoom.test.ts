@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { shallowReactive, computed } from 'vue'
 import {
   handleIncomingRealtimeMessage,
   handleRealtimeMessageUpdate,
@@ -7,6 +8,10 @@ import {
   resolveMessageAuthor,
   applyRealtimeProfileUpdate,
   computeUnreadSnapshot,
+  computeOldestReadTimestamp,
+  computeChannelReadMap,
+  createChannelReadDebouncer,
+  subscribeWithPromise,
   hydrateDmChannelPeers,
   shouldProcessChannelMessage,
 } from '~/composables/useChatRoom'
@@ -471,6 +476,253 @@ describe('useChatRoom realtime message routing & profile caching', () => {
         is_dm: false,
       } as any
       expect(shouldProcessChannelMessage(publicChannel, 'u-1')).toBe(true)
+    })
+
+    it('decrements unreadCounts and unreadMentions when an unread message in an inactive channel is soft-deleted', () => {
+      const store = createMessagesStore()
+      const unreadCounts: Record<string, number> = { 'ch-inactive': 2 }
+      const unreadMentions: Record<string, number> = { 'ch-inactive': 1 }
+      const lastReadByChannel: Record<string, string> = { 'ch-inactive': '2026-10-18T09:00:00Z' }
+
+      handleRealtimeMessageUpdate({
+        row: {
+          id: 'm-deleted',
+          channel_id: 'ch-inactive',
+          user_id: 'u-bob',
+          content: 'Hey @Alice check this out',
+          created_at: '2026-10-18T10:00:00Z',
+          deleted_at: '2026-10-18T10:05:00Z',
+        },
+        oldRow: {
+          id: 'm-deleted',
+          channel_id: 'ch-inactive',
+          user_id: 'u-bob',
+          content: 'Hey @Alice check this out',
+          created_at: '2026-10-18T10:00:00Z',
+          deleted_at: null,
+        },
+        activeChannelId: 'ch-active',
+        messagesStore: store,
+        unreadCounts,
+        unreadMentions,
+        lastReadByChannel,
+        currentUserId: 'u-alice',
+        currentDisplayName: 'Alice',
+      })
+
+      expect(unreadCounts['ch-inactive']).toBe(1)
+      expect(unreadMentions['ch-inactive']).toBe(0)
+    })
+
+    it('computeOldestReadTimestamp correctly finds earliest timestamp with mixed ISO millisecond formats', () => {
+      expect(computeOldestReadTimestamp([])).toBe(null)
+      const oldest = computeOldestReadTimestamp([
+        '2026-10-18T10:00:00.500Z',
+        '2026-10-18T10:00:00Z',
+      ])
+      expect(oldest).toBe('2026-10-18T10:00:00Z')
+    })
+
+    it('computeChannelReadMap defaults missing channels to profile created_at and preserves cached reads', () => {
+      const channels = [{ id: 'ch-read' }, { id: 'ch-unread' }, { id: 'ch-cached' }]
+      const readRows = [{ channel_id: 'ch-read', last_read_at: '2026-10-18T09:30:00Z' }]
+      const existingMap = { 'ch-cached': '2026-10-18T09:45:00Z' }
+      const defaultRead = '2026-10-18T08:00:00Z'
+
+      const map = computeChannelReadMap({
+        channels,
+        readRows,
+        existingMap,
+        defaultReadTimestamp: defaultRead,
+      })
+
+      expect(map['ch-read']).toBe('2026-10-18T09:30:00Z')
+      expect(map['ch-cached']).toBe('2026-10-18T09:45:00Z')
+      expect(map['ch-unread']).toBe('2026-10-18T08:00:00Z')
+    })
+
+    it('createChannelReadDebouncer coalesces rapid read marks and supports immediate flush', async () => {
+      vi.useFakeTimers()
+      const upsertMock = vi.fn().mockResolvedValue({})
+      const debouncer = createChannelReadDebouncer(upsertMock, 2000)
+
+      debouncer.schedule('ch-1', '2026-10-18T10:00:00Z', false)
+      debouncer.schedule('ch-1', '2026-10-18T10:00:01Z', false)
+      debouncer.schedule('ch-1', '2026-10-18T10:00:02Z', false)
+
+      expect(upsertMock).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(2000)
+      expect(upsertMock).toHaveBeenCalledTimes(1)
+      expect(upsertMock).toHaveBeenCalledWith('ch-1', '2026-10-18T10:00:02Z')
+
+      await debouncer.schedule('ch-2', '2026-10-18T10:01:00Z', true)
+      expect(upsertMock).toHaveBeenCalledTimes(2)
+      expect(upsertMock).toHaveBeenCalledWith('ch-2', '2026-10-18T10:01:00Z')
+
+      debouncer.schedule('ch-3', '2026-10-18T10:02:00Z', false)
+      debouncer.cancelAll()
+      vi.advanceTimersByTime(2000)
+      expect(upsertMock).toHaveBeenCalledTimes(2)
+
+      vi.useRealTimers()
+    })
+
+    it('subscribeWithPromise handles SUBSCRIBED, errors, CLOSED, and timeouts', async () => {
+      expect(await subscribeWithPromise(null)).toBe(true)
+
+      const okChannel = {
+        subscribe: (cb: (s: string) => void) => {
+          setTimeout(() => cb('SUBSCRIBED'), 10)
+        },
+      }
+      expect(await subscribeWithPromise(okChannel)).toBe(true)
+
+      const errChannel = {
+        subscribe: (cb: (s: string) => void) => {
+          setTimeout(() => cb('CHANNEL_ERROR'), 10)
+        },
+      }
+      expect(await subscribeWithPromise(errChannel)).toBe(false)
+
+      const closedChannel = {
+        subscribe: (cb: (s: string) => void) => {
+          setTimeout(() => cb('CLOSED'), 10)
+        },
+      }
+      expect(await subscribeWithPromise(closedChannel)).toBe(false)
+
+      const hungChannel = {
+        subscribe: () => {},
+      }
+      expect(await subscribeWithPromise(hungChannel, 50)).toBe(false)
+    })
+
+    it('handleRealtimeMessageUpdate delegates to messagesStore for active channel and guards inactive soft-deletes', () => {
+      const store = createMessagesStore()
+      store.setInitialHistory([
+        {
+          id: 'm-active',
+          client_id: 'c-active',
+          channel_id: 'ch-active',
+          user_id: 'u-bob',
+          content: 'Active content',
+          created_at: '2026-10-18T10:00:00Z',
+        },
+      ])
+
+      handleRealtimeMessageUpdate({
+        row: {
+          id: 'm-active',
+          channel_id: 'ch-active',
+          user_id: 'u-bob',
+          content: 'Active content',
+          created_at: '2026-10-18T10:00:00Z',
+          deleted_at: '2026-10-18T10:05:00Z',
+        },
+        activeChannelId: 'ch-active',
+        messagesStore: store,
+      })
+      expect(store.messages.value[0].deleted_at).toBe('2026-10-18T10:05:00Z')
+
+      const unreadCounts: Record<string, number> = { 'ch-inactive': 1 }
+      const unreadMentions: Record<string, number> = { 'ch-inactive': 0 }
+      const lastReadByChannel = { 'ch-inactive': '2026-10-18T11:00:00Z' }
+
+      handleRealtimeMessageUpdate({
+        row: {
+          id: 'm-old',
+          channel_id: 'ch-inactive',
+          user_id: 'u-bob',
+          content: 'Old message',
+          created_at: '2026-10-18T10:00:00Z',
+          deleted_at: '2026-10-18T11:05:00Z',
+        },
+        activeChannelId: 'ch-active',
+        messagesStore: store,
+        unreadCounts,
+        unreadMentions,
+        lastReadByChannel,
+        currentUserId: 'u-alice',
+      })
+      expect(unreadCounts['ch-inactive']).toBe(1)
+
+      handleRealtimeMessageUpdate({
+        row: {
+          id: 'm-own',
+          channel_id: 'ch-inactive',
+          user_id: 'u-alice',
+          content: 'My own message',
+          created_at: '2026-10-18T12:00:00Z',
+          deleted_at: '2026-10-18T12:05:00Z',
+        },
+        activeChannelId: 'ch-active',
+        messagesStore: store,
+        unreadCounts,
+        unreadMentions,
+        lastReadByChannel,
+        currentUserId: 'u-alice',
+      })
+      expect(unreadCounts['ch-inactive']).toBe(1)
+
+      handleRealtimeMessageUpdate({
+        row: {
+          id: 'm-already-deleted',
+          channel_id: 'ch-inactive',
+          user_id: 'u-bob',
+          content: 'Message',
+          created_at: '2026-10-18T12:00:00Z',
+          deleted_at: '2026-10-18T12:05:00Z',
+        },
+        oldRow: {
+          id: 'm-already-deleted',
+          channel_id: 'ch-inactive',
+          user_id: 'u-bob',
+          content: 'Message',
+          created_at: '2026-10-18T12:00:00Z',
+          deleted_at: '2026-10-18T12:04:00Z',
+        },
+        activeChannelId: 'ch-active',
+        messagesStore: store,
+        unreadCounts,
+        unreadMentions,
+        lastReadByChannel,
+        currentUserId: 'u-alice',
+      })
+      expect(unreadCounts['ch-inactive']).toBe(1)
+    })
+
+    it('profilesCache is reactive and updates hydrateDmChannelPeers when peer profile is cached', () => {
+      const cache = shallowReactive(new Map<string, Profile>())
+      const channels = [
+        {
+          id: 'dm-1',
+          name: 'dm-u1-u2',
+          slug: 'dm-u1-u2',
+          is_dm: true,
+          dm_user_a: 'u-alice',
+          dm_user_b: 'u-bob',
+        },
+      ]
+
+      const dmChannels = computed(() => {
+        return hydrateDmChannelPeers({
+          channels,
+          currentUserId: 'u-alice',
+          profilesCache: cache,
+          fallbackProfiles: [],
+        })
+      })
+
+      expect(dmChannels.value[0].peer).toBe(null)
+
+      cache.set('u-bob', {
+        id: 'u-bob',
+        display_name: 'Bob Ross',
+        avatar_color: '#10b981',
+      })
+
+      expect(dmChannels.value[0].peer?.display_name).toBe('Bob Ross')
     })
   })
 })

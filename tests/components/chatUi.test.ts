@@ -411,6 +411,59 @@ describe('Chat UI components', () => {
     expect((textarea.element as HTMLTextAreaElement).value).toBe('Hello @Alice ')
   })
 
+  it('MessageComposer dismisses @mention autocomplete when pressing Escape and restores it on input, click, or moving away', async () => {
+    const wrapper = mount(MessageComposer, {
+      props: {
+        channelSlug: 'general',
+        mentionCandidates: [
+          { id: 'u-alice', display_name: 'Alice', avatar_color: '#0284c7' },
+          { id: 'u-bob', display_name: 'Bob', avatar_color: '#10b981' },
+        ],
+      },
+    })
+
+    const textarea = wrapper.find('textarea')
+    ;(textarea.element as HTMLTextAreaElement).value = '@al and @bo'
+    ;(textarea.element as HTMLTextAreaElement).selectionStart = 3
+    await textarea.trigger('input')
+
+    expect(wrapper.find('[data-test="mention-autocomplete"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="mention-autocomplete"]').text()).toContain('Alice')
+
+    // Escape dismisses current mention autocomplete
+    await textarea.trigger('keydown', { key: 'Escape' })
+    expect(wrapper.find('[data-test="mention-autocomplete"]').exists()).toBe(false)
+
+    // Arrowing within the dismissed mention keeps it dismissed
+    ;(textarea.element as HTMLTextAreaElement).selectionStart = 2
+    await textarea.trigger('keyup')
+    expect(wrapper.find('[data-test="mention-autocomplete"]').exists()).toBe(false)
+
+    // Moving cursor to another mention (@bo) re-enables autocomplete for that mention
+    ;(textarea.element as HTMLTextAreaElement).selectionStart = 11
+    await textarea.trigger('keyup')
+    expect(wrapper.find('[data-test="mention-autocomplete"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="mention-autocomplete"]').text()).toContain('Bob')
+
+    // Dismiss @bo
+    await textarea.trigger('keydown', { key: 'Escape' })
+    expect(wrapper.find('[data-test="mention-autocomplete"]').exists()).toBe(false)
+
+    // Typing a character re-enables autocomplete
+    ;(textarea.element as HTMLTextAreaElement).value = '@al and @bob'
+    ;(textarea.element as HTMLTextAreaElement).selectionStart = 12
+    await textarea.trigger('input')
+    expect(wrapper.find('[data-test="mention-autocomplete"]').exists()).toBe(true)
+
+    // Dismiss again
+    await textarea.trigger('keydown', { key: 'Escape' })
+    expect(wrapper.find('[data-test="mention-autocomplete"]').exists()).toBe(false)
+
+    // Clicking textarea re-enables autocomplete
+    await textarea.trigger('click')
+    expect(wrapper.find('[data-test="mention-autocomplete"]').exists()).toBe(true)
+  })
+
   it('MessageViewport renders New messages unread divider and highlights @mentions for current user', () => {
     const wrapper = mount(MessageViewport, {
       props: {

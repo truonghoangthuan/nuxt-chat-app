@@ -263,5 +263,81 @@ describe('useMessagesState', () => {
     expect(removed).toBe(true)
     expect(store.messages.value[0].reactions).toHaveLength(0)
   })
+
+  it('correctly sorts messages when ISO timestamps differ in millisecond format', () => {
+    const store = createMessagesStore()
+    store.setInitialHistory([
+      {
+        id: 'm-later',
+        client_id: 'c-later',
+        channel_id: 'ch-1',
+        user_id: alice.id,
+        content: 'Later by 500ms',
+        created_at: '2026-10-18T10:00:00.500Z',
+      },
+      {
+        id: 'm-earlier',
+        client_id: 'c-earlier',
+        channel_id: 'ch-1',
+        user_id: alice.id,
+        content: 'Earlier at sharp second',
+        created_at: '2026-10-18T10:00:00Z',
+      },
+    ])
+
+    expect(store.messages.value.map(m => m.id)).toEqual(['m-earlier', 'm-later'])
+  })
+
+  it('correctly sorts messages when ISO timestamps match down to milliseconds but differ in microseconds', () => {
+    const store = createMessagesStore()
+    store.setInitialHistory([
+      {
+        id: 'm-micro-later',
+        client_id: 'c-micro-later',
+        channel_id: 'ch-1',
+        user_id: alice.id,
+        content: 'Later by microseconds',
+        created_at: '2026-10-18T10:00:00.123789Z',
+      },
+      {
+        id: 'm-micro-earlier',
+        client_id: 'c-micro-earlier',
+        channel_id: 'ch-1',
+        user_id: alice.id,
+        content: 'Earlier by microseconds',
+        created_at: '2026-10-18T10:00:00.123456Z',
+      },
+    ])
+
+    expect(store.messages.value.map(m => m.id)).toEqual(['m-micro-earlier', 'm-micro-later'])
+  })
+
+  it('reconciles pending optimistic messages to sent during mergeGapMessages', () => {
+    const store = createMessagesStore()
+    store.addOptimisticMessage({
+      clientId: 'c-opt-gap',
+      channelId: 'ch-1',
+      user: alice,
+      content: 'Pending gap test',
+    })
+    expect(store.messages.value[0].status).toBe('sending')
+
+    const reconciledCount = store.mergeGapMessages([
+      {
+        id: 'srv-gap-1',
+        client_id: 'c-opt-gap',
+        channel_id: 'ch-1',
+        user_id: alice.id,
+        content: 'Pending gap test',
+        created_at: '2026-10-18T10:05:00Z',
+        author: alice,
+      },
+    ])
+
+    expect(reconciledCount).toBe(1)
+    expect(store.messages.value).toHaveLength(1)
+    expect(store.messages.value[0].id).toBe('srv-gap-1')
+    expect(store.messages.value[0].status).toBe('sent')
+  })
 })
 

@@ -6,6 +6,16 @@ export function createMessagesStore() {
   const messages = ref<ChatMessage[]>([])
 
   function compareConfirmed(a: ChatMessage, b: ChatMessage): number {
+    const tA = Date.parse(a.created_at)
+    const tB = Date.parse(b.created_at)
+    if (!Number.isNaN(tA) && !Number.isNaN(tB)) {
+      if (tA !== tB) return tA - tB
+      if (a.created_at.length === b.created_at.length) {
+        const timeComp = a.created_at.localeCompare(b.created_at)
+        if (timeComp !== 0) return timeComp
+      }
+      return a.id.localeCompare(b.id)
+    }
     const timeComp = a.created_at.localeCompare(b.created_at)
     if (timeComp !== 0) return timeComp
     return a.id.localeCompare(b.id)
@@ -286,19 +296,14 @@ export function createMessagesStore() {
   }
 
   function mergeGapMessages(missedRows: Array<Omit<ChatMessage, 'status'>>): number {
-    const seenIds = new Set(messages.value.map(m => m.id))
-    const seenClientIds = new Set(messages.value.map(m => m.client_id))
-
-    const newRows = missedRows.filter(r => !seenIds.has(r.id) && !seenClientIds.has(r.client_id))
-    if (newRows.length === 0) {
-      return 0
+    let count = 0
+    for (const r of missedRows) {
+      const outcome = reconcileIncomingMessage(r)
+      if (outcome !== 'ignored') {
+        count += 1
+      }
     }
-
-    for (const r of newRows) {
-      messages.value.push({ ...r, status: 'sent' })
-    }
-    reorderMessages()
-    return newRows.length
+    return count
   }
 
   function getOldestCursor(): { created_at: string; id: string } | null {
