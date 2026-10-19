@@ -14,6 +14,10 @@ export interface Channel {
   description: string | null
   created_by: string | null
   created_at: string
+  is_dm?: boolean
+  dm_user_a?: string | null
+  dm_user_b?: string | null
+  peer?: Profile | null
 }
 
 export interface MessageReaction {

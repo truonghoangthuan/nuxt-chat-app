@@ -8,6 +8,8 @@ const props = withDefaults(
   defineProps<{
     messages: ChatMessage[]
     channelId?: string | null
+    isDm?: boolean
+    peerName?: string
     hasMoreHistory?: boolean
     isLoadingHistory?: boolean
     currentUserId?: string
@@ -17,6 +19,8 @@ const props = withDefaults(
   }>(),
   {
     channelId: null,
+    isDm: false,
+    peerName: '',
     hasMoreHistory: false,
     isLoadingHistory: false,
     currentUserId: '',
@@ -193,12 +197,14 @@ onMounted(() => {
         </button>
       </div>
 
-      <!-- Empty Channel Placeholder -->
-      <div v-if="messages.length === 0" class="h-full flex flex-col items-center justify-center text-center py-16">
+      <!-- Empty Channel / DM Placeholder -->
+      <div v-if="messages.length === 0" data-test="empty-channel-placeholder" class="h-full flex flex-col items-center justify-center text-center py-16">
         <div class="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-400 mb-3 text-lg font-bold">
-          #
+          {{ isDm ? '@' : '#' }}
         </div>
-        <p class="text-slate-700 dark:text-slate-300 font-medium">This is the start of this channel</p>
+        <p class="text-slate-700 dark:text-slate-300 font-medium">
+          {{ isDm ? `This is the start of your direct message history with ${peerName ? '@' + peerName : 'your friend'}` : 'This is the start of this channel' }}
+        </p>
         <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Send a message below to start the conversation!</p>
       </div>
 

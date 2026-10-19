@@ -33,3 +33,6 @@ logs
 .worktrees
 .worktrees/
 
+# Agent teamwork scratchpad
+.agents/teamwork/
+

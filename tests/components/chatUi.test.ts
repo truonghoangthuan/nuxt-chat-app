@@ -5,6 +5,7 @@ import ConnectionBanner from '~/components/ConnectionBanner.vue'
 import MessageViewport from '~/components/MessageViewport.vue'
 import CreateChannelModal from '~/components/CreateChannelModal.vue'
 import ChatSidebar from '~/components/ChatSidebar.vue'
+import StartDmModal from '~/components/StartDmModal.vue'
 
 describe('Chat UI components', () => {
   it('MessageComposer emits send on Enter, newline on Shift+Enter, and renders typingLabel', async () => {
@@ -428,6 +429,138 @@ describe('Chat UI components', () => {
     expect(wrapper.find('[data-test="unread-divider"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="mention-row-m-2"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="mention-token"]').text()).toBe('@Alice')
+  })
+
+  describe('Direct Messages UI in ChatSidebar and StartDmModal (Sub-Project 4)', () => {
+    it('ChatSidebar renders dmChannels with peer name and emits startDmWithUser when clicking an online friend', async () => {
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          channels: [
+            { id: 'c1', slug: 'general', description: 'General', created_by: null, created_at: '' },
+          ],
+          dmChannels: [
+            {
+              id: 'dm-1',
+              slug: 'dm:u1:u2',
+              description: null,
+              created_by: 'u1',
+              created_at: '',
+              is_dm: true,
+              dm_user_a: 'u1',
+              dm_user_b: 'u2',
+              peer: { id: 'u2', display_name: 'Bob', avatar_color: '#7c3aed' },
+            },
+          ],
+          activeChannelId: 'c1',
+          unreadCounts: { 'dm-1': 3 },
+          unreadMentions: {},
+          onlineFriends: [
+            { id: 'u1', display_name: 'Alice', avatar_color: '#0284c7' },
+            { id: 'u2', display_name: 'Bob', avatar_color: '#7c3aed' },
+          ],
+          currentUser: { id: 'u1', display_name: 'Alice', avatar_color: '#0284c7' },
+          isDark: true,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+
+      const dmBtn = wrapper.find('[data-test="dm-channel-dm-1"]')
+      expect(dmBtn.exists()).toBe(true)
+      expect(dmBtn.text()).toContain('Bob')
+      expect(dmBtn.text()).toContain('3')
+
+      const onlineFriendBtn = wrapper.find('[data-test="online-friend-u2"]')
+      expect(onlineFriendBtn.exists()).toBe(true)
+      await onlineFriendBtn.trigger('click')
+      expect(wrapper.emitted('startDmWithUser')?.[0]).toEqual(['u2'])
+    })
+
+    it('StartDmModal filters friends by search query and emits selectFriend on click', async () => {
+      const wrapper = mount(StartDmModal, {
+        props: {
+          isOpen: true,
+          friends: [
+            { id: 'u1', display_name: 'Alice', avatar_color: '#0284c7' },
+            { id: 'u2', display_name: 'Bob', avatar_color: '#7c3aed' },
+            { id: 'u3', display_name: 'Charlie', avatar_color: '#059669' },
+          ],
+          onlineFriends: [{ id: 'u2', display_name: 'Bob', avatar_color: '#7c3aed' }],
+          currentUserId: 'u1',
+          errorMessage: 'Unable to start DM',
+        },
+      })
+
+      // Self (Alice) should not be listed
+      expect(wrapper.find('[data-test="start-dm-friend-u1"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="start-dm-friend-u2"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="start-dm-friend-u3"]').exists()).toBe(true)
+      expect(wrapper.text()).toContain('Unable to start DM')
+
+      const searchInput = wrapper.find('[data-test="dm-search-input"]')
+      await searchInput.setValue('char')
+
+      expect(wrapper.find('[data-test="start-dm-friend-u2"]').exists()).toBe(false)
+      const charlieBtn = wrapper.find('[data-test="start-dm-friend-u3"]')
+      expect(charlieBtn.exists()).toBe(true)
+
+      // Enter key triggers selection of the first matching friend
+      await searchInput.trigger('keydown.enter')
+      expect(wrapper.emitted('selectFriend')?.[0]).toEqual(['u3'])
+
+      // Escape key emits close
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      expect(wrapper.emitted('close')).toBeTruthy()
+    })
+
+    it('ChatSidebar displays empty state for DMs and prevents clicking on own user row', async () => {
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          channels: [],
+          dmChannels: [],
+          activeChannelId: null,
+          unreadCounts: {},
+          unreadMentions: {},
+          onlineFriends: [
+            { id: 'u1', display_name: 'Alice', avatar_color: '#0284c7' },
+          ],
+          currentUser: { id: 'u1', display_name: 'Alice', avatar_color: '#0284c7' },
+          isDark: true,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+
+      expect(wrapper.text()).toContain('No conversations yet')
+
+      // Clicking own online friend row does NOT emit startDmWithUser
+      const ownRow = wrapper.find('[data-test="online-friend-u1"]')
+      expect(ownRow.exists()).toBe(true)
+      await ownRow.trigger('click')
+      expect(wrapper.emitted('startDmWithUser')).toBeUndefined()
+
+      // Clicking + New emits openStartDm
+      const newDmBtn = wrapper.find('[data-test="open-start-dm"]')
+      expect(newDmBtn.exists()).toBe(true)
+      await newDmBtn.trigger('click')
+      expect(wrapper.emitted('openStartDm')).toBeTruthy()
+    })
+
+    it('MessageViewport renders DM-specific @ icon and peer name when isDm is true', () => {
+      const wrapper = mount(MessageViewport, {
+        props: {
+          messages: [],
+          isDm: true,
+          peerName: 'Bob',
+          loadOlder: vi.fn().mockResolvedValue(0),
+        },
+      })
+
+      const empty = wrapper.find('[data-test="empty-channel-placeholder"]')
+      expect(empty.exists()).toBe(true)
+      expect(empty.text()).toContain('@')
+      expect(empty.text()).toContain('This is the start of your direct message history with @Bob')
+    })
   })
 })
 
