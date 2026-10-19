@@ -77,30 +77,30 @@ function handleSave() {
 <template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
     @click.self="handleClose"
   >
-    <div class="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl p-6">
+    <div class="w-full max-w-md fp-stage-surface rounded-[14px] border border-[var(--fp-border)] p-6">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-bold text-slate-900 dark:text-white">
+        <h3 class="fp-font-display text-[17px] font-bold text-[var(--fp-text-primary)]">
           Profile Settings
         </h3>
         <button
           type="button"
-          class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl font-bold p-1"
+          class="w-7 h-7 rounded-md text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] text-lg font-bold flex items-center justify-center cursor-pointer"
           @click="handleClose"
         >
           ×
         </button>
       </div>
 
-      <div v-if="error" class="mb-4 p-3 rounded-lg text-xs bg-rose-50 border border-rose-200 text-rose-700 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300">
+      <div v-if="error" class="mb-4 p-3 rounded-lg text-xs bg-rose-500/15 border border-rose-500/35 text-rose-600 dark:text-rose-300">
         {{ error }}
       </div>
 
       <form class="space-y-5" @submit.prevent="handleSave">
         <!-- Live Preview -->
-        <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700">
+        <div class="flex items-center gap-3.5 p-3.5 rounded-[12px] bg-[var(--fp-stage-subtle)] border border-[var(--fp-border)]">
           <UserAvatar
             :display-name="displayName || 'Friend'"
             :avatar-color="avatarColor"
@@ -108,10 +108,10 @@ function handleSave() {
             size="lg"
           />
           <div class="min-w-0">
-            <div class="text-sm font-bold text-slate-900 dark:text-white truncate">
+            <div class="fp-font-display text-[15px] font-bold text-[var(--fp-text-primary)] truncate">
               {{ displayName.trim() || 'Friend' }}
             </div>
-            <div class="text-xs text-slate-500 dark:text-slate-400">
+            <div class="text-xs text-[var(--fp-text-secondary)]">
               Live preview
             </div>
           </div>
@@ -119,7 +119,7 @@ function handleSave() {
 
         <!-- Display Name -->
         <div>
-          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
+          <label class="block text-xs font-semibold text-[var(--fp-text-secondary)] mb-1.5">
             Display Name
           </label>
           <input
@@ -128,23 +128,23 @@ function handleSave() {
             required
             maxlength="40"
             placeholder="Your display name"
-            class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+            class="w-full px-3 py-2 rounded-[8px] border border-[var(--fp-border)] bg-[var(--fp-input-bg)] text-[var(--fp-text-primary)] placeholder-[var(--fp-text-muted)] text-[14.5px] focus:outline-none focus:border-indigo-500 transition-colors"
           />
         </div>
 
         <!-- Avatar Color Swatches -->
         <div>
-          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-2">
+          <label class="block text-xs font-semibold text-[var(--fp-text-secondary)] mb-2">
             Avatar Color
           </label>
-          <div class="flex items-center gap-2.5 flex-wrap">
+          <div class="grid grid-cols-4 gap-2.5">
             <button
               v-for="color in AVATAR_PALETTE"
               :key="color"
               type="button"
               :data-test="`color-swatch-${color}`"
-              class="w-8 h-8 rounded-full transition-transform flex items-center justify-center text-white text-xs font-bold"
-              :class="avatarColor === color ? 'ring-2 ring-offset-2 ring-sky-500 dark:ring-offset-slate-800 scale-110' : 'opacity-80 hover:opacity-100 hover:scale-105'"
+              class="h-9 rounded-[8px] transition-all flex items-center justify-center text-white text-xs font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] cursor-pointer"
+              :class="avatarColor === color ? 'ring-2 ring-white dark:ring-indigo-300 scale-[1.04] shadow-md' : 'opacity-85 hover:opacity-100 hover:scale-[1.02]'"
               :style="{ backgroundColor: color }"
               @click="avatarColor = color"
             >
@@ -153,10 +153,10 @@ function handleSave() {
           </div>
         </div>
 
-        <div class="flex justify-end gap-2 pt-2">
+        <div class="flex justify-end gap-2.5 pt-2">
           <button
             type="button"
-            class="px-4 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors font-medium"
+            class="px-4 py-2 rounded-[8px] text-sm border border-[var(--fp-border)] text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] transition-colors font-medium cursor-pointer"
             @click="handleClose"
           >
             Cancel
@@ -164,7 +164,7 @@ function handleSave() {
           <button
             type="submit"
             :disabled="!isValid || isSubmitting"
-            class="px-4 py-2 rounded-lg text-sm bg-sky-600 hover:bg-sky-500 text-white font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+            class="px-4 py-2 rounded-[8px] text-sm fp-btn-primary font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
           >
             {{ isSubmitting ? 'Saving...' : 'Save Changes' }}
           </button>

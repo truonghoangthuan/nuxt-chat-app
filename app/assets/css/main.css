@@ -1,0 +1,109 @@
+/* Direction 2 v2 — Obsidian Precision Studio + Daylight Precision Studio */
+
+:root {
+  /* Daylight Precision Studio (Light Mode) */
+  --fp-void: #e8eef5;
+  --fp-rail: #f1f5f9;
+  --fp-drawer: #f8fafc;
+  --fp-stage: #ffffff;
+  --fp-stage-subtle: #f1f5f9;
+  --fp-composer: #f8fafc;
+  --fp-surface-elevated: #ffffff;
+  --fp-hover: rgba(15, 23, 42, 0.045);
+  --fp-active: rgba(79, 70, 229, 0.12);
+  --fp-input-bg: #f8fafc;
+  --fp-border: rgba(15, 23, 42, 0.09);
+  --fp-border-strong: rgba(15, 23, 42, 0.16);
+  --fp-specular: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  --fp-stage-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 10px 28px rgba(15, 23, 42, 0.07);
+  --fp-composer-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 6px 18px rgba(15, 23, 42, 0.06);
+  --fp-text-primary: #0f172a;
+  --fp-text-secondary: #475569;
+  --fp-text-muted: #64748b;
+  --fp-accent: #4f46e5;
+  --fp-accent-bright: #4338ca;
+  --fp-font-display: 'Schibsted Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  --fp-font-sans: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  --fp-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+html.dark {
+  /* Obsidian Precision Studio (Dark Mode - Certified Direction 2 v2) */
+  --fp-void: #080a0f;
+  --fp-rail: #0b0e17;
+  --fp-drawer: #0e121d;
+  --fp-stage: #111624;
+  --fp-stage-subtle: #151c2e;
+  --fp-composer: #131929;
+  --fp-surface-elevated: #182032;
+  --fp-hover: rgba(255, 255, 255, 0.045);
+  --fp-active: rgba(99, 102, 241, 0.16);
+  --fp-input-bg: rgba(0, 0, 0, 0.35);
+  --fp-border: rgba(255, 255, 255, 0.08);
+  --fp-border-strong: rgba(255, 255, 255, 0.15);
+  --fp-specular: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --fp-stage-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 12px 32px rgba(0, 0, 0, 0.45);
+  --fp-composer-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --fp-text-primary: #f1f5f9;
+  --fp-text-secondary: #94a3b8;
+  --fp-text-muted: #64748b;
+  --fp-accent: #6366f1;
+  --fp-accent-bright: #818cf8;
+}
+
+body {
+  font-family: var(--fp-font-sans);
+  font-variant-numeric: tabular-nums;
+  background-color: var(--fp-void);
+  color: var(--fp-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.fp-font-display {
+  font-family: var(--fp-font-display);
+}
+
+.fp-font-mono {
+  font-family: var(--fp-font-mono);
+}
+
+.fp-stage-surface {
+  background-color: var(--fp-stage);
+  box-shadow: var(--fp-stage-shadow);
+}
+
+.fp-composer-surface {
+  background-color: var(--fp-composer);
+  box-shadow: var(--fp-composer-shadow);
+}
+
+.fp-btn-primary {
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  color: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 8px rgba(99, 102, 241, 0.32);
+}
+
+.fp-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4338ca 0%, #4f46e5 100%);
+}
+
+/* Precision thin scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.22) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.22);
+  border-radius: 9999px;
+}

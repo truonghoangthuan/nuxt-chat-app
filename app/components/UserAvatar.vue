@@ -7,7 +7,7 @@ const props = withDefaults(
     displayName: string
     avatarColor?: string
     showOnline?: boolean
-    size?: 'sm' | 'md'
+    size?: 'sm' | 'md' | 'lg'
   }>(),
   {
     avatarColor: '',
@@ -18,13 +18,25 @@ const props = withDefaults(
 
 const initials = computed(() => getAvatarInitials(props.displayName || '?'))
 const bgColor = computed(() => props.avatarColor || getAvatarColor(props.displayName || 'seed'))
+
+const sizeClasses = computed(() => {
+  if (props.size === 'sm') return 'w-7 h-7 rounded-[7px] text-[11px]'
+  if (props.size === 'lg') return 'w-11 h-11 rounded-[11px] text-sm'
+  return 'w-9 h-9 rounded-[9px] text-[13px]'
+})
+
+const dotClasses = computed(() => {
+  if (props.size === 'sm') return 'w-2 h-2 -bottom-0.5 -right-0.5'
+  if (props.size === 'lg') return 'w-3 h-3 -bottom-0.5 -right-0.5'
+  return 'w-2.5 h-2.5 -bottom-0.5 -right-0.5'
+})
 </script>
 
 <template>
   <div class="relative inline-flex items-center justify-center shrink-0">
     <div
-      class="rounded-full flex items-center justify-center font-semibold text-white select-none shadow-sm"
-      :class="size === 'sm' ? 'w-7 h-7 text-xs' : 'w-9 h-9 text-sm'"
+      class="fp-font-display flex items-center justify-center font-bold tracking-tight text-white select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_1px_2px_rgba(0,0,0,0.2)]"
+      :class="sizeClasses"
       :style="{ backgroundColor: bgColor }"
       :title="displayName"
     >
@@ -32,8 +44,8 @@ const bgColor = computed(() => props.avatarColor || getAvatarColor(props.display
     </div>
     <span
       v-if="showOnline"
-      class="absolute bottom-0 right-0 block rounded-full ring-2 ring-white dark:ring-slate-800 bg-emerald-500"
-      :class="size === 'sm' ? 'w-2 h-2' : 'w-2.5 h-2.5'"
+      class="absolute block rounded-full ring-2 ring-[var(--fp-stage)] bg-emerald-500"
+      :class="dotClasses"
     ></span>
   </div>
 </template>

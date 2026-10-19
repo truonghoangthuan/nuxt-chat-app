@@ -52,52 +52,151 @@ function onOnlineFriendClick(friend: Profile) {
 </script>
 
 <template>
-  <div>
+  <div class="flex h-full shrink-0">
     <!-- Mobile Backdrop -->
     <div
       v-if="isOpenMobile"
-      class="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+      class="fixed inset-0 z-40 bg-black/65 backdrop-blur-xs md:hidden"
       @click="emit('closeMobile')"
     ></div>
 
-    <!-- Sidebar Container -->
-    <aside
-      class="fixed inset-y-0 left-0 z-40 w-64 md:w-72 flex flex-col bg-slate-900 text-slate-300 border-r border-slate-800 transition-transform duration-200 ease-in-out md:static md:translate-x-0"
-      :class="isOpenMobile ? 'translate-x-0' : '-translate-x-full'"
+    <!-- Desktop Precision Icon Rail (64px) -->
+    <nav
+      aria-label="Precision Rail"
+      class="hidden md:flex w-16 h-full flex-col items-center justify-between py-3 bg-[var(--fp-rail)] rounded-[14px] border border-[var(--fp-border)] shadow-[var(--fp-specular)] shrink-0 mr-2.5"
     >
-      <!-- App Header -->
-      <div class="h-14 px-4 flex items-center justify-between border-b border-slate-800 shrink-0">
-        <div class="flex items-center gap-2 font-bold text-white tracking-wide">
-          <div class="w-7 h-7 rounded-lg bg-sky-600 flex items-center justify-center text-white text-xs font-black shadow-sm">
-            FC
-          </div>
-          <span>Friends Chat</span>
-          <!-- Connection Indicator -->
-          <span
-            class="w-2 h-2 rounded-full inline-block ml-1"
-            :class="connectionStatus === 'connected' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'"
-            :title="`Status: ${connectionStatus}`"
-          ></span>
+      <div class="flex flex-col items-center gap-2.5 w-full">
+        <!-- Brand Cube -->
+        <div
+          class="fp-font-display w-10 h-10 rounded-[11px] fp-btn-primary flex items-center justify-center text-white text-sm font-extrabold tracking-tight select-none"
+          title="Friends Studio"
+        >
+          FC
         </div>
 
+        <div class="w-7 h-px bg-[var(--fp-border)] my-0.5"></div>
+
+        <!-- Channels Workspace Active Indicator -->
         <button
           type="button"
-          class="md:hidden text-slate-400 hover:text-white p-1 text-xl font-bold"
-          @click="emit('closeMobile')"
+          class="relative w-10 h-10 rounded-[10px] flex items-center justify-center bg-indigo-500/15 text-[var(--fp-text-primary)] transition-colors cursor-pointer"
+          title="Channels & Direct Messages"
         >
-          ×
+          <span class="absolute -left-3 w-[3px] h-5 rounded-r bg-indigo-500"></span>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" />
+          </svg>
+        </button>
+
+        <!-- Quick Create Channel -->
+        <button
+          type="button"
+          class="w-10 h-10 rounded-[10px] flex items-center justify-center text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] transition-colors cursor-pointer"
+          title="Create Channel"
+          @click="emit('openCreateChannel')"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="9" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v8M8 12h8" />
+          </svg>
+        </button>
+
+        <!-- Quick New Direct Message -->
+        <button
+          type="button"
+          class="w-10 h-10 rounded-[10px] flex items-center justify-center text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] transition-colors cursor-pointer"
+          title="New Direct Message"
+          @click="emit('openStartDm')"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
         </button>
       </div>
 
-      <!-- Scrollable Navigation (Channels + Friends) -->
-      <div class="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+      <!-- Rail Bottom Utilities -->
+      <div class="flex flex-col items-center gap-2 w-full">
+        <button
+          type="button"
+          class="w-10 h-10 rounded-[10px] flex items-center justify-center text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] transition-colors cursor-pointer"
+          :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+          @click="emit('toggleTheme')"
+        >
+          <svg v-if="isDark" xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="4" />
+            <path stroke-linecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41" />
+          </svg>
+          <svg v-else xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+          </svg>
+        </button>
+
+        <button
+          type="button"
+          class="p-0.5 rounded-[9px] hover:ring-2 hover:ring-indigo-500/50 transition-all cursor-pointer"
+          :title="currentUser?.display_name || 'Profile Settings'"
+          @click="emit('openProfileSettings')"
+        >
+          <UserAvatar
+            :display-name="currentUser?.display_name || 'You'"
+            :avatar-color="currentUser?.avatar_color"
+            :show-online="true"
+            size="sm"
+          />
+        </button>
+      </div>
+    </nav>
+
+    <!-- Channel & Presence Tree Drawer -->
+    <aside
+      aria-label="Channel and Friends Directory"
+      class="fixed inset-y-0 left-0 z-40 w-64 md:w-[248px] flex flex-col bg-[var(--fp-drawer)] text-[var(--fp-text-secondary)] border-r md:border border-[var(--fp-border)] md:rounded-[14px] shadow-[var(--fp-specular)] transition-transform duration-200 ease-in-out md:static md:translate-x-0"
+      :class="isOpenMobile ? 'translate-x-0' : '-translate-x-full'"
+    >
+      <!-- Workspace Studio Header -->
+      <div class="h-[54px] px-3.5 flex items-center justify-between border-b border-[var(--fp-border)] shrink-0">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="md:hidden fp-font-display w-7 h-7 rounded-[8px] fp-btn-primary flex items-center justify-center text-white text-xs font-extrabold shrink-0">
+            FC
+          </div>
+          <span class="fp-font-display font-bold text-[15px] tracking-tight text-[var(--fp-text-primary)] truncate">
+            Friends Chat
+          </span>
+        </div>
+
+        <div class="flex items-center gap-1.5 shrink-0">
+          <!-- Realtime Telemetry Badge -->
+          <div
+            class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors"
+            :class="connectionStatus === 'connected' ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400'"
+            :title="`Status: ${connectionStatus}`"
+          >
+            <span
+              class="w-1.5 h-1.5 rounded-full inline-block"
+              :class="connectionStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_6px_#10b981]' : 'bg-amber-500 animate-pulse'"
+            ></span>
+            <span>{{ connectionStatus === 'connected' ? '14ms' : 'sync' }}</span>
+          </div>
+
+          <button
+            type="button"
+            class="md:hidden text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] p-1 text-lg font-bold leading-none"
+            @click="emit('closeMobile')"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
+      <!-- Scrollable Navigation (Channels + DMs + Online Friends) -->
+      <div class="flex-1 overflow-y-auto px-2.5 py-3.5 space-y-5">
         <!-- Channels Section -->
         <div>
-          <div class="flex items-center justify-between px-2 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+          <div class="flex items-center justify-between px-2 mb-1.5 text-[11px] font-semibold tracking-wide text-[var(--fp-text-secondary)]">
             <span>Channels</span>
             <button
               type="button"
-              class="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1 font-medium transition-colors"
+              class="text-xs text-[var(--fp-accent-bright)] hover:underline flex items-center gap-0.5 font-semibold transition-colors cursor-pointer"
               @click="emit('openCreateChannel')"
             >
               + New
@@ -109,12 +208,15 @@ function onOnlineFriendClick(friend: Profile) {
               v-for="ch in channels"
               :key="ch.id"
               type="button"
-              class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-sm font-medium transition-all group"
-              :class="activeChannelId === ch.id ? 'bg-sky-600/20 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'"
+              class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[8px] text-[14px] font-medium transition-all group cursor-pointer"
+              :class="activeChannelId === ch.id ? 'bg-[var(--fp-active)] text-[var(--fp-text-primary)] font-semibold shadow-[inset_2px_0_0_#6366f1]' : 'text-[var(--fp-text-secondary)] hover:bg-[var(--fp-hover)] hover:text-[var(--fp-text-primary)]'"
               @click="onChannelClick(ch.id)"
             >
               <div class="flex items-center gap-2 truncate">
-                <span class="text-slate-500 font-mono text-base">#</span>
+                <span
+                  class="fp-font-mono text-sm font-semibold transition-colors"
+                  :class="activeChannelId === ch.id ? 'text-[var(--fp-accent-bright)]' : 'text-[var(--fp-text-muted)] group-hover:text-[var(--fp-text-secondary)]'"
+                >#</span>
                 <span class="truncate">{{ ch.slug }}</span>
               </div>
 
@@ -123,14 +225,14 @@ function onOnlineFriendClick(friend: Profile) {
                 <span
                   v-if="(unreadMentions?.[ch.id] || 0) > 0"
                   :data-test="`mention-badge-${ch.id}`"
-                  class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-slate-950 shadow-sm"
+                  class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-slate-950 shadow-xs"
                   title="You were mentioned"
                 >
                   @
                 </span>
                 <span
                   v-if="(unreadCounts[ch.id] || 0) > 0"
-                  class="px-1.5 py-0.5 rounded-full text-xs font-bold bg-sky-500 text-white min-w-5 text-center shadow-sm"
+                  class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500 text-white min-w-[20px] text-center shadow-xs"
                 >
                   {{ unreadCounts[ch.id] }}
                 </span>
@@ -141,19 +243,19 @@ function onOnlineFriendClick(friend: Profile) {
 
         <!-- Direct Messages Section -->
         <div>
-          <div class="flex items-center justify-between px-2 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+          <div class="flex items-center justify-between px-2 mb-1.5 text-[11px] font-semibold tracking-wide text-[var(--fp-text-secondary)]">
             <span>Direct Messages</span>
             <button
               type="button"
               data-test="open-start-dm"
-              class="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1 font-medium transition-colors"
+              class="text-xs text-[var(--fp-accent-bright)] hover:underline flex items-center gap-0.5 font-semibold transition-colors cursor-pointer"
               @click="emit('openStartDm')"
             >
               + New
             </button>
           </div>
 
-          <div v-if="!dmChannels || dmChannels.length === 0" class="px-2 py-2 text-xs text-slate-500 italic">
+          <div v-if="!dmChannels || dmChannels.length === 0" class="px-2 py-1.5 text-xs text-[var(--fp-text-muted)] italic">
             No conversations yet
           </div>
 
@@ -163,8 +265,8 @@ function onOnlineFriendClick(friend: Profile) {
               :key="dm.id"
               type="button"
               :data-test="`dm-channel-${dm.id}`"
-              class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-sm font-medium transition-all group"
-              :class="activeChannelId === dm.id ? 'bg-sky-600/20 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'"
+              class="w-full flex items-center justify-between px-2 py-1.5 rounded-[8px] text-[13.5px] font-medium transition-all group cursor-pointer"
+              :class="activeChannelId === dm.id ? 'bg-[var(--fp-active)] text-[var(--fp-text-primary)] font-semibold shadow-[inset_2px_0_0_#6366f1]' : 'text-[var(--fp-text-secondary)] hover:bg-[var(--fp-hover)] hover:text-[var(--fp-text-primary)]'"
               @click="onChannelClick(dm.id)"
             >
               <div class="flex items-center gap-2 truncate">
@@ -181,14 +283,14 @@ function onOnlineFriendClick(friend: Profile) {
                 <span
                   v-if="(unreadMentions?.[dm.id] || 0) > 0"
                   :data-test="`mention-badge-${dm.id}`"
-                  class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-slate-950 shadow-sm"
+                  class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-slate-950 shadow-xs"
                   title="You were mentioned"
                 >
                   @
                 </span>
                 <span
                   v-if="(unreadCounts[dm.id] || 0) > 0"
-                  class="px-1.5 py-0.5 rounded-full text-xs font-bold bg-sky-500 text-white min-w-5 text-center shadow-sm"
+                  class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500 text-white min-w-[20px] text-center shadow-xs"
                 >
                   {{ unreadCounts[dm.id] }}
                 </span>
@@ -199,25 +301,25 @@ function onOnlineFriendClick(friend: Profile) {
 
         <!-- Online Friends Section -->
         <div>
-          <div class="flex items-center justify-between px-2 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+          <div class="flex items-center justify-between px-2 mb-1.5 text-[11px] font-semibold tracking-wide text-[var(--fp-text-secondary)]">
             <span>Online Friends</span>
-            <span class="text-xs bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">
+            <span class="text-[11px] bg-[var(--fp-hover)] text-[var(--fp-text-secondary)] border border-[var(--fp-border)] px-1.5 py-0.2 rounded-md font-semibold">
               {{ onlineFriends.length }}
             </span>
           </div>
 
-          <div v-if="onlineFriends.length === 0" class="px-2 py-3 text-xs text-slate-500 italic">
+          <div v-if="onlineFriends.length === 0" class="px-2 py-2 text-xs text-[var(--fp-text-muted)] italic">
             No other friends currently online
           </div>
 
-          <div v-else class="space-y-1">
+          <div v-else class="space-y-0.5">
             <button
               v-for="friend in onlineFriends"
               :key="friend.id"
               type="button"
               :data-test="`online-friend-${friend.id}`"
               :disabled="Boolean(currentUser && friend.id === currentUser.id)"
-              class="w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition-colors text-left"
+              class="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-[8px] text-[13px] font-medium text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] transition-colors text-left group"
               :class="currentUser && friend.id === currentUser.id ? 'cursor-default' : 'cursor-pointer'"
               @click="onOnlineFriendClick(friend)"
             >
@@ -230,12 +332,12 @@ function onOnlineFriendClick(friend: Profile) {
                 />
                 <span class="truncate">
                   {{ friend.display_name }}
-                  <span v-if="currentUser && friend.id === currentUser.id" class="text-slate-500 text-[10px] ml-1">(you)</span>
+                  <span v-if="currentUser && friend.id === currentUser.id" class="text-[var(--fp-text-muted)] text-[11px] ml-1">(you)</span>
                 </span>
               </div>
               <span
                 v-if="!currentUser || friend.id !== currentUser.id"
-                class="text-[10px] text-slate-500 hover:text-sky-400 shrink-0"
+                class="text-[11px] font-semibold text-[var(--fp-text-muted)] group-hover:text-[var(--fp-accent-bright)] shrink-0 transition-colors"
               >
                 DM
               </span>
@@ -245,7 +347,7 @@ function onOnlineFriendClick(friend: Profile) {
       </div>
 
       <!-- User Profile & Settings Footer -->
-      <div class="p-3 border-t border-slate-800 bg-slate-900/90 shrink-0 flex items-center justify-between">
+      <div class="p-2.5 border-t border-[var(--fp-border)] bg-[var(--fp-rail)]/60 md:rounded-b-[14px] shrink-0 flex items-center justify-between gap-2">
         <div class="flex items-center gap-2.5 min-w-0">
           <UserAvatar
             :display-name="currentUser?.display_name || 'You'"
@@ -254,19 +356,21 @@ function onOnlineFriendClick(friend: Profile) {
             size="sm"
           />
           <div class="truncate">
-            <div class="text-xs font-semibold text-white truncate">
+            <div class="text-xs font-semibold text-[var(--fp-text-primary)] truncate">
               {{ currentUser?.display_name || 'Guest' }}
             </div>
-            <div class="text-[10px] text-slate-500 truncate">Online</div>
+            <div class="text-[11px] text-emerald-500 font-medium truncate">
+              Online
+            </div>
           </div>
         </div>
 
-        <div class="flex items-center gap-1 shrink-0">
+        <div class="flex items-center gap-0.5 shrink-0">
           <!-- Profile Settings -->
           <button
             type="button"
             data-test="open-profile-settings"
-            class="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+            class="p-1.5 text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] rounded-lg hover:bg-[var(--fp-hover)] transition-colors cursor-pointer"
             title="Profile Settings"
             @click="emit('openProfileSettings')"
           >
@@ -278,18 +382,18 @@ function onOnlineFriendClick(friend: Profile) {
           <!-- Theme Toggle -->
           <button
             type="button"
-            class="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+            class="p-1.5 text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] rounded-lg hover:bg-[var(--fp-hover)] transition-colors cursor-pointer"
             :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
             @click="emit('toggleTheme')"
           >
-            <span v-if="isDark" class="text-sm">☀️</span>
-            <span v-else class="text-sm">🌙</span>
+            <span v-if="isDark" class="text-xs">☀️</span>
+            <span v-else class="text-xs">🌙</span>
           </button>
 
           <!-- Logout -->
           <button
             type="button"
-            class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition-colors"
+            class="p-1.5 text-[var(--fp-text-secondary)] hover:text-rose-500 rounded-lg hover:bg-[var(--fp-hover)] transition-colors cursor-pointer"
             title="Log Out"
             @click="emit('logout')"
           >

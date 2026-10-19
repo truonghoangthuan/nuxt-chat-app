@@ -17,10 +17,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-slate-900 text-white p-4">
-    <div class="text-center">
-      <div class="w-8 h-8 border-2 border-sky-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-      <p class="text-slate-300 text-sm">
+  <div class="min-h-screen flex items-center justify-center bg-[var(--fp-void)] text-[var(--fp-text-primary)] p-4">
+    <div class="fp-stage-surface rounded-[16px] border border-[var(--fp-border)] px-8 py-7 text-center max-w-sm w-full">
+      <div class="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3.5" />
+      <p class="text-[var(--fp-text-secondary)] text-sm font-medium">
         Confirming your account and redirecting...
       </p>
     </div>

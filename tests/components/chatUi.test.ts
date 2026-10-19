@@ -6,6 +6,7 @@ import MessageViewport from '~/components/MessageViewport.vue'
 import CreateChannelModal from '~/components/CreateChannelModal.vue'
 import ChatSidebar from '~/components/ChatSidebar.vue'
 import StartDmModal from '~/components/StartDmModal.vue'
+import UserAvatar from '~/components/UserAvatar.vue'
 
 describe('Chat UI components', () => {
   it('MessageComposer emits send on Enter, newline on Shift+Enter, and renders typingLabel', async () => {
@@ -391,27 +392,6 @@ describe('Chat UI components', () => {
     expect((textarea.element as HTMLTextAreaElement).value).toBe('Hello @Alice ')
   })
 
-  it('MessageComposer sets selectionRange right after mention token when selected', async () => {
-    const wrapper = mount(MessageComposer, {
-      props: {
-        channelSlug: 'general',
-        mentionCandidates: [{ id: 'u-bob', display_name: 'Bob', avatar_color: '#0284c7' }],
-      },
-    })
-    const textarea = wrapper.find('textarea')
-    const el = textarea.element as HTMLTextAreaElement
-    el.value = 'Hello @Bo there'
-    el.selectionStart = 9
-    el.selectionEnd = 9
-    await textarea.trigger('input')
-
-    await wrapper.find('[data-test="mention-option-u-bob"]').trigger('click')
-    await wrapper.vm.$nextTick()
-
-    expect(el.value).toBe('Hello @Bob  there')
-    expect(el.selectionStart).toBe(11)
-  })
-
   it('MessageViewport renders New messages unread divider and highlights @mentions for current user', () => {
     const wrapper = mount(MessageViewport, {
       props: {
@@ -608,6 +588,59 @@ describe('Chat UI components', () => {
       })
       const selfBtn = wrapper.find('[data-test="online-friend-u-1"]')
       expect(selfBtn.attributes('disabled')).toBeDefined()
+    })
+
+    it('MessageComposer sets selectionRange right after mention token when selected', async () => {
+      const wrapper = mount(MessageComposer, {
+        props: {
+          channelSlug: 'general',
+          mentionCandidates: [{ id: 'u-bob', display_name: 'Bob', avatar_color: '#0284c7' }],
+        },
+      })
+      const textarea = wrapper.find('textarea')
+      const el = textarea.element as HTMLTextAreaElement
+      el.value = 'Hello @Bo there'
+      el.selectionStart = 9
+      el.selectionEnd = 9
+      await textarea.trigger('input')
+
+      await wrapper.find('[data-test="mention-option-u-bob"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(el.value).toBe('Hello @Bob  there')
+      expect(el.selectionStart).toBe(11)
+    })
+
+    it('ChatSidebar renders Direction 2 Precision Rail, telemetry badge, and UserAvatar supports lg size', () => {
+      const sidebar = mount(ChatSidebar, {
+        props: {
+          channels: [{ id: 'c1', slug: 'general', description: 'General', created_by: 'u1', created_at: '' }],
+          dmChannels: [],
+          activeChannelId: 'c1',
+          unreadCounts: {},
+          unreadMentions: {},
+          onlineFriends: [{ id: 'u1', display_name: 'Alice', avatar_color: '#0284c7' }],
+          currentUser: { id: 'u1', display_name: 'Alice', avatar_color: '#0284c7' },
+          isDark: true,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+
+      expect(sidebar.find('nav[aria-label="Precision Rail"]').exists()).toBe(true)
+      expect(sidebar.find('aside[aria-label="Channel and Friends Directory"]').exists()).toBe(true)
+      expect(sidebar.text()).toContain('14ms')
+
+      const lgAvatar = mount(UserAvatar, {
+        props: {
+          displayName: 'Alice Wonderland',
+          avatarColor: '#4f46e5',
+          showOnline: true,
+          size: 'lg',
+        },
+      })
+      expect(lgAvatar.text()).toBe('AW')
+      expect(lgAvatar.html()).toContain('w-11 h-11')
     })
   })
 })
