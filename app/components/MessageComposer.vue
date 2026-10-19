@@ -52,15 +52,23 @@ function syncCursor() {
 
 function selectMention(profile: Profile) {
   if (!activeMention.value) return
+  const prefix = content.value.slice(0, activeMention.value.startIndex)
+  const insertedToken = `@${profile.display_name} `
+  const newCaretPos = prefix.length + insertedToken.length
+
   content.value = applyMentionAutocomplete(
     content.value,
     activeMention.value,
     profile.display_name,
   )
-  cursorIndex.value = content.value.length
+  cursorIndex.value = newCaretPos
   selectedMentionIndex.value = 0
   nextTick(() => {
-    textareaRef.value?.focus()
+    const el = textareaRef.value
+    if (el) {
+      el.focus()
+      el.setSelectionRange(newCaretPos, newCaretPos)
+    }
     autoResize()
   })
 }

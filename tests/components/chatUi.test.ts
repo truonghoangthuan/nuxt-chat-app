@@ -391,6 +391,27 @@ describe('Chat UI components', () => {
     expect((textarea.element as HTMLTextAreaElement).value).toBe('Hello @Alice ')
   })
 
+  it('MessageComposer sets selectionRange right after mention token when selected', async () => {
+    const wrapper = mount(MessageComposer, {
+      props: {
+        channelSlug: 'general',
+        mentionCandidates: [{ id: 'u-bob', display_name: 'Bob', avatar_color: '#0284c7' }],
+      },
+    })
+    const textarea = wrapper.find('textarea')
+    const el = textarea.element as HTMLTextAreaElement
+    el.value = 'Hello @Bo there'
+    el.selectionStart = 9
+    el.selectionEnd = 9
+    await textarea.trigger('input')
+
+    await wrapper.find('[data-test="mention-option-u-bob"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(el.value).toBe('Hello @Bob  there')
+    expect(el.selectionStart).toBe(11)
+  })
+
   it('MessageViewport renders New messages unread divider and highlights @mentions for current user', () => {
     const wrapper = mount(MessageViewport, {
       props: {
