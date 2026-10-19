@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Direction 1 — Warm Editorial Salon | Friends Chat</title>
+  <!--
+    Direction 1: Warm Editorial Salon ("The Sunday Clubhouse")
+    Source: Seiichi Horiuchi (POPEYE / BRUTUS editorial director) x Studio Dumbar humanist systems
+    Skeleton: Top Horizontal Masthead & Channel Pill Bar + Left Editorial Stream (68%) + Right "Clubhouse Lounge" Roster Column (32%)
+    Palette: Warm Linen Paper (#F6F1E6), Sand Lounge (#EDE5D5), Deep Charcoal Ink (#1C1917), Vermilion Seal (#B83B24), Warm Stone (#575047)
+    Typography: Newsreader (Display/Headings) + Plus Jakarta Sans (Body/UI, tabular-nums)
+    Form origin: Friends chatting feels like gathering in a Sunday living room with magazines, not clocking into an enterprise helpdesk.
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-paper: #F6F1E6;
+      --bg-card: #FCF9F2;
+      --bg-lounge: #EDE5D5;
+      --bg-elevated: #E5DBC7;
+      --ink-900: #1C1917;
+      --ink-700: #3F3933;
+      --ink-500: #5C5349;
+      --border-warm: #D6CBB8;
+      --accent-vermilion: #B83B24;
+      --accent-vermilion-soft: #F9E6E2;
+      --emerald-online: #15803D;
+      --font-display: 'Newsreader', Georgia, serif;
+      --font-body: 'Plus Jakarta Sans', -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-paper);
+      color: var(--ink-900);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.55;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-variant-numeric: tabular-nums;
+    }
+
+    button, input, textarea {
+      font-family: inherit;
+      font-size: inherit;
+    }
+
+    /* Reconnecting Banner */
+    .conn-banner {
+      background: #9A3412;
+      color: #FFFBEB;
+      padding: 8px 28px;
+      font-size: 13px;
+      font-weight: 600;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #7C2D12;
+    }
+    .conn-banner.visible { display: flex; }
+    .conn-retry-btn {
+      background: #FFFBEB;
+      color: #7C2D12;
+      border: none;
+      border-radius: 99px;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* Top Masthead Bar */
+    .masthead {
+      height: 70px;
+      padding: 0 28px;
+      background: var(--bg-paper);
+      border-bottom: 1px solid var(--border-warm);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-shrink: 0;
+    }
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .brand-seal {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: var(--accent-vermilion);
+      color: #FFFFFF;
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(184, 59, 36, 0.22);
+    }
+    .brand-title {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--ink-900);
+      line-height: 1.1;
+    }
+    .brand-sub {
+      font-size: 12px;
+      color: var(--ink-500);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 99px;
+      background: var(--emerald-online);
+      display: inline-block;
+    }
+
+    /* Horizontal Channel Pill Strip */
+    .channel-strip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 4px 0;
+    }
+    .channel-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 99px;
+      border: 1px solid var(--border-warm);
+      background: var(--bg-card);
+      color: var(--ink-700);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .channel-pill:hover {
+      background: var(--bg-elevated);
+      color: var(--ink-900);
+    }
+    .channel-pill.active {
+      background: var(--ink-900);
+      color: #FCF9F2;
+      border-color: var(--ink-900);
+    }
+    .unread-pill {
+      background: var(--accent-vermilion);
+      color: #FFFFFF;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 1px 7px;
+      border-radius: 99px;
+    }
+    .new-channel-btn {
+      padding: 6px 12px;
+      border-radius: 99px;
+      border: 1px dashed var(--ink-500);
+      background: transparent;
+      color: var(--ink-700);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .new-channel-btn:hover {
+      background: var(--bg-elevated);
+      color: var(--ink-900);
+    }
+
+    /* Right Masthead Controls */
+    .masthead-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .ctrl-btn {
+      padding: 7px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-warm);
+      background: var(--bg-card);
+      color: var(--ink-700);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .ctrl-btn:hover, .ctrl-btn.active-view {
+      background: var(--accent-vermilion);
+      color: #FFFFFF;
+      border-color: var(--accent-vermilion);
+    }
+
+    /* Main Salon Workspace Grid */
+    .salon-workspace {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* Left Conversation Stream */
+    .conversation-column {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      border-right: 1px solid var(--border-warm);
+      position: relative;
+    }
+    .editorial-header {
+      padding: 18px 32px 14px;
+      border-bottom: 1px solid var(--border-warm);
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      background: rgba(252, 249, 242, 0.65);
+    }
+    .editorial-title-wrap {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+    }
+    .editorial-h1 {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--ink-900);
+      letter-spacing: -0.02em;
+    }
+    .editorial-desc {
+      font-size: 14px;
+      color: var(--ink-500);
+    }
+    .history-btn {
+      padding: 5px 12px;
+      border-radius: 99px;
+      border: 1px solid var(--border-warm);
+      background: var(--bg-card);
+      color: var(--ink-700);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* Message Stream */
+    .messages-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .date-divider {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin: 4px 0;
+    }
+    .date-line {
+      flex: 1;
+      height: 1px;
+      background: var(--border-warm);
+    }
+    .date-pill {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-size: 14px;
+      color: var(--ink-700);
+      background: var(--bg-card);
+      border: 1px solid var(--border-warm);
+      padding: 3px 14px;
+      border-radius: 99px;
+    }
+
+    /* Message Row */
+    .msg-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      position: relative;
+      transition: background 0.15s ease;
+    }
+    .msg-row:hover {
+      background: var(--bg-card);
+    }
+    .msg-row.compact {
+      margin-top: -10px;
+      padding-top: 4px;
+      padding-bottom: 6px;
+    }
+    .avatar-circle {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      color: #FFFFFF;
+      font-weight: 700;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      position: relative;
+      box-shadow: 0 2px 4px rgba(28, 25, 23, 0.12);
+    }
+    .compact-time-gutter {
+      width: 38px;
+      flex-shrink: 0;
+      text-align: right;
+      font-size: 12px;
+      color: var(--ink-500);
+      opacity: 0;
+      padding-top: 3px;
+    }
+    .msg-row.compact:hover .compact-time-gutter {
+      opacity: 1;
+    }
+    .msg-body {
+      flex: 1;
+      min-width: 0;
+    }
+    .reply-quote-box {
+      margin-bottom: 6px;
+      padding: 6px 12px;
+      border-left: 3px solid var(--accent-vermilion);
+      background: var(--bg-lounge);
+      border-radius: 0 8px 8px 0;
+      font-size: 13px;
+      color: var(--ink-700);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .msg-meta {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 3px;
+    }
+    .msg-author {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--ink-900);
+    }
+    .msg-time {
+      font-size: 12px;
+      color: var(--ink-500);
+    }
+    .msg-text {
+      font-size: 15px;
+      color: var(--ink-900);
+      max-width: 68ch;
+    }
+    .edited-tag {
+      font-size: 12px;
+      color: var(--ink-500);
+      font-style: italic;
+      margin-left: 6px;
+    }
+    .tombstone-text {
+      font-size: 14px;
+      font-style: italic;
+      color: var(--ink-500);
+    }
+    .reactions-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .reaction-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 99px;
+      border: 1px solid var(--border-warm);
+      background: var(--bg-card);
+      color: var(--ink-700);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .reaction-chip.mine {
+      background: var(--accent-vermilion-soft);
+      border-color: var(--accent-vermilion);
+      color: var(--accent-vermilion);
+    }
+
+    /* Hover Toolbar */
+    .hover-toolbar {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-warm);
+      border-radius: 99px;
+      padding: 3px 8px;
+      box-shadow: 0 4px 12px rgba(28, 25, 23, 0.08);
+    }
+    .msg-row:hover .hover-toolbar {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .tool-action {
+      border: none;
+      background: transparent;
+      color: var(--ink-700);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 7px;
+      border-radius: 99px;
+      cursor: pointer;
+    }
+    .tool-action:hover {
+      background: var(--bg-lounge);
+      color: var(--ink-900);
+    }
+
+    /* Composer Area */
+    .composer-wrap {
+      padding: 12px 32px 20px;
+      background: var(--bg-paper);
+      border-top: 1px solid var(--border-warm);
+    }
+    .reply-banner {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-lounge);
+      border-left: 3px solid var(--accent-vermilion);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    .reply-banner.active { display: flex; }
+    .typing-row {
+      font-size: 12px;
+      color: var(--ink-500);
+      font-style: italic;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .composer-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg-card);
+      border: 1.5px solid var(--border-warm);
+      border-radius: 16px;
+      padding: 8px 10px 8px 16px;
+      box-shadow: 0 3px 10px rgba(28, 25, 23, 0.04);
+    }
+    .composer-box:focus-within {
+      border-color: var(--accent-vermilion);
+    }
+    .composer-input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--ink-900);
+      font-size: 15px;
+      outline: none;
+    }
+    .send-btn {
+      padding: 8px 18px;
+      border-radius: 12px;
+      border: none;
+      background: var(--accent-vermilion);
+      color: #FFFFFF;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .send-btn:hover {
+      background: #9E301B;
+    }
+
+    /* Right Clubhouse Lounge Column */
+    .lounge-column {
+      background: var(--bg-lounge);
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      overflow-y: auto;
+    }
+    .lounge-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-warm);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .lounge-heading {
+      font-family: var(--font-display);
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--ink-900);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .count-tag {
+      font-family: var(--font-body);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 2px 9px;
+      border-radius: 99px;
+      background: var(--bg-lounge);
+      color: var(--ink-700);
+    }
+    .friend-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .friend-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      border-radius: 10px;
+      background: var(--bg-paper);
+      border: 1px solid #E5DEC9;
+    }
+    .friend-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .friend-avatar-sm {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      color: #FFFFFF;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .online-badge-dot {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      width: 9px;
+      height: 9px;
+      border-radius: 99px;
+      background: var(--emerald-online);
+      border: 2px solid var(--bg-paper);
+    }
+    .friend-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink-900);
+    }
+    .friend-status {
+      font-size: 12px;
+      color: var(--ink-500);
+    }
+
+    /* Login Screen View */
+    .login-stage {
+      flex: 1;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      background: var(--bg-paper);
+    }
+    .login-stage.active { display: flex; }
+    .login-booklet {
+      width: 100%;
+      max-width: 780px;
+      display: grid;
+      grid-template-columns: 1fr 1.1fr;
+      background: var(--bg-card);
+      border: 1px solid var(--border-warm);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 18px 40px rgba(28, 25, 23, 0.08);
+    }
+    .login-cover {
+      background: var(--bg-lounge);
+      padding: 36px 30px;
+      border-right: 1px solid var(--border-warm);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .login-form-pane {
+      padding: 36px 34px;
+    }
+    .field-group {
+      margin-bottom: 16px;
+    }
+    .field-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink-700);
+      margin-bottom: 6px;
+    }
+    .field-input {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border-warm);
+      background: var(--bg-paper);
+      color: var(--ink-900);
+      font-size: 14px;
+    }
+
+    /* Modal Backdrop */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(28, 25, 23, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-dialog {
+      width: 100%;
+      max-width: 440px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-warm);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 20px 50px rgba(28, 25, 23, 0.2);
+    }
+    .swatch-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .swatch-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      border: 2px solid transparent;
+      color: #FFFFFF;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .swatch-btn.selected {
+      border-color: var(--ink-900);
+      transform: scale(1.08);
+    }
+  </style>
+</head>
+<body>
+  <!-- Reconnecting Banner -->
+  <div id="connBanner" class="conn-banner">
+    <span>Disconnected from realtime salon. Reconnecting in 4s...</span>
+    <button type="button" class="conn-retry-btn" onclick="toggleConn()">Retry now</button>
+  </div>
+
+  <!-- Top Masthead -->
+  <header class="masthead">
+    <div class="brand-group">
+      <div class="brand-seal">FC</div>
+      <div>
+        <div class="brand-title">Friends Chat</div>
+        <div class="brand-sub">
+          <span class="live-dot"></span>
+          <span>Sunday Salon Edition / 5 Friends Online</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Horizontal Channel Pills -->
+    <nav class="channel-strip" aria-label="Topic Channels">
+      <button type="button" class="channel-pill active" onclick="switchChannel('general', 'Daily catch-up, weekend plans & shared links', this)">
+        <span>#general</span>
+      </button>
+      <button type="button" class="channel-pill" onclick="switchChannel('random', 'Memes, music drops & late-night links', this)">
+        <span>#random</span>
+        <span class="unread-pill">3</span>
+      </button>
+      <button type="button" class="channel-pill" onclick="switchChannel('help', 'Code reviews, Supabase tips & debugging', this)">
+        <span>#help</span>
+      </button>
+      <button type="button" class="channel-pill" onclick="switchChannel('vinyl-club', 'Album of the week & listening notes', this)">
+        <span>#vinyl-club</span>
+      </button>
+      <button type="button" class="channel-pill" onclick="switchChannel('game-night', 'Friday 10pm Mario Kart & Valorant lobby', this)">
+        <span>#game-night</span>
+        <span class="unread-pill">1</span>
+      </button>
+      <button type="button" class="new-channel-btn" onclick="openModal('channelModal')">
+        + New Topic
+      </button>
+    </nav>
+
+    <div class="masthead-controls">
+      <button type="button" id="btnWorkspace" class="ctrl-btn active-view" onclick="switchView('workspace')">Salon View</button>
+      <button type="button" id="btnLogin" class="ctrl-btn" onclick="switchView('login')">Login Screen</button>
+      <button type="button" class="ctrl-btn" onclick="toggleConn()">Simulate Offline</button>
+      <button type="button" class="ctrl-btn" onclick="openModal('profileModal')">Profile</button>
+    </div>
+  </header>
+
+  <!-- Main Workspace View -->
+  <main id="workspaceView" class="salon-workspace">
+    <!-- Left Column: Conversation Stream -->
+    <section class="conversation-column">
+      <div class="editorial-header">
+        <div class="editorial-title-wrap">
+          <h1 id="channelTitle" class="editorial-h1">#general</h1>
+          <p id="channelDesc" class="editorial-desc">Daily catch-up, weekend plans &amp; shared links</p>
+        </div>
+        <button type="button" class="history-btn">Load older messages</button>
+      </div>
+
+      <div id="messageStream" class="messages-scroll">
+        <div class="date-divider">
+          <div class="date-line"></div>
+          <span class="date-pill">Today, October 19</span>
+          <div class="date-line"></div>
+        </div>
+
+        <!-- Message 1: Full -->
+        <article class="msg-row">
+          <div class="avatar-circle" style="background:#db2777;">AN</div>
+          <div class="msg-body">
+            <div class="msg-meta">
+              <span class="msg-author">Alice Nguyen</span>
+              <span class="msg-time">21:14</span>
+            </div>
+            <p class="msg-text">Are we still on for the Saturday morning pour-over session at Workshop Roasters? I grabbed two bags of the Kenyan single origin.</p>
+            <div class="reactions-bar">
+              <button type="button" class="reaction-chip mine" onclick="toggleChip(this)">☕ <span>3</span></button>
+              <button type="button" class="reaction-chip" onclick="toggleChip(this)">❤️ <span>2</span></button>
+            </div>
+          </div>
+          <div class="hover-toolbar">
+            <button type="button" class="tool-action" onclick="setReply('Alice Nguyen', 'Are we still on for the Saturday morning pour-over session...')">Reply</button>
+            <button type="button" class="tool-action">React</button>
+          </div>
+        </article>
+
+        <!-- Message 2: Compact same author -->
+        <article class="msg-row compact">
+          <div class="compact-time-gutter">21:15</div>
+          <div class="msg-body">
+            <p class="msg-text">Also bringing the Fuji X100VI if anyone wants film-simulation portraits on the balcony.<span class="edited-tag">(edited)</span></p>
+          </div>
+          <div class="hover-toolbar">
+            <button type="button" class="tool-action" onclick="setReply('Alice Nguyen', 'Also bringing the Fuji X100VI if anyone wants portraits...')">Reply</button>
+          </div>
+        </article>
+
+        <!-- Message 3: Full with Quoted Reply -->
+        <article class="msg-row">
+          <div class="avatar-circle" style="background:#0d9488;">MT</div>
+          <div class="msg-body">
+            <div class="reply-quote-box">
+              <strong>@Alice Nguyen</strong>
+              <span>Are we still on for the Saturday morning pour-over session at Workshop Roasters?</span>
+            </div>
+            <div class="msg-meta">
+              <span class="msg-author">Minh Tran</span>
+              <span class="msg-time">21:18</span>
+            </div>
+            <p class="msg-text">100% in! Linh and I are biking over around 9:30 AM. Save a seat by the window table.</p>
+            <div class="reactions-bar">
+              <button type="button" class="reaction-chip mine" onclick="toggleChip(this)">🚀 <span>4</span></button>
+              <button type="button" class="reaction-chip" onclick="toggleChip(this)">🎉 <span>2</span></button>
+            </div>
+          </div>
+          <div class="hover-toolbar">
+            <button type="button" class="tool-action" onclick="setReply('Minh Tran', '100% in! Linh and I are biking over around 9:30 AM.')">Reply</button>
+          </div>
+        </article>
+
+        <!-- Message 4: Deleted Tombstone -->
+        <article class="msg-row">
+          <div class="avatar-circle" style="background:#7c3aed;">LP</div>
+          <div class="msg-body">
+            <div class="msg-meta">
+              <span class="msg-author">Linh Pham</span>
+              <span class="msg-time">21:20</span>
+            </div>
+            <p class="tombstone-text">This message was deleted</p>
+          </div>
+        </article>
+
+        <!-- Message 5: Current User -->
+        <article class="msg-row">
+          <div class="avatar-circle" style="background:#0284c7;">TH</div>
+          <div class="msg-body">
+            <div class="msg-meta">
+              <span class="msg-author">Thuan Hoang</span>
+              <span class="msg-time">21:22</span>
+            </div>
+            <p class="msg-text">Just pushed the new salon layout for our chat app. Every channel pill sits right in the masthead and the lounge roster stays visible on the right.</p>
+            <div class="reactions-bar">
+              <button type="button" class="reaction-chip mine" onclick="toggleChip(this)">👍 <span>5</span></button>
+              <button type="button" class="reaction-chip" onclick="toggleChip(this)">👀 <span>3</span></button>
+            </div>
+          </div>
+          <div class="hover-toolbar">
+            <button type="button" class="tool-action" onclick="setReply('Thuan Hoang', 'Just pushed the new salon layout for our chat app.')">Reply</button>
+            <button type="button" class="tool-action">Edit</button>
+            <button type="button" class="tool-action" style="color:#B83B24;">Delete</button>
+          </div>
+        </article>
+      </div>
+
+      <!-- Composer -->
+      <div class="composer-wrap">
+        <div id="replyBanner" class="reply-banner">
+          <span id="replyText">Replying to @Alice Nguyen</span>
+          <button type="button" style="border:none;background:transparent;font-weight:700;cursor:pointer;" onclick="clearReply()">Cancel</button>
+        </div>
+        <div class="typing-row">
+          <span>Minh Tran is writing a note in #general...</span>
+        </div>
+        <div class="composer-box">
+          <input id="composerInput" type="text" class="composer-input" placeholder="Write a note to #general (Enter to send)..." onkeydown="if(event.key==='Enter') sendMsg()" />
+          <button type="button" class="send-btn" onclick="sendMsg()">Send Note</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Clubhouse Lounge Roster -->
+    <aside class="lounge-column" aria-label="Clubhouse Lounge">
+      <div class="lounge-card">
+        <div class="lounge-heading">
+          <span>Your Salon Pass</span>
+          <button type="button" class="history-btn" onclick="openModal('profileModal')">Edit Profile</button>
+        </div>
+        <div class="friend-item" style="background:var(--bg-lounge);">
+          <div class="friend-left">
+            <div id="myAvatarBadge" class="friend-avatar-sm" style="background:#0284c7;">
+              TH
+              <span class="online-badge-dot"></span>
+            </div>
+            <div>
+              <div id="myDisplayName" class="friend-name">Thuan Hoang (you)</div>
+              <div class="friend-status">Connected via Realtime</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lounge-card">
+        <div class="lounge-heading">
+          <span>In the Room</span>
+          <span class="count-tag">5 Online</span>
+        </div>
+        <div class="friend-list">
+          <div class="friend-item">
+            <div class="friend-left">
+              <div class="friend-avatar-sm" style="background:#db2777;">AN<span class="online-badge-dot"></span></div>
+              <div>
+                <div class="friend-name">Alice Nguyen</div>
+                <div class="friend-status">Reading #general</div>
+              </div>
+            </div>
+          </div>
+          <div class="friend-item">
+            <div class="friend-left">
+              <div class="friend-avatar-sm" style="background:#0d9488;">MT<span class="online-badge-dot"></span></div>
+              <div>
+                <div class="friend-name">Minh Tran</div>
+                <div class="friend-status">Typing in #general</div>
+              </div>
+            </div>
+          </div>
+          <div class="friend-item">
+            <div class="friend-left">
+              <div class="friend-avatar-sm" style="background:#7c3aed;">LP<span class="online-badge-dot"></span></div>
+              <div>
+                <div class="friend-name">Linh Pham</div>
+                <div class="friend-status">Browsing #vinyl-club</div>
+              </div>
+            </div>
+          </div>
+          <div class="friend-item">
+            <div class="friend-left">
+              <div class="friend-avatar-sm" style="background:#ea580c;">KL<span class="online-badge-dot"></span></div>
+              <div>
+                <div class="friend-name">Khoa Le</div>
+                <div class="friend-status">In #game-night</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lounge-card">
+        <div class="lounge-heading">
+          <span>Channel Bulletin</span>
+        </div>
+        <p style="font-size:13px;color:var(--ink-700);margin-bottom:8px;">
+          Saturday 9:30 AM Coffee Meetup at Workshop Roasters (District 1). Bring vinyl records for the afternoon swap!
+        </p>
+        <div style="font-size:12px;color:var(--ink-500);">
+           composite cursor pagination active (40 notes/page)
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Login Screen View -->
+  <section id="loginView" class="login-stage">
+    <div class="login-booklet">
+      <div class="login-cover">
+        <div>
+          <div class="brand-seal" style="margin-bottom:16px;">FC</div>
+          <h2 style="font-family:var(--font-display);font-size:30px;line-height:1.15;margin-bottom:10px;">
+            A quiet living room for your closest friends.
+          </h2>
+          <p style="font-size:14px;color:var(--ink-700);">
+            Topic rooms, live presence, and instant notes without corporate noise.
+          </p>
+        </div>
+        <div style="font-size:12px;color:var(--ink-500);">
+          5 friends currently in #general and #vinyl-club
+        </div>
+      </div>
+      <div class="login-form-pane">
+        <h3 style="font-family:var(--font-display);font-size:24px;margin-bottom:18px;">Enter the Salon</h3>
+        <div class="field-group">
+          <label class="field-label">Email Address</label>
+          <input type="email" class="field-input" value="thuan@friends.chat" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Password</label>
+          <input type="password" class="field-input" value="••••••••••••" />
+        </div>
+        <button type="button" class="send-btn" style="width:100%;padding:11px;" onclick="switchView('workspace')">
+          Sign In to Friends Chat
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Create Channel Modal -->
+  <div id="channelModal" class="modal-backdrop" onclick="if(event.target===this) closeModal('channelModal')">
+    <div class="modal-dialog">
+      <h3 style="font-family:var(--font-display);font-size:24px;margin-bottom:12px;">Open a New Topic Room</h3>
+      <div class="field-group">
+        <label class="field-label">Room Name</label>
+        <input type="text" class="field-input" placeholder="e.g. weekend-hikes" oninput="document.getElementById('slugPreview').textContent='#'+(this.value.toLowerCase().replace(/[^a-z0-9]+/g,'-')||'weekend-hikes')" />
+        <div style="font-size:12px;color:var(--ink-500);margin-top:4px;">Slug preview: <strong id="slugPreview" style="color:var(--accent-vermilion);">#weekend-hikes</strong></div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Description</label>
+        <input type="text" class="field-input" placeholder="What do friends talk about here?" />
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button type="button" class="ctrl-btn" onclick="closeModal('channelModal')">Cancel</button>
+        <button type="button" class="send-btn" onclick="closeModal('channelModal')">Create Room</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile Settings Modal -->
+  <div id="profileModal" class="modal-backdrop" onclick="if(event.target===this) closeModal('profileModal')">
+    <div class="modal-dialog">
+      <h3 style="font-family:var(--font-display);font-size:24px;margin-bottom:12px;">Salon Profile</h3>
+      <div class="field-group">
+        <label class="field-label">Display Name</label>
+        <input id="profileNameInput" type="text" class="field-input" value="Thuan Hoang" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">Avatar Color Palette</label>
+        <div class="swatch-row">
+          <button type="button" class="swatch-btn selected" style="background:#0284c7;" onclick="pickColor('#0284c7', this)">✓</button>
+          <button type="button" class="swatch-btn" style="background:#0d9488;" onclick="pickColor('#0d9488', this)"></button>
+          <button type="button" class="swatch-btn" style="background:#7c3aed;" onclick="pickColor('#7c3aed', this)"></button>
+          <button type="button" class="swatch-btn" style="background:#db2777;" onclick="pickColor('#db2777', this)"></button>
+          <button type="button" class="swatch-btn" style="background:#ea580c;" onclick="pickColor('#ea580c', this)"></button>
+          <button type="button" class="swatch-btn" style="background:#16a34a;" onclick="pickColor('#16a34a', this)"></button>
+          <button type="button" class="swatch-btn" style="background:#2563eb;" onclick="pickColor('#2563eb', this)"></button>
+          <button type="button" class="swatch-btn" style="background:#4f46e5;" onclick="pickColor('#4f46e5', this)"></button>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
+        <button type="button" class="ctrl-btn" onclick="closeModal('profileModal')">Cancel</button>
+        <button type="button" class="send-btn" onclick="closeModal('profileModal')">Save Profile</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function switchChannel(slug, desc, btn) {
+      document.getElementById('channelTitle').textContent = '#' + slug;
+      document.getElementById('channelDesc').textContent = desc;
+      document.getElementById('composerInput').placeholder = 'Write a note to #' + slug + ' (Enter to send)...';
+      document.querySelectorAll('.channel-pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const badge = btn.querySelector('.unread-pill');
+      if (badge) badge.remove();
+    }
+    function toggleChip(btn) {
+      btn.classList.toggle('mine');
+      const span = btn.querySelector('span');
+      if (span) {
+        const n = parseInt(span.textContent, 10) || 1;
+        span.textContent = btn.classList.contains('mine') ? n + 1 : Math.max(1, n - 1);
+      }
+    }
+    function setReply(author, text) {
+      document.getElementById('replyText').textContent = 'Replying to @' + author + ': "' + text + '"';
+      document.getElementById('replyBanner').classList.add('active');
+      document.getElementById('composerInput').focus();
+    }
+    function clearReply() {
+      document.getElementById('replyBanner').classList.remove('active');
+    }
+    function sendMsg() {
+      const input = document.getElementById('composerInput');
+      const val = input.value.trim();
+      if (!val) return;
+      const stream = document.getElementById('messageStream');
+      const art = document.createElement('article');
+      art.className = 'msg-row';
+      art.innerHTML = '<div class="avatar-circle" style="background:#0284c7;">TH</div>' +
+        '<div class="msg-body"><div class="msg-meta"><span class="msg-author">Thuan Hoang</span><span class="msg-time">Just now</span></div>' +
+        '<p class="msg-text"></p></div>';
+      art.querySelector('.msg-text').textContent = val;
+      stream.appendChild(art);
+      stream.scrollTop = stream.scrollHeight;
+      input.value = '';
+      clearReply();
+    }
+    function toggleConn() {
+      document.getElementById('connBanner').classList.toggle('visible');
+    }
+    function switchView(view) {
+      const ws = document.getElementById('workspaceView');
+      const lg = document.getElementById('loginView');
+      document.getElementById('btnWorkspace').classList.toggle('active-view', view === 'workspace');
+      document.getElementById('btnLogin').classList.toggle('active-view', view === 'login');
+      ws.style.display = view === 'workspace' ? 'grid' : 'none';
+      lg.classList.toggle('active', view === 'login');
+    }
+    function openModal(id) { document.getElementById(id).classList.add('open'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+    function pickColor(hex, btn) {
+      document.querySelectorAll('.swatch-btn').forEach(b => { b.classList.remove('selected'); b.textContent = ''; });
+      btn.classList.add('selected');
+      btn.textContent = '✓';
+      document.getElementById('myAvatarBadge').style.background = hex;
+    }
+  </script>
+</body>
+</html>
