@@ -235,7 +235,7 @@ create policy "Authenticated users can create channels"
   to authenticated
   with check (
     (not is_dm and (auth.uid() = created_by or created_by is null))
-    or (is_dm and (auth.uid() = dm_user_a or auth.uid() = dm_user_b))
+    or (is_dm and (auth.uid() = dm_user_a or auth.uid() = dm_user_b) and (auth.uid() = created_by or created_by is null))
   );
 
 drop policy if exists "Authenticated users can view messages" on public.messages;
