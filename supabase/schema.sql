@@ -94,9 +94,18 @@ create table if not exists public.messages (
   client_id uuid unique not null,
   channel_id uuid not null references public.channels(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
-  content text not null check (char_length(trim(content)) > 0 and char_length(content) <= 4000),
+  content text not null check (char_length(trim(content)) > 0 and char_length(content) <= 24000),
   created_at timestamptz not null default now()
 );
+
+do $$
+begin
+  if exists (select 1 from pg_constraint where conname = 'messages_content_check') then
+    alter table public.messages drop constraint messages_content_check;
+    alter table public.messages add constraint messages_content_check check (char_length(trim(content)) > 0 and char_length(content) <= 24000);
+  end if;
+end;
+$$;
 
 alter table public.messages enable row level security;
 
@@ -229,7 +238,8 @@ as $$
   );
 $$;
 
-grant execute on function public.can_access_channel(uuid) to authenticated, anon;
+revoke execute on function public.can_access_channel(uuid) from anon;
+grant execute on function public.can_access_channel(uuid) to authenticated;
 
 drop policy if exists "Authenticated users can view channels" on public.channels;
 drop policy if exists "Authenticated users can view accessible channels" on public.channels;
@@ -337,4 +347,47 @@ exception when duplicate_object then
   null;
 end;
 $$;
+
+-- ============================================================================
+-- 6. End-to-End Encryption (E2EE) Configuration & Envelope Enforcement
+-- ============================================================================
+
+-- E2EE Configuration Singleton Table
+create table if not exists public.e2ee_config (
+  id integer primary key check (id = 1),
+  salt text not null,
+  iterations integer not null,
+  verifier text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.e2ee_config enable row level security;
+
+drop policy if exists "Authenticated users can view e2ee config" on public.e2ee_config;
+create policy "Authenticated users can view e2ee config"
+  on public.e2ee_config for select
+  to authenticated
+  using (true);
+
+-- Trigger: enforce e2ee:v1: envelope on new or updated messages
+create or replace function public.enforce_message_e2ee_envelope()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if (tg_op = 'INSERT') or (tg_op = 'UPDATE' and new.content is distinct from old.content) then
+    if new.content not like 'e2ee:v1:%' then
+      raise exception 'Message content must be encrypted with an e2ee:v1: envelope';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists check_message_e2ee_envelope on public.messages;
+create trigger check_message_e2ee_envelope
+  before insert or update on public.messages
+  for each row execute procedure public.enforce_message_e2ee_envelope();
+
 

@@ -19,9 +19,10 @@ A lightweight, resilient Slack-style real-time chat web app for friends across p
 | `npm test` | Run all unit and component test suites once (`vitest run`) |
 | `npm run build` | Build application for production |
 | `npm run preview` | Preview production build locally |
+| `node scripts/generate-e2ee-config.mjs "<phrase>"` | Generate PBKDF2 salt, verifier, and SQL seed for E2EE master key setup |
 
 - **Environment Variables:** Copy `.env.example` to `.env` and set `SUPABASE_URL` and `SUPABASE_KEY`.
-- **Database Schema:** `supabase/schema.sql` defines `public.profiles`, `public.channels`, and `public.messages`, the `on_auth_user_created` profile-creation trigger, RLS policies, the composite cursor index `messages_channel_cursor_idx`, and the `supabase_realtime` publication.
+- **Database Schema:** `supabase/schema.sql` defines `public.profiles`, `public.channels`, `public.messages`, `public.e2ee_config`, the `on_auth_user_created` profile-creation trigger, the `enforce_message_e2ee_envelope` trigger, RLS policies, the composite cursor index `messages_channel_cursor_idx`, and the `supabase_realtime` publication.
 
 ## 3. Architecture & Directory Layout
 
@@ -33,11 +34,13 @@ The codebase separates **Supabase/Realtime I/O orchestration** from **pure, test
 │   │   ├── ChatSidebar.vue         # Channel list, unread badges, online friends, theme & logout controls
 │   │   ├── ConnectionBanner.vue    # Reconnecting / disconnected banner with countdown & manual retry
 │   │   ├── CreateChannelModal.vue  # Modal form with live slug preview & validation
+│   │   ├── E2eeGate.vue            # Passphrase unlock form & unconfigured/loading gate
 │   │   ├── MessageComposer.vue     # Textarea composer (Enter to send, Shift+Enter newline, typing hook)
-│   │   ├── MessageViewport.vue     # Upward infinite scroll, scroll-lock preservation, new-message pill
+│   │   ├── MessageViewport.vue     # Upward infinite scroll, scroll-lock preservation, new-message pill, E2EE badges
 │   │   └── UserAvatar.vue          # Deterministic color badge + 1-2 character initials
 │   ├── composables/
 │   │   ├── useChatRoom.ts          # Central orchestrator wiring Supabase queries & 3 Realtime channels
+│   │   ├── useE2ee.ts              # Session storage key cache, config query, phrase derivation & validation
 │   │   ├── useMessagesState.ts     # Pure store (createMessagesStore): optimistic UI, dedup, ordering, cursors
 │   │   ├── useTypingState.ts       # Pure tracker (createTypingTracker): per-user typing expiry & label
 │   │   ├── usePresenceState.ts     # Pure helper (deduplicatePresenceState): multi-tab presence dedup
@@ -51,14 +54,17 @@ The codebase separates **Supabase/Realtime I/O orchestration** from **pure, test
 │   │   ├── login.vue               # Sign-in / sign-up screen
 │   │   └── confirm.vue             # Supabase email confirmation callback handler
 │   ├── types/
-│   │   └── chat.ts                 # Domain interfaces (Profile, Channel, ChatMessage, TypingUser, statuses)
+│   │   └── chat.ts                 # Domain interfaces (Profile, Channel, ChatMessage, TypingUser, E2eeConfig, statuses)
 │   └── utils/
-│       └── chat.ts                 # Pure helpers (slugs, backoff math, avatar colors/initials, validation)
+│       ├── chat.ts                 # Pure helpers (slugs, backoff math, avatar colors/initials, validation)
+│       └── crypto.ts               # WebCrypto AES-GCM-256 + PBKDF2 encryption, decryption, base64url helpers
+├── scripts/
+│   └── generate-e2ee-config.mjs    # CLI helper generating public.e2ee_config SQL insert
 ├── supabase/
-│   └── schema.sql                  # Idempotent SQL schema, RLS policies, seed channels, realtime setup
+│   └── schema.sql                  # Idempotent SQL schema, RLS policies, seed channels, e2ee config, realtime setup
 └── tests/
-    ├── utils/                      # Unit tests for pure helpers (chat.test.ts)
-    ├── composables/                # Unit tests for stores & orchestrator (useMessagesState, useRealtimeStates, useChatRoom, useTheme)
+    ├── utils/                      # Unit tests for pure helpers (chat.test.ts, crypto.test.ts)
+    ├── composables/                # Unit tests for stores & orchestrator (useMessagesState, useRealtimeStates, useChatRoom, useTheme, useE2ee)
     └── components/                 # Component tests (chatUi.test.ts)
 ```
 
@@ -86,6 +92,16 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
 
 5. **Vitest / SSR State Fallback:**
    - Composables that use Nuxt's `useState` (`useAuthProfile.ts`, `useTheme.ts`) must guard `typeof useState !== 'undefined'` and fall back to a module-scoped `ref` so unit tests run directly in Vitest without requiring the full Nuxt runtime.
+
+6. **End-to-End Encryption (E2EE) Invariants & Key Management:**
+   - All messages are encrypted client-side using AES-GCM-256 (`e2ee:v1:<iv-base64url>:<ciphertext-base64url>`) before insertion or update. The channel ID is bound as Authenticated Additional Data (AAD) to prevent cross-channel ciphertext splicing.
+   - Postgres trigger `enforce_message_e2ee_envelope()` rejects plaintext inserts or updates (`new.content not like 'e2ee:v1:%'`).
+   - The workspace key is derived from a shared secret phrase using PBKDF2-HMAC-SHA256 (600,000 iterations) and validated against `public.e2ee_config.verifier`. The derived key is stored only in tab `sessionStorage` (`nuxt-chat-e2ee-key`) and memory, never persisted to disk or sent to the server.
+   - **Initial Seed & Reset Runbook:** Generate the `public.e2ee_config` SQL seed via:
+     ```bash
+     node scripts/generate-e2ee-config.mjs "<secret-phrase>"
+     ```
+     Execute the resulting SQL query in the Supabase SQL Editor. If the secret phrase is rotated or reset, re-run this script and update `public.e2ee_config`. Existing messages encrypted under previous keys will gracefully display as `🔒 Unable to decrypt this message` (`encryption: 'undecryptable'`).
 
 ## 5. Testing Standards
 

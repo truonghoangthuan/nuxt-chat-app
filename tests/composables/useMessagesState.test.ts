@@ -339,5 +339,95 @@ describe('useMessagesState', () => {
     expect(store.messages.value[0].id).toBe('srv-gap-1')
     expect(store.messages.value[0].status).toBe('sent')
   })
+
+  it('preserves and updates message encryption state across optimistic add, sent, incoming, and update', () => {
+    const store = createMessagesStore()
+
+    // 1. Defaults to e2ee on optimistic add
+    const opt = store.addOptimisticMessage({
+      clientId: 'c-enc-1',
+      channelId: 'ch-1',
+      user: alice,
+      content: 'Encrypted message',
+    })
+    expect(opt?.encryption).toBe('e2ee')
+    expect(store.messages.value[0].encryption).toBe('e2ee')
+
+    // 2. markMessageSent copies serverRow.encryption
+    store.markMessageSent('c-enc-1', {
+      id: 'srv-enc-1',
+      client_id: 'c-enc-1',
+      channel_id: 'ch-1',
+      user_id: alice.id,
+      content: 'Encrypted message',
+      created_at: '2026-10-18T10:00:00Z',
+      encryption: 'e2ee',
+    })
+    expect(store.messages.value[0].encryption).toBe('e2ee')
+
+    // 3. Incoming legacy message preserved
+    store.reconcileIncomingMessage({
+      id: 'srv-legacy-1',
+      client_id: 'c-legacy-1',
+      channel_id: 'ch-1',
+      user_id: alice.id,
+      content: 'Legacy message',
+      created_at: '2026-10-18T10:01:00Z',
+      encryption: 'legacy',
+    })
+    expect(store.messages.value[1].encryption).toBe('legacy')
+
+    // 4. Update preserves encryption if not specified, updates if specified
+    store.setInitialHistory([
+      {
+        id: 'p-1',
+        client_id: 'cp-1',
+        channel_id: 'ch-1',
+        user_id: alice.id,
+        content: 'Parent text',
+        created_at: '2026-10-18T10:00:00Z',
+        encryption: 'e2ee',
+      },
+      {
+        id: 'r-1',
+        client_id: 'cr-1',
+        channel_id: 'ch-1',
+        user_id: 'u-bob',
+        content: 'Reply text',
+        created_at: '2026-10-18T10:01:00Z',
+        reply_to_id: 'p-1',
+        reply_to: {
+          id: 'p-1',
+          user_id: alice.id,
+          content: 'Parent text',
+          encryption: 'e2ee',
+        },
+        encryption: 'e2ee',
+      },
+    ])
+
+    // Edit without changing encryption keeps 'e2ee'
+    store.reconcileUpdatedMessage({
+      id: 'p-1',
+      content: 'Edited parent text',
+      edited_at: '2026-10-18T10:02:00Z',
+    })
+    const p1 = store.messages.value.find(m => m.id === 'p-1')
+    const r1 = store.messages.value.find(m => m.id === 'r-1')
+    expect(p1?.encryption).toBe('e2ee')
+    expect(r1?.reply_to?.encryption).toBe('e2ee')
+
+    // Edit with explicit encryption updates both
+    store.reconcileUpdatedMessage({
+      id: 'p-1',
+      content: 'Edited again',
+      edited_at: '2026-10-18T10:03:00Z',
+      encryption: 'legacy',
+    })
+    const p1Updated = store.messages.value.find(m => m.id === 'p-1')
+    const r1Updated = store.messages.value.find(m => m.id === 'r-1')
+    expect(p1Updated?.encryption).toBe('legacy')
+    expect(r1Updated?.reply_to?.encryption).toBe('legacy')
+  })
 })
 

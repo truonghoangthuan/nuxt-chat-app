@@ -37,12 +37,23 @@ export interface ReactionSummary {
   reactedByMe: boolean
 }
 
+export type MessageEncryptionState = 'e2ee' | 'legacy' | 'undecryptable'
+
+export interface E2eeConfig {
+  id: number
+  salt: string
+  iterations: number
+  verifier: string
+  created_at?: string
+}
+
 export interface ReplyTarget {
   id: string
   user_id: string
   content: string
   deleted_at?: string | null
   author?: Profile
+  encryption?: MessageEncryptionState
 }
 
 export interface ChatMessage {
@@ -59,6 +70,7 @@ export interface ChatMessage {
   edited_at?: string | null
   deleted_at?: string | null
   reactions?: MessageReaction[]
+  encryption?: MessageEncryptionState
 }
 
 export interface ChannelRead {

@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import type { Profile } from '~/types/chat'
 import { getAvatarColor, isValidDisplayName, isValidAvatarColor, isValidAvatarUrl } from '~/utils/chat'
+import { clearE2eeSession } from '~/composables/useE2ee'
 
 const testProfileRef = ref<Profile | null>(null)
 
@@ -183,8 +184,12 @@ export function useAuthProfile() {
   }
 
   async function signOut(): Promise<void> {
-    await supabase.auth.signOut()
-    currentProfile.value = null
+    try {
+      await supabase.auth.signOut()
+    } finally {
+      currentProfile.value = null
+      clearE2eeSession()
+    }
   }
 
   return {
