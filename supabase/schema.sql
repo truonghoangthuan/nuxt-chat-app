@@ -406,7 +406,7 @@ as $$
 declare
   parts text[];
 begin
-  parts := string_to_array(path, '/');
+  parts := string_to_array(ltrim(path, '/'), '/');
   if array_length(parts, 1) >= 2 and parts[1] = 'channels' then
     return parts[2]::uuid;
   end if;
@@ -440,7 +440,8 @@ create policy "Authenticated users can delete channel attachments"
   to authenticated
   using (
     bucket_id = 'message-attachments'
-    and (owner = auth.uid() or public.can_access_channel(public.storage_channel_id(name)))
+    and owner = auth.uid()
+    and public.can_access_channel(public.storage_channel_id(name))
   );
 
 
