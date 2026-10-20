@@ -472,5 +472,86 @@ describe('Conversation utilities', () => {
     }
     expect(getDirectPeer(groupChat, 'u1')).toBeNull()
   })
+
+  describe('Message bubble clustering (Telegram style)', () => {
+    it('groups consecutive messages from the same sender within 5 minutes', () => {
+      const t0 = new Date('2026-10-21T10:00:00Z').toISOString()
+      const t1 = new Date('2026-10-21T10:02:00Z').toISOString()
+      const t2 = new Date('2026-10-21T10:10:00Z').toISOString()
+
+      const messages: ChatMessage[] = [
+        { id: 'm1', client_id: 'c1', conversation_id: 'conv1', user_id: 'u1', content: 'e2ee:v1:test', created_at: t0, status: 'sent' },
+        { id: 'm2', client_id: 'c2', conversation_id: 'conv1', user_id: 'u1', content: 'e2ee:v1:test', created_at: t1, status: 'sent' },
+        { id: 'm3', client_id: 'c3', conversation_id: 'conv1', user_id: 'u2', content: 'e2ee:v1:test', created_at: t2, status: 'sent' },
+      ]
+
+      const timeline = buildMessageTimeline(messages, new Date('2026-10-21T12:00:00Z'), {
+        currentUserId: 'u1',
+        isGroup: true,
+      })
+
+      expect(timeline[0].isSender).toBe(true)
+      expect(timeline[0].isFirstInGroup).toBe(true)
+      expect(timeline[0].isLastInGroup).toBe(false)
+      expect(timeline[0].showSenderHeader).toBe(false) // sender never shows name header
+
+      expect(timeline[1].isSender).toBe(true)
+      expect(timeline[1].isFirstInGroup).toBe(false)
+      expect(timeline[1].isLastInGroup).toBe(true)
+
+      expect(timeline[2].isSender).toBe(false)
+      expect(timeline[2].isFirstInGroup).toBe(true)
+      expect(timeline[2].isLastInGroup).toBe(true)
+      expect(timeline[2].showSenderHeader).toBe(true) // other user in group shows header on first message
+    })
+
+    it('does not show sender header in direct chats (isGroup = false)', () => {
+      const t0 = new Date('2026-10-21T10:00:00Z').toISOString()
+      const messages: ChatMessage[] = [
+        { id: 'm1', client_id: 'c1', conversation_id: 'conv1', user_id: 'u2', content: 'hello', created_at: t0, status: 'sent' },
+      ]
+
+      const timeline = buildMessageTimeline(messages, new Date('2026-10-21T12:00:00Z'), {
+        currentUserId: 'u1',
+        isGroup: false,
+      })
+
+      expect(timeline[0].isSender).toBe(false)
+      expect(timeline[0].isFirstInGroup).toBe(true)
+      expect(timeline[0].isLastInGroup).toBe(true)
+      expect(timeline[0].showSenderHeader).toBe(false)
+    })
+
+    it('separates bubbles when same user sends messages across midnight or >5 minutes apart', () => {
+      const now = new Date(2026, 9, 18, 12, 0, 0)
+      const t0 = new Date(2026, 9, 17, 23, 58, 0).toISOString()
+      const t1 = new Date(2026, 9, 18, 0, 1, 0).toISOString()
+      const t2 = new Date(2026, 9, 18, 0, 10, 0).toISOString()
+
+      const messages: ChatMessage[] = [
+        { id: 'm1', client_id: 'c1', conversation_id: 'conv1', user_id: 'u1', content: 'msg1', created_at: t0, status: 'sent' },
+        { id: 'm2', client_id: 'c2', conversation_id: 'conv1', user_id: 'u1', content: 'msg2', created_at: t1, status: 'sent' },
+        { id: 'm3', client_id: 'c3', conversation_id: 'conv1', user_id: 'u1', content: 'msg3', created_at: t2, status: 'sent' },
+      ]
+
+      const timeline = buildMessageTimeline(messages, now, {
+        currentUserId: 'u1',
+        isGroup: true,
+      })
+
+      // m1 is on previous day -> first and last in its group
+      expect(timeline[0].isFirstInGroup).toBe(true)
+      expect(timeline[0].isLastInGroup).toBe(true)
+
+      // m2 is on next day, 3 mins later -> first in group because day changed
+      expect(timeline[1].isFirstInGroup).toBe(true)
+      // m3 is 9 mins after m2 (>5m) -> m2 is last in group
+      expect(timeline[1].isLastInGroup).toBe(true)
+
+      // m3 is >5 mins after m2 -> first in group and last in group (end of list)
+      expect(timeline[2].isFirstInGroup).toBe(true)
+      expect(timeline[2].isLastInGroup).toBe(true)
+    })
+  })
 })
 

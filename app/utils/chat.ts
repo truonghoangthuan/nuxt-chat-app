@@ -289,6 +289,7 @@ export function buildMessageTimeline(
     lastReadAt?: string | null
     currentUserId?: string
     currentDisplayName?: string | null
+    isGroup?: boolean
   },
 ): TimelineMessageItem[] {
   const lastReadMs = options?.lastReadAt ? Date.parse(options.lastReadAt) : Number.NaN
@@ -324,35 +325,62 @@ export function buildMessageTimeline(
       ),
     )
 
-    if (index === 0) {
-      return {
-        message: msg,
-        showDateDivider: true,
-        dateLabel,
-        isCompact: false,
-        showUnreadDivider,
-        isMentioningMe,
-      }
+    const isSender = Boolean(options?.currentUserId && msg.user_id === options.currentUserId)
+
+    let showDateDivider = true
+    let isCompact = false
+    let isFirstInGroup = true
+
+    if (index > 0) {
+      const prev = messages[index - 1]
+      const prevDate = new Date(prev.created_at)
+      const prevTimeMs = prevDate.getTime()
+      const prevDayKey = Number.isNaN(prevTimeMs) ? '' : getLocalDayKey(prevDate)
+      showDateDivider = currDayKey !== prevDayKey
+
+      const timeDiffMs = Math.abs(currTimeMs - prevTimeMs)
+      const sameUser = prev.user_id === msg.user_id
+      const withinWindow = !Number.isNaN(timeDiffMs) && timeDiffMs <= GROUPING_WINDOW_MS
+      const sameDay = !showDateDivider
+
+      isCompact = !showDateDivider
+        && !showUnreadDivider
+        && !msg.reply_to_id
+        && sameUser
+        && withinWindow
+
+      const continuesPrevGroup = sameUser && sameDay && withinWindow
+      isFirstInGroup = !continuesPrevGroup
     }
 
-    const prev = messages[index - 1]
-    const prevDate = new Date(prev.created_at)
-    const prevDayKey = Number.isNaN(prevDate.getTime()) ? '' : getLocalDayKey(prevDate)
-    const showDateDivider = currDayKey !== prevDayKey
+    let isLastInGroup = true
+    if (index < messages.length - 1) {
+      const next = messages[index + 1]
+      const nextDate = new Date(next.created_at)
+      const nextTimeMs = nextDate.getTime()
+      const nextDayKey = Number.isNaN(nextTimeMs) ? '' : getLocalDayKey(nextDate)
+      const nextDateDivider = currDayKey !== nextDayKey
 
-    const timeDiffMs = Math.abs(currTimeMs - prevDate.getTime())
-    const isCompact = !showDateDivider
-      && !showUnreadDivider
-      && !msg.reply_to_id
-      && prev.user_id === msg.user_id
-      && !Number.isNaN(timeDiffMs)
-      && timeDiffMs <= GROUPING_WINDOW_MS
+      const nextDiffMs = Math.abs(nextTimeMs - currTimeMs)
+      const nextSameUser = next.user_id === msg.user_id
+      const nextWithinWindow = !Number.isNaN(nextDiffMs) && nextDiffMs <= GROUPING_WINDOW_MS
+      const nextSameDay = !nextDateDivider
+
+      const nextContinuesThisGroup = nextSameUser && nextSameDay && nextWithinWindow
+      isLastInGroup = !nextContinuesThisGroup
+    }
+
+    const showSenderHeader = Boolean(!isSender && options?.isGroup && isFirstInGroup)
 
     return {
       message: msg,
       showDateDivider,
       dateLabel,
       isCompact,
+      isSender,
+      isFirstInGroup,
+      isLastInGroup,
+      showSenderHeader,
       showUnreadDivider,
       isMentioningMe,
     }
