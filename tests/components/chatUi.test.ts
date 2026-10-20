@@ -31,6 +31,7 @@ describe('Chat UI components', () => {
       props: { channelSlug: 'general', typingLabel: 'Alice is typing...' },
     })
     expect(wrapper.text()).toContain('Alice is typing...')
+    expect(wrapper.find('textarea').attributes('placeholder')).toBe('Message #general')
 
     const textarea = wrapper.find('textarea')
     await textarea.setValue('Hello world')

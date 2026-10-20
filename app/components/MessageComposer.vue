@@ -232,7 +232,7 @@ function handleSend() {
           v-model="content"
           rows="1"
           :disabled="disabled"
-          :placeholder="`Message ${isDm ? '@' : '#'}${channelSlug || 'channel'} (Enter to send, Shift+Enter for newline)`"
+          :placeholder="`Message ${isDm ? '@' : '#'}${channelSlug || 'channel'}`"
           class="min-h-9 max-h-40 w-full resize-none border-0 bg-transparent px-2.5 py-1.5 text-[14.5px] text-[var(--fp-text-primary)] shadow-none outline-none placeholder:text-[var(--fp-text-muted)] focus-visible:ring-0"
           @input="handleInput"
           @click="handleClick"
