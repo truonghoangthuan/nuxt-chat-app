@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
+import { Send, X } from '@lucide/vue'
+import { Button } from '~/components/ui/button'
 import type { ChatMessage, Profile } from '~/types/chat'
 import { shouldSendOnKeydown, extractActiveMentionQuery, applyMentionAutocomplete } from '~/utils/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
@@ -210,14 +212,17 @@ function handleSend() {
           Replying to <span class="font-semibold text-[var(--fp-accent-bright)]">@{{ replyingTo.author?.display_name || 'Friend' }}</span>:
           <span class="italic ml-1">{{ replyingTo.content }}</span>
         </div>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-sm"
           data-test="cancel-reply"
-          class="text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] font-bold px-1.5 cursor-pointer"
+          class="text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)]"
+          aria-label="Cancel reply"
           @click="emit('cancelReply')"
         >
-          ×
-        </button>
+          <X class="size-4" aria-hidden="true" />
+        </Button>
       </div>
 
       <!-- Input Row -->
@@ -227,30 +232,28 @@ function handleSend() {
           v-model="content"
           rows="1"
           :disabled="disabled"
-          :placeholder="`Message ${isDm ? '@' : '#'}${channelSlug || 'channel'} (Enter to send, Shift+Enter for newline)`"
-          class="w-full resize-none bg-transparent px-2.5 py-1.5 text-[14.5px] text-[var(--fp-text-primary)] placeholder-[var(--fp-text-muted)] focus:outline-none max-h-40 overflow-y-auto leading-relaxed"
+          :placeholder="`Message ${isDm ? '@' : '#'}${channelSlug || 'channel'}`"
+          class="min-h-9 max-h-40 w-full resize-none border-0 bg-transparent px-2.5 py-1.5 text-[14.5px] text-[var(--fp-text-primary)] shadow-none outline-none placeholder:text-[var(--fp-text-muted)] focus-visible:ring-0"
           @input="handleInput"
           @click="handleClick"
           @keyup="syncCursor"
           @keydown="handleKeydown"
-        ></textarea>
+        />
 
         <div class="flex items-center gap-2 shrink-0 pb-0.5 pr-0.5">
           <span class="hidden lg:inline-block text-[11px] text-[var(--fp-text-muted)] select-none">
             Enter ↵
           </span>
-          <button
+          <Button
             type="button"
             :disabled="!content.trim() || disabled"
-            class="px-3.5 py-1.5 rounded-[8px] fp-btn-primary text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
+            class="h-9 rounded-lg bg-indigo-600 px-3.5 text-xs font-semibold text-white hover:bg-indigo-700 focus-visible:ring-indigo-500 disabled:opacity-40"
             title="Send message"
             @click="handleSend"
           >
             <span>Send</span>
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-            </svg>
-          </button>
+            <Send class="size-3.5" aria-hidden="true" />
+          </Button>
         </div>
       </div>
     </div>

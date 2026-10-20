@@ -31,6 +31,7 @@ describe('Chat UI components', () => {
       props: { channelSlug: 'general', typingLabel: 'Alice is typing...' },
     })
     expect(wrapper.text()).toContain('Alice is typing...')
+    expect(wrapper.find('textarea').attributes('placeholder')).toBe('Message #general')
 
     const textarea = wrapper.find('textarea')
     await textarea.setValue('Hello world')
@@ -700,9 +701,9 @@ describe('Chat UI components', () => {
         },
       })
 
-      expect(sidebar.find('nav[aria-label="Precision Rail"]').exists()).toBe(true)
+      expect(sidebar.find('nav[aria-label="Workspace navigation"]').exists()).toBe(true)
       expect(sidebar.find('aside[aria-label="Channel and Friends Directory"]').exists()).toBe(true)
-      expect(sidebar.text()).toContain('14ms')
+      expect(sidebar.text()).toContain('Live')
 
       const lgAvatar = mount(UserAvatar, {
         props: {

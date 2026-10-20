@@ -3,6 +3,7 @@ import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import type { ChatMessage } from '~/types/chat'
 import { buildMessageTimeline, REACTION_EMOJIS, summarizeReactions, tokenizeMessageMentions } from '~/utils/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
+import MessageActionsMenu from '~/components/MessageActionsMenu.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -304,7 +305,7 @@ onMounted(() => {
             <!-- Message content + edited badge -->
             <div
               v-else
-              class="text-[14.5px] text-[var(--fp-text-primary)] whitespace-pre-wrap break-words leading-[1.52]"
+              class="text-[14.5px] text-[var(--fp-text-primary)] pr-12 md:pr-0 whitespace-pre-wrap break-words leading-[1.52]"
               :class="{ 'opacity-60': item.message.status === 'sending', 'text-rose-400': item.message.status === 'failed' }"
             >
               <template
@@ -389,7 +390,7 @@ onMounted(() => {
           <!-- Hover Action Toolbar -->
           <div
             v-if="item.message.status === 'sent' && !item.message.deleted_at"
-            class="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-0.5 bg-[var(--fp-surface-elevated)] border border-[var(--fp-border)] rounded-[8px] px-1.5 py-0.5 shadow-lg shrink-0 self-start"
+            class="hidden md:flex opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity items-center gap-0.5 bg-[var(--fp-surface-elevated)] border border-[var(--fp-border)] rounded-[8px] px-1.5 py-0.5 shadow-lg shrink-0 self-start"
           >
             <button
               v-for="emoji in REACTION_EMOJIS"
@@ -430,6 +431,15 @@ onMounted(() => {
               </button>
             </template>
           </div>
+          <MessageActionsMenu
+            v-if="item.message.status === 'sent' && !item.message.deleted_at"
+            :message="item.message"
+            :current-user-id="currentUserId"
+            @toggle-reaction="emit('toggleReaction', $event)"
+            @reply="emit('reply', $event)"
+            @edit="startEdit"
+            @delete="emit('delete', $event)"
+          />
         </div>
 
         <!-- Full Message Row -->
@@ -558,7 +568,7 @@ onMounted(() => {
             <!-- Message content + edited badge -->
             <div
               v-else
-              class="text-[14.5px] text-[var(--fp-text-primary)] mt-0.5 whitespace-pre-wrap break-words leading-[1.52]"
+              class="text-[14.5px] text-[var(--fp-text-primary)] pr-12 md:pr-0 mt-0.5 whitespace-pre-wrap break-words leading-[1.52]"
               :class="{ 'opacity-60': item.message.status === 'sending', 'text-rose-400': item.message.status === 'failed' }"
             >
               <template
@@ -605,7 +615,7 @@ onMounted(() => {
           <!-- Hover Action Toolbar -->
           <div
             v-if="item.message.status === 'sent' && !item.message.deleted_at"
-            class="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-0.5 bg-[var(--fp-surface-elevated)] border border-[var(--fp-border)] rounded-[8px] px-1.5 py-0.5 shadow-lg shrink-0 self-start"
+            class="hidden md:flex opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity items-center gap-0.5 bg-[var(--fp-surface-elevated)] border border-[var(--fp-border)] rounded-[8px] px-1.5 py-0.5 shadow-lg shrink-0 self-start"
           >
             <button
               v-for="emoji in REACTION_EMOJIS"
@@ -646,6 +656,15 @@ onMounted(() => {
               </button>
             </template>
           </div>
+          <MessageActionsMenu
+            v-if="item.message.status === 'sent' && !item.message.deleted_at"
+            :message="item.message"
+            :current-user-id="currentUserId"
+            @toggle-reaction="emit('toggleReaction', $event)"
+            @reply="emit('reply', $event)"
+            @edit="startEdit"
+            @delete="emit('delete', $event)"
+          />
         </div>
       </template>
     </div>

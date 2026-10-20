@@ -12,6 +12,9 @@ import CreateChannelModal from '~/components/CreateChannelModal.vue'
 import ProfileSettingsModal from '~/components/ProfileSettingsModal.vue'
 import StartDmModal from '~/components/StartDmModal.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
+import { Menu } from '@lucide/vue'
+import { Button } from '~/components/ui/button'
+import { Badge } from '~/components/ui/badge'
 import E2eeGate from '~/components/E2eeGate.vue'
 import { useE2ee } from '~/composables/useE2ee'
 
@@ -155,7 +158,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="h-screen flex overflow-hidden bg-[var(--fp-void)] md:p-3 md:gap-2.5 transition-colors">
+  <div class="h-dvh flex overflow-hidden bg-[var(--fp-void)] md:p-3 md:gap-2.5 transition-colors">
     <!-- Sidebar (Icon Rail + Tree Drawer) -->
     <ChatSidebar
       :channels="publicChannels"
