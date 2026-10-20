@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import type { ChatMessage } from '~/types/chat'
+import type { ChatMessage, EncryptedImageMetadata } from '~/types/chat'
 import { useChatRoom } from '~/composables/useChatRoom'
 import { useAuthProfile } from '~/composables/useAuthProfile'
 import { useTheme } from '~/composables/useTheme'
@@ -11,6 +11,7 @@ import MessageComposer from '~/components/MessageComposer.vue'
 import CreateChannelModal from '~/components/CreateChannelModal.vue'
 import ProfileSettingsModal from '~/components/ProfileSettingsModal.vue'
 import StartDmModal from '~/components/StartDmModal.vue'
+import ImageViewerModal from '~/components/ImageViewerModal.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
 import { Menu } from '@lucide/vue'
 import { Button } from '~/components/ui/button'
@@ -71,6 +72,15 @@ const isProfileSettingsModalOpen = ref(false)
 const isStartDmModalOpen = ref(false)
 const startDmError = ref<string | null>(null)
 const replyingTo = ref<ChatMessage | null>(null)
+const isLightboxOpen = ref(false)
+const lightboxImages = ref<EncryptedImageMetadata[]>([])
+const lightboxInitialIndex = ref(0)
+
+function handleOpenLightbox(payload: { images: EncryptedImageMetadata[]; initialIndex: number }) {
+  lightboxImages.value = payload.images
+  lightboxInitialIndex.value = payload.initialIndex
+  isLightboxOpen.value = true
+}
 
 async function handleStartDm(userId: string) {
   startDmError.value = null
@@ -299,6 +309,7 @@ onUnmounted(() => {
         @edit="editMessage($event.messageId, $event.content)"
         @delete="deleteMessage($event)"
         @toggle-reaction="toggleReaction($event.messageId, $event.emoji)"
+        @select-image="handleOpenLightbox"
       />
 
       <!-- Message Composer -->
@@ -340,6 +351,15 @@ onUnmounted(() => {
       :profile="currentProfile"
       @close="isProfileSettingsModalOpen = false"
       @save="handleSaveProfile"
+    />
+
+    <!-- Image Lightbox Viewer Modal -->
+    <ImageViewerModal
+      :open="isLightboxOpen"
+      :images="lightboxImages"
+      :initial-index="lightboxInitialIndex"
+      :channel-id="activeChannelId || ''"
+      @update:open="isLightboxOpen = $event"
     />
   </div>
 </template>
