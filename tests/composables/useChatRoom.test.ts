@@ -35,7 +35,7 @@ import { extractAuthUserId, useAuthProfile } from '~/composables/useAuthProfile'
 import { createMessagesStore } from '~/composables/useMessagesState'
 import { createTypingTracker } from '~/composables/useTypingState'
 import type { Profile } from '~/types/chat'
-import { createPhraseConfig, deriveKey, encryptContent } from '~/utils/crypto'
+import { createPhraseConfig, deriveKey, encryptContent, decryptContent } from '~/utils/crypto'
 
 describe('useChatRoom realtime message routing & profile caching', () => {
   it('increments unread count for inactive channels and reconciles messages for active channel', () => {
@@ -830,6 +830,7 @@ describe('useChatRoom realtime message routing & profile caching', () => {
 
 describe('useChatRoom sendImages orchestration & immutability guard', () => {
   let mockUpload: any
+  let mockInsert: any
   let mockInsertSingle: any
   let mockSupabase: any
   let testKey: CryptoKey
@@ -853,15 +854,17 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
       error: null,
     })
 
+    mockInsert = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        single: mockInsertSingle,
+      }),
+    })
+
     mockSupabase = {
       from: vi.fn((table: string) => {
         if (table === 'messages') {
           return {
-            insert: vi.fn().mockReturnValue({
-              select: vi.fn().mockReturnValue({
-                single: mockInsertSingle,
-              }),
-            }),
+            insert: mockInsert,
             select: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({
                 single: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -986,5 +989,59 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
 
     const res = await room.editMessage('img-msg-1', 'New text')
     expect(res).toEqual({ error: 'Image messages cannot be edited.' })
+  })
+  it('retryMessage retries failed image upload and inserts storage paths, not blob URLs', async () => {
+    const room = useChatRoom()
+    room.activeChannelId.value = 'ch-general'
+
+    // First attempt fails during storage upload
+    mockUpload.mockResolvedValueOnce({ data: null, error: new Error('Upload glitch') })
+
+    const file = new File(['retry-image-bytes'], 'retry.jpg', { type: 'image/jpeg' })
+    const initialSend = await room.sendImages([file])
+    expect(initialSend).toBe(false)
+
+    const failedMsg = room.messages.value[0]
+    expect(failedMsg.status).toBe('failed')
+    expect(mockInsert).not.toHaveBeenCalled()
+
+    // Second attempt via retryMessage succeeds
+    mockUpload.mockResolvedValueOnce({ data: { path: 'ok' }, error: null })
+    await room.retryMessage(failedMsg.client_id)
+
+    expect(mockUpload).toHaveBeenCalledTimes(2)
+    expect(mockInsert).toHaveBeenCalledTimes(1)
+    expect(room.messages.value[0].status).toBe('sent')
+
+    const insertedRow = mockInsert.mock.calls[0][0]
+    const decryptedPayload = await decryptContent(testKey, insertedRow.content, 'ch-general')
+    expect(decryptedPayload).not.toContain('blob:')
+    expect(decryptedPayload).toContain('channels/ch-general/')
+  })
+
+  it('retryMessage safely aborts if pending image files are missing from memory', async () => {
+    const room = useChatRoom()
+    room.activeChannelId.value = 'ch-general'
+
+    const imagePayload = JSON.stringify({
+      type: 'images',
+      images: [{ path: 'blob:http://localhost/test.jpg', mimeType: 'image/jpeg', width: 0, height: 0, size: 100 }],
+    })
+    room.messages.value = [
+      {
+        id: 'c-orphan',
+        client_id: 'c-orphan',
+        channel_id: 'ch-general',
+        user_id: 'u-alice',
+        content: imagePayload,
+        created_at: '2026-10-20T12:00:00.000Z',
+        status: 'failed',
+      },
+    ]
+
+    await room.retryMessage('c-orphan')
+
+    expect(room.messages.value[0].status).toBe('failed')
+    expect(mockInsert).not.toHaveBeenCalled()
   })
 })

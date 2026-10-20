@@ -419,6 +419,7 @@ export function useChatRoom() {
   const activeChannelId = ref<string | null>(null)
   const allProfiles = ref<Profile[]>([])
   const profilesCache = shallowReactive(new Map<string, Profile>())
+  const pendingImageFiles = new Map<string, { files: File[]; channelId: string }>()
   let isDisposed = false
   const readDebouncer = createChannelReadDebouncer(async (channelId, timestamp) => {
     const current = authProfile.currentProfile.value
@@ -1291,8 +1292,12 @@ export function useChatRoom() {
     }
   }
 
-  async function sendImages(files: File[]): Promise<boolean> {
-    if (!activeChannelId.value) return false
+  async function sendImages(files: File[], overrideClientId?: string): Promise<boolean> {
+    const channelId = overrideClientId
+      ? (pendingImageFiles.get(overrideClientId)?.channelId || activeChannelId.value)
+      : activeChannelId.value
+
+    if (!channelId) return false
 
     let current = authProfile.currentProfile.value
     if (!current?.id) {
@@ -1306,39 +1311,44 @@ export function useChatRoom() {
     const key = e2ee.key.value
     if (!key) return false
 
-    const channelId = activeChannelId.value
-    const clientId = typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : '00000000-0000-4000-8000-' + Math.random().toString(16).slice(2, 14).padEnd(12, '0')
+    const clientId = overrideClientId || (
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : '00000000-0000-4000-8000-' + Math.random().toString(16).slice(2, 14).padEnd(12, '0')
+    )
 
-    const localPreviews: LocalImageAttachment[] = files.map((file) => ({
-      file,
-      localUrl: typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
-        ? URL.createObjectURL(file)
-        : '',
-      width: 0,
-      height: 0,
-    }))
+    pendingImageFiles.set(clientId, { files, channelId })
 
-    const optimisticPayload: ImageMessagePayload = {
-      type: 'images',
-      images: localPreviews.map((p) => ({
-        path: p.localUrl,
-        mimeType: p.file.type || 'image/jpeg',
-        width: p.width,
-        height: p.height,
-        size: p.file.size,
-      })),
+    if (!overrideClientId) {
+      const localPreviews: LocalImageAttachment[] = files.map((file) => ({
+        file,
+        localUrl: typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
+          ? URL.createObjectURL(file)
+          : '',
+        width: 0,
+        height: 0,
+      }))
+
+      const optimisticPayload: ImageMessagePayload = {
+        type: 'images',
+        images: localPreviews.map((p) => ({
+          path: p.localUrl,
+          mimeType: p.file.type || 'image/jpeg',
+          width: p.width,
+          height: p.height,
+          size: p.file.size,
+        })),
+      }
+
+      const optimisticContent = JSON.stringify(optimisticPayload)
+      messagesStore.addOptimisticMessage({
+        clientId,
+        channelId,
+        user: current,
+        content: optimisticContent,
+        encryption: 'e2ee',
+      })
     }
-
-    const optimisticContent = JSON.stringify(optimisticPayload)
-    messagesStore.addOptimisticMessage({
-      clientId,
-      channelId,
-      user: current,
-      content: optimisticContent,
-      encryption: 'e2ee',
-    })
 
     const uploadedMetadatas: EncryptedImageMetadata[] = []
 
@@ -1404,6 +1414,7 @@ export function useChatRoom() {
             .eq('client_id', clientId)
             .single()
           if (existing) {
+            pendingImageFiles.delete(clientId)
             messagesStore.markMessageSent(clientId, existing.id, existing.created_at)
             return true
           }
@@ -1413,6 +1424,7 @@ export function useChatRoom() {
       }
 
       if (data) {
+        pendingImageFiles.delete(clientId)
         messagesStore.markMessageSent(clientId, data.id, data.created_at)
         return true
       }
@@ -1431,6 +1443,19 @@ export function useChatRoom() {
 
     if (!e2ee.key.value) {
       messagesStore.markMessageFailed(clientId)
+      return
+    }
+
+    if (isImagePayload(retrying.content)) {
+      const pending = pendingImageFiles.get(clientId)
+      if (!pending) {
+        messagesStore.markMessageFailed(clientId)
+        return
+      }
+      const ok = await sendImages(pending.files, clientId)
+      if (!ok) {
+        messagesStore.markMessageFailed(clientId)
+      }
       return
     }
 
@@ -1487,6 +1512,7 @@ export function useChatRoom() {
   }
 
   function dismissMessage(clientId: string): void {
+    pendingImageFiles.delete(clientId)
     messagesStore.dismissMessage(clientId)
   }
 
@@ -1659,6 +1685,7 @@ export function useChatRoom() {
 
   function cleanupChat(): void {
     isDisposed = true
+    pendingImageFiles.clear()
     readDebouncer.cancelAll()
     if (presenceChannel) supabase.removeChannel(presenceChannel)
     if (dbChangesChannel) supabase.removeChannel(dbChangesChannel)
