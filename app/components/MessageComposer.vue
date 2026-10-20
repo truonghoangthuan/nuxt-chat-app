@@ -4,7 +4,7 @@ import { Send, X, Paperclip } from '@lucide/vue'
 import { Button } from '~/components/ui/button'
 import type { ChatMessage, Profile } from '~/types/chat'
 import { shouldSendOnKeydown, extractActiveMentionQuery, applyMentionAutocomplete } from '~/utils/chat'
-import { validateImageFiles } from '~/utils/image'
+import { validateImageFiles, isImagePayload, parseImagePayload, formatImageMessageSummary } from '~/utils/image'
 import UserAvatar from '~/components/UserAvatar.vue'
 
 const props = withDefaults(
@@ -370,7 +370,7 @@ onUnmounted(() => {
       >
         <div class="truncate text-[var(--fp-text-secondary)]">
           Replying to <span class="font-semibold text-[var(--fp-accent-bright)]">@{{ replyingTo.author?.display_name || 'Friend' }}</span>:
-          <span class="italic ml-1">{{ replyingTo.content }}</span>
+          <span class="italic ml-1">{{ isImagePayload(replyingTo.content) ? formatImageMessageSummary(parseImagePayload(replyingTo.content)?.images.length || 1) : replyingTo.content }}</span>
         </div>
         <Button
           type="button"

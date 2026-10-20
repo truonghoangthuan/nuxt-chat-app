@@ -19,6 +19,7 @@ import {
   useChatRoom,
 } from '~/composables/useChatRoom'
 import { useE2ee } from '~/composables/useE2ee'
+import { useImageAttachmentCache } from '~/composables/useImageAttachmentCache'
 
 vi.mock('~/utils/image', async (importOriginal) => {
   const actual = await importOriginal<typeof import('~/utils/image')>()
@@ -825,11 +826,96 @@ describe('useChatRoom realtime message routing & profile caching', () => {
       expect(snapshot.unreadCounts['ch-random']).toBe(2)
       expect(snapshot.unreadMentions['ch-random']).toBe(1)
     })
+
+    it('formats reply_to image payload as photo summary and prevents false-positive mentions in unread snapshot', async () => {
+      const cfg = await createPhraseConfig('reply preview phrase', 1000)
+      const key = await deriveKey('reply preview phrase', cfg.salt, 1000)
+
+      const imagePayload = JSON.stringify({
+        type: 'images',
+        images: [
+          { path: 'channels/ch-general/c-1/0.enc', mimeType: 'image/jpeg', width: 800, height: 600, size: 100 },
+          { path: 'channels/ch-general/c-1/1.enc', mimeType: 'image/png', width: 800, height: 600, size: 200 },
+        ],
+      })
+      const encryptedImagePayload = await encryptContent(key, imagePayload, 'ch-general')
+      const msgCipher = await encryptContent(key, 'Looks good!', 'ch-general')
+
+      const decrypted = await decryptMessageRow(
+        {
+          id: 'm-reply-img',
+          channel_id: 'ch-general',
+          content: msgCipher,
+          reply_to: {
+            id: 'm-parent-img',
+            user_id: 'u-bob',
+            content: encryptedImagePayload,
+          },
+        },
+        key,
+      )
+
+      expect(decrypted.reply_to?.content).toBe('📷 2 photos')
+      expect(decrypted.reply_to?.encryption).toBe('e2ee')
+
+      const singleImgPayload = JSON.stringify({
+        type: 'images',
+        images: [
+          { path: 'channels/ch-general/c-1/0.enc', mimeType: 'image/jpeg', width: 800, height: 600, size: 100 },
+        ],
+      })
+      const singleCipher = await encryptContent(key, singleImgPayload, 'ch-general')
+      const singleDecrypted = await decryptMessageRow(
+        {
+          id: 'm-reply-1',
+          channel_id: 'ch-general',
+          content: msgCipher,
+          reply_to: {
+            id: 'm-parent-1',
+            user_id: 'u-bob',
+            content: singleCipher,
+          },
+        },
+        key,
+      )
+      expect(singleDecrypted.reply_to?.content).toBe('📷 1 photo')
+
+      const payloadWithMentionLikePath = JSON.stringify({
+        type: 'images',
+        images: [
+          { path: 'channels/ch-random/c-1/@Alice.enc', mimeType: 'image/jpeg', width: 800, height: 600, size: 100 },
+        ],
+      })
+      const cipherWithMention = await encryptContent(key, payloadWithMentionLikePath, 'ch-random')
+      const decryptedRows = await decryptMessageRows(
+        [
+          {
+            id: 'm-img-mention',
+            channel_id: 'ch-random',
+            user_id: 'u-bob',
+            content: cipherWithMention,
+            created_at: '2026-10-19T10:05:00Z',
+          },
+        ],
+        key,
+      )
+
+      const snapshot = computeUnreadSnapshot({
+        messages: decryptedRows as any,
+        lastReadByChannel: { 'ch-random': '2026-10-19T10:00:00Z' },
+        activeChannelId: 'ch-general',
+        currentUserId: 'u-alice',
+        currentDisplayName: 'Alice',
+      })
+      expect(snapshot.unreadCounts['ch-random']).toBe(1)
+      expect(snapshot.unreadMentions['ch-random'] || 0).toBe(0)
+    })
   })
 })
 
 describe('useChatRoom sendImages orchestration & immutability guard', () => {
   let mockUpload: any
+  let mockRemove: any
   let mockInsert: any
   let mockInsertSingle: any
   let mockSupabase: any
@@ -841,6 +927,7 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
       URL.createObjectURL = vi.fn((file: File) => 'blob:http://localhost/' + file.name)
     }
     mockUpload = vi.fn().mockResolvedValue({ data: { path: 'ok' }, error: null })
+    mockRemove = vi.fn().mockResolvedValue({ data: [], error: null })
     mockInsertSingle = vi.fn().mockResolvedValue({
       data: {
         id: 'msg-srv-img-1',
@@ -893,6 +980,7 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
       storage: {
         from: vi.fn((bucket: string) => ({
           upload: mockUpload,
+          remove: mockRemove,
         })),
       },
       channel: vi.fn().mockReturnValue({
@@ -1004,7 +1092,6 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
     const failedMsg = room.messages.value[0]
     expect(failedMsg.status).toBe('failed')
     expect(mockInsert).not.toHaveBeenCalled()
-
     // Second attempt via retryMessage succeeds
     mockUpload.mockResolvedValueOnce({ data: { path: 'ok' }, error: null })
     await room.retryMessage(failedMsg.client_id)
@@ -1043,5 +1130,48 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
 
     expect(room.messages.value[0].status).toBe('failed')
     expect(mockInsert).not.toHaveBeenCalled()
+  })
+
+  it('selectChannel invokes imageAttachmentCache.revokeAllUrls to release memory on channel switch', async () => {
+    const room = useChatRoom()
+    const cache = useImageAttachmentCache()
+    const revokeSpy = vi.spyOn(cache, 'revokeAllUrls')
+
+    await room.selectChannel('ch-random')
+
+    expect(revokeSpy).toHaveBeenCalled()
+  })
+
+  it('deleteMessage removes storage attachments when deleting an image message', async () => {
+    const room = useChatRoom()
+    room.activeChannelId.value = 'ch-general'
+
+    const imagePayload = JSON.stringify({
+      type: 'images',
+      images: [
+        { path: 'channels/ch-general/c-1/0.enc', mimeType: 'image/jpeg', width: 800, height: 600, size: 100 },
+        { path: 'channels/ch-general/c-1/1.enc', mimeType: 'image/png', width: 800, height: 600, size: 200 },
+      ],
+    })
+
+    room.messages.value = [
+      {
+        id: 'msg-img-delete-1',
+        client_id: 'c-del-1',
+        channel_id: 'ch-general',
+        user_id: 'u-alice',
+        content: imagePayload,
+        created_at: '2026-10-20T12:00:00.000Z',
+        status: 'sent',
+      },
+    ]
+
+    const result = await room.deleteMessage('msg-img-delete-1')
+    expect(result.error).toBeNull()
+    expect(mockSupabase.storage.from).toHaveBeenCalledWith('message-attachments')
+    expect(mockRemove).toHaveBeenCalledWith([
+      'channels/ch-general/c-1/0.enc',
+      'channels/ch-general/c-1/1.enc',
+    ])
   })
 })

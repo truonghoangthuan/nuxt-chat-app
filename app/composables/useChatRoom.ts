@@ -18,7 +18,14 @@ import { deduplicatePresenceState } from '~/composables/usePresenceState'
 import { createConnectionManager } from '~/composables/useConnectionManager'
 import { useAuthProfile } from '~/composables/useAuthProfile'
 import { useE2ee } from '~/composables/useE2ee'
-import { isImagePayload, resizeImage, validateImageFiles } from '~/utils/image'
+import { useImageAttachmentCache } from '~/composables/useImageAttachmentCache'
+import {
+  isImagePayload,
+  parseImagePayload,
+  formatImageMessageSummary,
+  resizeImage,
+  validateImageFiles,
+} from '~/utils/image'
 
 export const PAGE_SIZE = 40
 
@@ -61,21 +68,29 @@ export async function decryptMessageRow<
   }
 
   let replyTo = row.reply_to
-  if (replyTo && typeof replyTo.content === 'string' && replyTo.encryption === undefined) {
+  if (replyTo && typeof replyTo.content === 'string') {
     let replyContent = replyTo.content
-    let replyEncryption: MessageEncryptionState
-    if (!replyContent.startsWith('e2ee:v1:')) {
-      replyEncryption = 'legacy'
-    } else if (!key || !channelId || !isEncryptedEnvelope(replyContent)) {
-      replyContent = ''
-      replyEncryption = 'undecryptable'
-    } else {
-      try {
-        replyContent = await decryptContent(key, replyContent, channelId)
-        replyEncryption = 'e2ee'
-      } catch {
+    let replyEncryption: MessageEncryptionState = replyTo.encryption ?? 'legacy'
+    if (replyTo.encryption === undefined) {
+      if (!replyContent.startsWith('e2ee:v1:')) {
+        replyEncryption = 'legacy'
+      } else if (!key || !channelId || !isEncryptedEnvelope(replyContent)) {
         replyContent = ''
         replyEncryption = 'undecryptable'
+      } else {
+        try {
+          replyContent = await decryptContent(key, replyContent, channelId)
+          replyEncryption = 'e2ee'
+        } catch {
+          replyContent = ''
+          replyEncryption = 'undecryptable'
+        }
+      }
+    }
+    if (isImagePayload(replyContent)) {
+      const parsed = parseImagePayload(replyContent)
+      if (parsed) {
+        replyContent = formatImageMessageSummary(parsed.images.length)
       }
     }
     replyTo = {
@@ -132,7 +147,10 @@ export function computeUnreadSnapshot(params: {
     }
 
     unreadCounts[msg.channel_id] = (unreadCounts[msg.channel_id] || 0) + 1
-    if (doesMessageMentionUser(msg.content, params.currentDisplayName)) {
+    const textToCheck = isImagePayload(msg.content)
+      ? formatImageMessageSummary(parseImagePayload(msg.content)?.images.length || 1)
+      : msg.content
+    if (doesMessageMentionUser(textToCheck, params.currentDisplayName)) {
       unreadMentions[msg.channel_id] = (unreadMentions[msg.channel_id] || 0) + 1
     }
   }
@@ -272,7 +290,12 @@ export function handleIncomingRealtimeMessage(params: {
       && !params.row.deleted_at
       && (!params.currentUserId || params.row.user_id !== params.currentUserId)
       && (
-        doesMessageMentionUser(params.row.content, params.currentDisplayName)
+        doesMessageMentionUser(
+          isImagePayload(params.row.content)
+            ? formatImageMessageSummary(parseImagePayload(params.row.content)?.images.length || 1)
+            : params.row.content,
+          params.currentDisplayName,
+        )
         || (params.currentUserId && params.row.reply_to?.user_id === params.currentUserId)
       )
     ) {
@@ -308,7 +331,12 @@ export function handleRealtimeMessageUpdate(params: {
         }
         const wasMention = Boolean(
           params.row.content
-          && doesMessageMentionUser(params.row.content, params.currentDisplayName),
+          && doesMessageMentionUser(
+            isImagePayload(params.row.content)
+              ? formatImageMessageSummary(parseImagePayload(params.row.content)?.images.length || 1)
+              : params.row.content,
+            params.currentDisplayName,
+          ),
         )
         if (wasMention && params.unreadMentions && (params.unreadMentions[channelId] || 0) > 0) {
           params.unreadMentions[channelId] -= 1
@@ -596,6 +624,10 @@ export function useChatRoom() {
 
     return decryptedRows.map((r) => {
       const parent = r.reply_to_id ? knownById.get(r.reply_to_id) : null
+      let parentContent = parent?.content
+      if (parentContent && isImagePayload(parentContent)) {
+        parentContent = formatImageMessageSummary(parseImagePayload(parentContent)?.images.length || 1)
+      }
       return {
         ...r,
         reactions: reactionsByMsgId.get(r.id) || r.reactions || [],
@@ -603,7 +635,7 @@ export function useChatRoom() {
           ? {
               id: parent.id,
               user_id: parent.user_id,
-              content: parent.content,
+              content: parentContent,
               deleted_at: parent.deleted_at || null,
               author: parent.author,
               encryption: parent.encryption,
@@ -829,11 +861,15 @@ export function useChatRoom() {
           const parentMsg = decryptedRow.reply_to_id
             ? messages.value.find(m => m.id === decryptedRow.reply_to_id)
             : undefined
+          let parentContent = parentMsg?.content
+          if (parentContent && isImagePayload(parentContent)) {
+            parentContent = formatImageMessageSummary(parseImagePayload(parentContent)?.images.length || 1)
+          }
           const replyTarget: ReplyTarget | null = parentMsg
             ? {
                 id: parentMsg.id,
                 user_id: parentMsg.user_id,
-                content: parentMsg.content,
+                content: parentContent,
                 deleted_at: parentMsg.deleted_at || null,
                 author: parentMsg.author,
                 encryption: parentMsg.encryption,
@@ -1015,6 +1051,7 @@ export function useChatRoom() {
   }
 
   async function selectChannel(channelId: string): Promise<void> {
+    useImageAttachmentCache().revokeAllUrls()
     const priorLastRead = lastReadByChannel.value[channelId] || null
     const hadUnreads = (unreadCounts.value[channelId] || 0) > 0
     activeChannelUnreadSince.value = hadUnreads ? priorLastRead : null
@@ -1224,11 +1261,15 @@ export function useChatRoom() {
       : '00000000-0000-4000-8000-' + Math.random().toString(16).slice(2, 14).padEnd(12, '0')
 
     const parentMsg = replyToId ? messages.value.find(m => m.id === replyToId) : undefined
+    let parentContent = parentMsg?.content
+    if (parentContent && isImagePayload(parentContent)) {
+      parentContent = formatImageMessageSummary(parseImagePayload(parentContent)?.images.length || 1)
+    }
     const replyTarget: ReplyTarget | null = parentMsg
       ? {
           id: parentMsg.id,
           user_id: parentMsg.user_id,
-          content: parentMsg.content,
+          content: parentContent,
           deleted_at: parentMsg.deleted_at || null,
           author: parentMsg.author,
         }
@@ -1571,6 +1612,8 @@ export function useChatRoom() {
       return { error: 'Not authenticated.' }
     }
 
+    const targetMsg = messages.value.find(m => m.id === messageId)
+
     const deletedAt = new Date().toISOString()
     messagesStore.reconcileUpdatedMessage({
       id: messageId,
@@ -1583,7 +1626,25 @@ export function useChatRoom() {
       .eq('id', messageId)
       .eq('user_id', current.id)
 
-    return { error: error ? error.message : null }
+    if (error) {
+      return { error: error.message }
+    }
+
+    if (targetMsg && isImagePayload(targetMsg.content)) {
+      const parsed = parseImagePayload(targetMsg.content)
+      if (parsed && Array.isArray(parsed.images) && parsed.images.length > 0) {
+        const paths = parsed.images.map(img => img.path).filter(Boolean)
+        if (paths.length > 0) {
+          try {
+            await supabase.storage.from('message-attachments').remove(paths)
+          } catch {
+            // Ignore removal errors
+          }
+        }
+      }
+    }
+
+    return { error: null }
   }
 
   async function toggleReaction(
