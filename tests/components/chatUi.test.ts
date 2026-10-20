@@ -922,6 +922,126 @@ describe('Chat UI components', () => {
       expect(disabledWrapper.find('[data-test="attachment-tray"]').exists()).toBe(false)
     })
   })
+
+  describe('Conversational Bubble Viewport (Task 7)', () => {
+    it('renders sender messages with justify-end, accent bubble class, and delivery indicators', () => {
+      const wrapper = mount(MessageViewport, {
+        props: {
+          conversationId: 'c-1',
+          isGroup: true,
+          currentUserId: 'u-alice',
+          messages: [
+            {
+              id: 'm-sender-sent',
+              client_id: 'c-1',
+              channel_id: 'c-1',
+              user_id: 'u-alice',
+              content: 'Hello from sender',
+              created_at: '2026-10-18T10:00:00Z',
+              status: 'sent',
+              author: { id: 'u-alice', display_name: 'Alice', avatar_color: '#0284c7' },
+            },
+            {
+              id: 'm-sender-sending',
+              client_id: 'c-2',
+              channel_id: 'c-1',
+              user_id: 'u-alice',
+              content: 'Sending message',
+              created_at: '2026-10-18T10:01:00Z',
+              status: 'sending',
+              author: { id: 'u-alice', display_name: 'Alice', avatar_color: '#0284c7' },
+            },
+          ],
+        },
+      })
+
+      const sentRow = wrapper.find('[data-message-id="m-sender-sent"]')
+      expect(sentRow.classes()).toContain('justify-end')
+      const sentBubble = wrapper.find('[data-test="message-bubble-m-sender-sent"]')
+      expect(sentBubble.classes()).toContain('bg-indigo-600')
+      const deliverySent = wrapper.find('[data-test="delivery-indicator-m-sender-sent"]')
+      expect(deliverySent.text()).toContain('✓✓')
+
+      const sendingRow = wrapper.find('[data-message-id="m-sender-sending"]')
+      expect(sendingRow.classes()).toContain('justify-end')
+      expect(wrapper.text()).toContain('Sending...')
+    })
+
+    it('renders recipient messages with justify-start, avatar, and sender display name in group chats', () => {
+      const wrapper = mount(MessageViewport, {
+        props: {
+          conversationId: 'c-1',
+          isGroup: true,
+          currentUserId: 'u-alice',
+          messages: [
+            {
+              id: 'm-bob-1',
+              client_id: 'c-1',
+              channel_id: 'c-1',
+              user_id: 'u-bob',
+              content: 'First from Bob',
+              created_at: '2026-10-18T10:00:00Z',
+              status: 'sent',
+              author: { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+            },
+            {
+              id: 'm-bob-2',
+              client_id: 'c-2',
+              channel_id: 'c-1',
+              user_id: 'u-bob',
+              content: 'Second from Bob',
+              created_at: '2026-10-18T10:01:00Z',
+              status: 'sent',
+              author: { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+            },
+          ],
+        },
+      })
+
+      const bobRow1 = wrapper.find('[data-message-id="m-bob-1"]')
+      expect(bobRow1.classes()).toContain('justify-start')
+      const bobBubble1 = wrapper.find('[data-test="message-bubble-m-bob-1"]')
+      expect(bobBubble1.classes()).not.toContain('bg-indigo-600')
+
+      // First in cluster shows sender header in group chat
+      const senderHeader = wrapper.find('[data-test="sender-header-m-bob-1"]')
+      expect(senderHeader.exists()).toBe(true)
+      expect(senderHeader.text()).toContain('Bob')
+
+      // Second message does NOT show sender header (clustered)
+      expect(wrapper.find('[data-test="sender-header-m-bob-2"]').exists()).toBe(false)
+
+      // Avatar renders at bottom of cluster (on m-bob-2, which is last in group)
+      expect(bobRow1.findComponent(UserAvatar).exists()).toBe(false)
+      const bobRow2 = wrapper.find('[data-message-id="m-bob-2"]')
+      expect(bobRow2.findComponent(UserAvatar).exists()).toBe(true)
+    })
+
+    it('omits sender header for recipient in direct message (isGroup: false / isDm: true)', () => {
+      const wrapper = mount(MessageViewport, {
+        props: {
+          conversationId: 'dm-1',
+          isDm: true,
+          peerName: 'Bob',
+          currentUserId: 'u-alice',
+          messages: [
+            {
+              id: 'm-bob-1',
+              client_id: 'c-1',
+              channel_id: 'dm-1',
+              user_id: 'u-bob',
+              content: 'Direct message from Bob',
+              created_at: '2026-10-18T10:00:00Z',
+              status: 'sent',
+              author: { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+            },
+          ],
+        },
+      })
+
+      expect(wrapper.find('[data-test="sender-header-m-bob-1"]').exists()).toBe(false)
+    })
+  })
 })
 
 
