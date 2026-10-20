@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { isImagePayload } from '~/utils/image'
 import {
   normalizeChannelSlug,
   isValidChannelSlug,
@@ -362,6 +363,21 @@ describe('chat utils', () => {
       expect(canUserAccessChannel(dmCh, 'USER-333')).toBe(false)
       expect(canUserAccessChannel(dmCh, null)).toBe(false)
       expect(canUserAccessChannel(dmCh, undefined)).toBe(false)
+    })
+  })
+
+  describe('isImagePayload', () => {
+    it('returns true for valid image message JSON structure', () => {
+      const valid = JSON.stringify({
+        type: 'images',
+        images: [{ path: 'channels/1/0.enc', mimeType: 'image/jpeg', width: 800, height: 600, size: 1024 }],
+      })
+      expect(isImagePayload(valid)).toBe(true)
+    })
+
+    it('returns false for regular text or malformed JSON', () => {
+      expect(isImagePayload('Hello world')).toBe(false)
+      expect(isImagePayload('{"type":"text"}')).toBe(false)
     })
   })
 })
