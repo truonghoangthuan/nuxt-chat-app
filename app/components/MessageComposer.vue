@@ -154,11 +154,13 @@ function handlePaste(event: ClipboardEvent) {
 
   if (files.length > 0) {
     event.preventDefault()
+    event.stopPropagation()
     queueFiles(files)
   }
 }
 
 function handleDrop(event: DragEvent) {
+  if (props.disabled) return
   const dt = event.dataTransfer
   if (!dt?.files?.length) return
   queueFiles(dt.files)
@@ -261,6 +263,7 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 function handleDeckKeydown(event: KeyboardEvent) {
+  if ((event.target as HTMLElement)?.tagName === 'BUTTON') return
   if (pendingAttachments.value.length > 0 && shouldSendOnKeydown(event)) {
     event.preventDefault()
     handleSend()
@@ -357,6 +360,7 @@ onUnmounted(() => {
       @dragover.prevent
       @drop.prevent="handleDrop"
       @keydown="handleDeckKeydown"
+      @paste="handlePaste"
     >
       <!-- Replying To Banner -->
       <div

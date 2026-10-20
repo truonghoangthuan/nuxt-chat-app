@@ -895,6 +895,31 @@ describe('Chat UI components', () => {
       })
 
       expect(wrapper.findAll('[data-test="attachment-preview"]').length).toBe(1)
+
+      // Verify paste on deck container works while textarea is disabled
+      const pasteFile2 = new File(['pasted2'], 'paste2.png', { type: 'image/png' })
+      await wrapper.find('[data-test="composer-deck"]').trigger('paste', {
+        clipboardData: {
+          files: [pasteFile2],
+        },
+      })
+      expect(wrapper.findAll('[data-test="attachment-preview"]').length).toBe(2)
+
+      // Enter keydown on interactive button inside deck does not hijack send
+      const removeBtn = wrapper.find('[data-test="remove-attachment"]')
+      await removeBtn.trigger('keydown', { key: 'Enter' })
+      expect(wrapper.emitted('sendImages')).toBeFalsy()
+
+      // Drop when disabled is ignored
+      const disabledWrapper = mount(MessageComposer, {
+        props: { channelSlug: 'general', disabled: true },
+      })
+      await disabledWrapper.find('[data-test="composer-deck"]').trigger('drop', {
+        dataTransfer: {
+          files: [dropFile],
+        },
+      })
+      expect(disabledWrapper.find('[data-test="attachment-tray"]').exists()).toBe(false)
     })
   })
 })
