@@ -390,4 +390,58 @@ create trigger check_message_e2ee_envelope
   before insert or update on public.messages
   for each row execute procedure public.enforce_message_e2ee_envelope();
 
+-- ============================================================================
+-- 7. Storage Bucket & Channel-Aware Storage RLS for Encrypted Attachments
+-- ============================================================================
+
+insert into storage.buckets (id, name, public)
+values ('message-attachments', 'message-attachments', false)
+on conflict (id) do nothing;
+
+create or replace function public.storage_channel_id(path text)
+returns uuid
+language plpgsql
+immutable
+as $$
+declare
+  parts text[];
+begin
+  parts := string_to_array(ltrim(path, '/'), '/');
+  if array_length(parts, 1) >= 2 and parts[1] = 'channels' then
+    return parts[2]::uuid;
+  end if;
+  return null;
+exception when others then
+  return null;
+end;
+$$;
+
+drop policy if exists "Authenticated users can upload channel attachments" on storage.objects;
+create policy "Authenticated users can upload channel attachments"
+  on storage.objects for insert
+  to authenticated
+  with check (
+    bucket_id = 'message-attachments'
+    and public.can_access_channel(public.storage_channel_id(name))
+  );
+
+drop policy if exists "Authenticated users can view channel attachments" on storage.objects;
+create policy "Authenticated users can view channel attachments"
+  on storage.objects for select
+  to authenticated
+  using (
+    bucket_id = 'message-attachments'
+    and public.can_access_channel(public.storage_channel_id(name))
+  );
+
+drop policy if exists "Authenticated users can delete channel attachments" on storage.objects;
+create policy "Authenticated users can delete channel attachments"
+  on storage.objects for delete
+  to authenticated
+  using (
+    bucket_id = 'message-attachments'
+    and owner = auth.uid()
+    and public.can_access_channel(public.storage_channel_id(name))
+  );
+
 

@@ -429,5 +429,29 @@ describe('useMessagesState', () => {
     expect(p1Updated?.encryption).toBe('legacy')
     expect(r1Updated?.reply_to?.encryption).toBe('legacy')
   })
-})
 
+  it('markMessageSent accepts (clientId, id, createdAt) and preserves local preview content', () => {
+    const store = createMessagesStore()
+    const imagePayload = JSON.stringify({
+      type: 'images',
+      images: [{ path: 'blob:http://localhost/test', mimeType: 'image/jpeg', width: 0, height: 0, size: 100 }],
+    })
+    store.addOptimisticMessage({
+      clientId: 'c-img-1',
+      channelId: 'ch-1',
+      user: alice,
+      content: imagePayload,
+      encryption: 'e2ee',
+    })
+
+    expect(store.messages.value[0].status).toBe('sending')
+    expect(store.messages.value[0].content).toBe(imagePayload)
+
+    store.markMessageSent('c-img-1', 'srv-msg-1', '2026-10-20T12:00:00.000Z')
+
+    expect(store.messages.value[0].id).toBe('srv-msg-1')
+    expect(store.messages.value[0].status).toBe('sent')
+    expect(store.messages.value[0].created_at).toBe('2026-10-20T12:00:00.000Z')
+    expect(store.messages.value[0].content).toBe(imagePayload)
+  })
+})

@@ -105,3 +105,23 @@ export interface TypingUser {
   display_name: string
   expires_at: number
 }
+
+export interface EncryptedImageMetadata {
+  path: string
+  mimeType: string
+  width: number
+  height: number
+  size: number
+}
+
+export interface ImageMessagePayload {
+  type: 'images'
+  images: EncryptedImageMetadata[]
+}
+
+export interface LocalImageAttachment {
+  file: File
+  localUrl: string
+  width: number
+  height: number
+}

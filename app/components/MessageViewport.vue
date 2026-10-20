@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
-import type { ChatMessage } from '~/types/chat'
+import type { ChatMessage, EncryptedImageMetadata } from '~/types/chat'
 import { buildMessageTimeline, REACTION_EMOJIS, summarizeReactions, tokenizeMessageMentions } from '~/utils/chat'
+import { isImagePayload, parseImagePayload, formatImageMessageSummary } from '~/utils/image'
 import UserAvatar from '~/components/UserAvatar.vue'
 import MessageActionsMenu from '~/components/MessageActionsMenu.vue'
+import MessageImageGrid from '~/components/MessageImageGrid.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -37,6 +39,7 @@ const emit = defineEmits<{
   (e: 'edit', payload: { messageId: string; content: string }): void
   (e: 'delete', messageId: string): void
   (e: 'toggleReaction', payload: { messageId: string; emoji: string }): void
+  (e: 'selectImage', payload: { images: EncryptedImageMetadata[]; initialIndex: number }): void
 }>()
 
 const viewportRef = ref<HTMLDivElement | null>(null)
@@ -302,6 +305,13 @@ onMounted(() => {
               </div>
             </div>
 
+            <MessageImageGrid
+              v-else-if="isImagePayload(item.message.content) && parseImagePayload(item.message.content)"
+              :images="parseImagePayload(item.message.content)!.images"
+              :channel-id="channelId"
+              :is-sending="item.message.status === 'sending'"
+              @select-image="emit('selectImage', $event)"
+            />
             <!-- Message content + edited badge -->
             <div
               v-else
@@ -413,7 +423,7 @@ onMounted(() => {
             </button>
             <template v-if="item.message.user_id === currentUserId">
               <button
-                v-if="item.message.encryption !== 'undecryptable'"
+                v-if="item.message.encryption !== 'undecryptable' && !isImagePayload(item.message.content)"
                 type="button"
                 :data-test="`edit-${item.message.id}`"
                 class="px-1.5 py-0.5 text-[11px] font-medium text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] rounded hover:bg-[var(--fp-hover)] cursor-pointer"
@@ -467,7 +477,7 @@ onMounted(() => {
                 @{{ item.message.reply_to?.author?.display_name || 'Friend' }}
               </span>
               <span class="truncate italic">
-                {{ item.message.reply_to?.deleted_at ? 'Original message was deleted' : (item.message.reply_to?.encryption === 'undecryptable' ? '🔒 Unable to decrypt this message' : (item.message.reply_to?.content || 'Message')) }}
+                {{ item.message.reply_to?.deleted_at ? 'Original message was deleted' : (item.message.reply_to?.encryption === 'undecryptable' ? '🔒 Unable to decrypt this message' : (isImagePayload(item.message.reply_to?.content) ? formatImageMessageSummary(parseImagePayload(item.message.reply_to?.content)?.images.length || 1) : (item.message.reply_to?.content || 'Message'))) }}
               </span>
             </div>
 
@@ -565,6 +575,13 @@ onMounted(() => {
               </div>
             </div>
 
+            <MessageImageGrid
+              v-else-if="isImagePayload(item.message.content) && parseImagePayload(item.message.content)"
+              :images="parseImagePayload(item.message.content)!.images"
+              :channel-id="channelId"
+              :is-sending="item.message.status === 'sending'"
+              @select-image="emit('selectImage', $event)"
+            />
             <!-- Message content + edited badge -->
             <div
               v-else
@@ -638,7 +655,7 @@ onMounted(() => {
             </button>
             <template v-if="item.message.user_id === currentUserId">
               <button
-                v-if="item.message.encryption !== 'undecryptable'"
+                v-if="item.message.encryption !== 'undecryptable' && !isImagePayload(item.message.content)"
                 type="button"
                 :data-test="`edit-${item.message.id}`"
                 class="px-1.5 py-0.5 text-[11px] font-medium text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] rounded hover:bg-[var(--fp-hover)] cursor-pointer"

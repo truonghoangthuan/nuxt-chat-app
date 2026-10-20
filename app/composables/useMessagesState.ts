@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import type { ChatMessage, MessageEncryptionState, MessageReaction, Profile, ReplyTarget } from '~/types/chat'
 import { isValidMessageContent } from '~/utils/chat'
+import { isImagePayload } from '~/utils/image'
 
 export function createMessagesStore() {
   const messages = ref<ChatMessage[]>([])
@@ -54,7 +55,7 @@ export function createMessagesStore() {
     replyTo?: ReplyTarget | null
     encryption?: MessageEncryptionState
   }): ChatMessage | null {
-    if (!isValidMessageContent(params.content)) {
+    if (!isValidMessageContent(params.content) && !isImagePayload(params.content)) {
       return null
     }
 
@@ -84,43 +85,56 @@ export function createMessagesStore() {
     return newMessage
   }
 
-  function markMessageSent(clientId: string, serverRow: Omit<ChatMessage, 'status'>): void {
-    const idx = messages.value.findIndex(m => m.client_id === clientId || m.id === serverRow.id)
+  function markMessageSent(
+    clientId: string,
+    serverRowOrId: Omit<ChatMessage, 'status'> | string,
+    createdAt?: string,
+  ): void {
+    const id = typeof serverRowOrId === 'string' ? serverRowOrId : serverRowOrId.id
+    const idx = messages.value.findIndex(m => m.client_id === clientId || m.id === id)
     if (idx !== -1) {
       const current = messages.value[idx]
-      current.id = serverRow.id
-      current.client_id = serverRow.client_id
-      current.channel_id = serverRow.channel_id
-      current.user_id = serverRow.user_id
-      current.content = serverRow.content
-      current.created_at = serverRow.created_at
+      current.id = id
       current.status = 'sent'
-      if (serverRow.author) {
-        current.author = serverRow.author
-      }
-      if (serverRow.reply_to_id !== undefined) {
-        current.reply_to_id = serverRow.reply_to_id
-      }
-      if (serverRow.reply_to !== undefined) {
-        current.reply_to = serverRow.reply_to
-      }
-      if (serverRow.edited_at !== undefined) {
-        current.edited_at = serverRow.edited_at
-      }
-      if (serverRow.deleted_at !== undefined) {
-        current.deleted_at = serverRow.deleted_at
-      }
-      if (serverRow.reactions !== undefined) {
-        current.reactions = serverRow.reactions
-      }
-      if (serverRow.encryption !== undefined) {
-        current.encryption = serverRow.encryption
+      if (typeof serverRowOrId === 'string') {
+        if (createdAt) {
+          current.created_at = createdAt
+        }
+      } else {
+        current.client_id = serverRowOrId.client_id
+        current.channel_id = serverRowOrId.channel_id
+        current.user_id = serverRowOrId.user_id
+        current.content = serverRowOrId.content
+        current.created_at = serverRowOrId.created_at
+        if (serverRowOrId.author) {
+          current.author = serverRowOrId.author
+        }
+        if (serverRowOrId.reply_to_id !== undefined) {
+          current.reply_to_id = serverRowOrId.reply_to_id
+        }
+        if (serverRowOrId.reply_to !== undefined) {
+          current.reply_to = serverRowOrId.reply_to
+        }
+        if (serverRowOrId.edited_at !== undefined) {
+          current.edited_at = serverRowOrId.edited_at
+        }
+        if (serverRowOrId.deleted_at !== undefined) {
+          current.deleted_at = serverRowOrId.deleted_at
+        }
+        if (serverRowOrId.reactions !== undefined) {
+          current.reactions = serverRowOrId.reactions
+        }
+        if (serverRowOrId.encryption !== undefined) {
+          current.encryption = serverRowOrId.encryption
+        }
       }
     } else {
-      messages.value.push({
-        ...serverRow,
-        status: 'sent',
-      })
+      if (typeof serverRowOrId !== 'string') {
+        messages.value.push({
+          ...serverRowOrId,
+          status: 'sent',
+        })
+      }
     }
     reorderMessages()
   }
