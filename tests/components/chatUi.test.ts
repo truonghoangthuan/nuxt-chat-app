@@ -1109,6 +1109,12 @@ describe('Chat UI components', () => {
       const peerAvatar = directItem.findComponent(UserAvatar)
       expect(peerAvatar.exists()).toBe(true)
       expect(peerAvatar.props('showOnline')).toBe(true)
+      // Timestamp rendered in conversation item
+      const directTime = directItem.find('[data-test="conversation-time-conv-direct-1"]')
+      expect(directTime.exists()).toBe(true)
+      expect(directTime.classes()).toContain('text-[11px]')
+      expect(directTime.classes()).toContain('text-[var(--fp-text-muted)]')
+      expect(directTime.text().length).toBeGreaterThan(0)
 
       // 2. Group chat item
       const groupItem = wrapper.find('[data-test="conversation-item-conv-group-1"]')
@@ -1187,6 +1193,84 @@ describe('Chat UI components', () => {
       await wrapper.find('[data-test="conversation-item-conv-group-1"]').trigger('click')
       expect(wrapper.emitted('selectConversation')?.[0]).toEqual(['conv-group-1'])
       expect(wrapper.emitted('selectChannel')?.[0]).toEqual(['conv-group-1'])
+    })
+
+    it('renders formatted timestamp, soft-deleted last message subtitle, and sorts active conversations first', () => {
+      const convActiveRecent: Conversation = {
+        id: 'conv-recent',
+        type: 'direct',
+        title: null,
+        created_by: 'u-me',
+        created_at: '2026-10-21T01:00:00Z',
+        lastMessage: {
+          id: 'm-rec',
+          client_id: 'c-rec',
+          conversation_id: 'conv-recent',
+          user_id: 'u-bob',
+          content: 'Hey there',
+          created_at: '2026-10-21T01:30:00Z',
+          status: 'sent',
+        },
+        peer: mockPeerBob,
+      }
+
+      const convDeletedLast: Conversation = {
+        id: 'conv-deleted',
+        type: 'direct',
+        title: null,
+        created_by: 'u-me',
+        created_at: '2026-10-21T00:30:00Z',
+        lastMessage: {
+          id: 'm-del',
+          client_id: 'c-del',
+          conversation_id: 'conv-deleted',
+          user_id: 'u-bob',
+          content: 'Deleted secret message',
+          deleted_at: '2026-10-21T01:15:00Z',
+          created_at: '2026-10-21T01:15:00Z',
+          status: 'sent',
+        },
+        peer: mockPeerBob,
+      }
+
+      const convNoActivity: Conversation = {
+        id: 'conv-no-act',
+        type: 'group',
+        title: 'Empty Lounge',
+        created_by: 'u-me',
+      }
+
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          // Provide in arbitrary order: no-activity first, then deleted, then recent
+          conversations: [convNoActivity, convDeletedLast, convActiveRecent],
+          activeConversationId: null,
+          unreadCounts: {},
+          onlineFriends: [],
+          currentUser: mockCurrentUser,
+          isDark: true,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+
+      // 1. Soft-deleted message renders "This message was deleted"
+      const deletedItem = wrapper.find('[data-test="conversation-item-conv-deleted"]')
+      expect(deletedItem.exists()).toBe(true)
+      expect(deletedItem.text()).toContain('This message was deleted')
+      expect(deletedItem.text()).not.toContain('Deleted secret message')
+
+      // 2. Timestamp rendered on recent item
+      const recentTime = wrapper.find('[data-test="conversation-time-conv-recent"]')
+      expect(recentTime.exists()).toBe(true)
+      expect(recentTime.text().length).toBeGreaterThan(0)
+
+      // 3. Sort ordering: conv-recent (01:30) > conv-deleted (01:15) > conv-no-act (0)
+      const allItems = wrapper.findAll('[data-test^="conversation-item-"]')
+      expect(allItems.length).toBe(3)
+      expect(allItems[0].attributes('data-test')).toBe('conversation-item-conv-recent')
+      expect(allItems[1].attributes('data-test')).toBe('conversation-item-conv-deleted')
+      expect(allItems[2].attributes('data-test')).toBe('conversation-item-conv-no-act')
     })
   })
 })

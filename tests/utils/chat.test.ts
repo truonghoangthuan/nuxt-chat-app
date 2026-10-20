@@ -25,6 +25,7 @@ import {
   canUserAccessChannel,
   isValidEmail,
   formatConversationTitle,
+  formatConversationTime,
   getDirectPeer,
 } from '~/utils/chat'
 import type { ChatMessage, Conversation, Profile } from '~/types/chat'
@@ -551,6 +552,76 @@ describe('Conversation utilities', () => {
       // m3 is >5 mins after m2 -> first in group and last in group (end of list)
       expect(timeline[2].isFirstInGroup).toBe(true)
       expect(timeline[2].isLastInGroup).toBe(true)
+    })
+  })
+
+  describe('formatConversationTime', () => {
+    it('formats conversation timestamp for today, yesterday, earlier in year, and previous years', () => {
+      const fixedNow = new Date(2026, 9, 21, 14, 0, 0) // Oct 21, 2026
+
+      // 1. Today
+      const convToday: Conversation = {
+        id: 'c-today',
+        type: 'direct',
+        created_by: 'u1',
+        lastMessage: {
+          id: 'm1',
+          client_id: 'c1',
+          conversation_id: 'c-today',
+          user_id: 'u1',
+          content: 'Hi',
+          created_at: new Date(2026, 9, 21, 10, 30, 0).toISOString(),
+          status: 'sent',
+        },
+      }
+      const todayStr = formatConversationTime(convToday, fixedNow)
+      expect(todayStr).toBeTruthy()
+      expect(todayStr).toMatch(/10[:.]30/)
+
+      // 2. Yesterday
+      const convYesterday: Conversation = {
+        id: 'c-yesterday',
+        type: 'direct',
+        created_by: 'u1',
+        lastMessage: {
+          id: 'm2',
+          client_id: 'c2',
+          conversation_id: 'c-yesterday',
+          user_id: 'u1',
+          content: 'Hi',
+          created_at: new Date(2026, 9, 20, 18, 0, 0).toISOString(),
+          status: 'sent',
+        },
+      }
+      expect(formatConversationTime(convYesterday, fixedNow)).toBe('Yesterday')
+
+      // 3. Earlier this year
+      const convEarlier: Conversation = {
+        id: 'c-earlier',
+        type: 'direct',
+        created_by: 'u1',
+        updated_at: new Date(2026, 7, 15, 12, 0, 0).toISOString(),
+      }
+      const earlierStr = formatConversationTime(convEarlier, fixedNow)
+      expect(earlierStr).toMatch(/Aug\s+15/)
+
+      // 4. Previous year
+      const convOld: Conversation = {
+        id: 'c-old',
+        type: 'direct',
+        created_by: 'u1',
+        created_at: new Date(2025, 4, 10, 12, 0, 0).toISOString(),
+      }
+      const oldStr = formatConversationTime(convOld, fixedNow)
+      expect(oldStr).toMatch(/2025/)
+
+      // 5. Empty or missing
+      const convEmpty: Conversation = {
+        id: 'c-empty',
+        type: 'direct',
+        created_by: 'u1',
+      }
+      expect(formatConversationTime(convEmpty, fixedNow)).toBe('')
     })
   })
 })

@@ -498,4 +498,31 @@ export function formatConversationTitle(
   return conversation.title || 'Group Chat'
 }
 
+export function formatConversationTime(
+  conv: Conversation,
+  now: Date = new Date(),
+): string {
+  const timestamp = conv.lastMessage?.created_at || conv.updated_at || conv.created_at
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const targetDay = getLocalDayKey(date)
+  const today = getLocalDayKey(now)
+  if (targetDay === today) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+  if (targetDay === getLocalDayKey(yesterday)) {
+    return 'Yesterday'
+  }
+
+  if (date.getFullYear() === now.getFullYear()) {
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  }
+
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 

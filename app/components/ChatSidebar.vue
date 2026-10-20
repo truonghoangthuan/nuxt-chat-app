@@ -16,6 +16,7 @@ import type { Conversation, Channel, Profile, ConnectionStatus } from '~/types/c
 import {
   getDirectPeer,
   formatConversationTitle,
+  formatConversationTime,
 } from '~/utils/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
 import { Button } from '~/components/ui/button'
@@ -120,18 +121,23 @@ function getConvTitle(conv: Conversation): string {
 }
 
 function getConvSubtitle(conv: Conversation): string {
-  if (conv.lastMessage?.content) {
+  if (conv.lastMessage) {
+    if (conv.lastMessage.deleted_at) {
+      return 'This message was deleted'
+    }
     if (conv.lastMessage.encryption === 'undecryptable') {
       return '🔒 Unable to decrypt'
     }
-    if (conv.lastMessage.content.startsWith('e2ee:')) {
+    if (conv.lastMessage.content?.startsWith('e2ee:')) {
       return '🔒 Encrypted message'
     }
-    const sender = conv.lastMessage.author?.display_name
-    if (conv.type === 'group' && sender) {
-      return `${sender}: ${conv.lastMessage.content}`
+    if (conv.lastMessage.content) {
+      const sender = conv.lastMessage.author?.display_name
+      if (conv.type === 'group' && sender) {
+        return `${sender}: ${conv.lastMessage.content}`
+      }
+      return conv.lastMessage.content
     }
-    return conv.lastMessage.content
   }
   if (conv.type === 'direct') {
     const peer = getPeerForConv(conv)
@@ -178,10 +184,7 @@ const filteredConversations = computed<Conversation[]>(() => {
   return [...list].sort((a, b) => {
     const timeA = getConversationActivityTimestamp(a)
     const timeB = getConversationActivityTimestamp(b)
-    if (timeA && timeB && timeA !== timeB) {
-      return timeB - timeA
-    }
-    return 0
+    return timeB - timeA
   })
 })
 
@@ -442,61 +445,76 @@ function onContactsClick() {
               :key="conv.id"
               type="button"
               :data-test="`conversation-item-${conv.id}`"
-              class="w-full flex items-center justify-between px-2.5 py-2 rounded-[8px] text-[13.5px] font-medium transition-all group cursor-pointer"
+              class="w-full flex items-center px-2.5 py-2 rounded-[8px] text-[13.5px] font-medium transition-all group cursor-pointer text-left"
               :class="activeId === conv.id ? 'bg-[var(--fp-active)] text-[var(--fp-text-primary)] font-semibold shadow-[inset_2px_0_0_#6366f1]' : 'text-[var(--fp-text-secondary)] hover:bg-[var(--fp-hover)] hover:text-[var(--fp-text-primary)]'"
               @click="onConversationClick(conv.id)"
             >
               <div
                 :data-test="conv.type === 'direct' ? `dm-channel-${conv.id}` : undefined"
-                class="w-full flex items-center justify-between gap-2 min-w-0"
+                class="w-full flex items-center gap-2.5 min-w-0"
               >
-                <!-- Left: Avatar + Title & Subtitle -->
-                <div class="flex items-center gap-2.5 min-w-0 truncate">
-                  <!-- Direct Peer Avatar -->
-                  <UserAvatar
-                    v-if="conv.type === 'direct'"
-                    :display-name="getPeerForConv(conv)?.display_name || getConvTitle(conv)"
-                    :avatar-color="getPeerForConv(conv)?.avatar_color"
-                    :avatar-url="getPeerForConv(conv)?.avatar_url"
-                    :show-online="isPeerOnline(conv)"
-                    size="sm"
-                  />
-                  <!-- Group Avatar -->
-                  <div
-                    v-else
-                    class="w-7 h-7 rounded-[7px] bg-indigo-500/15 border border-indigo-500/30 text-indigo-500 flex items-center justify-center font-bold text-xs select-none shrink-0"
-                    :title="getConvTitle(conv)"
-                  >
-                    <Users class="size-3.5" aria-hidden="true" />
-                  </div>
-
-                  <!-- Title and Subtitle -->
-                  <div class="flex flex-col min-w-0 text-left">
-                    <span class="truncate text-[13.5px] font-medium" :class="activeId === conv.id ? 'text-[var(--fp-text-primary)] font-semibold' : 'text-[var(--fp-text-primary)]'">
-                      {{ getConvTitle(conv) }}
-                    </span>
-                    <span class="truncate text-[11px] text-[var(--fp-text-muted)]">
-                      {{ getConvSubtitle(conv) }}
-                    </span>
-                  </div>
+                <!-- Direct Peer Avatar -->
+                <UserAvatar
+                  v-if="conv.type === 'direct'"
+                  :display-name="getPeerForConv(conv)?.display_name || getConvTitle(conv)"
+                  :avatar-color="getPeerForConv(conv)?.avatar_color"
+                  :avatar-url="getPeerForConv(conv)?.avatar_url"
+                  :show-online="isPeerOnline(conv)"
+                  size="sm"
+                />
+                <!-- Group Avatar -->
+                <div
+                  v-else
+                  class="w-7 h-7 rounded-[7px] bg-indigo-500/15 border border-indigo-500/30 text-indigo-500 flex items-center justify-center font-bold text-xs select-none shrink-0"
+                  :title="getConvTitle(conv)"
+                >
+                  <Users class="size-3.5" aria-hidden="true" />
                 </div>
 
-                <!-- Right: Badges -->
-                <div class="flex items-center gap-1 shrink-0">
-                  <span
-                    v-if="(unreadMentions?.[conv.id] || 0) > 0"
-                    :data-test="`mention-badge-${conv.id}`"
-                    class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-slate-950 shadow-xs"
-                    title="You were mentioned"
-                  >
-                    @
-                  </span>
-                  <span
-                    v-if="(unreadCounts[conv.id] || 0) > 0"
-                    class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500 text-white min-w-[20px] text-center shadow-xs"
-                  >
-                    {{ unreadCounts[conv.id] }}
-                  </span>
+                <!-- Text & Metadata Content -->
+                <div class="flex-1 min-w-0 flex flex-col justify-center">
+                  <!-- Row 1: Title & Timestamp -->
+                  <div class="flex items-center justify-between gap-1.5">
+                    <span
+                      class="truncate text-[13.5px] font-medium"
+                      :class="activeId === conv.id ? 'text-[var(--fp-text-primary)] font-semibold' : 'text-[var(--fp-text-primary)]'"
+                    >
+                      {{ getConvTitle(conv) }}
+                    </span>
+                    <span
+                      v-if="formatConversationTime(conv)"
+                      :data-test="`conversation-time-${conv.id}`"
+                      class="text-[11px] text-[var(--fp-text-muted)] shrink-0 font-normal"
+                    >
+                      {{ formatConversationTime(conv) }}
+                    </span>
+                  </div>
+
+                  <!-- Row 2: Subtitle & Badges -->
+                  <div class="flex items-center justify-between gap-1.5 mt-0.5">
+                    <span
+                      class="truncate text-[11px] text-[var(--fp-text-muted)]"
+                      :class="{ italic: conv.lastMessage?.deleted_at }"
+                    >
+                      {{ getConvSubtitle(conv) }}
+                    </span>
+                    <div class="flex items-center gap-1 shrink-0">
+                      <span
+                        v-if="(unreadMentions?.[conv.id] || 0) > 0"
+                        :data-test="`mention-badge-${conv.id}`"
+                        class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-slate-950 shadow-xs"
+                        title="You were mentioned"
+                      >
+                        @
+                      </span>
+                      <span
+                        v-if="(unreadCounts[conv.id] || 0) > 0"
+                        class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500 text-white min-w-[20px] text-center shadow-xs"
+                      >
+                        {{ unreadCounts[conv.id] }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </button>
