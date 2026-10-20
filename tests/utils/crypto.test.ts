@@ -6,6 +6,8 @@ import {
   deriveKey,
   encryptContent,
   decryptContent,
+  encryptBinary,
+  decryptBinary,
   exportKeyRaw,
   importKeyRaw,
   createPhraseConfig,
@@ -69,5 +71,55 @@ describe('E2EE WebCrypto utilities', () => {
     expect(isEncryptedEnvelope('Hello world')).toBe(false)
     expect(isEncryptedEnvelope('e2ee:v1:short:bad')).toBe(false)
     expect(isEncryptedEnvelope('e2ee:v1:AAAAAAAAAAAAAAAA:BBBBBBBBBBBBBBBBBBBBBB')).toBe(true)
+  })
+})
+
+describe('encryptBinary and decryptBinary', () => {
+  it('encrypts and decrypts Uint8Array round-trip with channelId as AAD', async () => {
+    const rawKey = new Uint8Array(32).fill(7)
+    const key = await window.crypto.subtle.importKey(
+      'raw',
+      rawKey,
+      { name: 'AES-GCM' },
+      false,
+      ['encrypt', 'decrypt'],
+    )
+    const original = new TextEncoder().encode('fake-image-bytes-data-stream')
+    const encrypted = await encryptBinary(key, original, 'channel-123')
+    expect(encrypted.byteLength).toBe(12 + original.byteLength + 16)
+
+    const decrypted = await decryptBinary(key, encrypted, 'channel-123')
+    expect(new TextDecoder().decode(decrypted)).toBe('fake-image-bytes-data-stream')
+  })
+
+  it('fails decryption if channelId does not match (cross-channel defense)', async () => {
+    const rawKey = new Uint8Array(32).fill(7)
+    const key = await window.crypto.subtle.importKey(
+      'raw',
+      rawKey,
+      { name: 'AES-GCM' },
+      false,
+      ['encrypt', 'decrypt'],
+    )
+    const original = new TextEncoder().encode('secret-bytes')
+    const encrypted = await encryptBinary(key, original, 'channel-123')
+
+    await expect(decryptBinary(key, encrypted, 'channel-456')).rejects.toThrow()
+  })
+
+  it('fails decryption if ciphertext is tampered', async () => {
+    const rawKey = new Uint8Array(32).fill(7)
+    const key = await window.crypto.subtle.importKey(
+      'raw',
+      rawKey,
+      { name: 'AES-GCM' },
+      false,
+      ['encrypt', 'decrypt'],
+    )
+    const original = new TextEncoder().encode('secret-bytes')
+    const encrypted = await encryptBinary(key, original, 'channel-123')
+    encrypted[15] ^= 0xff
+
+    await expect(decryptBinary(key, encrypted, 'channel-123')).rejects.toThrow()
   })
 })

@@ -144,6 +144,58 @@ export async function decryptContent(
   return new TextDecoder().decode(decrypted)
 }
 
+export async function encryptBinary(
+  key: CryptoKey,
+  data: Uint8Array,
+  channelId: string
+): Promise<Uint8Array> {
+  const iv = new Uint8Array(12)
+  globalThis.crypto.getRandomValues(iv)
+  const additionalData = new TextEncoder().encode(channelId)
+
+  const encrypted = await globalThis.crypto.subtle.encrypt(
+    {
+      name: 'AES-GCM',
+      iv,
+      additionalData,
+    },
+    key,
+    data
+  )
+
+  const ciphertext = new Uint8Array(encrypted)
+  const combined = new Uint8Array(iv.length + ciphertext.length)
+  combined.set(iv, 0)
+  combined.set(ciphertext, iv.length)
+  return combined
+}
+
+export async function decryptBinary(
+  key: CryptoKey,
+  encryptedBytes: Uint8Array,
+  channelId: string
+): Promise<Uint8Array> {
+  if (encryptedBytes.byteLength < 12) {
+    throw new Error('Encrypted binary payload too short')
+  }
+
+  const iv = encryptedBytes.slice(0, 12)
+  const ciphertext = encryptedBytes.slice(12)
+  const additionalData = new TextEncoder().encode(channelId)
+
+  const decrypted = await globalThis.crypto.subtle.decrypt(
+    {
+      name: 'AES-GCM',
+      iv,
+      additionalData,
+    },
+    key,
+    ciphertext
+  )
+
+  return new Uint8Array(decrypted)
+}
+
 export async function exportKeyRaw(key: CryptoKey): Promise<string> {
   const raw = await globalThis.crypto.subtle.exportKey('raw', key)
   return bytesToBase64Url(new Uint8Array(raw))
