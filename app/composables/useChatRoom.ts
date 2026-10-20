@@ -784,7 +784,7 @@ export function useChatRoom() {
     try {
       const { data, error } = await supabase
         .from('contacts')
-        .select('user_id, contact_user_id, created_at, profile:profiles(*)')
+        .select('user_id, contact_user_id, created_at, profile:profiles!contacts_contact_user_id_fkey(*)')
         .eq('user_id', current.id)
         .order('created_at', { ascending: true })
 
@@ -1579,7 +1579,10 @@ export function useChatRoom() {
       { conversation_id: convData.id, user_id: current.id, role: 'owner' },
       { conversation_id: convData.id, user_id: peerUserId, role: 'member' },
     ]
-    await supabase.from('conversation_members').insert(membersToInsert)
+    const { error: memberError } = await supabase.from('conversation_members').insert(membersToInsert)
+    if (memberError) {
+      throw new Error(memberError.message || 'Failed to add conversation members.')
+    }
 
     const newConv: Conversation = {
       id: convData.id,
@@ -1638,7 +1641,10 @@ export function useChatRoom() {
       })),
     ]
 
-    await supabase.from('conversation_members').insert(membersToInsert)
+    const { error: memberError } = await supabase.from('conversation_members').insert(membersToInsert)
+    if (memberError) {
+      throw new Error(memberError.message || 'Failed to add group members.')
+    }
 
     const memberList: ConversationMember[] = membersToInsert.map(m => ({
       conversation_id: convData.id,
@@ -1707,11 +1713,15 @@ export function useChatRoom() {
       throw new Error('Not authenticated.')
     }
 
-    await supabase
+    const { error: leaveError } = await supabase
       .from('conversation_members')
       .delete()
       .eq('conversation_id', conversationId)
       .eq('user_id', current.id)
+
+    if (leaveError) {
+      throw new Error(leaveError.message || 'Failed to leave group.')
+    }
 
     conversations.value = conversations.value.filter(c => c.id !== conversationId)
 

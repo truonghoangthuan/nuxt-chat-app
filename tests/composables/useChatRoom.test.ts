@@ -1184,8 +1184,13 @@ describe('useChatRoom contacts and conversations', () => {
   let mockConversationsDb: Array<any>
   let mockMembersDb: Array<any>
   let mockMessagesInsert: any
+  let mockContactsSelect: any
+  let mockMembersInsertError: any
+  let mockMembersDeleteError: any
 
   beforeEach(async () => {
+    mockMembersInsertError = null
+    mockMembersDeleteError = null
     mockProfilesDb = new Map([
       ['u-alice', { id: 'u-alice', email: 'alice@example.com', display_name: 'Alice', avatar_color: '#0284c7' }],
       ['u-bob', { id: 'u-bob', email: 'bob@example.com', display_name: 'Bob', avatar_color: '#7c3aed' }],
@@ -1229,18 +1234,19 @@ describe('useChatRoom contacts and conversations', () => {
           }
         }
         if (table === 'contacts') {
+          mockContactsSelect = vi.fn().mockReturnValue({
+            eq: vi.fn().mockImplementation((col: string, val: string) => ({
+              order: vi.fn().mockResolvedValue({
+                data: mockContactsDb.filter(c => c.user_id === val).map(c => ({
+                  ...c,
+                  profile: mockProfilesDb.get(c.contact_user_id) || null,
+                })),
+                error: null,
+              }),
+            })),
+          })
           return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockImplementation((col: string, val: string) => ({
-                order: vi.fn().mockResolvedValue({
-                  data: mockContactsDb.filter(c => c.user_id === val).map(c => ({
-                    ...c,
-                    profile: mockProfilesDb.get(c.contact_user_id) || null,
-                  })),
-                  error: null,
-                }),
-              })),
-            }),
+            select: mockContactsSelect,
             insert: vi.fn().mockImplementation((payload: any) => {
               const row = {
                 user_id: payload.user_id,
@@ -1313,6 +1319,9 @@ describe('useChatRoom contacts and conversations', () => {
               })),
             }),
             insert: vi.fn().mockImplementation((payload: any) => {
+              if (mockMembersInsertError) {
+                return Promise.resolve({ error: mockMembersInsertError })
+              }
               const rows = Array.isArray(payload) ? payload : [payload]
               for (const r of rows) {
                 mockMembersDb.push({
@@ -1325,6 +1334,9 @@ describe('useChatRoom contacts and conversations', () => {
             delete: vi.fn().mockReturnValue({
               eq: vi.fn().mockImplementation((_col1: string, val1: string) => ({
                 eq: vi.fn().mockImplementation((_col2: string, val2: string) => {
+                  if (mockMembersDeleteError) {
+                    return Promise.resolve({ error: mockMembersDeleteError })
+                  }
                   mockMembersDb = mockMembersDb.filter(
                     m => !(m.conversation_id === val1 && m.user_id === val2),
                   )
@@ -1477,5 +1489,35 @@ describe('useChatRoom contacts and conversations', () => {
 
     // Decrypting with a mismatched conversation_id throws / fails (proving AAD binding)
     await expect(decryptContent(testKey, inserted.content, 'wrong-conv-id')).rejects.toThrow()
+  })
+
+  it('loads contacts with disambiguated profiles foreign key', async () => {
+    const room = useChatRoom()
+    await room.loadContacts()
+    expect(mockContactsSelect).toHaveBeenCalledWith(
+      'user_id, contact_user_id, created_at, profile:profiles!contacts_contact_user_id_fkey(*)',
+    )
+  })
+
+  it('throws when conversation_members insert fails in openOrCreateDirectChat', async () => {
+    mockMembersInsertError = { message: 'Insert direct member failed' }
+    const room = useChatRoom()
+    await expect(room.openOrCreateDirectChat('u-bob')).rejects.toThrow('Insert direct member failed')
+  })
+
+  it('throws when conversation_members insert fails in createGroup', async () => {
+    mockMembersInsertError = { message: 'Insert group member failed' }
+    const room = useChatRoom()
+    await expect(room.createGroup('Fail Group', ['u-bob'])).rejects.toThrow('Insert group member failed')
+  })
+
+  it('throws and retains group in state when conversation_members delete fails in leaveGroup', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Persistent Group', ['u-bob'])
+    expect(room.conversations.value.some(c => c.id === group.id)).toBe(true)
+
+    mockMembersDeleteError = { message: 'Delete member failed' }
+    await expect(room.leaveGroup(group.id)).rejects.toThrow('Delete member failed')
+    expect(room.conversations.value.some(c => c.id === group.id)).toBe(true)
   })
 })
