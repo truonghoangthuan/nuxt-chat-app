@@ -3,9 +3,7 @@ import { mount } from '@vue/test-utils'
 import MessageComposer from '~/components/MessageComposer.vue'
 import ConnectionBanner from '~/components/ConnectionBanner.vue'
 import MessageViewport from '~/components/MessageViewport.vue'
-import CreateChannelModal from '~/components/CreateChannelModal.vue'
 import ChatSidebar from '~/components/ChatSidebar.vue'
-import StartDmModal from '~/components/StartDmModal.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
 import E2eeGate from '~/components/E2eeGate.vue'
 import { isValidAvatarUrl } from '~/utils/chat'
@@ -131,37 +129,6 @@ describe('Chat UI components', () => {
       messages: [olderMessage, initialMessage],
     })
     expect(wrapper.find('button.animate-bounce').exists()).toBe(false)
-  })
-
-  it('CreateChannelModal displays server error inline without closing and closes on success', async () => {
-    const wrapper = mount(CreateChannelModal, {
-      props: { isOpen: true },
-    })
-
-    const input = wrapper.find('input[type="text"]')
-    await input.setValue('duplicate-slug')
-    await wrapper.find('form').trigger('submit')
-
-    const createEvents = wrapper.emitted('create')
-    expect(createEvents).toBeTruthy()
-    const payload = createEvents?.[0][0] as {
-      name: string
-      onError: (msg: string) => void
-      onSuccess: () => void
-    }
-    expect(payload.name).toBe('duplicate-slug')
-
-    // Simulate backend error
-    payload.onError('Channel slug duplicate-slug already exists.')
-    await wrapper.vm.$nextTick()
-
-    expect(wrapper.text()).toContain('Channel slug duplicate-slug already exists.')
-    expect(wrapper.emitted('close')).toBeFalsy()
-
-    // Simulate subsequent success
-    payload.onSuccess()
-    await wrapper.vm.$nextTick()
-    expect(wrapper.emitted('close')).toBeTruthy()
   })
 
   it('MessageViewport groups consecutive same-author messages within 5m and resets unread pill on channel switch', async () => {
@@ -507,7 +474,7 @@ describe('Chat UI components', () => {
     expect(wrapper.find('[data-test="mention-token"]').text()).toBe('@Alice')
   })
 
-  describe('Direct Messages UI in ChatSidebar and StartDmModal (Sub-Project 4)', () => {
+  describe('Direct Messages UI in ChatSidebar (Sub-Project 4)', () => {
     it('ChatSidebar renders dmChannels with peer name and emits startDmWithUser when clicking an online friend', async () => {
       const wrapper = mount(ChatSidebar, {
         props: {
@@ -550,43 +517,6 @@ describe('Chat UI components', () => {
       expect(onlineFriendBtn.exists()).toBe(true)
       await onlineFriendBtn.trigger('click')
       expect(wrapper.emitted('startDmWithUser')?.[0]).toEqual(['u2'])
-    })
-
-    it('StartDmModal filters friends by search query and emits selectFriend on click', async () => {
-      const wrapper = mount(StartDmModal, {
-        props: {
-          isOpen: true,
-          friends: [
-            { id: 'u1', display_name: 'Alice', avatar_color: '#0284c7' },
-            { id: 'u2', display_name: 'Bob', avatar_color: '#7c3aed' },
-            { id: 'u3', display_name: 'Charlie', avatar_color: '#059669' },
-          ],
-          onlineFriends: [{ id: 'u2', display_name: 'Bob', avatar_color: '#7c3aed' }],
-          currentUserId: 'u1',
-          errorMessage: 'Unable to start DM',
-        },
-      })
-
-      // Self (Alice) should not be listed
-      expect(wrapper.find('[data-test="start-dm-friend-u1"]').exists()).toBe(false)
-      expect(wrapper.find('[data-test="start-dm-friend-u2"]').exists()).toBe(true)
-      expect(wrapper.find('[data-test="start-dm-friend-u3"]').exists()).toBe(true)
-      expect(wrapper.text()).toContain('Unable to start DM')
-
-      const searchInput = wrapper.find('[data-test="dm-search-input"]')
-      await searchInput.setValue('char')
-
-      expect(wrapper.find('[data-test="start-dm-friend-u2"]').exists()).toBe(false)
-      const charlieBtn = wrapper.find('[data-test="start-dm-friend-u3"]')
-      expect(charlieBtn.exists()).toBe(true)
-
-      // Enter key triggers selection of the first matching friend
-      await searchInput.trigger('keydown.enter')
-      expect(wrapper.emitted('selectFriend')?.[0]).toEqual(['u3'])
-
-      // Escape key emits close
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
-      expect(wrapper.emitted('close')).toBeTruthy()
     })
 
     it('ChatSidebar displays empty state for DMs and prevents clicking on own user row', async () => {
@@ -636,16 +566,6 @@ describe('Chat UI components', () => {
       expect(empty.exists()).toBe(true)
       expect(empty.text()).toContain('@')
       expect(empty.text()).toContain('This is the start of your direct message history with @Bob')
-    })
-
-    it('StartDmModal close button has aria-label Close', () => {
-      const wrapper = mount(StartDmModal, {
-        props: { isOpen: true, friends: [] },
-      })
-      const closeBtn = wrapper.find('button[aria-label="Close"]')
-      expect(closeBtn.exists()).toBe(true)
-      expect(closeBtn.text()).toBe('×')
-      wrapper.unmount()
     })
 
     it('ChatSidebar disables button for self in online friends', () => {

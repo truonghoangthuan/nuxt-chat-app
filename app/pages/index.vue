@@ -8,23 +8,40 @@ import ChatSidebar from '~/components/ChatSidebar.vue'
 import ConnectionBanner from '~/components/ConnectionBanner.vue'
 import MessageViewport from '~/components/MessageViewport.vue'
 import MessageComposer from '~/components/MessageComposer.vue'
-import CreateChannelModal from '~/components/CreateChannelModal.vue'
+import ContactsModal from '~/components/ContactsModal.vue'
+import CreateGroupModal from '~/components/CreateGroupModal.vue'
+import GroupInfoModal from '~/components/GroupInfoModal.vue'
 import ProfileSettingsModal from '~/components/ProfileSettingsModal.vue'
-import StartDmModal from '~/components/StartDmModal.vue'
 import ImageViewerModal from '~/components/ImageViewerModal.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
-import { Menu } from '@lucide/vue'
-import { Button } from '~/components/ui/button'
-import { Badge } from '~/components/ui/badge'
+import { Menu, Users, Info } from '@lucide/vue'
 import E2eeGate from '~/components/E2eeGate.vue'
 import { useE2ee } from '~/composables/useE2ee'
 
 const {
+  conversations,
+  activeConversationId,
+  activeConversation,
+  contacts,
+  findUserByEmail,
+  addContact,
+  removeContact,
+  openOrCreateDirectChat,
+  createGroup,
+  addMemberToGroup,
+  leaveGroup,
+  selectConversation,
+
+  // Transitional aliases for channels and legacy components
   channels,
   publicChannels,
   dmChannels,
   activeChannelId,
   activeChannel,
+  selectChannel,
+  createChannel,
+  openOrCreateDm,
+
   messages,
   hasMoreHistory,
   isLoadingHistory,
@@ -38,9 +55,6 @@ const {
   connectionStatus,
   reconnectCountdownSec,
   initializeChat,
-  selectChannel,
-  createChannel,
-  openOrCreateDm,
   sendMessage,
   sendImages,
   retryMessage,
@@ -67,10 +81,10 @@ const {
 } = useE2ee()
 
 const isMobileSidebarOpen = ref(false)
-const isCreateChannelModalOpen = ref(false)
+const isContactsModalOpen = ref(false)
+const isCreateGroupModalOpen = ref(false)
+const isGroupInfoModalOpen = ref(false)
 const isProfileSettingsModalOpen = ref(false)
-const isStartDmModalOpen = ref(false)
-const startDmError = ref<string | null>(null)
 const replyingTo = ref<ChatMessage | null>(null)
 const isLightboxOpen = ref(false)
 const lightboxImages = ref<EncryptedImageMetadata[]>([])
@@ -82,15 +96,44 @@ function handleOpenLightbox(payload: { images: EncryptedImageMetadata[]; initial
   isLightboxOpen.value = true
 }
 
-async function handleStartDm(userId: string) {
-  startDmError.value = null
+async function handleSelectConversation(conversationId: string) {
   replyingTo.value = null
-  const result = await openOrCreateDm(userId)
-  if (result.error) {
-    startDmError.value = result.error
-  } else {
-    isStartDmModalOpen.value = false
+  await selectConversation(conversationId)
+}
+
+async function handleStartDirectChat(userId: string) {
+  replyingTo.value = null
+  await openOrCreateDirectChat(userId)
+  isContactsModalOpen.value = false
+}
+
+async function handleCreateGroup(payload: {
+  title: string
+  memberUserIds: string[]
+  invitedEmails?: string[]
+}) {
+  const memberIds = [...payload.memberUserIds]
+  if (payload.invitedEmails && payload.invitedEmails.length > 0) {
+    for (const email of payload.invitedEmails) {
+      const user = await findUserByEmail(email)
+      if (user && !memberIds.includes(user.id)) {
+        memberIds.push(user.id)
+      }
+    }
   }
+  await createGroup(payload.title, memberIds)
+  isCreateGroupModalOpen.value = false
+}
+
+async function handleAddMember(email: string) {
+  if (activeConversationId.value) {
+    await addMemberToGroup(activeConversationId.value, email)
+  }
+}
+
+async function handleLeaveGroup(conversationId: string) {
+  await leaveGroup(conversationId)
+  isGroupInfoModalOpen.value = false
 }
 
 async function handleLogout() {
@@ -111,11 +154,6 @@ async function handleRetryConfig() {
   if (status === 'unlocked') {
     await initializeChat()
   }
-}
-
-async function handleSelectChannel(channelId: string) {
-  replyingTo.value = null
-  await selectChannel(channelId)
 }
 
 async function handleSendMessage(content: string) {
@@ -146,21 +184,6 @@ async function handleSaveProfile(payload: {
   }
 }
 
-async function handleCreateChannel(payload: {
-  name: string
-  description: string
-  onSuccess?: () => void
-  onError?: (message: string) => void
-}) {
-  const result = await createChannel(payload.name, payload.description)
-  if (result.error) {
-    payload.onError?.(result.error)
-  } else {
-    payload.onSuccess?.()
-    isCreateChannelModalOpen.value = false
-  }
-}
-
 onMounted(async () => {
   const status = await initializeE2ee()
   if (status === 'unlocked') {
@@ -175,11 +198,13 @@ onUnmounted(() => {
 
 <template>
   <div class="h-dvh flex overflow-hidden bg-[var(--fp-void)] md:p-3 md:gap-2.5 transition-colors">
-    <!-- Sidebar (Icon Rail + Tree Drawer) -->
+    <!-- Sidebar (Icon Rail + Conversation List) -->
     <ChatSidebar
+      :conversations="conversations"
+      :active-conversation-id="activeConversationId"
       :channels="publicChannels"
       :dm-channels="dmChannels"
-      :active-channel-id="activeChannelId"
+      :active-channel-id="activeConversationId || activeChannelId"
       :unread-counts="unreadCounts"
       :unread-mentions="unreadMentions"
       :online-friends="onlineFriends"
@@ -187,10 +212,13 @@ onUnmounted(() => {
       :is-dark="isDark"
       :connection-status="connectionStatus"
       :is-open-mobile="isMobileSidebarOpen"
-      @select-channel="handleSelectChannel"
-      @open-create-channel="isCreateChannelModalOpen = true"
-      @open-start-dm="isStartDmModalOpen = true"
-      @start-dm-with-user="handleStartDm"
+      @select-conversation="handleSelectConversation"
+      @select-channel="handleSelectConversation"
+      @open-contacts="isContactsModalOpen = true"
+      @open-new-chat="isContactsModalOpen = true"
+      @open-start-dm="isContactsModalOpen = true"
+      @open-create-group="isCreateGroupModalOpen = true"
+      @start-dm-with-user="handleStartDirectChat"
       @open-profile-settings="isProfileSettingsModalOpen = true"
       @toggle-theme="toggleTheme"
       @logout="handleLogout"
@@ -219,21 +247,66 @@ onUnmounted(() => {
         @retry="retryConnectionNow"
       />
 
-      <!-- Active Channel / DM Precision Top Header -->
+      <!-- Stage Precision Top Header -->
       <header class="h-[54px] px-4 md:px-5 bg-[var(--fp-stage)]/90 border-b border-[var(--fp-border)] flex items-center justify-between gap-4 shrink-0">
         <div class="flex items-center gap-3 min-w-0">
           <button
             type="button"
             class="md:hidden p-1.5 rounded-lg text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] cursor-pointer"
+            aria-label="Open mobile navigation"
             @click="isMobileSidebarOpen = true"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
+            <Menu class="w-5 h-5 text-[var(--fp-text-secondary)]" />
           </button>
 
           <div class="min-w-0 flex items-center gap-2.5">
-            <template v-if="activeChannel?.is_dm">
+            <!-- Direct Conversation -->
+            <template v-if="activeConversation?.type === 'direct'">
+              <UserAvatar
+                :display-name="activeConversation.peer?.display_name || 'Friend'"
+                :avatar-color="activeConversation.peer?.avatar_color"
+                :avatar-url="activeConversation.peer?.avatar_url"
+                :show-online="onlineFriends.some(f => f.id === activeConversation?.peer?.id)"
+                size="sm"
+              />
+              <div class="min-w-0 flex items-center gap-2">
+                <h2 class="fp-font-display text-[15px] font-bold text-[var(--fp-text-primary)] flex items-center gap-1 truncate">
+                  <span class="text-[var(--fp-accent-bright)] fp-font-mono">@</span>
+                  <span class="truncate">{{ activeConversation.peer?.display_name || 'Direct Message' }}</span>
+                </h2>
+                <span
+                  class="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border"
+                  :class="onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-500' : 'bg-[var(--fp-hover)] border-[var(--fp-border)] text-[var(--fp-text-muted)]'"
+                >
+                  {{ onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'Active now' : 'Offline' }}
+                </span>
+              </div>
+            </template>
+
+            <!-- Group Conversation -->
+            <template v-else-if="activeConversation?.type === 'group'">
+              <div class="w-8 h-8 rounded-lg bg-[var(--fp-surface-raised)] border border-[var(--fp-border)] flex items-center justify-center text-[var(--fp-accent-bright)] shrink-0">
+                <Users class="w-4 h-4" />
+              </div>
+              <div class="min-w-0 flex items-center gap-2">
+                <button
+                  type="button"
+                  data-test="group-header-info-trigger"
+                  class="text-left flex items-center gap-2 hover:opacity-80 transition cursor-pointer truncate"
+                  @click="isGroupInfoModalOpen = true"
+                >
+                  <h2 class="fp-font-display text-[15px] font-bold text-[var(--fp-text-primary)] truncate">
+                    {{ activeConversation?.title || 'Group Chat' }}
+                  </h2>
+                  <span class="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--fp-hover)] border border-[var(--fp-border)] text-[var(--fp-text-muted)]">
+                    {{ activeConversation?.members?.length || 0 }} members
+                  </span>
+                </button>
+              </div>
+            </template>
+
+            <!-- Fallback: Active Channel (legacy) or Select conversation -->
+            <template v-else-if="activeChannel?.is_dm">
               <UserAvatar
                 :display-name="activeChannel.peer?.display_name || 'Friend'"
                 :avatar-color="activeChannel.peer?.avatar_color"
@@ -254,7 +327,7 @@ onUnmounted(() => {
                 </span>
               </div>
             </template>
-            <template v-else>
+            <template v-else-if="activeChannel">
               <div class="min-w-0 flex items-center gap-2.5">
                 <h2 class="fp-font-display text-[15px] font-bold text-[var(--fp-text-primary)] flex items-center gap-1 shrink-0">
                   <span class="text-[var(--fp-accent-bright)] fp-font-mono">#</span>
@@ -268,12 +341,29 @@ onUnmounted(() => {
                 </template>
               </div>
             </template>
+            <template v-else>
+              <h2 class="fp-font-display text-[15px] font-bold text-[var(--fp-text-secondary)]">
+                Select a conversation
+              </h2>
+            </template>
           </div>
         </div>
 
-        <!-- Header Right: Online Friends Avatar Stack & Count Pill -->
-        <div class="hidden sm:flex items-center gap-2.5 shrink-0">
-          <div v-if="onlineFriends.length > 0" class="flex items-center -space-x-1.5">
+        <!-- Header Right: Group Info & Online Friends Avatar Stack -->
+        <div class="flex items-center gap-2.5 shrink-0">
+          <button
+            v-if="activeConversation?.type === 'group'"
+            type="button"
+            data-test="open-group-info"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[var(--fp-hover)] border border-[var(--fp-border)] text-xs font-medium text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:border-[var(--fp-accent-bright)]/40 transition cursor-pointer"
+            aria-label="Group Info & Settings"
+            @click="isGroupInfoModalOpen = true"
+          >
+            <Info class="w-3.5 h-3.5 text-[var(--fp-accent-bright)]" />
+            <span class="hidden sm:inline">Group Info</span>
+          </button>
+
+          <div v-if="onlineFriends.length > 0" class="hidden sm:flex items-center -space-x-1.5">
             <UserAvatar
               v-for="friend in onlineFriends.slice(0, 4)"
               :key="friend.id"
@@ -284,7 +374,7 @@ onUnmounted(() => {
               class="ring-2 ring-[var(--fp-stage)] rounded-[7px]"
             />
           </div>
-          <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--fp-hover)] border border-[var(--fp-border)] text-xs font-medium text-[var(--fp-text-secondary)]">
+          <div class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--fp-hover)] border border-[var(--fp-border)] text-xs font-medium text-[var(--fp-text-secondary)]">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
             <span>{{ onlineFriends.length }} online</span>
           </div>
@@ -294,9 +384,11 @@ onUnmounted(() => {
       <!-- Message Viewport -->
       <MessageViewport
         :messages="messages"
-        :channel-id="activeChannelId"
-        :is-dm="Boolean(activeChannel?.is_dm)"
-        :peer-name="activeChannel?.peer?.display_name || ''"
+        :conversation-id="activeConversationId"
+        :channel-id="activeConversationId || activeChannelId"
+        :is-dm="activeConversation?.type === 'direct' || Boolean(activeChannel?.is_dm)"
+        :is-group="activeConversation?.type === 'group'"
+        :peer-name="activeConversation?.type === 'direct' ? (activeConversation.peer?.display_name || 'Friend') : (activeConversation?.title || '')"
         :has-more-history="hasMoreHistory"
         :is-loading-history="isLoadingHistory"
         :current-user-id="currentProfile?.id"
@@ -314,8 +406,8 @@ onUnmounted(() => {
 
       <!-- Message Composer -->
       <MessageComposer
-        :channel-slug="activeChannel?.is_dm ? (activeChannel.peer?.display_name || 'friend') : (activeChannel?.slug || 'general')"
-        :is-dm="Boolean(activeChannel?.is_dm)"
+        :channel-slug="activeConversation?.type === 'direct' ? (activeConversation.peer?.display_name || 'friend') : (activeConversation?.title || activeChannel?.slug || 'chat')"
+        :is-dm="activeConversation?.type === 'direct' || Boolean(activeChannel?.is_dm)"
         :typing-label="typingLabel"
         :disabled="connectionStatus !== 'connected'"
         :replying-to="replyingTo"
@@ -327,22 +419,36 @@ onUnmounted(() => {
       />
     </main>
 
-    <!-- Create Channel Modal -->
-    <CreateChannelModal
-      :is-open="isCreateChannelModalOpen"
-      @close="isCreateChannelModalOpen = false"
-      @create="handleCreateChannel"
+    <!-- Contacts Modal -->
+    <ContactsModal
+      :is-open="isContactsModalOpen"
+      :contacts="contacts"
+      :online-user-ids="onlineFriends.map(f => f.id)"
+      :current-user-id="currentProfile?.id"
+      :find-user-by-email="findUserByEmail"
+      @close="isContactsModalOpen = false"
+      @select-contact="async (userId) => { await handleStartDirectChat(userId) }"
+      @add-contact-by-email="async (email) => { const user = await findUserByEmail(email); if (user) await addContact(user.id) }"
+      @remove-contact="removeContact"
     />
 
-    <!-- Start DM Modal -->
-    <StartDmModal
-      :is-open="isStartDmModalOpen"
-      :friends="knownProfiles"
-      :online-friends="onlineFriends"
+    <!-- Create Group Modal -->
+    <CreateGroupModal
+      :is-open="isCreateGroupModalOpen"
+      :contacts="contacts"
+      @close="isCreateGroupModalOpen = false"
+      @create="handleCreateGroup"
+    />
+
+    <!-- Group Info Modal -->
+    <GroupInfoModal
+      :is-open="isGroupInfoModalOpen"
+      :conversation="activeConversation"
       :current-user-id="currentProfile?.id"
-      :error-message="startDmError"
-      @close="isStartDmModalOpen = false"
-      @select-friend="handleStartDm"
+      :online-user-ids="onlineFriends.map(f => f.id)"
+      @close="isGroupInfoModalOpen = false"
+      @add-member="handleAddMember"
+      @leave="handleLeaveGroup"
     />
 
     <!-- Profile Settings Modal -->
@@ -358,7 +464,7 @@ onUnmounted(() => {
       :open="isLightboxOpen"
       :images="lightboxImages"
       :initial-index="lightboxInitialIndex"
-      :channel-id="activeChannelId || ''"
+      :channel-id="activeConversationId || activeChannelId || ''"
       @update:open="isLightboxOpen = $event"
     />
   </div>
