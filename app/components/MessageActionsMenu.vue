@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { MoreHorizontal } from '@lucide/vue'
 import type { ChatMessage } from '~/types/chat'
 import { REACTION_EMOJIS } from '~/utils/chat'
+import { isImagePayload } from '~/utils/image'
 
 const props = defineProps<{
   message: ChatMessage
@@ -69,7 +70,7 @@ function run(action: () => void) {
           Reply
         </button>
         <button
-          v-if="message.user_id === currentUserId"
+          v-if="message.user_id === currentUserId && !isImagePayload(message.content)"
           type="button"
           role="menuitem"
           data-test="mobile-edit"
