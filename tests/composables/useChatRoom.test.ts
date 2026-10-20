@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { shallowReactive, computed } from 'vue'
 import {
   handleIncomingRealtimeMessage,
@@ -16,8 +16,22 @@ import {
   shouldProcessChannelMessage,
   decryptMessageRow,
   decryptMessageRows,
+  useChatRoom,
 } from '~/composables/useChatRoom'
-import { extractAuthUserId } from '~/composables/useAuthProfile'
+import { useE2ee } from '~/composables/useE2ee'
+
+vi.mock('~/utils/image', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('~/utils/image')>()
+  return {
+    ...actual,
+    resizeImage: vi.fn(async (file: File) => ({
+      blob: file,
+      width: 800,
+      height: 600,
+    })),
+  }
+})
+import { extractAuthUserId, useAuthProfile } from '~/composables/useAuthProfile'
 import { createMessagesStore } from '~/composables/useMessagesState'
 import { createTypingTracker } from '~/composables/useTypingState'
 import type { Profile } from '~/types/chat'
@@ -814,5 +828,163 @@ describe('useChatRoom realtime message routing & profile caching', () => {
   })
 })
 
+describe('useChatRoom sendImages orchestration & immutability guard', () => {
+  let mockUpload: any
+  let mockInsertSingle: any
+  let mockSupabase: any
+  let testKey: CryptoKey
 
 
+  beforeEach(async () => {
+    if (typeof URL.createObjectURL !== 'function') {
+      URL.createObjectURL = vi.fn((file: File) => 'blob:http://localhost/' + file.name)
+    }
+    mockUpload = vi.fn().mockResolvedValue({ data: { path: 'ok' }, error: null })
+    mockInsertSingle = vi.fn().mockResolvedValue({
+      data: {
+        id: 'msg-srv-img-1',
+        client_id: 'client-uuid',
+        channel_id: 'ch-test',
+        user_id: 'u-alice',
+        content: 'encrypted-content',
+        created_at: '2026-10-20T12:00:00.000Z',
+        author: { id: 'u-alice', display_name: 'Alice', avatar_color: '#0284c7' },
+      },
+      error: null,
+    })
+
+    mockSupabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'messages') {
+          return {
+            insert: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({
+                single: mockInsertSingle,
+              }),
+            }),
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({ data: null, error: null }),
+                order: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+                  }),
+                }),
+              }),
+            }),
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockResolvedValue({ error: null }),
+              }),
+            }),
+          }
+        }
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        }
+      }),
+      storage: {
+        from: vi.fn((bucket: string) => ({
+          upload: mockUpload,
+        })),
+      },
+      channel: vi.fn().mockReturnValue({
+        on: vi.fn().mockReturnThis(),
+        subscribe: vi.fn().mockReturnThis(),
+      }),
+      removeChannel: vi.fn(),
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
+      },
+    }
+    vi.stubGlobal('useSupabaseClient', () => mockSupabase)
+    vi.stubGlobal('useSupabaseUser', () => ({ value: null }))
+
+    const cfg = await createPhraseConfig('orchestration test secret', 1000)
+    testKey = await deriveKey('orchestration test secret', cfg.salt, 1000)
+    const e2ee = useE2ee()
+    e2ee.key.value = testKey
+    const auth = useAuthProfile()
+    auth.currentProfile.value = {
+      id: 'u-alice',
+      display_name: 'Alice',
+      avatar_color: '#0284c7',
+    }
+  })
+
+  it('sendImages produces optimistic message, uploads encrypted binaries to storage, inserts encrypted row, and marks sent', async () => {
+    const room = useChatRoom()
+    room.activeChannelId.value = 'ch-general'
+
+    const file1 = new File(['file1-bytes'], 'pic1.jpg', { type: 'image/jpeg' })
+    const file2 = new File(['file2-bytes'], 'pic2.png', { type: 'image/png' })
+
+    const result = await room.sendImages([file1, file2])
+    expect(result).toBe(true)
+    expect(mockUpload).toHaveBeenCalledTimes(2)
+    expect(room.messages.value).toHaveLength(1)
+    expect(room.messages.value[0].status).toBe('sent')
+    expect(room.messages.value[0].id).toBe('msg-srv-img-1')
+  })
+
+  it('sendImages returns false when active channel, user profile, or e2ee key is missing, or files are invalid', async () => {
+    const room = useChatRoom()
+    const file = new File(['test'], 'pic.jpg', { type: 'image/jpeg' })
+
+    // Missing active channel
+    room.activeChannelId.value = null
+    expect(await room.sendImages([file])).toBe(false)
+
+    room.activeChannelId.value = 'ch-general'
+
+    // Invalid file type
+    const badFile = new File(['bad'], 'doc.pdf', { type: 'application/pdf' })
+    expect(await room.sendImages([badFile])).toBe(false)
+
+    // Missing key
+    const e2ee = useE2ee()
+    e2ee.key.value = null
+    expect(await room.sendImages([file])).toBe(false)
+  })
+
+  it('sendImages marks message failed and returns false if storage upload fails', async () => {
+    const room = useChatRoom()
+    room.activeChannelId.value = 'ch-general'
+    mockUpload.mockResolvedValueOnce({ data: null, error: new Error('Storage upload failed') })
+
+    const file = new File(['test'], 'pic.jpg', { type: 'image/jpeg' })
+    const result = await room.sendImages([file])
+
+    expect(result).toBe(false)
+    expect(room.messages.value).toHaveLength(1)
+    expect(room.messages.value[0].status).toBe('failed')
+  })
+
+  it('editMessage rejects editing image messages with error', async () => {
+    const room = useChatRoom()
+    room.activeChannelId.value = 'ch-general'
+
+    const imagePayload = JSON.stringify({
+      type: 'images',
+      images: [{ path: 'channels/ch-general/c-1/0.enc', mimeType: 'image/jpeg', width: 800, height: 600, size: 100 }],
+    })
+    room.messages.value = [
+      {
+        id: 'img-msg-1',
+        client_id: 'c-1',
+        channel_id: 'ch-general',
+        user_id: 'u-alice',
+        content: imagePayload,
+        created_at: '2026-10-20T12:00:00.000Z',
+        status: 'sent',
+      },
+    ]
+
+    const res = await room.editMessage('img-msg-1', 'New text')
+    expect(res).toEqual({ error: 'Image messages cannot be edited.' })
+  })
+})

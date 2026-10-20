@@ -1,6 +1,6 @@
 import { ref, computed, shallowReactive, type ComputedRef, type Ref } from 'vue'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import type { Channel, ChatMessage, MessageReaction, Profile, ReplyTarget, ConnectionStatus, ChannelRead, MessageEncryptionState } from '~/types/chat'
+import type { Channel, ChatMessage, MessageReaction, Profile, ReplyTarget, ConnectionStatus, ChannelRead, MessageEncryptionState, EncryptedImageMetadata, ImageMessagePayload, LocalImageAttachment } from '~/types/chat'
 import {
   normalizeChannelSlug,
   isValidChannelSlug,
@@ -11,13 +11,14 @@ import {
   getDmPeerId,
   canUserAccessChannel,
 } from '~/utils/chat'
-import { isEncryptedEnvelope, encryptContent, decryptContent } from '~/utils/crypto'
+import { isEncryptedEnvelope, encryptContent, decryptContent, encryptBinary } from '~/utils/crypto'
 import { createMessagesStore } from '~/composables/useMessagesState'
 import { createTypingTracker } from '~/composables/useTypingState'
 import { deduplicatePresenceState } from '~/composables/usePresenceState'
 import { createConnectionManager } from '~/composables/useConnectionManager'
 import { useAuthProfile } from '~/composables/useAuthProfile'
 import { useE2ee } from '~/composables/useE2ee'
+import { isImagePayload, resizeImage, validateImageFiles } from '~/utils/image'
 
 export const PAGE_SIZE = 40
 
@@ -1290,6 +1291,140 @@ export function useChatRoom() {
     }
   }
 
+  async function sendImages(files: File[]): Promise<boolean> {
+    if (!activeChannelId.value) return false
+
+    let current = authProfile.currentProfile.value
+    if (!current?.id) {
+      current = await authProfile.ensureProfile()
+    }
+    if (!current?.id) return false
+
+    const validation = validateImageFiles(files)
+    if (!validation.valid) return false
+
+    const key = e2ee.key.value
+    if (!key) return false
+
+    const channelId = activeChannelId.value
+    const clientId = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : '00000000-0000-4000-8000-' + Math.random().toString(16).slice(2, 14).padEnd(12, '0')
+
+    const localPreviews: LocalImageAttachment[] = files.map((file) => ({
+      file,
+      localUrl: typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
+        ? URL.createObjectURL(file)
+        : '',
+      width: 0,
+      height: 0,
+    }))
+
+    const optimisticPayload: ImageMessagePayload = {
+      type: 'images',
+      images: localPreviews.map((p) => ({
+        path: p.localUrl,
+        mimeType: p.file.type || 'image/jpeg',
+        width: p.width,
+        height: p.height,
+        size: p.file.size,
+      })),
+    }
+
+    const optimisticContent = JSON.stringify(optimisticPayload)
+    messagesStore.addOptimisticMessage({
+      clientId,
+      channelId,
+      user: current,
+      content: optimisticContent,
+      encryption: 'e2ee',
+    })
+
+    const uploadedMetadatas: EncryptedImageMetadata[] = []
+
+    for (let index = 0; index < files.length; index++) {
+      const file = files[index]
+      try {
+        const resized = await resizeImage(file)
+        const arrayBuffer = await resized.blob.arrayBuffer()
+        const bytes = new Uint8Array(arrayBuffer)
+        const encryptedBytes = await encryptBinary(key, bytes, channelId)
+        const storagePath = `channels/${channelId}/${clientId}/${index}.enc`
+
+        const { error: uploadError } = await supabase.storage
+          .from('message-attachments')
+          .upload(storagePath, encryptedBytes, {
+            contentType: 'application/octet-stream',
+            upsert: true,
+          })
+
+        if (uploadError) {
+          messagesStore.markMessageFailed(clientId)
+          return false
+        }
+
+        uploadedMetadatas.push({
+          path: storagePath,
+          mimeType: file.type || 'image/jpeg',
+          width: resized.width,
+          height: resized.height,
+          size: resized.blob.size,
+        })
+      } catch {
+        messagesStore.markMessageFailed(clientId)
+        return false
+      }
+    }
+
+    const finalPayload: ImageMessagePayload = {
+      type: 'images',
+      images: uploadedMetadatas,
+    }
+    const payloadJson = JSON.stringify(finalPayload)
+
+    try {
+      const encryptedEnvelope = await encryptContent(key, payloadJson, channelId)
+
+      const { data, error } = await supabase
+        .from('messages')
+        .insert({
+          client_id: clientId,
+          channel_id: channelId,
+          user_id: current.id,
+          content: encryptedEnvelope,
+        })
+        .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
+        .single()
+
+      if (error) {
+        if (isDuplicateKeyError(error)) {
+          const { data: existing } = await supabase
+            .from('messages')
+            .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
+            .eq('client_id', clientId)
+            .single()
+          if (existing) {
+            messagesStore.markMessageSent(clientId, existing.id, existing.created_at)
+            return true
+          }
+        }
+        messagesStore.markMessageFailed(clientId)
+        return false
+      }
+
+      if (data) {
+        messagesStore.markMessageSent(clientId, data.id, data.created_at)
+        return true
+      }
+
+      messagesStore.markMessageFailed(clientId)
+      return false
+    } catch {
+      messagesStore.markMessageFailed(clientId)
+      return false
+    }
+  }
+
   async function retryMessage(clientId: string): Promise<void> {
     const retrying = messagesStore.markMessageRetrying(clientId)
     if (!retrying) return
@@ -1359,6 +1494,11 @@ export function useChatRoom() {
     messageId: string,
     newContent: string,
   ): Promise<{ error: string | null }> {
+    const targetMsg = messages.value.find(m => m.id === messageId)
+    if (targetMsg && isImagePayload(targetMsg.content)) {
+      return { error: 'Image messages cannot be edited.' }
+    }
+
     if (!isValidMessageContent(newContent)) {
       return { error: 'Message content must be 1–4000 characters.' }
     }
@@ -1372,7 +1512,6 @@ export function useChatRoom() {
 
     const trimmed = newContent.trim()
     const editedAt = new Date().toISOString()
-    const targetMsg = messages.value.find(m => m.id === messageId)
     const channelId = targetMsg?.channel_id || activeChannelId.value
     if (!channelId) {
       return { error: 'Channel not found.' }
@@ -1555,6 +1694,7 @@ export function useChatRoom() {
     createChannel,
     openOrCreateDm,
     sendMessage,
+    sendImages,
     retryMessage,
     dismissMessage,
     editMessage,
