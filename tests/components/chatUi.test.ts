@@ -9,6 +9,7 @@ import StartDmModal from '~/components/StartDmModal.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
 import E2eeGate from '~/components/E2eeGate.vue'
 import { isValidAvatarUrl } from '~/utils/chat'
+import type { Conversation, Profile } from '~/types/chat'
 
 describe('Chat UI components', () => {
   it('accepts only optional HTTP(S) avatar URLs', () => {
@@ -1040,6 +1041,152 @@ describe('Chat UI components', () => {
       })
 
       expect(wrapper.find('[data-test="sender-header-m-bob-1"]').exists()).toBe(false)
+    })
+  })
+
+  describe('Unified Conversation Sidebar (Task 8)', () => {
+    const mockCurrentUser: Profile = {
+      id: 'u-me',
+      email: 'me@example.com',
+      display_name: 'Me',
+      avatar_color: '#0284c7',
+    }
+
+    const mockPeerBob: Profile = {
+      id: 'u-bob',
+      email: 'bob@example.com',
+      display_name: 'Bob',
+      avatar_color: '#7c3aed',
+    }
+
+    const mockConversations: Conversation[] = [
+      {
+        id: 'conv-direct-1',
+        type: 'direct',
+        title: null,
+        created_by: 'u-me',
+        created_at: '2026-10-21T01:00:00Z',
+        peer: mockPeerBob,
+        members: [
+          { conversation_id: 'conv-direct-1', user_id: 'u-me', role: 'owner', joined_at: '' },
+          { conversation_id: 'conv-direct-1', user_id: 'u-bob', role: 'member', joined_at: '', profile: mockPeerBob },
+        ],
+      },
+      {
+        id: 'conv-group-1',
+        type: 'group',
+        title: 'Project Phoenix',
+        created_by: 'u-me',
+        created_at: '2026-10-21T00:00:00Z',
+        members: [
+          { conversation_id: 'conv-group-1', user_id: 'u-me', role: 'owner', joined_at: '' },
+          { conversation_id: 'conv-group-1', user_id: 'u-bob', role: 'member', joined_at: '' },
+          { conversation_id: 'conv-group-1', user_id: 'u-charlie', role: 'member', joined_at: '' },
+        ],
+      },
+    ]
+
+    it('renders unified conversation list with direct chats and group chats, online status, and unread badges', () => {
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          conversations: mockConversations,
+          activeConversationId: 'conv-direct-1',
+          unreadCounts: { 'conv-group-1': 5 },
+          unreadMentions: { 'conv-group-1': 2 },
+          onlineFriends: [mockPeerBob],
+          currentUser: mockCurrentUser,
+          isDark: true,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+
+      // 1. Direct chat item
+      const directItem = wrapper.find('[data-test="conversation-item-conv-direct-1"]')
+      expect(directItem.exists()).toBe(true)
+      expect(directItem.text()).toContain('Bob')
+      // Live online indicator for direct peer
+      const peerAvatar = directItem.findComponent(UserAvatar)
+      expect(peerAvatar.exists()).toBe(true)
+      expect(peerAvatar.props('showOnline')).toBe(true)
+
+      // 2. Group chat item
+      const groupItem = wrapper.find('[data-test="conversation-item-conv-group-1"]')
+      expect(groupItem.exists()).toBe(true)
+      expect(groupItem.text()).toContain('Project Phoenix')
+      expect(groupItem.text()).toContain('3 members')
+
+      // 3. Unread count and mention badges
+      expect(groupItem.text()).toContain('5')
+      const mentionBadge = wrapper.find('[data-test="mention-badge-conv-group-1"]')
+      expect(mentionBadge.exists()).toBe(true)
+      expect(mentionBadge.text()).toContain('@')
+    })
+
+    it('filters conversations when typing in the search bar and clears on escape', async () => {
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          conversations: mockConversations,
+          activeConversationId: null,
+          unreadCounts: {},
+          onlineFriends: [],
+          currentUser: mockCurrentUser,
+          isDark: true,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+
+      const searchInput = wrapper.find('[data-test="conversation-search-input"]')
+      expect(searchInput.exists()).toBe(true)
+
+      // Filter by group title
+      await searchInput.setValue('phoenix')
+      expect(wrapper.find('[data-test="conversation-item-conv-group-1"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="conversation-item-conv-direct-1"]').exists()).toBe(false)
+
+      // Filter by direct peer name
+      await searchInput.setValue('bob')
+      expect(wrapper.find('[data-test="conversation-item-conv-direct-1"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="conversation-item-conv-group-1"]').exists()).toBe(false)
+
+      // Clear search with Escape
+      await searchInput.trigger('keydown', { key: 'Escape' })
+      expect(wrapper.find('[data-test="conversation-item-conv-direct-1"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="conversation-item-conv-group-1"]').exists()).toBe(true)
+    })
+
+    it('emits openContacts and openCreateGroup when respective action buttons are clicked', async () => {
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          conversations: mockConversations,
+          activeConversationId: null,
+          unreadCounts: {},
+          onlineFriends: [],
+          currentUser: mockCurrentUser,
+          isDark: true,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+
+      // Rail contacts button
+      const railContactsBtn = wrapper.find('[data-test="open-contacts"]')
+      expect(railContactsBtn.exists()).toBe(true)
+      await railContactsBtn.trigger('click')
+      expect(wrapper.emitted('openContacts')).toBeTruthy()
+
+      // Rail create group button
+      const railCreateGroupBtn = wrapper.find('[data-test="open-create-group"]')
+      expect(railCreateGroupBtn.exists()).toBe(true)
+      await railCreateGroupBtn.trigger('click')
+      expect(wrapper.emitted('openCreateGroup')).toBeTruthy()
+      expect(wrapper.emitted('openCreateChannel')).toBeTruthy()
+
+      // Selecting a conversation emits selectConversation and selectChannel
+      await wrapper.find('[data-test="conversation-item-conv-group-1"]').trigger('click')
+      expect(wrapper.emitted('selectConversation')?.[0]).toEqual(['conv-group-1'])
+      expect(wrapper.emitted('selectChannel')?.[0]).toEqual(['conv-group-1'])
     })
   })
 })
