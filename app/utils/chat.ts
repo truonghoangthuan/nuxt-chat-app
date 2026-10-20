@@ -6,6 +6,8 @@ import type {
   MentionSegment,
   ActiveMentionQuery,
   Channel,
+  Conversation,
+  Profile,
 } from '~/types/chat'
 
 export const AVATAR_PALETTE = [
@@ -416,4 +418,56 @@ export function canUserAccessChannel(
   const ub = channel.dm_user_b ? channel.dm_user_b.trim().toLowerCase() : null
   return ua === cid || ub === cid
 }
+
+export function isValidEmail(email: string): boolean {
+  if (typeof email !== 'string') return false
+  const trimmed = email.trim()
+  if (!trimmed) return false
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+}
+
+export function getDirectPeer(
+  conversation: Conversation,
+  currentUserId?: string | null,
+): Profile | null {
+  if (conversation.type !== 'direct') {
+    return null
+  }
+
+  if (conversation.peer) {
+    if (!currentUserId || conversation.peer.id !== currentUserId) {
+      return conversation.peer
+    }
+  }
+
+  if (conversation.members && conversation.members.length > 0) {
+    const peerMember = conversation.members.find(
+      m => currentUserId ? m.user_id !== currentUserId : true,
+    )
+    if (peerMember?.profile) {
+      return peerMember.profile
+    }
+  }
+
+  return null
+}
+
+export function formatConversationTitle(
+  conversation: Conversation,
+  currentUserId?: string | null,
+): string {
+  if (conversation.type === 'direct') {
+    const peer = getDirectPeer(conversation, currentUserId)
+    if (peer?.display_name) {
+      return peer.display_name
+    }
+    if (peer?.email) {
+      return peer.email
+    }
+    return conversation.title || 'Direct Message'
+  }
+
+  return conversation.title || 'Group Chat'
+}
+
 

@@ -23,8 +23,11 @@ import {
   normalizeDmPair,
   getDmPeerId,
   canUserAccessChannel,
+  isValidEmail,
+  formatConversationTitle,
+  getDirectPeer,
 } from '~/utils/chat'
-import type { ChatMessage } from '~/types/chat'
+import type { ChatMessage, Conversation, Profile } from '~/types/chat'
 
 describe('chat utils', () => {
   it('normalizes channel names into lowercase hyphenated slugs', () => {
@@ -379,6 +382,56 @@ describe('chat utils', () => {
       expect(isImagePayload('Hello world')).toBe(false)
       expect(isImagePayload('{"type":"text"}')).toBe(false)
     })
+  })
+})
+
+describe('Conversation utilities', () => {
+  it('validates email addresses accurately', () => {
+    expect(isValidEmail('alice@example.com')).toBe(true)
+    expect(isValidEmail('bob.smith+chat@domain.co.uk')).toBe(true)
+    expect(isValidEmail('invalid-email')).toBe(false)
+    expect(isValidEmail('@nodomain.com')).toBe(false)
+    expect(isValidEmail('')).toBe(false)
+  })
+
+  it('formats conversation title for direct chats and groups', () => {
+    const peer: Profile = { id: 'u2', email: 'bob@example.com', display_name: 'Bob', avatar_color: '#0284c7' }
+    const directChat: Conversation = {
+      id: 'c1',
+      type: 'direct',
+      title: null,
+      created_by: 'u1',
+      created_at: new Date().toISOString(),
+      peer,
+    }
+    expect(formatConversationTitle(directChat, 'u1')).toBe('Bob')
+
+    const groupChat: Conversation = {
+      id: 'c2',
+      type: 'group',
+      title: 'Project Alpha',
+      created_by: 'u1',
+      created_at: new Date().toISOString(),
+    }
+    expect(formatConversationTitle(groupChat, 'u1')).toBe('Project Alpha')
+  })
+
+  it('resolves direct peer correctly', () => {
+    const me: Profile = { id: 'u1', email: 'me@example.com', display_name: 'Me', avatar_color: '#0284c7' }
+    const peer: Profile = { id: 'u2', email: 'peer@example.com', display_name: 'Peer', avatar_color: '#10b981' }
+    const conv: Conversation = {
+      id: 'c1',
+      type: 'direct',
+      title: null,
+      created_by: 'u1',
+      created_at: new Date().toISOString(),
+      members: [
+        { conversation_id: 'c1', user_id: 'u1', role: 'owner', joined_at: '', profile: me },
+        { conversation_id: 'c1', user_id: 'u2', role: 'member', joined_at: '', profile: peer },
+      ],
+    }
+    expect(getDirectPeer(conv, 'u1')?.id).toBe('u2')
+    expect(getDirectPeer(conv, 'u2')?.id).toBe('u1')
   })
 })
 
