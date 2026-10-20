@@ -16,7 +16,7 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists email text;
 alter table public.profiles add column if not exists avatar_url text;
 
-create unique index if not exists profiles_email_lower_idx on public.profiles (lower(email));
+create unique index if not exists profiles_email_lower_idx on public.profiles (lower(email)) where email is not null and email <> '';
 
 alter table public.profiles enable row level security;
 
@@ -348,7 +348,9 @@ declare
   parts text[];
 begin
   parts := string_to_array(ltrim(path, '/'), '/');
-  if array_length(parts, 1) >= 2 and parts[1] = 'conversations' then
+  if array_length(parts, 1) >= 2
+     and parts[1] in ('conversations', 'channels')
+     and parts[2] ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
     return parts[2]::uuid;
   end if;
   return null;

@@ -1,4 +1,4 @@
-import { ref, computed, shallowReactive, type ComputedRef, type Ref } from 'vue'
+import { ref, computed, shallowReactive, isRef, type ComputedRef, type Ref } from 'vue'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import type {
   Conversation,
@@ -313,9 +313,21 @@ export function handleIncomingRealtimeMessage(params: {
   unreadMentions?: Record<string, number>
   currentUserId?: string
   currentDisplayName?: string | null
+  conversations?: Conversation[] | Ref<Conversation[]>
 }): void {
   const activeId = params.activeConversationId !== undefined ? params.activeConversationId : params.activeChannelId
   const targetId = params.row.conversation_id || params.row.channel_id || ''
+
+  const convList = params.conversations
+    ? (isRef(params.conversations) ? params.conversations.value : params.conversations)
+    : undefined
+  if (convList) {
+    const targetConv = convList.find(c => c.id === targetId)
+    if (targetConv) {
+      targetConv.lastMessage = params.row as ChatMessage
+      targetConv.updated_at = params.row.created_at
+    }
+  }
 
   if (targetId && targetId === activeId) {
     params.messagesStore.reconcileIncomingMessage(params.row)
@@ -758,7 +770,7 @@ export function useChatRoom() {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('email', cleanEmail)
+        .ilike('email', cleanEmail)
         .single()
 
       if (error || !data) {
@@ -905,15 +917,23 @@ export function useChatRoom() {
             const peerMember = c.members.find((m: any) => m.user_id !== current.id)
             peer = peerMember?.profile || profilesCache.get(peerMember?.user_id) || null
           }
+          const existingConv = conversations.value.find(item => item.id === c.id)
+          const matchingMsgs = messages.value.filter(
+            m => m.conversation_id === c.id || m.channel_id === c.id,
+          )
+          const lastMsg = matchingMsgs.length > 0
+            ? matchingMsgs[matchingMsgs.length - 1]
+            : (existingConv?.lastMessage || c.lastMessage || null)
           return {
             id: c.id,
             type: c.type,
             title: c.title,
             created_by: c.created_by,
             created_at: c.created_at,
-            updated_at: c.updated_at,
+            updated_at: lastMsg?.created_at || c.updated_at,
             members: c.members || [],
             peer,
+            lastMessage: lastMsg,
             unreadCount: unreadCounts.value[c.id] || 0,
           }
         })
@@ -1130,15 +1150,17 @@ export function useChatRoom() {
               }
             : (decryptedRow.reply_to || null)
 
+          const fullDecryptedRow = {
+            ...decryptedRow,
+            conversation_id: convId,
+            channel_id: convId,
+            author,
+            reply_to: replyTarget,
+            reactions: [],
+          }
+
           handleIncomingRealtimeMessage({
-            row: {
-              ...decryptedRow,
-              conversation_id: convId,
-              channel_id: convId,
-              author,
-              reply_to: replyTarget,
-              reactions: [],
-            },
+            row: fullDecryptedRow,
             activeConversationId: activeConversationId.value,
             messagesStore,
             typingTracker,
@@ -1146,7 +1168,12 @@ export function useChatRoom() {
             unreadMentions: unreadMentions.value,
             currentUserId: authProfile.currentProfile.value?.id,
             currentDisplayName: authProfile.currentProfile.value?.display_name,
+            conversations: conversations.value,
           })
+          if (targetConv) {
+            targetConv.lastMessage = fullDecryptedRow as any
+            targetConv.updated_at = decryptedRow.created_at
+          }
           if (convId === activeConversationId.value) {
             markConversationRead(convId, false)
           }
@@ -1426,6 +1453,11 @@ export function useChatRoom() {
           return
         }
         messagesStore.setInitialHistory(hydrated, conversationId)
+        const targetConv = conversations.value.find(c => c.id === conversationId)
+        if (targetConv && hydrated.length > 0) {
+          targetConv.lastMessage = hydrated[hydrated.length - 1] as ChatMessage
+          targetConv.updated_at = hydrated[hydrated.length - 1].created_at || targetConv.updated_at
+        }
       } else {
         messagesStore.setInitialHistory([], conversationId)
       }
@@ -1673,12 +1705,16 @@ export function useChatRoom() {
   }
 
   async function addMemberToGroup(conversationId: string, email: string): Promise<void> {
+    const conv = conversations.value.find(c => c.id === conversationId)
+    if (conv && conv.type !== 'group') {
+      throw new Error('Cannot add members to a direct message.')
+    }
+
     const user = await findUserByEmail(email)
     if (!user) {
       throw new Error(`User not found with email: ${email}`)
     }
 
-    const conv = conversations.value.find(c => c.id === conversationId)
     if (conv?.members?.some(m => m.user_id === user.id)) {
       return
     }
@@ -1786,7 +1822,7 @@ export function useChatRoom() {
 
     const plaintext = content.trim()
 
-    messagesStore.addOptimisticMessage({
+    const optimisticMessage = messagesStore.addOptimisticMessage({
       clientId,
       conversationId,
       channelId: conversationId,
@@ -1796,6 +1832,14 @@ export function useChatRoom() {
       replyTo: replyTarget,
       encryption: 'e2ee',
     })
+
+    const targetConv = conversations.value.find(c => c.id === conversationId)
+    if (targetConv) {
+      if (optimisticMessage) {
+        targetConv.lastMessage = optimisticMessage
+      }
+      targetConv.updated_at = new Date().toISOString()
+    }
 
     if (!e2ee.key.value) {
       messagesStore.markMessageFailed(clientId)
@@ -1843,7 +1887,12 @@ export function useChatRoom() {
             .single()
           if (existing) {
             const decryptedExisting = await decryptMessageRow(existing, e2ee.key.value, conversationId)
-            messagesStore.markMessageSent(clientId, { ...decryptedExisting, reply_to: replyTarget })
+            const sentMsg = { ...decryptedExisting, reply_to: replyTarget, status: 'sent' as const }
+            messagesStore.markMessageSent(clientId, sentMsg)
+            if (targetConv) {
+              targetConv.lastMessage = sentMsg as ChatMessage
+              targetConv.updated_at = sentMsg.created_at || targetConv.updated_at
+            }
           } else {
             messagesStore.markMessageFailed(clientId)
           }
@@ -1852,7 +1901,12 @@ export function useChatRoom() {
         }
       } else if (data) {
         const decryptedData = await decryptMessageRow(data, e2ee.key.value, conversationId)
-        messagesStore.markMessageSent(clientId, { ...decryptedData, reply_to: replyTarget })
+        const sentMsg = { ...decryptedData, reply_to: replyTarget, status: 'sent' as const }
+        messagesStore.markMessageSent(clientId, sentMsg)
+        if (targetConv) {
+          targetConv.lastMessage = sentMsg as ChatMessage
+          targetConv.updated_at = sentMsg.created_at || targetConv.updated_at
+        }
       }
     } catch {
       messagesStore.markMessageFailed(clientId)
@@ -1908,7 +1962,7 @@ export function useChatRoom() {
       }
 
       const optimisticContent = JSON.stringify(optimisticPayload)
-      messagesStore.addOptimisticMessage({
+      const optimisticMessage = messagesStore.addOptimisticMessage({
         clientId,
         conversationId,
         channelId: conversationId,
@@ -1916,6 +1970,13 @@ export function useChatRoom() {
         content: optimisticContent,
         encryption: 'e2ee',
       })
+      const targetConv = conversations.value.find(c => c.id === conversationId)
+      if (targetConv) {
+        if (optimisticMessage) {
+          targetConv.lastMessage = optimisticMessage
+        }
+        targetConv.updated_at = new Date().toISOString()
+      }
     }
 
     const uploadedMetadatas: EncryptedImageMetadata[] = []

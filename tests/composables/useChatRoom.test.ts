@@ -1219,6 +1219,15 @@ describe('useChatRoom contacts and conversations', () => {
         if (table === 'profiles') {
           return {
             select: vi.fn().mockReturnValue({
+              ilike: vi.fn().mockImplementation((col: string, val: string) => ({
+                single: vi.fn().mockImplementation(async () => {
+                  if (col === 'email') {
+                    const match = Array.from(mockProfilesDb.values()).find(p => p.email.toLowerCase() === val.toLowerCase())
+                    return { data: match || null, error: match ? null : { message: 'Not found' } }
+                  }
+                  return { data: null, error: { message: 'Not found' } }
+                }),
+              })),
               eq: vi.fn().mockImplementation((col: string, val: string) => ({
                 single: vi.fn().mockImplementation(async () => {
                   if (col === 'email') {
@@ -1398,6 +1407,11 @@ describe('useChatRoom contacts and conversations', () => {
     expect(bob?.id).toBe('u-bob')
     expect(bob?.display_name).toBe('Bob')
 
+    // Case-insensitive email lookup
+    const bobUpper = await room.findUserByEmail('BOB@EXAMPLE.COM')
+    expect(bobUpper).toBeDefined()
+    expect(bobUpper?.id).toBe('u-bob')
+
     const unknown = await room.findUserByEmail('nonexistent@example.com')
     expect(unknown).toBeNull()
 
@@ -1446,8 +1460,14 @@ describe('useChatRoom contacts and conversations', () => {
     expect(room.conversations.value).toContainEqual(expect.objectContaining({ id: group.id }))
   })
 
-  it('allows adding members to an existing group', async () => {
+  it('allows adding members to an existing group and rejects adding members to direct messages', async () => {
     const room = useChatRoom()
+
+    // Type guard prevents adding members to a direct message
+    const dm = await room.openOrCreateDirectChat('u-bob')
+    await expect(room.addMemberToGroup(dm.id, 'charlie@example.com')).rejects.toThrow(
+      'Cannot add members to a direct message.',
+    )
 
     const group = await room.createGroup('Frontend Guild', ['u-bob'])
     expect(group.members).toHaveLength(2)
@@ -1519,5 +1539,41 @@ describe('useChatRoom contacts and conversations', () => {
     mockMembersDeleteError = { message: 'Delete member failed' }
     await expect(room.leaveGroup(group.id)).rejects.toThrow('Delete member failed')
     expect(room.conversations.value.some(c => c.id === group.id)).toBe(true)
+  })
+
+  it('updates target conversation lastMessage and updated_at on sendMessage and handleIncomingRealtimeMessage', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Testing Recency', ['u-bob'])
+
+    expect(group.lastMessage).toBeUndefined()
+
+    await room.sendMessage('Hello everyone in Testing Recency')
+
+    const targetConv = room.conversations.value.find(c => c.id === group.id)
+    expect(targetConv?.lastMessage).toBeDefined()
+    expect(targetConv?.lastMessage?.content).toBe('Hello everyone in Testing Recency')
+    expect(targetConv?.updated_at).toBeDefined()
+
+    // Realtime message from bob
+    const incomingRow = {
+      id: 'm-rt-1',
+      client_id: 'c-rt-1',
+      conversation_id: group.id,
+      user_id: 'u-bob',
+      content: 'Hey Alice from Bob',
+      created_at: '2026-10-21T10:00:00Z',
+    }
+    handleIncomingRealtimeMessage({
+      row: incomingRow as any,
+      activeConversationId: group.id,
+      messagesStore: { reconcileIncomingMessage: vi.fn() } as any,
+      typingTracker: { clearUserTyping: vi.fn() } as any,
+      unreadCounts: {},
+      conversations: room.conversations,
+    })
+
+    expect(targetConv?.lastMessage?.id).toBe('m-rt-1')
+    expect(targetConv?.lastMessage?.content).toBe('Hey Alice from Bob')
+    expect(targetConv?.updated_at).toBe('2026-10-21T10:00:00Z')
   })
 })
