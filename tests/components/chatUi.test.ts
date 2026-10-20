@@ -786,6 +786,117 @@ describe('Chat UI components', () => {
       expect(wrapper.find('[data-test="edit-m-bad"]').exists()).toBe(false)
     })
   })
+
+  describe('MessageComposer image attachment UI', () => {
+    it('handles file selection, displays attachment tray, disables text input, and emits sendImages', async () => {
+      const wrapper = mount(MessageComposer, {
+        props: { channelSlug: 'general' },
+      })
+
+      const fileInput = wrapper.find('input[type="file"]')
+      expect(fileInput.exists()).toBe(true)
+      expect(fileInput.attributes('accept')).toContain('image/png')
+      expect(fileInput.attributes('multiple')).toBeDefined()
+
+      const attachBtn = wrapper.find('[data-test="attach-image-button"]')
+      expect(attachBtn.exists()).toBe(true)
+
+      const file = new File(['image-data'], 'photo.png', { type: 'image/png' })
+      Object.defineProperty(fileInput.element, 'files', {
+        value: [file],
+        writable: true,
+      })
+      await fileInput.trigger('change')
+
+      expect(wrapper.find('[data-test="attachment-tray"]').exists()).toBe(true)
+      expect(wrapper.findAll('[data-test="attachment-preview"]').length).toBe(1)
+
+      const textarea = wrapper.find('textarea')
+      expect(textarea.attributes('disabled')).toBeDefined()
+      expect(textarea.attributes('placeholder')).toBe('Images attached (text disabled)')
+
+      await wrapper.find('button[title="Send message"]').trigger('click')
+      expect(wrapper.emitted('sendImages')).toBeTruthy()
+      expect(wrapper.emitted('sendImages')?.[0]?.[0]).toHaveLength(1)
+      expect(wrapper.emitted('sendImages')?.[0]?.[0]?.[0].name).toBe('photo.png')
+
+      expect(wrapper.find('[data-test="attachment-tray"]').exists()).toBe(false)
+      expect(textarea.attributes('disabled')).toBeUndefined()
+    })
+
+    it('removes attachment and restores input state when all attachments removed', async () => {
+      const wrapper = mount(MessageComposer, {
+        props: { channelSlug: 'general' },
+      })
+
+      const fileInput = wrapper.find('input[type="file"]')
+      const file1 = new File(['data1'], 'photo1.jpg', { type: 'image/jpeg' })
+      const file2 = new File(['data2'], 'photo2.jpg', { type: 'image/jpeg' })
+      Object.defineProperty(fileInput.element, 'files', {
+        value: [file1, file2],
+        writable: true,
+      })
+      await fileInput.trigger('change')
+
+      expect(wrapper.findAll('[data-test="attachment-preview"]').length).toBe(2)
+
+      const removeButtons = wrapper.findAll('[data-test="remove-attachment"]')
+      await removeButtons[0].trigger('click')
+      expect(wrapper.findAll('[data-test="attachment-preview"]').length).toBe(1)
+      expect(wrapper.find('textarea').attributes('disabled')).toBeDefined()
+
+      await wrapper.find('[data-test="remove-attachment"]').trigger('click')
+      expect(wrapper.find('[data-test="attachment-tray"]').exists()).toBe(false)
+      expect(wrapper.find('textarea').attributes('disabled')).toBeUndefined()
+      expect(wrapper.find('textarea').attributes('placeholder')).toBe('Message #general')
+    })
+
+    it('displays validation error for invalid file type or too many files', async () => {
+      const wrapper = mount(MessageComposer, {
+        props: { channelSlug: 'general' },
+      })
+
+      const fileInput = wrapper.find('input[type="file"]')
+      const badFile = new File(['pdf-data'], 'doc.pdf', { type: 'application/pdf' })
+      Object.defineProperty(fileInput.element, 'files', {
+        value: [badFile],
+        writable: true,
+      })
+      await fileInput.trigger('change')
+
+      expect(wrapper.find('[data-test="attachment-error"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="attachment-error"]').text()).toMatch(/supported image type/i)
+      expect(wrapper.find('[data-test="attachment-tray"]').exists()).toBe(false)
+    })
+
+    it('handles image paste and drag-and-drop on composer', async () => {
+      const wrapper = mount(MessageComposer, {
+        props: { channelSlug: 'general' },
+      })
+
+      const textarea = wrapper.find('textarea')
+      const pasteFile = new File(['pasted'], 'paste.png', { type: 'image/png' })
+      await textarea.trigger('paste', {
+        clipboardData: {
+          files: [pasteFile],
+        },
+      })
+
+      expect(wrapper.findAll('[data-test="attachment-preview"]').length).toBe(1)
+      expect(wrapper.find('textarea').attributes('disabled')).toBeDefined()
+
+      await wrapper.find('[data-test="remove-attachment"]').trigger('click')
+
+      const dropFile = new File(['dropped'], 'drop.webp', { type: 'image/webp' })
+      await wrapper.find('[data-test="composer-deck"]').trigger('drop', {
+        dataTransfer: {
+          files: [dropFile],
+        },
+      })
+
+      expect(wrapper.findAll('[data-test="attachment-preview"]').length).toBe(1)
+    })
+  })
 })
 
 

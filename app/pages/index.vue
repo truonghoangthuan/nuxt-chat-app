@@ -41,6 +41,7 @@ const {
   createChannel,
   openOrCreateDm,
   sendMessage,
+  sendImages,
   retryMessage,
   dismissMessage,
   editMessage,
@@ -111,6 +112,11 @@ async function handleSendMessage(content: string) {
   const replyId = replyingTo.value?.id || null
   replyingTo.value = null
   await sendMessage(content, replyId)
+}
+
+async function handleSendImages(files: File[]) {
+  replyingTo.value = null
+  await sendImages(files)
 }
 
 async function handleSaveProfile(payload: {
@@ -306,6 +312,7 @@ onUnmounted(() => {
         @send="handleSendMessage"
         @typing="notifyTyping"
         @cancel-reply="replyingTo = null"
+        @send-images="handleSendImages"
       />
     </main>
 
