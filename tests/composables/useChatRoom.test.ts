@@ -35,7 +35,7 @@ vi.mock('~/utils/image', async (importOriginal) => {
 import { extractAuthUserId, useAuthProfile } from '~/composables/useAuthProfile'
 import { createMessagesStore } from '~/composables/useMessagesState'
 import { createTypingTracker } from '~/composables/useTypingState'
-import type { Profile } from '~/types/chat'
+import type { Profile, Conversation, Contact } from '~/types/chat'
 import { createPhraseConfig, deriveKey, encryptContent, decryptContent } from '~/utils/crypto'
 
 describe('useChatRoom realtime message routing & profile caching', () => {
@@ -1173,5 +1173,309 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
       'channels/ch-general/c-1/0.enc',
       'channels/ch-general/c-1/1.enc',
     ])
+  })
+})
+
+describe('useChatRoom contacts and conversations', () => {
+  let mockSupabase: any
+  let testKey: CryptoKey
+  let mockProfilesDb: Map<string, Profile>
+  let mockContactsDb: Array<{ user_id: string; contact_user_id: string; created_at: string }>
+  let mockConversationsDb: Array<any>
+  let mockMembersDb: Array<any>
+  let mockMessagesInsert: any
+
+  beforeEach(async () => {
+    mockProfilesDb = new Map([
+      ['u-alice', { id: 'u-alice', email: 'alice@example.com', display_name: 'Alice', avatar_color: '#0284c7' }],
+      ['u-bob', { id: 'u-bob', email: 'bob@example.com', display_name: 'Bob', avatar_color: '#7c3aed' }],
+      ['u-charlie', { id: 'u-charlie', email: 'charlie@example.com', display_name: 'Charlie', avatar_color: '#059669' }],
+      ['u-david', { id: 'u-david', email: 'david@example.com', display_name: 'David', avatar_color: '#d97706' }],
+    ])
+    mockContactsDb = []
+    mockConversationsDb = []
+    mockMembersDb = []
+    mockMessagesInsert = vi.fn().mockImplementation((payload) => ({
+      select: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({
+          data: {
+            id: 'm-srv-1',
+            ...payload,
+            created_at: new Date().toISOString(),
+            author: mockProfilesDb.get(payload.user_id),
+          },
+          error: null,
+        }),
+      }),
+    }))
+
+    mockSupabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockImplementation((col: string, val: string) => ({
+                single: vi.fn().mockImplementation(async () => {
+                  if (col === 'email') {
+                    const match = Array.from(mockProfilesDb.values()).find(p => p.email.toLowerCase() === val.toLowerCase())
+                    return { data: match || null, error: match ? null : { message: 'Not found' } }
+                  }
+                  const match = mockProfilesDb.get(val)
+                  return { data: match || null, error: match ? null : { message: 'Not found' } }
+                }),
+              })),
+              order: vi.fn().mockResolvedValue({ data: Array.from(mockProfilesDb.values()), error: null }),
+            }),
+          }
+        }
+        if (table === 'contacts') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockImplementation((col: string, val: string) => ({
+                order: vi.fn().mockResolvedValue({
+                  data: mockContactsDb.filter(c => c.user_id === val).map(c => ({
+                    ...c,
+                    profile: mockProfilesDb.get(c.contact_user_id) || null,
+                  })),
+                  error: null,
+                }),
+              })),
+            }),
+            insert: vi.fn().mockImplementation((payload: any) => {
+              const row = {
+                user_id: payload.user_id,
+                contact_user_id: payload.contact_user_id,
+                created_at: new Date().toISOString(),
+              }
+              mockContactsDb.push(row)
+              return {
+                select: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: {
+                      ...row,
+                      profile: mockProfilesDb.get(payload.contact_user_id) || null,
+                    },
+                    error: null,
+                  }),
+                }),
+              }
+            }),
+            delete: vi.fn().mockReturnValue({
+              eq: vi.fn().mockImplementation((_col1: string, val1: string) => ({
+                eq: vi.fn().mockImplementation((_col2: string, val2: string) => {
+                  mockContactsDb = mockContactsDb.filter(
+                    c => !(c.user_id === val1 && c.contact_user_id === val2),
+                  )
+                  return Promise.resolve({ error: null })
+                }),
+              })),
+            }),
+          }
+        }
+        if (table === 'conversations') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockImplementation((col: string, val: string) => ({
+                single: vi.fn().mockImplementation(async () => {
+                  const conv = mockConversationsDb.find(c => c[col] === val)
+                  return { data: conv || null, error: conv ? null : { message: 'Not found' } }
+                }),
+              })),
+              order: vi.fn().mockResolvedValue({
+                data: mockConversationsDb,
+                error: null,
+              }),
+            }),
+            insert: vi.fn().mockImplementation((payload: any) => {
+              const newConv = {
+                id: 'conv-' + (mockConversationsDb.length + 1),
+                type: payload.type,
+                title: payload.title || null,
+                created_by: payload.created_by,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              }
+              mockConversationsDb.push(newConv)
+              return {
+                select: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({ data: newConv, error: null }),
+                }),
+              }
+            }),
+          }
+        }
+        if (table === 'conversation_members') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockImplementation((col: string, val: string) => ({
+                data: mockMembersDb.filter(m => m[col] === val),
+                error: null,
+              })),
+            }),
+            insert: vi.fn().mockImplementation((payload: any) => {
+              const rows = Array.isArray(payload) ? payload : [payload]
+              for (const r of rows) {
+                mockMembersDb.push({
+                  ...r,
+                  joined_at: new Date().toISOString(),
+                })
+              }
+              return Promise.resolve({ error: null })
+            }),
+            delete: vi.fn().mockReturnValue({
+              eq: vi.fn().mockImplementation((_col1: string, val1: string) => ({
+                eq: vi.fn().mockImplementation((_col2: string, val2: string) => {
+                  mockMembersDb = mockMembersDb.filter(
+                    m => !(m.conversation_id === val1 && m.user_id === val2),
+                  )
+                  return Promise.resolve({ error: null })
+                }),
+              })),
+            }),
+          }
+        }
+        if (table === 'messages') {
+          return {
+            insert: mockMessagesInsert,
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+                  }),
+                }),
+              }),
+            }),
+          }
+        }
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        }
+      }),
+      channel: vi.fn().mockReturnValue({
+        on: vi.fn().mockReturnThis(),
+        subscribe: vi.fn().mockReturnThis(),
+        send: vi.fn(),
+      }),
+      removeChannel: vi.fn(),
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
+      },
+    }
+
+    vi.stubGlobal('useSupabaseClient', () => mockSupabase)
+    vi.stubGlobal('useSupabaseUser', () => ({ value: null }))
+
+    const cfg = await createPhraseConfig('contacts test secret', 1000)
+    testKey = await deriveKey('contacts test secret', cfg.salt, 1000)
+    const e2ee = useE2ee()
+    e2ee.key.value = testKey
+    const auth = useAuthProfile()
+    auth.currentProfile.value = mockProfilesDb.get('u-alice')!
+  })
+
+  it('finds user by email and adds/removes contacts', async () => {
+    const room = useChatRoom()
+
+    const bob = await room.findUserByEmail('bob@example.com')
+    expect(bob).toBeDefined()
+    expect(bob?.id).toBe('u-bob')
+    expect(bob?.display_name).toBe('Bob')
+
+    const unknown = await room.findUserByEmail('nonexistent@example.com')
+    expect(unknown).toBeNull()
+
+    // Add Bob to contacts
+    await room.addContact('u-bob')
+    expect(room.contacts.value).toHaveLength(1)
+    expect(room.contacts.value[0].contact_user_id).toBe('u-bob')
+    expect(room.contacts.value[0].profile?.display_name).toBe('Bob')
+
+    // Adding Bob again is idempotent
+    await room.addContact('u-bob')
+    expect(room.contacts.value).toHaveLength(1)
+
+    // Remove Bob from contacts
+    await room.removeContact('u-bob')
+    expect(room.contacts.value).toHaveLength(0)
+  })
+
+  it('creates direct conversation idempotently', async () => {
+    const room = useChatRoom()
+
+    // First call creates conversation and adds members
+    const conv1 = await room.openOrCreateDirectChat('u-bob')
+    expect(conv1).toBeDefined()
+    expect(conv1.type).toBe('direct')
+    expect(conv1.peer?.id).toBe('u-bob')
+    expect(room.activeConversationId.value).toBe(conv1.id)
+    expect(room.conversations.value).toHaveLength(1)
+    expect(room.conversations.value[0].id).toBe(conv1.id)
+
+    // Second call with same peer returns existing conversation without duplicate creation
+    const conv2 = await room.openOrCreateDirectChat('u-bob')
+    expect(conv2.id).toBe(conv1.id)
+    expect(room.conversations.value).toHaveLength(1)
+  })
+
+  it('creates group conversation with participant list', async () => {
+    const room = useChatRoom()
+
+    const group = await room.createGroup('Design Team', ['u-bob', 'u-charlie'])
+    expect(group).toBeDefined()
+    expect(group.type).toBe('group')
+    expect(group.title).toBe('Design Team')
+    expect(group.members).toHaveLength(3) // alice (owner) + bob + charlie
+    expect(room.activeConversationId.value).toBe(group.id)
+    expect(room.conversations.value).toContainEqual(expect.objectContaining({ id: group.id }))
+  })
+
+  it('allows adding members to an existing group', async () => {
+    const room = useChatRoom()
+
+    const group = await room.createGroup('Frontend Guild', ['u-bob'])
+    expect(group.members).toHaveLength(2)
+
+    await room.addMemberToGroup(group.id, 'charlie@example.com')
+    const updated = room.conversations.value.find(c => c.id === group.id)
+    expect(updated?.members).toHaveLength(3)
+    expect(updated?.members?.some(m => m.user_id === 'u-charlie')).toBe(true)
+  })
+
+  it('allows members to leave group and updates active conversation', async () => {
+    const room = useChatRoom()
+
+    const group1 = await room.createGroup('Team 1', ['u-bob'])
+    const group2 = await room.createGroup('Team 2', ['u-charlie'])
+    expect(room.conversations.value).toHaveLength(2)
+    expect(room.activeConversationId.value).toBe(group2.id)
+
+    await room.leaveGroup(group2.id)
+    expect(room.conversations.value.find(c => c.id === group2.id)).toBeUndefined()
+    expect(room.conversations.value).toHaveLength(1)
+    expect(room.activeConversationId.value).toBe(group1.id)
+  })
+
+  it('sends messages and encrypts using conversation_id as AAD', async () => {
+    const room = useChatRoom()
+
+    const conv = await room.openOrCreateDirectChat('u-bob')
+    await room.sendMessage('Secret hello to Bob!')
+
+    expect(mockMessagesInsert).toHaveBeenCalledTimes(1)
+    const inserted = mockMessagesInsert.mock.calls[0][0]
+    expect(inserted.conversation_id).toBe(conv.id)
+    expect(inserted.content).toMatch(/^e2ee:v1:/)
+
+    // Decrypting with the correct conversation_id recovers the message
+    const plaintext = await decryptContent(testKey, inserted.content, conv.id)
+    expect(plaintext).toBe('Secret hello to Bob!')
+
+    // Decrypting with a mismatched conversation_id throws / fails (proving AAD binding)
+    await expect(decryptContent(testKey, inserted.content, 'wrong-conv-id')).rejects.toThrow()
   })
 })
