@@ -28,6 +28,7 @@ const emit = defineEmits<{
 const currentIndex = ref(props.initialIndex ?? 0)
 const resolvedUrls = ref<Record<string, string>>({})
 const isLoading = ref(false)
+const errorMessage = ref<string | null>(null)
 
 const cache = useImageAttachmentCache()
 
@@ -65,6 +66,7 @@ const activeImageUrl = computed<string | null>(() => {
 })
 
 async function loadActiveImage() {
+  errorMessage.value = null
   const img = activeImage.value
   if (!img || !img.path) return
 
@@ -80,7 +82,10 @@ async function loadActiveImage() {
   }
 
   const key = resolveKey()
-  if (!key) return
+  if (!key) {
+    errorMessage.value = 'Failed to decrypt or load image.'
+    return
+  }
 
   const supabase = resolveSupabase()
   isLoading.value = true
@@ -95,16 +100,17 @@ async function loadActiveImage() {
     )
     resolvedUrls.value = { ...resolvedUrls.value, [img.path]: url }
   } catch {
-    // Gracefully handle decrypt or download error
+    errorMessage.value = 'Failed to decrypt or load image.'
   } finally {
     isLoading.value = false
   }
 }
 
 watch(
-  () => [props.open, props.initialIndex],
+  () => [props.open, props.initialIndex, props.images],
   ([isOpen, idx]) => {
     if (isOpen) {
+      errorMessage.value = null
       const targetIndex = Number(idx) || 0
       currentIndex.value = Math.max(0, Math.min(targetIndex, (props.images?.length || 1) - 1))
       loadActiveImage()
@@ -115,17 +121,20 @@ watch(
 
 watch(currentIndex, () => {
   if (props.open) {
+    errorMessage.value = null
     loadActiveImage()
   }
 })
 
 function goToPrev() {
   if (!props.images || props.images.length <= 1) return
+  errorMessage.value = null
   currentIndex.value = (currentIndex.value - 1 + props.images.length) % props.images.length
 }
 
 function goToNext() {
   if (!props.images || props.images.length <= 1) return
+  errorMessage.value = null
   currentIndex.value = (currentIndex.value + 1) % props.images.length
 }
 
@@ -204,7 +213,8 @@ onUnmounted(() => {
         <button
           type="button"
           data-test="lightbox-download"
-          class="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          :disabled="!activeImageUrl"
+          class="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           title="Download image"
           @click="handleDownload"
         >
@@ -260,9 +270,23 @@ onUnmounted(() => {
         </svg>
       </button>
 
+      <!-- Decryption/Load Error -->
+      <div
+        v-if="errorMessage"
+        data-test="lightbox-error"
+        class="flex flex-col items-center justify-center gap-3 p-6 rounded-xl bg-neutral-900/80 border border-neutral-700/60 max-w-sm text-center text-rose-300"
+      >
+        <div class="w-12 h-12 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <p class="text-sm font-medium">{{ errorMessage }}</p>
+      </div>
+
       <!-- Loading skeleton/spinner -->
       <div
-        v-if="isLoading || !activeImageUrl"
+        v-else-if="isLoading || !activeImageUrl"
         data-test="lightbox-loading"
         class="flex flex-col items-center justify-center gap-3 text-white/70"
       >

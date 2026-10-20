@@ -237,4 +237,58 @@ describe('ImageViewerModal', () => {
     expect(img.exists()).toBe(true)
     expect(img.attributes('src')).toBe('blob:decrypted-url-1')
   })
+
+  it('shows error state when decryption fails and clears error on navigation', async () => {
+    const fakeKey = {} as CryptoKey
+    const cache = useImageAttachmentCache()
+    vi.spyOn(cache, 'getOrFetchImage').mockRejectedValue(new Error('Decryption failed'))
+
+    const images = [makeMockImage(1, false), makeMockImage(2, true)]
+    const wrapper = mount(ImageViewerModal, {
+      props: {
+        open: true,
+        images,
+        initialIndex: 0,
+        channelId: 'ch-1',
+        e2eeKey: fakeKey,
+      },
+    })
+
+    await wrapper.vm.$nextTick()
+    await new Promise((r) => setTimeout(r, 10))
+
+    const errorEl = wrapper.find('[data-test="lightbox-error"]')
+    expect(errorEl.exists()).toBe(true)
+    expect(errorEl.text()).toContain('Failed to decrypt or load image.')
+    expect(wrapper.find('[data-test="lightbox-download"]').attributes('disabled')).toBeDefined()
+
+    // Navigate to next image (which is a valid blob url) -> error is cleared
+    await wrapper.find('[data-test="lightbox-next"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-test="lightbox-error"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="lightbox-image"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="lightbox-download"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('disables download button while remote image is loading', async () => {
+    const fakeKey = {} as CryptoKey
+    const cache = useImageAttachmentCache()
+    const pendingPromise = new Promise<string>(() => {})
+    vi.spyOn(cache, 'getOrFetchImage').mockReturnValue(pendingPromise)
+
+    const images = [makeMockImage(1, false)]
+    const wrapper = mount(ImageViewerModal, {
+      props: {
+        open: true,
+        images,
+        initialIndex: 0,
+        channelId: 'ch-1',
+        e2eeKey: fakeKey,
+      },
+    })
+
+    const downloadBtn = wrapper.find('[data-test="lightbox-download"]')
+    expect(downloadBtn.attributes('disabled')).toBeDefined()
+  })
 })
