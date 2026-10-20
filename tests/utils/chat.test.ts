@@ -416,6 +416,30 @@ describe('Conversation utilities', () => {
     expect(formatConversationTitle(groupChat, 'u1')).toBe('Project Alpha')
   })
 
+  it('falls back to email when peer display_name is empty or missing in direct chat title', () => {
+    const peerEmptyName: Profile = { id: 'u2', email: 'bob@example.com', display_name: '', avatar_color: '#0284c7' }
+    const directChatEmpty: Conversation = {
+      id: 'c1',
+      type: 'direct',
+      title: null,
+      created_by: 'u1',
+      created_at: new Date().toISOString(),
+      peer: peerEmptyName,
+    }
+    expect(formatConversationTitle(directChatEmpty, 'u1')).toBe('bob@example.com')
+
+    const peerMissingName = { id: 'u3', email: 'alice@example.com', avatar_color: '#0284c7' } as Profile
+    const directChatMissing: Conversation = {
+      id: 'c2',
+      type: 'direct',
+      title: null,
+      created_by: 'u1',
+      created_at: new Date().toISOString(),
+      peer: peerMissingName,
+    }
+    expect(formatConversationTitle(directChatMissing, 'u1')).toBe('alice@example.com')
+  })
+
   it('resolves direct peer correctly', () => {
     const me: Profile = { id: 'u1', email: 'me@example.com', display_name: 'Me', avatar_color: '#0284c7' }
     const peer: Profile = { id: 'u2', email: 'peer@example.com', display_name: 'Peer', avatar_color: '#10b981' }
@@ -432,6 +456,21 @@ describe('Conversation utilities', () => {
     }
     expect(getDirectPeer(conv, 'u1')?.id).toBe('u2')
     expect(getDirectPeer(conv, 'u2')?.id).toBe('u1')
+  })
+
+  it('returns null for getDirectPeer when given a group conversation', () => {
+    const groupChat: Conversation = {
+      id: 'c2',
+      type: 'group',
+      title: 'Project Alpha',
+      created_by: 'u1',
+      created_at: new Date().toISOString(),
+      members: [
+        { conversation_id: 'c2', user_id: 'u1', role: 'owner', joined_at: '' },
+        { conversation_id: 'c2', user_id: 'u2', role: 'member', joined_at: '' },
+      ],
+    }
+    expect(getDirectPeer(groupChat, 'u1')).toBeNull()
   })
 })
 

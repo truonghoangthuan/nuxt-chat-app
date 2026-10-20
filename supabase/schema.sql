@@ -150,7 +150,7 @@ grant execute on function public.can_access_conversation(uuid) to authenticated;
 create policy "Authenticated users can view accessible conversations"
   on public.conversations for select
   to authenticated
-  using (public.can_access_conversation(id));
+  using (public.can_access_conversation(id) or auth.uid() = created_by);
 
 create policy "Authenticated users can insert conversations"
   on public.conversations for insert
@@ -174,10 +174,9 @@ create policy "Authenticated users can insert conversation members"
   to authenticated
   with check (
     public.can_access_conversation(conversation_id)
-    or auth.uid() = user_id
     or exists (
       select 1 from public.conversations c
-      where c.id = conversation_id and (c.created_by = auth.uid() or c.created_by is null)
+      where c.id = conversation_id and c.created_by = auth.uid()
     )
   );
 
@@ -390,11 +389,17 @@ create policy "Authenticated users can delete conversation attachments"
 -- 9. Realtime Publication
 -- ============================================================================
 do $$
+declare
+  tbl text;
 begin
-  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
-    alter publication supabase_realtime add table public.conversations, public.conversation_members, public.messages, public.message_reactions, public.profiles, public.contacts;
-  end if;
-exception when duplicate_object then
-  null;
+  for tbl in select unnest(array['conversations', 'conversation_members', 'messages', 'message_reactions', 'profiles', 'contacts']) loop
+    if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+       and not exists (
+         select 1 from pg_publication_tables
+         where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = tbl
+       ) then
+      execute format('alter publication supabase_realtime add table public.%I', tbl);
+    end if;
+  end loop;
 end;
 $$;
