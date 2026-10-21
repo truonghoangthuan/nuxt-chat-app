@@ -20,24 +20,6 @@ create unique index if not exists profiles_email_lower_idx on public.profiles (l
 
 alter table public.profiles enable row level security;
 
-drop policy if exists "Authenticated users can view profiles" on public.profiles;
-drop policy if exists "Users can view friends and conversation peers" on public.profiles;
-create policy "Users can view friends and conversation peers"
-  on public.profiles for select
-  to authenticated
-  using (
-    auth.uid() = id
-    or exists (
-      select 1 from public.contacts c
-      where c.user_id = auth.uid() and c.contact_user_id = profiles.id
-    )
-    or exists (
-      select 1 from public.conversation_members cm_mine
-      join public.conversation_members cm_peer on cm_peer.conversation_id = cm_mine.conversation_id
-      where cm_mine.user_id = auth.uid() and cm_peer.user_id = profiles.id
-    )
-  );
-
 create or replace function public.lookup_profile_by_email(search_email text)
 returns setof public.profiles
 language sql
@@ -277,6 +259,25 @@ create policy "Users can remove themselves or owners can manage members"
       where cm.conversation_id = public.conversation_members.conversation_id
         and cm.user_id = auth.uid()
         and cm.role = 'owner'
+    )
+  );
+
+-- Profiles visibility policy (defined after contacts & conversation_members exist)
+drop policy if exists "Authenticated users can view profiles" on public.profiles;
+drop policy if exists "Users can view friends and conversation peers" on public.profiles;
+create policy "Users can view friends and conversation peers"
+  on public.profiles for select
+  to authenticated
+  using (
+    auth.uid() = id
+    or exists (
+      select 1 from public.contacts c
+      where c.user_id = auth.uid() and c.contact_user_id = profiles.id
+    )
+    or exists (
+      select 1 from public.conversation_members cm_mine
+      join public.conversation_members cm_peer on cm_peer.conversation_id = cm_mine.conversation_id
+      where cm_mine.user_id = auth.uid() and cm_peer.user_id = profiles.id
     )
   );
 
