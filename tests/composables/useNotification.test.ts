@@ -1,11 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createNotificationManager, useNotification } from '~/composables/useNotification'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { createNotificationManager } from '~/composables/useNotification'
 import type { ChatMessage } from '~/types/chat'
 
 describe('useNotification composable', () => {
-  let originalNotification: any
-  let originalDocument: any
-
   beforeEach(() => {
     vi.restoreAllMocks()
     localStorage.clear()
@@ -238,5 +235,80 @@ describe('useNotification composable', () => {
 
     manager.dismissToast(id)
     expect(manager.toasts.value.length).toBe(0)
+  })
+
+  it('prefers serviceWorker showNotification with absolute icon and conversation data when available', async () => {
+    const showNotificationMock = vi.fn().mockResolvedValue(undefined)
+    const swMock = { showNotification: showNotificationMock }
+    const fakeNotification = {
+      permission: 'granted',
+      requestPermission: vi.fn(),
+    }
+
+    const manager = createNotificationManager({
+      notificationApi: fakeNotification as any,
+      serviceWorkerRegistration: swMock as any,
+      origin: 'https://chat.example.com',
+      isDocumentVisible: () => false,
+    })
+
+    const msg: Partial<ChatMessage> = {
+      id: 'm-sw',
+      conversation_id: 'conv-sw-1',
+      user_id: 'user-other',
+      content: 'Hello via SW',
+      author: { id: 'u2', display_name: 'Carol', email: 'c@example.com' },
+    }
+
+    manager.notifyIncomingMessage({
+      message: msg as any,
+      activeConversationId: 'conv-other',
+    })
+
+    expect(showNotificationMock).toHaveBeenCalledWith('Carol', expect.objectContaining({
+      body: 'Hello via SW',
+      icon: 'https://chat.example.com/favicon.ico',
+      tag: 'chat-conv-sw-1',
+      data: { conversationId: 'conv-sw-1' },
+    }))
+  })
+
+  it('retains Notification instances in activeNotifications until closed to prevent GC', () => {
+    const notifInstance: any = {
+      onclose: null,
+      onclick: null,
+      close: vi.fn(),
+    }
+    const notificationConstructor = vi.fn().mockReturnValue(notifInstance)
+    const fakeNotification = {
+      permission: 'granted',
+      requestPermission: vi.fn(),
+    }
+
+    const manager = createNotificationManager({
+      notificationApi: fakeNotification as any,
+      notificationConstructor,
+      isDocumentVisible: () => false,
+    })
+
+    const msg: Partial<ChatMessage> = {
+      id: 'm-gc',
+      conversation_id: 'conv-gc-1',
+      user_id: 'user-other',
+      content: 'GC prevention check',
+      author: { id: 'u3', display_name: 'Dave', email: 'd@example.com' },
+    }
+
+    manager.notifyIncomingMessage({
+      message: msg as any,
+      activeConversationId: 'conv-other',
+    })
+
+    expect(manager.activeNotifications.size).toBe(1)
+    expect(manager.activeNotifications.has(notifInstance)).toBe(true)
+
+    // Trigger onclose callback
+    notifInstance.onclose()
+    expect(manager.activeNotifications.size).toBe(0)
   })
 })

@@ -281,4 +281,17 @@ describe('IndexPage (app/pages/index.vue)', () => {
     expect(mockChatRoomState.leaveGroup).toHaveBeenCalledWith('conv-group-9')
     expect(groupInfoModal.props('isOpen')).toBe(false)
   })
+
+  it('renders NotificationPermissionBanner when permission is default and triggers request', async () => {
+    mockChatRoomState.notificationPermission.value = 'default'
+    const wrapper = mount(IndexPage)
+
+    const banner = wrapper.find('[data-test="notification-permission-banner"]')
+    expect(banner.exists()).toBe(true)
+
+    const enableBtn = wrapper.find('[data-test="enable-notifications-banner-btn"]')
+    await enableBtn.trigger('click')
+
+    expect(mockChatRoomState.requestNotificationPermission).toHaveBeenCalledTimes(1)
+  })
 })

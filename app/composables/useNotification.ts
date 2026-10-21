@@ -13,11 +13,41 @@ export interface NotificationManagerOptions {
     requestPermission: () => Promise<NotificationPermission>
   } | null
   notificationConstructor?: (title: string, options?: NotificationOptions) => any
+  serviceWorkerRegistration?: {
+    showNotification: (title: string, options?: NotificationOptions) => Promise<void>
+  } | null
   playSound?: () => void
   isDocumentVisible?: () => boolean
+  origin?: string
 }
 
 export function createNotificationManager(options?: NotificationManagerOptions) {
+  const activeNotifications = new Set<any>()
+  let swRegistration: { showNotification: (title: string, options?: NotificationOptions) => Promise<void> } | null = options?.serviceWorkerRegistration ?? null
+
+  // Register service worker if supported and not explicitly injected
+  if (options?.serviceWorkerRegistration === undefined && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    try {
+      navigator.serviceWorker.register('/sw.js').then((reg) => {
+        swRegistration = reg
+      }).catch(() => {
+        // Fallback silently if registration fails
+      })
+    } catch {
+      // Ignore in unsupported environments
+    }
+  }
+
+  const getAbsoluteIconUrl = (path = '/favicon.ico'): string => {
+    if (options?.origin) {
+      return `${options.origin.replace(/\/+$/, '')}${path}`
+    }
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return `${window.location.origin}${path}`
+    }
+    return path
+  }
+
   const getInitialSound = (): boolean => {
     if (typeof localStorage === 'undefined') return true
     const val = localStorage.getItem(STORAGE_KEY_SOUND)
@@ -96,6 +126,52 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
     toasts.value = toasts.value.filter(t => t.id !== id)
   }
 
+  const spawnWindowNotification = (
+    title: string,
+    opts: NotificationOptions,
+    targetId: string,
+    onNavigate?: (convId: string) => void,
+  ) => {
+    try {
+      const createNotif = options?.notificationConstructor || (
+        typeof window !== 'undefined' && 'Notification' in window
+          ? (t: string, o?: NotificationOptions) => new window.Notification(t, o)
+          : null
+      )
+
+      if (createNotif) {
+        const notif = createNotif(title, opts)
+        if (notif) {
+          activeNotifications.add(notif)
+          const cleanup = () => {
+            activeNotifications.delete(notif)
+          }
+
+          if ('onclose' in notif) {
+            notif.onclose = cleanup
+          }
+
+          notif.onclick = () => {
+            cleanup()
+            try {
+              if (typeof window !== 'undefined' && typeof window.focus === 'function') {
+                window.focus()
+              }
+            } catch {}
+            if (targetId && onNavigate) {
+              onNavigate(targetId)
+            }
+            if (typeof notif.close === 'function') {
+              notif.close()
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignore desktop notification errors
+    }
+  }
+
   const notifyIncomingMessage = (params: {
     message: Pick<ChatMessage, 'id' | 'conversation_id' | 'channel_id' | 'user_id' | 'content' | 'author' | 'deleted_at'>
     activeConversationId?: string | null
@@ -160,45 +236,32 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
       })
     }
 
-    // 3. Desktop Notification (Windows toast) when tab is not focused or message is in another channel
+    // 3. Desktop Notification (Windows Action Center toast) when tab is not focused or message is in another channel
     if (desktopEnabled.value && (!isFocused || targetId !== activeConversationId)) {
       const hasPermission = permission.value === 'granted' || (
         typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted'
       )
 
       if (hasPermission) {
-        try {
-          const createNotif = options?.notificationConstructor || (
-            typeof window !== 'undefined' && 'Notification' in window
-              ? (t: string, opts?: NotificationOptions) => new window.Notification(t, opts)
-              : null
-          )
+        const notifOptions: NotificationOptions = {
+          body: snippet,
+          icon: getAbsoluteIconUrl('/favicon.ico'),
+          tag: `chat-${targetId || 'default'}`,
+          data: {
+            conversationId: targetId,
+          },
+        }
 
-          if (createNotif) {
-            const notif = createNotif(title, {
-              body: snippet,
-              icon: '/favicon.ico',
-              tag: `chat-${targetId || 'default'}`,
+        if (swRegistration && typeof swRegistration.showNotification === 'function') {
+          try {
+            swRegistration.showNotification(title, notifOptions).catch(() => {
+              spawnWindowNotification(title, notifOptions, targetId, onNavigate)
             })
-
-            if (notif) {
-              notif.onclick = () => {
-                try {
-                  if (typeof window !== 'undefined' && typeof window.focus === 'function') {
-                    window.focus()
-                  }
-                } catch {}
-                if (targetId && onNavigate) {
-                  onNavigate(targetId)
-                }
-                if (typeof notif.close === 'function') {
-                  notif.close()
-                }
-              }
-            }
+          } catch {
+            spawnWindowNotification(title, notifOptions, targetId, onNavigate)
           }
-        } catch {
-          // Ignore desktop notification errors
+        } else {
+          spawnWindowNotification(title, notifOptions, targetId, onNavigate)
         }
       }
     }
@@ -209,6 +272,7 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
     desktopEnabled,
     permission,
     toasts,
+    activeNotifications,
     toggleSound,
     toggleDesktop,
     requestPermission,

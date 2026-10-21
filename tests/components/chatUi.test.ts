@@ -657,9 +657,13 @@ describe('Chat UI components', () => {
       const btn = wrapper.find('[data-test="toggle-notifications-btn"]')
       expect(btn.exists()).toBe(true)
       expect(btn.attributes('title')).toBe('Mute notifications')
+      expect(wrapper.find('[data-test="notifications-pending-badge"]').exists()).toBe(true)
 
       await btn.trigger('click')
       expect(wrapper.emitted('toggleNotifications')).toBeTruthy()
+
+      await wrapper.setProps({ notificationPermission: 'granted' })
+      expect(wrapper.find('[data-test="notifications-pending-badge"]').exists()).toBe(false)
 
       await wrapper.setProps({ notificationsEnabled: false })
       expect(wrapper.find('[data-test="toggle-notifications-btn"]').attributes('title')).toBe('Enable notifications')

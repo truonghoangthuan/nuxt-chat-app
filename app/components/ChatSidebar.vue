@@ -617,13 +617,19 @@ function onContactsClick() {
             variant="ghost"
             size="icon"
             data-test="toggle-notifications-btn"
-            class="size-8 rounded-lg text-[var(--fp-text-secondary)] hover:bg-[var(--fp-hover)] hover:text-[var(--fp-text-primary)]"
+            class="relative size-8 rounded-lg text-[var(--fp-text-secondary)] hover:bg-[var(--fp-hover)] hover:text-[var(--fp-text-primary)]"
             :aria-label="notificationPermission === 'denied' ? 'Notifications blocked by browser' : (notificationsEnabled ? 'Mute notifications' : 'Enable notifications')"
             :title="notificationPermission === 'denied' ? 'Notifications blocked in browser settings' : (notificationsEnabled ? 'Mute notifications' : 'Enable notifications')"
             @click="emit('toggleNotifications')"
           >
             <Bell v-if="notificationsEnabled && notificationPermission !== 'denied'" class="size-4" aria-hidden="true" />
             <BellOff v-else class="size-4 text-amber-500" aria-hidden="true" />
+            <span
+              v-if="notificationsEnabled && notificationPermission === 'default'"
+              data-test="notifications-pending-badge"
+              class="absolute top-1 right-1 size-1.5 rounded-full bg-amber-500 ring-1 ring-[var(--fp-stage)]"
+              aria-hidden="true"
+            />
           </Button>
 
           <!-- Theme Toggle -->
