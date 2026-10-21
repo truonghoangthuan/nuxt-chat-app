@@ -26,7 +26,7 @@ function run(action: () => void) {
 </script>
 
 <template>
-  <div class="relative z-20 md:hidden shrink-0 self-center">
+  <div class="relative z-20 md:hidden shrink-0 self-center opacity-70 hover:opacity-100 active:opacity-100 transition-opacity">
     <button
       type="button"
       data-test="open-mobile-actions"

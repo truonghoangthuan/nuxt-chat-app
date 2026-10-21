@@ -20,6 +20,8 @@ create unique index if not exists profiles_email_lower_idx on public.profiles (l
 
 alter table public.profiles enable row level security;
 
+drop policy if exists "Authenticated users can view profiles" on public.profiles;
+drop policy if exists "Users can view friends and conversation peers" on public.profiles;
 create policy "Users can view friends and conversation peers"
   on public.profiles for select
   to authenticated
@@ -45,9 +47,13 @@ stable
 as $$
   select *
   from public.profiles
-  where lower(email) = lower(trim(search_email))
+  where auth.role() = 'authenticated'
+    and lower(email) = lower(trim(search_email))
   limit 1;
 $$;
+
+revoke all on function public.lookup_profile_by_email(text) from public, anon;
+grant execute on function public.lookup_profile_by_email(text) to authenticated;
 
 create policy "Users can update their own profile"
   on public.profiles for update
@@ -173,6 +179,12 @@ begin
      or (user_id = target_user_id and contact_user_id = auth.uid());
 end;
 $$;
+
+revoke all on function public.add_mutual_friend(uuid) from public, anon;
+grant execute on function public.add_mutual_friend(uuid) to authenticated;
+
+revoke all on function public.remove_mutual_friend(uuid) from public, anon;
+grant execute on function public.remove_mutual_friend(uuid) to authenticated;
 
 -- ============================================================================
 -- 3. Conversations & Conversation Members

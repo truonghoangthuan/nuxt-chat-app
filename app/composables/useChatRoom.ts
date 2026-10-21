@@ -921,6 +921,18 @@ export function useChatRoom() {
         data = res.data
       }
 
+      if (!peerProfile) {
+        try {
+          const { data: fetchedProfile } = await supabase.from('profiles').select('*').eq('id', contactUserId).maybeSingle()
+          if (fetchedProfile) {
+            peerProfile = fetchedProfile as Profile
+            profilesCache.set(fetchedProfile.id, fetchedProfile as Profile)
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       const newContact: Contact = {
         user_id: current.id,
         contact_user_id: contactUserId,
@@ -1387,6 +1399,23 @@ export function useChatRoom() {
             const p = profilesCache.get(newContact.contact_user_id) || allProfiles.value.find(pr => pr.id === newContact.contact_user_id)
             contacts.value = [...contacts.value, { ...newContact, profile: p || null }]
             syncOnlineFriends()
+
+            if (!p) {
+              supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', newContact.contact_user_id)
+                .maybeSingle()
+                .then(({ data }) => {
+                  if (data) {
+                    profilesCache.set(data.id, data as Profile)
+                    allProfiles.value = [...allProfiles.value.filter(x => x.id !== data.id), data as Profile]
+                    contacts.value = contacts.value.map(c => c.contact_user_id === data.id ? { ...c, profile: data as Profile } : c)
+                    syncOnlineFriends()
+                  }
+                })
+                .catch(() => {})
+            }
           }
         },
       )

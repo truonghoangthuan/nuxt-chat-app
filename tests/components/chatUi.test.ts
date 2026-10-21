@@ -250,6 +250,10 @@ describe('Chat UI components', () => {
 
     const dateEl = wrapper.find('[data-test="profile-created-at"]')
     expect(dateEl.exists()).toBe(true)
+
+    const copyBtn = wrapper.find('[data-test="copy-user-id-btn"]')
+    expect(copyBtn.exists()).toBe(true)
+    expect(copyBtn.text()).toContain('Copy')
   })
 
   it('MessageViewport supports inline editing, soft-delete tombstones, quote-reply headers, and reaction pills', async () => {

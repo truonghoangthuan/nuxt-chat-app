@@ -30,6 +30,20 @@ const avatarColor = ref<string>(props.profile?.avatar_color || AVATAR_PALETTE[0]
 const avatarUrl = ref(props.profile?.avatar_url || '')
 const error = ref<string | null>(null)
 const isSubmitting = ref(false)
+const copiedId = ref(false)
+
+async function copyUserId() {
+  if (!props.profile?.id) return
+  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(props.profile.id)
+      copiedId.value = true
+      setTimeout(() => { copiedId.value = false }, 2000)
+    } catch {
+      // ignore
+    }
+  }
+}
 
 watch(
   () => [props.isOpen, props.profile] as const,
@@ -134,9 +148,18 @@ function handleSave() {
             </div>
           </div>
           <div class="pt-1.5 border-t border-[var(--fp-border)] flex items-center justify-between text-[11px]">
-            <div>
+            <div class="flex items-center gap-1.5">
               <span class="text-[var(--fp-text-muted)]">User ID: </span>
               <span data-test="profile-user-id" class="font-mono text-[var(--fp-text-secondary)] select-all">{{ profile?.id || '—' }}</span>
+              <button
+                v-if="profile?.id"
+                type="button"
+                data-test="copy-user-id-btn"
+                class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[var(--fp-surface)] hover:bg-[var(--fp-hover)] text-[var(--fp-text-secondary)] border border-[var(--fp-border)] cursor-pointer transition-colors"
+                @click="copyUserId"
+              >
+                {{ copiedId ? 'Copied!' : 'Copy' }}
+              </button>
             </div>
             <div v-if="profile?.created_at" data-test="profile-created-at" class="text-[var(--fp-text-muted)]">
               Joined {{ new Date(profile.created_at).toLocaleDateString() }}
