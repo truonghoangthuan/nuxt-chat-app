@@ -1295,8 +1295,10 @@ describe('useChatRoom contacts and conversations', () => {
   let mockContactsSelect: any
   let mockMembersInsertError: any
   let mockMembersDeleteError: any
+  let mockConversationsUpdateError: { message: string } | null = null
 
   beforeEach(async () => {
+    mockConversationsUpdateError = null
     mockMembersInsertError = null
     mockMembersDeleteError = null
     mockProfilesDb = new Map([
@@ -1409,6 +1411,18 @@ describe('useChatRoom contacts and conversations', () => {
                 error: null,
               }),
             }),
+            update: vi.fn().mockImplementation((payload: any) => ({
+              eq: vi.fn().mockImplementation((_col: string, val: string) => {
+                if (mockConversationsUpdateError) {
+                  return Promise.resolve({ error: mockConversationsUpdateError })
+                }
+                const conv = mockConversationsDb.find(c => c.id === val)
+                if (conv) {
+                  Object.assign(conv, payload)
+                }
+                return Promise.resolve({ error: null })
+              }),
+            })),
             insert: vi.fn().mockImplementation((payload: any) => {
               const newConv = {
                 id: 'conv-' + (mockConversationsDb.length + 1),
@@ -1721,5 +1735,33 @@ describe('useChatRoom contacts and conversations', () => {
     expect(targetConv?.lastMessage?.id).toBe('m-rt-1')
     expect(targetConv?.lastMessage?.content).toBe('Hey Alice from Bob')
     expect(targetConv?.updated_at).toBe('2026-10-21T10:00:00Z')
+  })
+
+  it('validates title and updates group title in state and database', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Original Title', ['u-bob'])
+
+    // Empty title rejected
+    const emptyRes = await room.updateGroupTitle(group.id, '   ')
+    expect(emptyRes.error).toBe('Group title must be 1–100 characters.')
+
+    // Valid title update
+    const successRes = await room.updateGroupTitle(group.id, 'Renamed Team')
+    expect(successRes.error).toBeNull()
+
+    const updated = room.conversations.value.find(c => c.id === group.id)
+    expect(updated?.title).toBe('Renamed Team')
+  })
+
+  it('rolls back title in state if database update fails', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Stable Group', ['u-bob'])
+
+    mockConversationsUpdateError = { message: 'Database update rejected' }
+    const res = await room.updateGroupTitle(group.id, 'Failing Rename')
+    expect(res.error).toBe('Database update rejected')
+
+    const current = room.conversations.value.find(c => c.id === group.id)
+    expect(current?.title).toBe('Stable Group')
   })
 })

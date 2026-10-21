@@ -1875,6 +1875,54 @@ export function useChatRoom() {
     }
   }
 
+  async function updateGroupTitle(
+    conversationId: string,
+    title: string,
+  ): Promise<{ error: string | null }> {
+    const cleanTitle = title?.trim()
+    if (!cleanTitle || cleanTitle.length > 100) {
+      return { error: 'Group title must be 1–100 characters.' }
+    }
+
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    if (!current?.id) {
+      return { error: 'Not authenticated.' }
+    }
+
+    const targetConv = conversations.value.find(c => c.id === conversationId)
+    if (!targetConv || targetConv.type !== 'group') {
+      return { error: 'Group conversation not found.' }
+    }
+
+    const previousTitle = targetConv.title
+    const nowIso = new Date().toISOString()
+
+    // Optimistic update
+    targetConv.title = cleanTitle
+    targetConv.updated_at = nowIso
+
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .update({
+          title: cleanTitle,
+          updated_at: nowIso,
+        })
+        .eq('id', conversationId)
+
+      if (error) {
+        // Rollback
+        targetConv.title = previousTitle
+        return { error: error.message || 'Failed to update group title.' }
+      }
+
+      return { error: null }
+    } catch (err: any) {
+      targetConv.title = previousTitle
+      return { error: err?.message || 'Failed to update group title.' }
+    }
+  }
+
   // Transitional wrapper for legacy createChannel
   async function createChannel(name: string, description?: string): Promise<{ channel: Conversation | Channel | null; error: string | null }> {
     try {
@@ -2507,6 +2555,7 @@ export function useChatRoom() {
     createGroup,
     addMemberToGroup,
     leaveGroup,
+    updateGroupTitle,
     loadConversations,
 
     // Transitional aliases for channels and legacy components
