@@ -332,7 +332,7 @@ onMounted(() => {
             v-if="item.message.status === 'sent' && !item.message.deleted_at"
             :message="item.message"
             :current-user-id="currentUserId"
-            :class="item.isSender ? 'order-first' : 'order-last'"
+            :class="item.isSender ? 'order-first mr-1.5' : 'order-last ml-1.5'"
             @toggle-reaction="emit('toggleReaction', $event)"
             @reply="emit('reply', $event)"
             @edit="startEdit"
