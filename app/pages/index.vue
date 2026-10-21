@@ -14,6 +14,7 @@ import GroupInfoModal from '~/components/GroupInfoModal.vue'
 import ProfileSettingsModal from '~/components/ProfileSettingsModal.vue'
 import ImageViewerModal from '~/components/ImageViewerModal.vue'
 import NotificationToastContainer from '~/components/NotificationToastContainer.vue'
+import NotificationPermissionBanner from '~/components/NotificationPermissionBanner.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
 import { Menu, Users, Info } from '@lucide/vue'
 import E2eeGate from '~/components/E2eeGate.vue'
@@ -208,6 +209,14 @@ async function handleSaveProfile(payload: {
 }
 
 onMounted(async () => {
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data?.type === 'NAVIGATE_CONVERSATION' && event.data.conversationId) {
+        handleSelectConversation(event.data.conversationId)
+      }
+    })
+  }
+
   const status = await initializeE2ee()
   if (status === 'unlocked') {
     await initializeChat()
@@ -277,6 +286,12 @@ onUnmounted(() => {
         :status="connectionStatus"
         :countdown-sec="reconnectCountdownSec"
         @retry="retryConnectionNow"
+      />
+
+      <!-- Notification Permission Banner -->
+      <NotificationPermissionBanner
+        :permission="notificationPermission"
+        @request-permission="requestNotificationPermission"
       />
 
       <!-- Stage Precision Top Header -->
