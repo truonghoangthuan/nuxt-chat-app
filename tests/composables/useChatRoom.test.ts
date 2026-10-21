@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { shallowReactive, computed } from 'vue'
 import {
   handleIncomingRealtimeMessage,
@@ -7,6 +7,7 @@ import {
   isDuplicateKeyError,
   resolveMessageAuthor,
   applyRealtimeProfileUpdate,
+  filterOnlineFriends,
   computeUnreadSnapshot,
   computeOldestReadTimestamp,
   computeChannelReadMap,
@@ -220,6 +221,22 @@ describe('useChatRoom realtime message routing & profile caching', () => {
     expect(cache.get('u-alice')).toEqual(updatedAlice)
     expect(store.messages.value[0].author).toEqual(updatedAlice)
     expect(updatedFriends[0]).toEqual(updatedAlice)
+  })
+
+  it('filterOnlineFriends only keeps users who are added friends in contacts', () => {
+    const onlineUsers: Profile[] = [
+      { id: 'u-friend-1', display_name: 'Friend One', avatar_color: '#0284c7', email: 'f1@example.com' },
+      { id: 'u-stranger-2', display_name: 'Stranger Two', avatar_color: '#10b981', email: 's2@example.com' },
+      { id: 'u-friend-3', display_name: 'Friend Three', avatar_color: '#f59e0b', email: 'f3@example.com' },
+    ]
+    const contacts: any[] = [
+      { user_id: 'u-self', contact_user_id: 'u-friend-1' },
+      { user_id: 'u-self', contact_user_id: 'u-friend-3' },
+    ]
+
+    const result = filterOnlineFriends(onlineUsers, contacts)
+    expect(result.map(u => u.id)).toEqual(['u-friend-1', 'u-friend-3'])
+    expect(result.some(u => u.id === 'u-stranger-2')).toBe(false)
   })
 
   it('detects Postgres 23505 duplicate key unique constraint error for idempotent retry', () => {
@@ -1051,6 +1068,37 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
       },
+      rpc: vi.fn((fnName: string, params: any) => {
+        if (fnName === 'lookup_profile_by_email') {
+          const match = Array.from(mockProfilesDb.values()).find(
+            p => p.email.toLowerCase() === params.search_email.toLowerCase(),
+          )
+          return Promise.resolve({ data: match ? [match] : [], error: null })
+        }
+        if (fnName === 'add_mutual_friend') {
+          mockContactsDb.push({
+            user_id: 'u-alice',
+            contact_user_id: params.target_user_id,
+            created_at: new Date().toISOString(),
+          })
+          mockContactsDb.push({
+            user_id: params.target_user_id,
+            contact_user_id: 'u-alice',
+            created_at: new Date().toISOString(),
+          })
+          return Promise.resolve({ data: null, error: null })
+        }
+        if (fnName === 'remove_mutual_friend') {
+          mockContactsDb = mockContactsDb.filter(
+            c => !(
+              (c.user_id === 'u-alice' && c.contact_user_id === params.target_user_id) ||
+              (c.user_id === params.target_user_id && c.contact_user_id === 'u-alice')
+            ),
+          )
+          return Promise.resolve({ data: null, error: null })
+        }
+        return Promise.resolve({ data: null, error: { message: 'Unknown RPC' } })
+      }),
     }
     vi.stubGlobal('useSupabaseClient', () => mockSupabase)
     vi.stubGlobal('useSupabaseUser', () => ({ value: null }))
@@ -1446,6 +1494,37 @@ describe('useChatRoom contacts and conversations', () => {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
       },
+      rpc: vi.fn((fnName: string, params: any) => {
+        if (fnName === 'lookup_profile_by_email') {
+          const match = Array.from(mockProfilesDb.values()).find(
+            p => p.email.toLowerCase() === params.search_email.toLowerCase(),
+          )
+          return Promise.resolve({ data: match ? [match] : [], error: null })
+        }
+        if (fnName === 'add_mutual_friend') {
+          mockContactsDb.push({
+            user_id: 'u-alice',
+            contact_user_id: params.target_user_id,
+            created_at: new Date().toISOString(),
+          })
+          mockContactsDb.push({
+            user_id: params.target_user_id,
+            contact_user_id: 'u-alice',
+            created_at: new Date().toISOString(),
+          })
+          return Promise.resolve({ data: null, error: null })
+        }
+        if (fnName === 'remove_mutual_friend') {
+          mockContactsDb = mockContactsDb.filter(
+            c => !(
+              (c.user_id === 'u-alice' && c.contact_user_id === params.target_user_id) ||
+              (c.user_id === params.target_user_id && c.contact_user_id === 'u-alice')
+            ),
+          )
+          return Promise.resolve({ data: null, error: null })
+        }
+        return Promise.resolve({ data: null, error: { message: 'Unknown RPC' } })
+      }),
     }
 
     vi.stubGlobal('useSupabaseClient', () => mockSupabase)
@@ -1474,20 +1553,27 @@ describe('useChatRoom contacts and conversations', () => {
 
     const unknown = await room.findUserByEmail('nonexistent@example.com')
     expect(unknown).toBeNull()
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('lookup_profile_by_email', { search_email: 'bob@example.com' })
 
-    // Add Bob to contacts
+    // Add Bob to contacts via mutual friend RPC
     await room.addContact('u-bob')
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('add_mutual_friend', { target_user_id: 'u-bob' })
     expect(room.contacts.value).toHaveLength(1)
     expect(room.contacts.value[0].contact_user_id).toBe('u-bob')
     expect(room.contacts.value[0].profile?.display_name).toBe('Bob')
+    expect(mockContactsDb.some(c => c.user_id === 'u-alice' && c.contact_user_id === 'u-bob')).toBe(true)
+    expect(mockContactsDb.some(c => c.user_id === 'u-bob' && c.contact_user_id === 'u-alice')).toBe(true)
 
     // Adding Bob again is idempotent
     await room.addContact('u-bob')
     expect(room.contacts.value).toHaveLength(1)
 
-    // Remove Bob from contacts
+    // Remove Bob from contacts via mutual friend removal RPC
     await room.removeContact('u-bob')
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('remove_mutual_friend', { target_user_id: 'u-bob' })
     expect(room.contacts.value).toHaveLength(0)
+    expect(mockContactsDb.some(c => c.user_id === 'u-alice' && c.contact_user_id === 'u-bob')).toBe(false)
+    expect(mockContactsDb.some(c => c.user_id === 'u-bob' && c.contact_user_id === 'u-alice')).toBe(false)
   })
 
   it('creates direct conversation idempotently', async () => {

@@ -14,6 +14,18 @@ const message = {
 }
 
 describe('MessageActionsMenu', () => {
+  it('does not overlap message bubble with absolute positioning', () => {
+    const wrapper = mount(MessageActionsMenu, {
+      props: { message, currentUserId: 'u-1' },
+    })
+
+    const rootClasses = wrapper.classes()
+    expect(rootClasses).not.toContain('absolute')
+    expect(rootClasses).toContain('relative')
+    expect(rootClasses).toContain('md:hidden')
+    expect(rootClasses).toContain('shrink-0')
+  })
+
   it('offers reactions and message actions through a compact touch menu', async () => {
     const wrapper = mount(MessageActionsMenu, {
       props: { message, currentUserId: 'u-1' },

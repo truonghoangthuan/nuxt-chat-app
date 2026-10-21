@@ -20,10 +20,40 @@ create unique index if not exists profiles_email_lower_idx on public.profiles (l
 
 alter table public.profiles enable row level security;
 
-create policy "Authenticated users can view profiles"
+drop policy if exists "Authenticated users can view profiles" on public.profiles;
+drop policy if exists "Users can view friends and conversation peers" on public.profiles;
+create policy "Users can view friends and conversation peers"
   on public.profiles for select
   to authenticated
-  using (true);
+  using (
+    auth.uid() = id
+    or exists (
+      select 1 from public.contacts c
+      where c.user_id = auth.uid() and c.contact_user_id = profiles.id
+    )
+    or exists (
+      select 1 from public.conversation_members cm_mine
+      join public.conversation_members cm_peer on cm_peer.conversation_id = cm_mine.conversation_id
+      where cm_mine.user_id = auth.uid() and cm_peer.user_id = profiles.id
+    )
+  );
+
+create or replace function public.lookup_profile_by_email(search_email text)
+returns setof public.profiles
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select *
+  from public.profiles
+  where auth.role() = 'authenticated'
+    and lower(email) = lower(trim(search_email))
+  limit 1;
+$$;
+
+revoke all on function public.lookup_profile_by_email(text) from public, anon;
+grant execute on function public.lookup_profile_by_email(text) to authenticated;
 
 create policy "Users can update their own profile"
   on public.profiles for update
@@ -116,6 +146,45 @@ create policy "Users can delete their own contacts"
   on public.contacts for delete
   to authenticated
   using (auth.uid() = user_id);
+
+-- Mutual Friendship Management
+create or replace function public.add_mutual_friend(target_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null or auth.uid() = target_user_id then
+    return;
+  end if;
+  insert into public.contacts (user_id, contact_user_id)
+  values (auth.uid(), target_user_id), (target_user_id, auth.uid())
+  on conflict do nothing;
+end;
+$$;
+
+create or replace function public.remove_mutual_friend(target_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    return;
+  end if;
+  delete from public.contacts
+  where (user_id = auth.uid() and contact_user_id = target_user_id)
+     or (user_id = target_user_id and contact_user_id = auth.uid());
+end;
+$$;
+
+revoke all on function public.add_mutual_friend(uuid) from public, anon;
+grant execute on function public.add_mutual_friend(uuid) to authenticated;
+
+revoke all on function public.remove_mutual_friend(uuid) from public, anon;
+grant execute on function public.remove_mutual_friend(uuid) to authenticated;
 
 -- ============================================================================
 -- 3. Conversations & Conversation Members

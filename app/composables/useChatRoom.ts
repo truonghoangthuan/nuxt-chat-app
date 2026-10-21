@@ -1,4 +1,4 @@
-﻿import { ref, computed, shallowReactive, isRef, type ComputedRef, type Ref } from 'vue'
+import { ref, computed, shallowReactive, isRef, type ComputedRef, type Ref } from 'vue'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import type {
   Conversation,
@@ -482,6 +482,14 @@ export function applyRealtimeProfileUpdate(params: {
   return updatedFriends
 }
 
+export function filterOnlineFriends(
+  onlineUsers: Profile[],
+  contacts: Contact[],
+): Profile[] {
+  const friendIds = new Set(contacts.map(c => c.contact_user_id))
+  return onlineUsers.filter(u => friendIds.has(u.id))
+}
+
 export function hydrateDmChannelPeers(params: {
   channels: Channel[]
   currentUserId?: string | null
@@ -564,7 +572,12 @@ export function useChatRoom() {
   const lastReadByChannel = lastReadByConversation
   const activeChannelUnreadSince = ref<string | null>(null)
 
+  const rawOnlineUsers = ref<Profile[]>([])
   const onlineFriends = ref<Profile[]>([])
+
+  function syncOnlineFriends(): void {
+    onlineFriends.value = filterOnlineFriends(rawOnlineUsers.value, contacts.value)
+  }
 
   const knownProfiles = computed<Profile[]>(() => {
     const map = new Map<string, Profile>()
@@ -779,6 +792,27 @@ export function useChatRoom() {
       return null
     }
     const cleanEmail = email.trim().toLowerCase()
+
+    try {
+      if (typeof supabase.rpc === 'function') {
+        const { data, error } = await supabase.rpc('lookup_profile_by_email', { search_email: cleanEmail })
+        if (!error && data) {
+          const profile = (Array.isArray(data) ? data[0] : data) as Profile
+          if (profile && profile.id) {
+            profilesCache.set(profile.id, profile)
+            if (!allProfiles.value.some(p => p.id === profile.id)) {
+              allProfiles.value = [...allProfiles.value, profile].sort((a, b) =>
+                a.display_name.localeCompare(b.display_name),
+              )
+            }
+            return profile
+          }
+        }
+      }
+    } catch {
+      // Fallback to direct query below
+    }
+
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -828,6 +862,7 @@ export function useChatRoom() {
             profile,
           }
         })
+        syncOnlineFriends()
       }
     } catch {
       // Ignore contacts load failure
@@ -862,17 +897,40 @@ export function useChatRoom() {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('contacts')
-        .insert({
-          user_id: current.id,
-          contact_user_id: contactUserId,
-        })
-        .select('*')
-        .single()
+      let data: any = null
+      let addError: any = null
 
-      if (error && !isDuplicateKeyError(error)) {
-        return { contact: null, error: error.message }
+      if (typeof supabase.rpc === 'function') {
+        const { error: rpcError } = await supabase.rpc('add_mutual_friend', { target_user_id: contactUserId })
+        addError = rpcError
+      }
+
+      if (addError || typeof supabase.rpc !== 'function') {
+        const res = await supabase
+          .from('contacts')
+          .insert({
+            user_id: current.id,
+            contact_user_id: contactUserId,
+          })
+          .select('*')
+          .single()
+
+        if (res.error && !isDuplicateKeyError(res.error)) {
+          return { contact: null, error: res.error.message }
+        }
+        data = res.data
+      }
+
+      if (!peerProfile) {
+        try {
+          const { data: fetchedProfile } = await supabase.from('profiles').select('*').eq('id', contactUserId).maybeSingle()
+          if (fetchedProfile) {
+            peerProfile = fetchedProfile as Profile
+            profilesCache.set(fetchedProfile.id, fetchedProfile as Profile)
+          }
+        } catch {
+          // ignore
+        }
       }
 
       const newContact: Contact = {
@@ -884,6 +942,7 @@ export function useChatRoom() {
 
       if (!contacts.value.some(c => c.contact_user_id === contactUserId)) {
         contacts.value = [...contacts.value, newContact]
+        syncOnlineFriends()
       }
 
       return { contact: newContact, error: null }
@@ -899,8 +958,16 @@ export function useChatRoom() {
     }
 
     contacts.value = contacts.value.filter(c => c.contact_user_id !== contactUserId)
+    syncOnlineFriends()
 
     try {
+      if (typeof supabase.rpc === 'function') {
+        const { error: rpcError } = await supabase.rpc('remove_mutual_friend', { target_user_id: contactUserId })
+        if (!rpcError) {
+          return { error: null }
+        }
+      }
+
       const { error } = await supabase
         .from('contacts')
         .delete()
@@ -1067,7 +1134,8 @@ export function useChatRoom() {
     presenceChannel
       .on('presence', { event: 'sync' }, () => {
         const state = presenceChannel?.presenceState() || {}
-        onlineFriends.value = deduplicatePresenceState(state as any)
+        rawOnlineUsers.value = deduplicatePresenceState(state as any)
+        syncOnlineFriends()
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
@@ -1330,6 +1398,24 @@ export function useChatRoom() {
           if (newContact.user_id === currentId && !contacts.value.some(c => c.contact_user_id === newContact.contact_user_id)) {
             const p = profilesCache.get(newContact.contact_user_id) || allProfiles.value.find(pr => pr.id === newContact.contact_user_id)
             contacts.value = [...contacts.value, { ...newContact, profile: p || null }]
+            syncOnlineFriends()
+
+            if (!p) {
+              supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', newContact.contact_user_id)
+                .maybeSingle()
+                .then(({ data }) => {
+                  if (data) {
+                    profilesCache.set(data.id, data as Profile)
+                    allProfiles.value = [...allProfiles.value.filter(x => x.id !== data.id), data as Profile]
+                    contacts.value = contacts.value.map(c => c.contact_user_id === data.id ? { ...c, profile: data as Profile } : c)
+                    syncOnlineFriends()
+                  }
+                })
+                .catch(() => {})
+            }
           }
         },
       )
@@ -1341,6 +1427,7 @@ export function useChatRoom() {
           const currentId = authProfile.currentProfile.value?.id
           if (oldContact.user_id === currentId) {
             contacts.value = contacts.value.filter(c => c.contact_user_id !== oldContact.contact_user_id)
+            syncOnlineFriends()
           }
         },
       )
@@ -1368,12 +1455,13 @@ export function useChatRoom() {
             allProfiles.value = allProfiles.value.map(p =>
               p.id === updatedProfile.id ? { ...p, ...updatedProfile } : p,
             )
-            onlineFriends.value = applyRealtimeProfileUpdate({
+            rawOnlineUsers.value = applyRealtimeProfileUpdate({
               profile: updatedProfile,
               profilesCache,
               messagesStore,
-              onlineFriends: onlineFriends.value,
+              onlineFriends: rawOnlineUsers.value,
             })
+            syncOnlineFriends()
           }
         },
       )
@@ -2368,12 +2456,13 @@ export function useChatRoom() {
   }
 
   async function syncOwnProfile(profile: Profile): Promise<void> {
-    onlineFriends.value = applyRealtimeProfileUpdate({
+    rawOnlineUsers.value = applyRealtimeProfileUpdate({
       profile,
       profilesCache,
       messagesStore,
-      onlineFriends: onlineFriends.value,
+      onlineFriends: rawOnlineUsers.value,
     })
+    syncOnlineFriends()
     if (presenceChannel) {
       try {
         await presenceChannel.track({

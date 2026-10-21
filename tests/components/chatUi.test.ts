@@ -225,6 +225,37 @@ describe('Chat UI components', () => {
     expect(wrapper.emitted('close')).toBeTruthy()
   })
 
+  it('ProfileSettingsModal displays user email, user id, and created date', async () => {
+    const ProfileSettingsModal = (await import('~/components/ProfileSettingsModal.vue')).default
+    const wrapper = mount(ProfileSettingsModal, {
+      props: {
+        isOpen: true,
+        profile: {
+          id: 'u-12345',
+          email: 'alice@example.com',
+          display_name: 'Alice',
+          avatar_color: '#0284c7',
+          created_at: '2026-01-15T10:00:00Z',
+        },
+      },
+    })
+
+    const emailEl = wrapper.find('[data-test="profile-email"]')
+    expect(emailEl.exists()).toBe(true)
+    expect(emailEl.text()).toContain('alice@example.com')
+
+    const idEl = wrapper.find('[data-test="profile-user-id"]')
+    expect(idEl.exists()).toBe(true)
+    expect(idEl.text()).toContain('u-12345')
+
+    const dateEl = wrapper.find('[data-test="profile-created-at"]')
+    expect(dateEl.exists()).toBe(true)
+
+    const copyBtn = wrapper.find('[data-test="copy-user-id-btn"]')
+    expect(copyBtn.exists()).toBe(true)
+    expect(copyBtn.text()).toContain('Copy')
+  })
+
   it('MessageViewport supports inline editing, soft-delete tombstones, quote-reply headers, and reaction pills', async () => {
     const wrapper = mount(MessageViewport, {
       props: {

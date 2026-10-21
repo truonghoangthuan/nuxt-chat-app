@@ -26,7 +26,7 @@ function run(action: () => void) {
 </script>
 
 <template>
-  <div class="absolute right-2 top-2 z-20 md:hidden">
+  <div class="relative z-20 md:hidden shrink-0 self-center opacity-70 hover:opacity-100 active:opacity-100 transition-opacity">
     <button
       type="button"
       data-test="open-mobile-actions"
@@ -43,7 +43,8 @@ function run(action: () => void) {
       data-test="mobile-action-menu"
       role="menu"
       aria-label="Message actions"
-      class="absolute right-0 top-full mt-1 w-52 max-w-[calc(100vw-1.5rem)] rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface-elevated)] p-2 text-[var(--fp-text-primary)] shadow-xl"
+      class="absolute top-full mt-1 w-52 max-w-[calc(100vw-1.5rem)] rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface-elevated)] p-2 text-[var(--fp-text-primary)] shadow-xl"
+      :class="message.user_id === currentUserId ? 'left-0' : 'right-0'"
     >
       <div class="grid grid-cols-5 gap-1 border-b border-[var(--fp-border)] pb-2">
         <button
