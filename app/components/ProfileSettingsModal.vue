@@ -124,6 +124,26 @@ function handleSave() {
           </div>
         </div>
 
+        <!-- Account Details (Read-only) -->
+        <div class="p-3 rounded-[10px] bg-[var(--fp-stage-subtle)] border border-[var(--fp-border)] space-y-2 text-xs">
+          <div>
+            <span class="text-[var(--fp-text-muted)] font-medium block mb-0.5">Account Email</span>
+            <div data-test="profile-email" class="text-[var(--fp-text-primary)] font-semibold flex items-center justify-between">
+              <span>{{ profile?.email || 'No email registered' }}</span>
+              <span v-if="profile?.email" class="text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-medium">Verified</span>
+            </div>
+          </div>
+          <div class="pt-1.5 border-t border-[var(--fp-border)] flex items-center justify-between text-[11px]">
+            <div>
+              <span class="text-[var(--fp-text-muted)]">User ID: </span>
+              <span data-test="profile-user-id" class="font-mono text-[var(--fp-text-secondary)] select-all">{{ profile?.id || '—' }}</span>
+            </div>
+            <div v-if="profile?.created_at" data-test="profile-created-at" class="text-[var(--fp-text-muted)]">
+              Joined {{ new Date(profile.created_at).toLocaleDateString() }}
+            </div>
+          </div>
+        </div>
+
         <!-- Display Name -->
         <div>
           <label class="block text-xs font-semibold text-[var(--fp-text-secondary)] mb-1.5">
