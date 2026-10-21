@@ -198,6 +198,33 @@ describe('useNotification composable', () => {
     expect(manager.toasts.value.length).toBe(0)
   })
 
+  it('masks raw e2ee ciphertext and empty content to safe previews', () => {
+    const encryptedMsg: Partial<ChatMessage> = {
+      id: 'm-enc',
+      conversation_id: 'conv-1',
+      user_id: 'user-other',
+      content: 'e2ee:v1:YWJj:eHl6',
+      author: { id: 'u2', display_name: 'Alice', email: 'a@b.com' },
+    }
+
+    const notificationConstructor = vi.fn().mockReturnValue({ close: vi.fn() })
+    const managerWithNotif = createNotificationManager({
+      notificationApi: { permission: 'granted', requestPermission: vi.fn() } as any,
+      notificationConstructor,
+      isDocumentVisible: () => false,
+    })
+
+    managerWithNotif.notifyIncomingMessage({
+      message: encryptedMsg as any,
+      activeConversationId: 'conv-other',
+    })
+
+    expect(notificationConstructor).toHaveBeenCalledWith('Alice', expect.objectContaining({
+      body: '🔒 Encrypted message',
+      tag: 'chat-conv-1',
+    }))
+  })
+
   it('manages toast dismissal', () => {
     const manager = createNotificationManager()
     manager.addToast({

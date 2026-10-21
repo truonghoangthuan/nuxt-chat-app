@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { playNotificationChime } from '~/utils/sound'
+import { playNotificationChime, resetChimeThrottleForTest } from '~/utils/sound'
 
 describe('sound utility', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    resetChimeThrottleForTest()
   })
 
   it('safely handles missing AudioContext in SSR or unsupported environments', () => {
@@ -17,6 +18,7 @@ describe('sound utility', () => {
         exponentialRampToValueAtTime: vi.fn(),
       },
       connect: vi.fn(),
+      disconnect: vi.fn(),
     }
 
     const mockOscNode1 = {
@@ -25,6 +27,7 @@ describe('sound utility', () => {
         setValueAtTime: vi.fn(),
       },
       connect: vi.fn(),
+      disconnect: vi.fn(),
       start: vi.fn(),
       stop: vi.fn(),
     }
@@ -35,8 +38,10 @@ describe('sound utility', () => {
         setValueAtTime: vi.fn(),
       },
       connect: vi.fn(),
+      disconnect: vi.fn(),
       start: vi.fn(),
       stop: vi.fn(),
+      onended: null as any,
     }
 
     let oscCount = 0
@@ -59,6 +64,14 @@ describe('sound utility', () => {
     expect(mockOscNode1.start).toHaveBeenCalled()
     expect(mockOscNode2.start).toHaveBeenCalled()
     expect(mockGainNode.connect).toHaveBeenCalledWith(mockCtx.destination)
+
+    // Simulate onended cleanup
+    if (mockOscNode2.onended) {
+      mockOscNode2.onended()
+      expect(mockGainNode.disconnect).toHaveBeenCalled()
+      expect(mockOscNode1.disconnect).toHaveBeenCalled()
+      expect(mockOscNode2.disconnect).toHaveBeenCalled()
+    }
   })
 
   it('attempts to resume suspended AudioContext', async () => {
@@ -97,5 +110,30 @@ describe('sound utility', () => {
     } as unknown as AudioContext
 
     expect(() => playNotificationChime(mockCtx)).not.toThrow()
+  })
+
+  it('throttles rapid consecutive chime calls within cooldown period', () => {
+    const mockCtx = {
+      state: 'running',
+      currentTime: 0,
+      createGain: vi.fn().mockReturnValue({
+        gain: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() },
+        connect: vi.fn(),
+      }),
+      createOscillator: vi.fn().mockReturnValue({
+        type: 'sine',
+        frequency: { setValueAtTime: vi.fn() },
+        connect: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn(),
+      }),
+    } as unknown as AudioContext
+
+    playNotificationChime(mockCtx)
+    expect(mockCtx.createGain).toHaveBeenCalledTimes(1)
+
+    // Call immediately again -> should be throttled
+    playNotificationChime(mockCtx)
+    expect(mockCtx.createGain).toHaveBeenCalledTimes(1)
   })
 })

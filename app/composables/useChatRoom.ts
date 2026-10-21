@@ -355,6 +355,7 @@ export function handleIncomingRealtimeMessage(params: {
       )
     ) {
       params.unreadMentions[targetId] = (params.unreadMentions[targetId] || 0) + 1
+    }
   }
 
   if (params.notificationManager) {
@@ -364,7 +365,6 @@ export function handleIncomingRealtimeMessage(params: {
       currentUserId: params.currentUserId,
       onNavigate: params.onNavigate,
     })
-    }
   }
 }
 

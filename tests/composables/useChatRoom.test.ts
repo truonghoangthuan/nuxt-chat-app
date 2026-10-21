@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+﻿import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { shallowReactive, computed } from 'vue'
 import {
   handleIncomingRealtimeMessage,
@@ -110,6 +110,36 @@ describe('useChatRoom realtime message routing & profile caching', () => {
     expect(notifyMock).toHaveBeenCalledWith(expect.objectContaining({
       message: expect.objectContaining({ id: 'm-20', content: 'Notification test' }),
       activeConversationId: 'conv-1',
+    }))
+  })
+
+  it('dispatches incoming message for active conversation to notificationManager (for background tab alert)', () => {
+    const store = createMessagesStore()
+    const typing = createTypingTracker(() => 'u-me', 3000)
+    const notifyMock = vi.fn()
+    const mockNotifManager = {
+      notifyIncomingMessage: notifyMock,
+    } as any
+
+    handleIncomingRealtimeMessage({
+      row: {
+        id: 'm-21',
+        client_id: 'c-21',
+        conversation_id: 'conv-active',
+        user_id: 'u-alice',
+        content: 'Active room test',
+        created_at: '2026-10-21T10:00:00Z',
+      },
+      activeConversationId: 'conv-active',
+      messagesStore: store,
+      typingTracker: typing,
+      unreadCounts: {},
+      notificationManager: mockNotifManager,
+    })
+
+    expect(notifyMock).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.objectContaining({ id: 'm-21', content: 'Active room test' }),
+      activeConversationId: 'conv-active',
     }))
   })
 

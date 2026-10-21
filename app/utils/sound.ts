@@ -1,4 +1,35 @@
 let sharedAudioContext: AudioContext | null = null
+let lastChimeTime = 0
+export const CHIME_THROTTLE_MS = 400
+
+let hasSetupUserGestureListener = false
+
+export function resetChimeThrottleForTest(): void {
+  lastChimeTime = 0
+}
+
+export function primeAudioContext(): void {
+  const ctx = getAudioContext()
+  if (ctx && ctx.state === 'suspended') {
+    ctx.resume().catch(() => {})
+  }
+}
+
+export function setupAudioContextPriming(): void {
+  if (typeof window === 'undefined' || hasSetupUserGestureListener) return
+  hasSetupUserGestureListener = true
+
+  const handleInteraction = () => {
+    primeAudioContext()
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pointerdown', handleInteraction)
+      window.removeEventListener('keydown', handleInteraction)
+    }
+  }
+
+  window.addEventListener('pointerdown', handleInteraction, { once: true, passive: true })
+  window.addEventListener('keydown', handleInteraction, { once: true, passive: true })
+}
 
 export function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null
@@ -7,6 +38,7 @@ export function getAudioContext(): AudioContext | null {
   if (!sharedAudioContext || sharedAudioContext.state === 'closed') {
     try {
       sharedAudioContext = new AudioCtx()
+      setupAudioContextPriming()
     } catch {
       return null
     }
@@ -15,6 +47,10 @@ export function getAudioContext(): AudioContext | null {
 }
 
 export function playNotificationChime(customContext?: AudioContext | null): void {
+  const nowMs = Date.now()
+  if (nowMs - lastChimeTime < CHIME_THROTTLE_MS) return
+  lastChimeTime = nowMs
+
   const ctx = customContext !== undefined ? customContext : getAudioContext()
   if (!ctx) return
 
@@ -44,6 +80,14 @@ export function playNotificationChime(customContext?: AudioContext | null): void
     osc2.connect(gainNode)
     osc2.start(now + 0.08)
     osc2.stop(now + 0.35)
+
+    osc2.onended = () => {
+      try {
+        osc1.disconnect()
+        osc2.disconnect()
+        gainNode.disconnect()
+      } catch {}
+    }
   } catch {
     // Gracefully ignore audio errors (e.g. autoplay policy restrictions)
   }

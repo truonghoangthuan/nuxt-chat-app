@@ -28,14 +28,18 @@ function handleClick(toast: NotificationToastItem) {
     v-if="toasts && toasts.length > 0"
     class="fixed top-4 right-4 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-3 sm:px-0"
     role="region"
+    aria-live="polite"
     aria-label="Notifications"
   >
     <div
       v-for="toast in toasts"
       :key="toast.id"
       data-test="notification-toast"
+      role="button"
+      tabindex="0"
       class="pointer-events-auto flex items-start gap-3 p-3 rounded-[14px] border border-[var(--fp-border)] bg-[var(--fp-surface-strong)]/95 backdrop-blur-md shadow-xl hover:border-[var(--fp-accent-bright)] transition-all cursor-pointer group animate-in fade-in slide-in-from-top-2 duration-200"
       @click="handleClick(toast)"
+      @keydown.enter="handleClick(toast)"
     >
       <UserAvatar
         :display-name="toast.title"

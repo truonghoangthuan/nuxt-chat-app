@@ -618,11 +618,11 @@ function onContactsClick() {
             size="icon"
             data-test="toggle-notifications-btn"
             class="size-8 rounded-lg text-[var(--fp-text-secondary)] hover:bg-[var(--fp-hover)] hover:text-[var(--fp-text-primary)]"
-            :aria-label="notificationsEnabled ? 'Mute notifications' : 'Enable notifications'"
-            :title="notificationsEnabled ? 'Mute notifications' : 'Enable notifications'"
+            :aria-label="notificationPermission === 'denied' ? 'Notifications blocked by browser' : (notificationsEnabled ? 'Mute notifications' : 'Enable notifications')"
+            :title="notificationPermission === 'denied' ? 'Notifications blocked in browser settings' : (notificationsEnabled ? 'Mute notifications' : 'Enable notifications')"
             @click="emit('toggleNotifications')"
           >
-            <Bell v-if="notificationsEnabled" class="size-4" aria-hidden="true" />
+            <Bell v-if="notificationsEnabled && notificationPermission !== 'denied'" class="size-4" aria-hidden="true" />
             <BellOff v-else class="size-4 text-amber-500" aria-hidden="true" />
           </Button>
 

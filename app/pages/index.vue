@@ -107,11 +107,13 @@ function handleOpenLightbox(payload: { images: EncryptedImageMetadata[]; initial
 
 async function handleSelectConversation(conversationId: string) {
   replyingTo.value = null
+  isMobileSidebarOpen.value = false
   await selectConversation(conversationId)
 }
 
 async function handleStartDirectChat(userId: string) {
   replyingTo.value = null
+  isMobileSidebarOpen.value = false
   await openOrCreateDirectChat(userId)
   isContactsModalOpen.value = false
 }
@@ -120,8 +122,9 @@ async function handleToggleNotifications() {
   if (notificationPermission.value === 'default') {
     await requestNotificationPermission()
   } else {
-    toggleSound()
-    toggleDesktop()
+    const next = !(soundEnabled.value || desktopEnabled.value)
+    if (soundEnabled.value !== next) toggleSound()
+    if (desktopEnabled.value !== next) toggleDesktop()
   }
 }
 
@@ -177,11 +180,13 @@ async function handleRetryConfig() {
 async function handleSendMessage(content: string) {
   const replyId = replyingTo.value?.id || null
   replyingTo.value = null
+  isMobileSidebarOpen.value = false
   await sendMessage(content, replyId)
 }
 
 async function handleSendImages(files: File[]) {
   replyingTo.value = null
+  isMobileSidebarOpen.value = false
   await sendImages(files)
 }
 

@@ -64,7 +64,9 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
       const api = options?.notificationApi || (typeof window !== 'undefined' && 'Notification' in window ? window.Notification : null)
       if (api && typeof api.requestPermission === 'function') {
         const result = await api.requestPermission()
-        permission.value = result
+        if (result) {
+          permission.value = result
+        }
         return result
       }
     } catch {
@@ -106,13 +108,19 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
 
     const targetId = message.conversation_id || message.channel_id || ''
 
+    const isFocused = options?.isDocumentVisible
+      ? options.isDocumentVisible()
+      : typeof document !== 'undefined'
+        ? document.visibilityState === 'visible' && (typeof document.hasFocus === 'function' ? document.hasFocus() : true)
+        : true
+
     const isVisible = options?.isDocumentVisible
       ? options.isDocumentVisible()
       : typeof document !== 'undefined'
         ? document.visibilityState === 'visible'
         : true
 
-    const isViewingSameConv = isVisible && Boolean(targetId && targetId === activeConversationId)
+    const isViewingSameConv = isFocused && Boolean(targetId && targetId === activeConversationId)
 
     // Suppress all notifications if user is already actively viewing the conversation
     if (isViewingSameConv) return
@@ -126,19 +134,23 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
       }
     }
 
-    // Prepare message preview snippet
-    let snippet = message.content || ''
-    if (isImagePayload(snippet)) {
+    // Prepare message preview snippet safely without ciphertext leaks
+    let snippet = (message.content || '').trim()
+    if (snippet.startsWith('e2ee:v1:')) {
+      snippet = '🔒 Encrypted message'
+    } else if (isImagePayload(snippet)) {
       const parsed = parseImagePayload(snippet)
       snippet = formatImageMessageSummary(parsed?.images.length || 1)
+    } else if (!snippet) {
+      snippet = 'New message'
     } else if (snippet.length > 100) {
       snippet = snippet.slice(0, 97) + '...'
     }
 
     const title = message.author?.display_name || 'New Message'
 
-    // 2. In-App Toast (only when window is visible and user is in another channel)
-    if (isVisible) {
+    // 2. In-App Toast (when window is visible and message is for another channel)
+    if (isVisible && targetId !== activeConversationId) {
       addToast({
         conversationId: targetId,
         title,
@@ -148,8 +160,8 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
       })
     }
 
-    // 3. Desktop Notification (Windows toast)
-    if (desktopEnabled.value) {
+    // 3. Desktop Notification (Windows toast) when tab is not focused or message is in another channel
+    if (desktopEnabled.value && (!isFocused || targetId !== activeConversationId)) {
       const hasPermission = permission.value === 'granted' || (
         typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted'
       )
@@ -166,6 +178,7 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
             const notif = createNotif(title, {
               body: snippet,
               icon: '/favicon.ico',
+              tag: `chat-${targetId || 'default'}`,
             })
 
             if (notif) {
