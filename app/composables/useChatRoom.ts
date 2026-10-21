@@ -792,6 +792,27 @@ export function useChatRoom() {
       return null
     }
     const cleanEmail = email.trim().toLowerCase()
+
+    try {
+      if (typeof supabase.rpc === 'function') {
+        const { data, error } = await supabase.rpc('lookup_profile_by_email', { search_email: cleanEmail })
+        if (!error && data) {
+          const profile = (Array.isArray(data) ? data[0] : data) as Profile
+          if (profile && profile.id) {
+            profilesCache.set(profile.id, profile)
+            if (!allProfiles.value.some(p => p.id === profile.id)) {
+              allProfiles.value = [...allProfiles.value, profile].sort((a, b) =>
+                a.display_name.localeCompare(b.display_name),
+              )
+            }
+            return profile
+          }
+        }
+      }
+    } catch {
+      // Fallback to direct query below
+    }
+
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -876,17 +897,28 @@ export function useChatRoom() {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('contacts')
-        .insert({
-          user_id: current.id,
-          contact_user_id: contactUserId,
-        })
-        .select('*')
-        .single()
+      let data: any = null
+      let addError: any = null
 
-      if (error && !isDuplicateKeyError(error)) {
-        return { contact: null, error: error.message }
+      if (typeof supabase.rpc === 'function') {
+        const { error: rpcError } = await supabase.rpc('add_mutual_friend', { target_user_id: contactUserId })
+        addError = rpcError
+      }
+
+      if (addError || typeof supabase.rpc !== 'function') {
+        const res = await supabase
+          .from('contacts')
+          .insert({
+            user_id: current.id,
+            contact_user_id: contactUserId,
+          })
+          .select('*')
+          .single()
+
+        if (res.error && !isDuplicateKeyError(res.error)) {
+          return { contact: null, error: res.error.message }
+        }
+        data = res.data
       }
 
       const newContact: Contact = {
@@ -917,6 +949,13 @@ export function useChatRoom() {
     syncOnlineFriends()
 
     try {
+      if (typeof supabase.rpc === 'function') {
+        const { error: rpcError } = await supabase.rpc('remove_mutual_friend', { target_user_id: contactUserId })
+        if (!rpcError) {
+          return { error: null }
+        }
+      }
+
       const { error } = await supabase
         .from('contacts')
         .delete()
