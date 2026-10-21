@@ -450,4 +450,22 @@ describe('GroupInfoModal.vue', () => {
     expect(wrapper.find('[data-test="edit-title-input"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="group-title"]').text()).toBe('Secret Agents')
   })
+
+  it('does not emit updateTitle when saved with unchanged title', async () => {
+    const wrapper = mount(GroupInfoModal, {
+      props: {
+        isOpen: true,
+        conversation: mockGroupConversation,
+        onlineUserIds: [],
+      },
+    })
+
+    await wrapper.find('[data-test="edit-title-btn"]').trigger('click')
+    const form = wrapper.find('[data-test="edit-title-form"]')
+
+    // Submit with existing title ('Secret Agents')
+    await form.trigger('submit')
+    expect(wrapper.emitted('updateTitle')).toBeUndefined()
+    expect(wrapper.find('[data-test="edit-title-input"]').exists()).toBe(false)
+  })
 })

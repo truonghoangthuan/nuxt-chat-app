@@ -54,6 +54,10 @@ function handleSaveTitle() {
     return
   }
   titleError.value = null
+  if (trimmed === (props.conversation?.title || '').trim()) {
+    isEditingTitle.value = false
+    return
+  }
   emit('updateTitle', trimmed)
   isEditingTitle.value = false
 }
@@ -172,7 +176,7 @@ function handleClose() {
                 class="flex-1 min-w-0 px-2.5 py-1 text-sm font-semibold rounded-[6px] border border-[var(--fp-border)] bg-[var(--fp-input-bg)] text-[var(--fp-text-primary)] focus:outline-none focus:border-indigo-500"
                 placeholder="Group name"
                 autofocus
-                @keydown.esc="cancelEditTitle"
+                @keydown.esc.stop="cancelEditTitle"
               />
               <button
                 type="submit"
