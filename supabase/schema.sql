@@ -1,17 +1,24 @@
 -- Enable UUID generation extension
 create extension if not exists "pgcrypto";
 
--- 1. Profiles Table
+-- ============================================================================
+-- 1. Profiles Table (with Email Sync)
+-- ============================================================================
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
+  email text not null,
   display_name text not null,
   avatar_color text not null,
+  avatar_url text,
   created_at timestamptz not null default now()
 );
 
-alter table public.profiles enable row level security;
-
+alter table public.profiles add column if not exists email text;
 alter table public.profiles add column if not exists avatar_url text;
+
+create unique index if not exists profiles_email_lower_idx on public.profiles (lower(email)) where email is not null and email <> '';
+
+alter table public.profiles enable row level security;
 
 create policy "Authenticated users can view profiles"
   on public.profiles for select
@@ -29,7 +36,7 @@ create policy "Users can insert their own profile"
   to authenticated
   with check (auth.uid() = id);
 
--- Trigger: auto-create profile on signup
+-- Trigger: auto-create or sync profile on signup
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -38,17 +45,20 @@ as $$
 declare
   d_name text;
   a_color text;
+  u_email text;
 begin
+  u_email := coalesce(new.email, '');
   d_name := coalesce(
     nullif(trim(new.raw_user_meta_data->>'display_name'), ''),
-    nullif(split_part(coalesce(new.email, ''), '@', 1), ''),
+    nullif(split_part(u_email, '@', 1), ''),
     'Friend'
   );
   a_color := coalesce(new.raw_user_meta_data->>'avatar_color', '#0284c7');
 
-  insert into public.profiles (id, display_name, avatar_color)
-  values (new.id, d_name, a_color)
+  insert into public.profiles (id, email, display_name, avatar_color)
+  values (new.id, u_email, d_name, a_color)
   on conflict (id) do update set
+    email = excluded.email,
     display_name = excluded.display_name,
     avatar_color = excluded.avatar_color;
   return new;
@@ -60,89 +70,175 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
--- 2. Channels Table
-create table if not exists public.channels (
-  id uuid primary key default gen_random_uuid(),
-  slug text unique not null,
-  description text,
-  created_by uuid references public.profiles(id) on delete set null,
-  created_at timestamptz not null default now()
-);
-
-alter table public.channels enable row level security;
-
-create policy "Authenticated users can view channels"
-  on public.channels for select
-  to authenticated
-  using (true);
-
-create policy "Authenticated users can create channels"
-  on public.channels for insert
-  to authenticated
-  with check (auth.uid() = created_by or created_by is null);
-
--- Seed Default Channels
-insert into public.channels (slug, description)
-values
-  ('general', 'General hangout for everyone'),
-  ('random', 'Random links, jokes, and off-topic chat')
-on conflict (slug) do nothing;
-
--- 3. Messages Table
-create table if not exists public.messages (
-  id uuid primary key default gen_random_uuid(),
-  client_id uuid unique not null,
-  channel_id uuid not null references public.channels(id) on delete cascade,
+-- ============================================================================
+-- 2. Contacts Table (Personal Address Book)
+-- ============================================================================
+create table if not exists public.contacts (
   user_id uuid not null references public.profiles(id) on delete cascade,
-  content text not null check (char_length(trim(content)) > 0 and char_length(content) <= 24000),
-  created_at timestamptz not null default now()
+  contact_user_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, contact_user_id),
+  constraint contacts_no_self_check check (user_id <> contact_user_id)
 );
 
-do $$
-begin
-  if exists (select 1 from pg_constraint where conname = 'messages_content_check') then
-    alter table public.messages drop constraint messages_content_check;
-    alter table public.messages add constraint messages_content_check check (char_length(trim(content)) > 0 and char_length(content) <= 24000);
-  end if;
-end;
-$$;
+create index if not exists contacts_user_idx on public.contacts (user_id);
 
-alter table public.messages enable row level security;
+alter table public.contacts enable row level security;
 
-create policy "Authenticated users can view messages"
-  on public.messages for select
+create policy "Users can view their own contacts"
+  on public.contacts for select
   to authenticated
-  using (true);
+  using (auth.uid() = user_id);
 
-create policy "Authenticated users can insert messages"
-  on public.messages for insert
+create policy "Users can insert their own contacts"
+  on public.contacts for insert
   to authenticated
   with check (auth.uid() = user_id);
 
--- Index for composite cursor pagination
-create index if not exists messages_channel_cursor_idx
-  on public.messages (channel_id, created_at desc, id desc);
+create policy "Users can delete their own contacts"
+  on public.contacts for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
+-- ============================================================================
+-- 3. Conversations & Conversation Members
+-- ============================================================================
+create table if not exists public.conversations (
+  id uuid primary key default gen_random_uuid(),
+  type text not null check (type in ('direct', 'group')),
+  title text,
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint group_title_required check (type = 'direct' or (type = 'group' and title is not null and char_length(trim(title)) > 0))
+);
+
+alter table public.conversations enable row level security;
+
+create table if not exists public.conversation_members (
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  role text not null default 'member' check (role in ('owner', 'member')),
+  joined_at timestamptz not null default now(),
+  primary key (conversation_id, user_id)
+);
+
+create index if not exists conv_members_user_idx on public.conversation_members (user_id);
+
+alter table public.conversation_members enable row level security;
+
+-- Function: check conversation membership access
+create or replace function public.can_access_conversation(cid uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.conversation_members cm
+    where cm.conversation_id = cid
+      and cm.user_id = auth.uid()
+  );
+$$;
+
+revoke execute on function public.can_access_conversation(uuid) from anon;
+grant execute on function public.can_access_conversation(uuid) to authenticated;
+
+-- Policies on conversations
+create policy "Authenticated users can view accessible conversations"
+  on public.conversations for select
+  to authenticated
+  using (public.can_access_conversation(id) or auth.uid() = created_by);
+
+create policy "Authenticated users can insert conversations"
+  on public.conversations for insert
+  to authenticated
+  with check (auth.uid() = created_by or created_by is null);
+
+create policy "Authenticated users can update accessible conversations"
+  on public.conversations for update
+  to authenticated
+  using (public.can_access_conversation(id))
+  with check (public.can_access_conversation(id));
+
+-- Policies on conversation_members
+create policy "Authenticated users can view accessible conversation members"
+  on public.conversation_members for select
+  to authenticated
+  using (public.can_access_conversation(conversation_id));
+
+create policy "Authenticated users can insert conversation members"
+  on public.conversation_members for insert
+  to authenticated
+  with check (
+    public.can_access_conversation(conversation_id)
+    or exists (
+      select 1 from public.conversations c
+      where c.id = conversation_id and c.created_by = auth.uid()
+    )
+  );
+
+create policy "Users can remove themselves or owners can manage members"
+  on public.conversation_members for delete
+  to authenticated
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from public.conversation_members cm
+      where cm.conversation_id = public.conversation_members.conversation_id
+        and cm.user_id = auth.uid()
+        and cm.role = 'owner'
+    )
+  );
+
+-- ============================================================================
+-- 4. Messages Table
+-- ============================================================================
+create table if not exists public.messages (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid unique not null,
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  content text not null check (char_length(trim(content)) > 0 and char_length(content) <= 24000),
+  reply_to_id uuid references public.messages(id) on delete set null,
+  edited_at timestamptz,
+  deleted_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table public.messages enable row level security;
+
+create index if not exists messages_conv_cursor_idx
+  on public.messages (conversation_id, created_at desc, id desc);
 
 create index if not exists messages_created_at_idx
   on public.messages (created_at desc);
 
--- 3b. Message Lifecycle Extensions (Edit, Soft-Delete, Replies)
-alter table public.messages
-  add column if not exists reply_to_id uuid references public.messages(id) on delete set null,
-  add column if not exists edited_at timestamptz,
-  add column if not exists deleted_at timestamptz;
+create policy "Authenticated users can view accessible messages"
+  on public.messages for select
+  to authenticated
+  using (public.can_access_conversation(conversation_id));
 
-create policy "Users can update their own messages"
+create policy "Authenticated users can insert accessible messages"
+  on public.messages for insert
+  to authenticated
+  with check (auth.uid() = user_id and public.can_access_conversation(conversation_id));
+
+create policy "Users can update accessible messages"
   on public.messages for update
   to authenticated
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  using (auth.uid() = user_id and public.can_access_conversation(conversation_id))
+  with check (auth.uid() = user_id and public.can_access_conversation(conversation_id));
 
--- 4. Message Reactions Table
+-- ============================================================================
+-- 5. Message Reactions Table
+-- ============================================================================
 create table if not exists public.message_reactions (
   id uuid primary key default gen_random_uuid(),
   message_id uuid not null references public.messages(id) on delete cascade,
-  channel_id uuid not null references public.channels(id) on delete cascade,
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
   emoji text not null,
   created_at timestamptz not null default now(),
@@ -152,207 +248,55 @@ create table if not exists public.message_reactions (
 alter table public.message_reactions replica identity full;
 alter table public.message_reactions enable row level security;
 
-create policy "Authenticated users can view message reactions"
-  on public.message_reactions for select
-  to authenticated
-  using (true);
+create index if not exists message_reactions_conv_idx
+  on public.message_reactions (conversation_id, message_id);
 
-create policy "Authenticated users can insert their own reactions"
-  on public.message_reactions for insert
-  to authenticated
-  with check (auth.uid() = user_id);
-
-create policy "Authenticated users can delete their own reactions"
-  on public.message_reactions for delete
-  to authenticated
-  using (auth.uid() = user_id);
-
-create index if not exists message_reactions_channel_idx
-  on public.message_reactions (channel_id, message_id);
-
--- 5. Channel Reads Table (Persistent Unread Tracking)
-create table if not exists public.channel_reads (
-  user_id uuid not null references public.profiles(id) on delete cascade,
-  channel_id uuid not null references public.channels(id) on delete cascade,
-  last_read_at timestamptz not null default now(),
-  primary key (user_id, channel_id)
-);
-
-alter table public.channel_reads enable row level security;
-
-create policy "Users can view their own channel reads"
-  on public.channel_reads for select
-  to authenticated
-  using (auth.uid() = user_id);
-
-create policy "Users can insert their own channel reads"
-  on public.channel_reads for insert
-  to authenticated
-  with check (auth.uid() = user_id);
-
-create policy "Users can update their own channel reads"
-  on public.channel_reads for update
-  to authenticated
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
-
--- ============================================================================
--- 3.7 Direct Messages (1-on-1 Private Conversations) & Strict Channel RLS
--- ============================================================================
-alter table public.channels
-  add column if not exists is_dm boolean not null default false,
-  add column if not exists dm_user_a uuid references public.profiles(id) on delete cascade,
-  add column if not exists dm_user_b uuid references public.profiles(id) on delete cascade;
-
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint where conname = 'channels_dm_pair_check'
-  ) then
-    alter table public.channels
-      add constraint channels_dm_pair_check
-      check (
-        (not is_dm and dm_user_a is null and dm_user_b is null)
-        or (is_dm and dm_user_a is not null and dm_user_b is not null and dm_user_a < dm_user_b)
-      );
-  end if;
-end;
-$$;
-
-create unique index if not exists channels_dm_pair_unique_idx
-  on public.channels (dm_user_a, dm_user_b)
-  where is_dm = true;
-
-create or replace function public.can_access_channel(cid uuid)
-returns boolean
-language sql
-security definer
-stable
-set search_path = public
-as $$
-  select exists (
-    select 1
-    from public.channels c
-    where c.id = cid
-      and (not c.is_dm or auth.uid() = c.dm_user_a or auth.uid() = c.dm_user_b)
-  );
-$$;
-
-revoke execute on function public.can_access_channel(uuid) from anon;
-grant execute on function public.can_access_channel(uuid) to authenticated;
-
-drop policy if exists "Authenticated users can view channels" on public.channels;
-drop policy if exists "Authenticated users can view accessible channels" on public.channels;
-create policy "Authenticated users can view accessible channels"
-  on public.channels for select
-  to authenticated
-  using (not is_dm or auth.uid() = dm_user_a or auth.uid() = dm_user_b);
-
-drop policy if exists "Authenticated users can create channels" on public.channels;
-create policy "Authenticated users can create channels"
-  on public.channels for insert
-  to authenticated
-  with check (
-    (not is_dm and (auth.uid() = created_by or created_by is null))
-    or (is_dm and (auth.uid() = dm_user_a or auth.uid() = dm_user_b) and (auth.uid() = created_by or created_by is null))
-  );
-
-drop policy if exists "Authenticated users can view messages" on public.messages;
-drop policy if exists "Authenticated users can view accessible messages" on public.messages;
-create policy "Authenticated users can view accessible messages"
-  on public.messages for select
-  to authenticated
-  using (public.can_access_channel(channel_id));
-
-drop policy if exists "Authenticated users can insert messages" on public.messages;
-drop policy if exists "Authenticated users can insert accessible messages" on public.messages;
-create policy "Authenticated users can insert accessible messages"
-  on public.messages for insert
-  to authenticated
-  with check (auth.uid() = user_id and public.can_access_channel(channel_id));
-
-drop policy if exists "Users can update their own messages" on public.messages;
-drop policy if exists "Users can update accessible messages" on public.messages;
-create policy "Users can update accessible messages"
-  on public.messages for update
-  to authenticated
-  using (auth.uid() = user_id and public.can_access_channel(channel_id))
-  with check (auth.uid() = user_id and public.can_access_channel(channel_id));
-
-drop policy if exists "Authenticated users can view message reactions" on public.message_reactions;
-drop policy if exists "Authenticated users can view accessible message reactions" on public.message_reactions;
 create policy "Authenticated users can view accessible message reactions"
   on public.message_reactions for select
   to authenticated
-  using (public.can_access_channel(channel_id));
+  using (public.can_access_conversation(conversation_id));
 
-drop policy if exists "Authenticated users can insert their own reactions" on public.message_reactions;
-drop policy if exists "Authenticated users can insert accessible reactions" on public.message_reactions;
 create policy "Authenticated users can insert accessible reactions"
   on public.message_reactions for insert
   to authenticated
-  with check (auth.uid() = user_id and public.can_access_channel(channel_id));
+  with check (auth.uid() = user_id and public.can_access_conversation(conversation_id));
 
-drop policy if exists "Authenticated users can delete their own reactions" on public.message_reactions;
-drop policy if exists "Authenticated users can delete accessible reactions" on public.message_reactions;
 create policy "Authenticated users can delete accessible reactions"
   on public.message_reactions for delete
   to authenticated
-  using (auth.uid() = user_id and public.can_access_channel(channel_id));
-
-drop policy if exists "Users can insert their own channel reads" on public.channel_reads;
-drop policy if exists "Users can insert accessible channel reads" on public.channel_reads;
-create policy "Users can insert accessible channel reads"
-  on public.channel_reads for insert
-  to authenticated
-  with check (auth.uid() = user_id and public.can_access_channel(channel_id));
-
-drop policy if exists "Users can update their own channel reads" on public.channel_reads;
-drop policy if exists "Users can update accessible channel reads" on public.channel_reads;
-create policy "Users can update accessible channel reads"
-  on public.channel_reads for update
-  to authenticated
-  using (auth.uid() = user_id and public.can_access_channel(channel_id))
-  with check (auth.uid() = user_id and public.can_access_channel(channel_id));
-
--- Realtime Publication
-do $$
-begin
-  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
-    alter publication supabase_realtime add table public.messages, public.channels;
-  end if;
-exception when duplicate_object then
-  -- tables already in publication
-  null;
-end;
-$$;
-
-do $$
-begin
-  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
-    alter publication supabase_realtime add table public.profiles;
-  end if;
-exception when duplicate_object then
-  -- table already in publication
-  null;
-end;
-$$;
-
-do $$
-begin
-  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
-    alter publication supabase_realtime add table public.message_reactions;
-  end if;
-exception when duplicate_object then
-  null;
-end;
-$$;
+  using (auth.uid() = user_id and public.can_access_conversation(conversation_id));
 
 -- ============================================================================
--- 6. End-to-End Encryption (E2EE) Configuration & Envelope Enforcement
+-- 6. Conversation Reads Table (Persistent Unread Tracking)
 -- ============================================================================
+create table if not exists public.conversation_reads (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
+  last_read_at timestamptz not null default now(),
+  primary key (user_id, conversation_id)
+);
 
--- E2EE Configuration Singleton Table
+alter table public.conversation_reads enable row level security;
+
+create policy "Users can view their own conversation reads"
+  on public.conversation_reads for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+create policy "Users can insert accessible conversation reads"
+  on public.conversation_reads for insert
+  to authenticated
+  with check (auth.uid() = user_id and public.can_access_conversation(conversation_id));
+
+create policy "Users can update accessible conversation reads"
+  on public.conversation_reads for update
+  to authenticated
+  using (auth.uid() = user_id and public.can_access_conversation(conversation_id))
+  with check (auth.uid() = user_id and public.can_access_conversation(conversation_id));
+
+-- ============================================================================
+-- 7. End-to-End Encryption (E2EE) Configuration & Envelope Enforcement
+-- ============================================================================
 create table if not exists public.e2ee_config (
   id integer primary key check (id = 1),
   salt text not null,
@@ -363,13 +307,11 @@ create table if not exists public.e2ee_config (
 
 alter table public.e2ee_config enable row level security;
 
-drop policy if exists "Authenticated users can view e2ee config" on public.e2ee_config;
 create policy "Authenticated users can view e2ee config"
   on public.e2ee_config for select
   to authenticated
   using (true);
 
--- Trigger: enforce e2ee:v1: envelope on new or updated messages
 create or replace function public.enforce_message_e2ee_envelope()
 returns trigger
 language plpgsql
@@ -391,14 +333,13 @@ create trigger check_message_e2ee_envelope
   for each row execute procedure public.enforce_message_e2ee_envelope();
 
 -- ============================================================================
--- 7. Storage Bucket & Channel-Aware Storage RLS for Encrypted Attachments
+-- 8. Storage Bucket & Conversation-Aware Storage RLS for Encrypted Attachments
 -- ============================================================================
-
 insert into storage.buckets (id, name, public)
 values ('message-attachments', 'message-attachments', false)
 on conflict (id) do nothing;
 
-create or replace function public.storage_channel_id(path text)
+create or replace function public.storage_conversation_id(path text)
 returns uuid
 language plpgsql
 immutable
@@ -407,7 +348,9 @@ declare
   parts text[];
 begin
   parts := string_to_array(ltrim(path, '/'), '/');
-  if array_length(parts, 1) >= 2 and parts[1] = 'channels' then
+  if array_length(parts, 1) >= 2
+     and parts[1] in ('conversations', 'channels')
+     and parts[2] ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
     return parts[2]::uuid;
   end if;
   return null;
@@ -416,32 +359,49 @@ exception when others then
 end;
 $$;
 
-drop policy if exists "Authenticated users can upload channel attachments" on storage.objects;
-create policy "Authenticated users can upload channel attachments"
+drop policy if exists "Authenticated users can upload conversation attachments" on storage.objects;
+create policy "Authenticated users can upload conversation attachments"
   on storage.objects for insert
   to authenticated
   with check (
     bucket_id = 'message-attachments'
-    and public.can_access_channel(public.storage_channel_id(name))
+    and public.can_access_conversation(public.storage_conversation_id(name))
   );
 
-drop policy if exists "Authenticated users can view channel attachments" on storage.objects;
-create policy "Authenticated users can view channel attachments"
+drop policy if exists "Authenticated users can view conversation attachments" on storage.objects;
+create policy "Authenticated users can view conversation attachments"
   on storage.objects for select
   to authenticated
   using (
     bucket_id = 'message-attachments'
-    and public.can_access_channel(public.storage_channel_id(name))
+    and public.can_access_conversation(public.storage_conversation_id(name))
   );
 
-drop policy if exists "Authenticated users can delete channel attachments" on storage.objects;
-create policy "Authenticated users can delete channel attachments"
+drop policy if exists "Authenticated users can delete conversation attachments" on storage.objects;
+create policy "Authenticated users can delete conversation attachments"
   on storage.objects for delete
   to authenticated
   using (
     bucket_id = 'message-attachments'
     and owner = auth.uid()
-    and public.can_access_channel(public.storage_channel_id(name))
+    and public.can_access_conversation(public.storage_conversation_id(name))
   );
 
-
+-- ============================================================================
+-- 9. Realtime Publication
+-- ============================================================================
+do $$
+declare
+  tbl text;
+begin
+  for tbl in select unnest(array['conversations', 'conversation_members', 'messages', 'message_reactions', 'profiles', 'contacts']) loop
+    if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+       and not exists (
+         select 1 from pg_publication_tables
+         where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = tbl
+       ) then
+      execute format('alter publication supabase_realtime add table public.%I', tbl);
+    end if;
+  end loop;
+end;
+$$;

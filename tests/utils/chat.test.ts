@@ -23,8 +23,12 @@ import {
   normalizeDmPair,
   getDmPeerId,
   canUserAccessChannel,
+  isValidEmail,
+  formatConversationTitle,
+  formatConversationTime,
+  getDirectPeer,
 } from '~/utils/chat'
-import type { ChatMessage } from '~/types/chat'
+import type { ChatMessage, Conversation, Profile } from '~/types/chat'
 
 describe('chat utils', () => {
   it('normalizes channel names into lowercase hyphenated slugs', () => {
@@ -378,6 +382,246 @@ describe('chat utils', () => {
     it('returns false for regular text or malformed JSON', () => {
       expect(isImagePayload('Hello world')).toBe(false)
       expect(isImagePayload('{"type":"text"}')).toBe(false)
+    })
+  })
+})
+
+describe('Conversation utilities', () => {
+  it('validates email addresses accurately', () => {
+    expect(isValidEmail('alice@example.com')).toBe(true)
+    expect(isValidEmail('bob.smith+chat@domain.co.uk')).toBe(true)
+    expect(isValidEmail('invalid-email')).toBe(false)
+    expect(isValidEmail('@nodomain.com')).toBe(false)
+    expect(isValidEmail('')).toBe(false)
+  })
+
+  it('formats conversation title for direct chats and groups', () => {
+    const peer: Profile = { id: 'u2', email: 'bob@example.com', display_name: 'Bob', avatar_color: '#0284c7' }
+    const directChat: Conversation = {
+      id: 'c1',
+      type: 'direct',
+      title: null,
+      created_by: 'u1',
+      created_at: new Date().toISOString(),
+      peer,
+    }
+    expect(formatConversationTitle(directChat, 'u1')).toBe('Bob')
+
+    const groupChat: Conversation = {
+      id: 'c2',
+      type: 'group',
+      title: 'Project Alpha',
+      created_by: 'u1',
+      created_at: new Date().toISOString(),
+    }
+    expect(formatConversationTitle(groupChat, 'u1')).toBe('Project Alpha')
+  })
+
+  it('falls back to email when peer display_name is empty or missing in direct chat title', () => {
+    const peerEmptyName: Profile = { id: 'u2', email: 'bob@example.com', display_name: '', avatar_color: '#0284c7' }
+    const directChatEmpty: Conversation = {
+      id: 'c1',
+      type: 'direct',
+      title: null,
+      created_by: 'u1',
+      created_at: new Date().toISOString(),
+      peer: peerEmptyName,
+    }
+    expect(formatConversationTitle(directChatEmpty, 'u1')).toBe('bob@example.com')
+
+    const peerMissingName = { id: 'u3', email: 'alice@example.com', avatar_color: '#0284c7' } as Profile
+    const directChatMissing: Conversation = {
+      id: 'c2',
+      type: 'direct',
+      title: null,
+      created_by: 'u1',
+      created_at: new Date().toISOString(),
+      peer: peerMissingName,
+    }
+    expect(formatConversationTitle(directChatMissing, 'u1')).toBe('alice@example.com')
+  })
+
+  it('resolves direct peer correctly', () => {
+    const me: Profile = { id: 'u1', email: 'me@example.com', display_name: 'Me', avatar_color: '#0284c7' }
+    const peer: Profile = { id: 'u2', email: 'peer@example.com', display_name: 'Peer', avatar_color: '#10b981' }
+    const conv: Conversation = {
+      id: 'c1',
+      type: 'direct',
+      title: null,
+      created_by: 'u1',
+      created_at: new Date().toISOString(),
+      members: [
+        { conversation_id: 'c1', user_id: 'u1', role: 'owner', joined_at: '', profile: me },
+        { conversation_id: 'c1', user_id: 'u2', role: 'member', joined_at: '', profile: peer },
+      ],
+    }
+    expect(getDirectPeer(conv, 'u1')?.id).toBe('u2')
+    expect(getDirectPeer(conv, 'u2')?.id).toBe('u1')
+  })
+
+  it('returns null for getDirectPeer when given a group conversation', () => {
+    const groupChat: Conversation = {
+      id: 'c2',
+      type: 'group',
+      title: 'Project Alpha',
+      created_by: 'u1',
+      created_at: new Date().toISOString(),
+      members: [
+        { conversation_id: 'c2', user_id: 'u1', role: 'owner', joined_at: '' },
+        { conversation_id: 'c2', user_id: 'u2', role: 'member', joined_at: '' },
+      ],
+    }
+    expect(getDirectPeer(groupChat, 'u1')).toBeNull()
+  })
+
+  describe('Message bubble clustering (Telegram style)', () => {
+    it('groups consecutive messages from the same sender within 5 minutes', () => {
+      const t0 = new Date('2026-10-21T10:00:00Z').toISOString()
+      const t1 = new Date('2026-10-21T10:02:00Z').toISOString()
+      const t2 = new Date('2026-10-21T10:10:00Z').toISOString()
+
+      const messages: ChatMessage[] = [
+        { id: 'm1', client_id: 'c1', conversation_id: 'conv1', user_id: 'u1', content: 'e2ee:v1:test', created_at: t0, status: 'sent' },
+        { id: 'm2', client_id: 'c2', conversation_id: 'conv1', user_id: 'u1', content: 'e2ee:v1:test', created_at: t1, status: 'sent' },
+        { id: 'm3', client_id: 'c3', conversation_id: 'conv1', user_id: 'u2', content: 'e2ee:v1:test', created_at: t2, status: 'sent' },
+      ]
+
+      const timeline = buildMessageTimeline(messages, new Date('2026-10-21T12:00:00Z'), {
+        currentUserId: 'u1',
+        isGroup: true,
+      })
+
+      expect(timeline[0].isSender).toBe(true)
+      expect(timeline[0].isFirstInGroup).toBe(true)
+      expect(timeline[0].isLastInGroup).toBe(false)
+      expect(timeline[0].showSenderHeader).toBe(false) // sender never shows name header
+
+      expect(timeline[1].isSender).toBe(true)
+      expect(timeline[1].isFirstInGroup).toBe(false)
+      expect(timeline[1].isLastInGroup).toBe(true)
+
+      expect(timeline[2].isSender).toBe(false)
+      expect(timeline[2].isFirstInGroup).toBe(true)
+      expect(timeline[2].isLastInGroup).toBe(true)
+      expect(timeline[2].showSenderHeader).toBe(true) // other user in group shows header on first message
+    })
+
+    it('does not show sender header in direct chats (isGroup = false)', () => {
+      const t0 = new Date('2026-10-21T10:00:00Z').toISOString()
+      const messages: ChatMessage[] = [
+        { id: 'm1', client_id: 'c1', conversation_id: 'conv1', user_id: 'u2', content: 'hello', created_at: t0, status: 'sent' },
+      ]
+
+      const timeline = buildMessageTimeline(messages, new Date('2026-10-21T12:00:00Z'), {
+        currentUserId: 'u1',
+        isGroup: false,
+      })
+
+      expect(timeline[0].isSender).toBe(false)
+      expect(timeline[0].isFirstInGroup).toBe(true)
+      expect(timeline[0].isLastInGroup).toBe(true)
+      expect(timeline[0].showSenderHeader).toBe(false)
+    })
+
+    it('separates bubbles when same user sends messages across midnight or >5 minutes apart', () => {
+      const now = new Date(2026, 9, 18, 12, 0, 0)
+      const t0 = new Date(2026, 9, 17, 23, 58, 0).toISOString()
+      const t1 = new Date(2026, 9, 18, 0, 1, 0).toISOString()
+      const t2 = new Date(2026, 9, 18, 0, 10, 0).toISOString()
+
+      const messages: ChatMessage[] = [
+        { id: 'm1', client_id: 'c1', conversation_id: 'conv1', user_id: 'u1', content: 'msg1', created_at: t0, status: 'sent' },
+        { id: 'm2', client_id: 'c2', conversation_id: 'conv1', user_id: 'u1', content: 'msg2', created_at: t1, status: 'sent' },
+        { id: 'm3', client_id: 'c3', conversation_id: 'conv1', user_id: 'u1', content: 'msg3', created_at: t2, status: 'sent' },
+      ]
+
+      const timeline = buildMessageTimeline(messages, now, {
+        currentUserId: 'u1',
+        isGroup: true,
+      })
+
+      // m1 is on previous day -> first and last in its group
+      expect(timeline[0].isFirstInGroup).toBe(true)
+      expect(timeline[0].isLastInGroup).toBe(true)
+
+      // m2 is on next day, 3 mins later -> first in group because day changed
+      expect(timeline[1].isFirstInGroup).toBe(true)
+      // m3 is 9 mins after m2 (>5m) -> m2 is last in group
+      expect(timeline[1].isLastInGroup).toBe(true)
+
+      // m3 is >5 mins after m2 -> first in group and last in group (end of list)
+      expect(timeline[2].isFirstInGroup).toBe(true)
+      expect(timeline[2].isLastInGroup).toBe(true)
+    })
+  })
+
+  describe('formatConversationTime', () => {
+    it('formats conversation timestamp for today, yesterday, earlier in year, and previous years', () => {
+      const fixedNow = new Date(2026, 9, 21, 14, 0, 0) // Oct 21, 2026
+
+      // 1. Today
+      const convToday: Conversation = {
+        id: 'c-today',
+        type: 'direct',
+        created_by: 'u1',
+        lastMessage: {
+          id: 'm1',
+          client_id: 'c1',
+          conversation_id: 'c-today',
+          user_id: 'u1',
+          content: 'Hi',
+          created_at: new Date(2026, 9, 21, 10, 30, 0).toISOString(),
+          status: 'sent',
+        },
+      }
+      const todayStr = formatConversationTime(convToday, fixedNow)
+      expect(todayStr).toBeTruthy()
+      expect(todayStr).toMatch(/10[:.]30/)
+
+      // 2. Yesterday
+      const convYesterday: Conversation = {
+        id: 'c-yesterday',
+        type: 'direct',
+        created_by: 'u1',
+        lastMessage: {
+          id: 'm2',
+          client_id: 'c2',
+          conversation_id: 'c-yesterday',
+          user_id: 'u1',
+          content: 'Hi',
+          created_at: new Date(2026, 9, 20, 18, 0, 0).toISOString(),
+          status: 'sent',
+        },
+      }
+      expect(formatConversationTime(convYesterday, fixedNow)).toBe('Yesterday')
+
+      // 3. Earlier this year
+      const convEarlier: Conversation = {
+        id: 'c-earlier',
+        type: 'direct',
+        created_by: 'u1',
+        updated_at: new Date(2026, 7, 15, 12, 0, 0).toISOString(),
+      }
+      const earlierStr = formatConversationTime(convEarlier, fixedNow)
+      expect(earlierStr).toMatch(/Aug\s+15/)
+
+      // 4. Previous year
+      const convOld: Conversation = {
+        id: 'c-old',
+        type: 'direct',
+        created_by: 'u1',
+        created_at: new Date(2025, 4, 10, 12, 0, 0).toISOString(),
+      }
+      const oldStr = formatConversationTime(convOld, fixedNow)
+      expect(oldStr).toMatch(/2025/)
+
+      // 5. Empty or missing
+      const convEmpty: Conversation = {
+        id: 'c-empty',
+        type: 'direct',
+        created_by: 'u1',
+      }
+      expect(formatConversationTime(convEmpty, fixedNow)).toBe('')
     })
   })
 })

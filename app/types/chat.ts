@@ -3,28 +3,68 @@ export type ConnectionStatus = 'connected' | 'reconnecting' | 'disconnected'
 
 export interface Profile {
   id: string
+  email: string
   display_name: string
   avatar_color: string
   avatar_url?: string | null
   created_at?: string
 }
 
+export type ConversationType = 'direct' | 'group'
+
+export interface ConversationMember {
+  conversation_id: string
+  user_id: string
+  role: 'owner' | 'member'
+  joined_at: string
+  profile?: Profile | null
+}
+
+export interface Conversation {
+  id: string
+  type: ConversationType
+  title: string | null
+  created_by: string | null
+  created_at: string
+  updated_at?: string
+  members?: ConversationMember[]
+  peer?: Profile | null            // For direct conversations
+  lastMessage?: ChatMessage | null  // For sidebar snippet
+  unreadCount?: number
+}
+
+export interface Contact {
+  user_id: string
+  contact_user_id: string
+  created_at: string
+  profile?: Profile | null
+}
+
+/**
+ * @deprecated Legacy Channel interface retained during gradual migration to Conversation.
+ */
 export interface Channel {
   id: string
-  slug: string
-  description: string | null
+  slug?: string
+  description?: string | null
   created_by: string | null
   created_at: string
   is_dm?: boolean
   dm_user_a?: string | null
   dm_user_b?: string | null
   peer?: Profile | null
+  type?: ConversationType
+  title?: string | null
 }
 
 export interface MessageReaction {
   id?: string
   message_id: string
-  channel_id: string
+  conversation_id: string
+  /**
+   * @deprecated transitional alias for conversation_id
+   */
+  channel_id?: string
   user_id: string
   emoji: string
   created_at?: string
@@ -59,7 +99,11 @@ export interface ReplyTarget {
 export interface ChatMessage {
   id: string
   client_id: string
-  channel_id: string
+  conversation_id: string
+  /**
+   * @deprecated transitional alias for conversation_id
+   */
+  channel_id?: string
   user_id: string
   content: string
   created_at: string
@@ -73,11 +117,16 @@ export interface ChatMessage {
   encryption?: MessageEncryptionState
 }
 
-export interface ChannelRead {
+export interface ConversationRead {
   user_id: string
-  channel_id: string
+  conversation_id: string
   last_read_at: string
 }
+
+/**
+ * @deprecated Legacy alias during migration to ConversationRead.
+ */
+export type ChannelRead = ConversationRead
 
 export interface MentionSegment {
   text: string
@@ -95,7 +144,11 @@ export interface TimelineMessageItem {
   message: ChatMessage
   showDateDivider: boolean
   dateLabel: string
-  isCompact: boolean
+  isCompact?: boolean
+  isSender?: boolean
+  isFirstInGroup?: boolean
+  isLastInGroup?: boolean
+  showSenderHeader?: boolean
   showUnreadDivider?: boolean
   isMentioningMe?: boolean
 }

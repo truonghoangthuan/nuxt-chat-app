@@ -3,12 +3,11 @@ import { mount } from '@vue/test-utils'
 import MessageComposer from '~/components/MessageComposer.vue'
 import ConnectionBanner from '~/components/ConnectionBanner.vue'
 import MessageViewport from '~/components/MessageViewport.vue'
-import CreateChannelModal from '~/components/CreateChannelModal.vue'
 import ChatSidebar from '~/components/ChatSidebar.vue'
-import StartDmModal from '~/components/StartDmModal.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
 import E2eeGate from '~/components/E2eeGate.vue'
 import { isValidAvatarUrl } from '~/utils/chat'
+import type { Conversation, Profile } from '~/types/chat'
 
 describe('Chat UI components', () => {
   it('accepts only optional HTTP(S) avatar URLs', () => {
@@ -130,37 +129,6 @@ describe('Chat UI components', () => {
       messages: [olderMessage, initialMessage],
     })
     expect(wrapper.find('button.animate-bounce').exists()).toBe(false)
-  })
-
-  it('CreateChannelModal displays server error inline without closing and closes on success', async () => {
-    const wrapper = mount(CreateChannelModal, {
-      props: { isOpen: true },
-    })
-
-    const input = wrapper.find('input[type="text"]')
-    await input.setValue('duplicate-slug')
-    await wrapper.find('form').trigger('submit')
-
-    const createEvents = wrapper.emitted('create')
-    expect(createEvents).toBeTruthy()
-    const payload = createEvents?.[0][0] as {
-      name: string
-      onError: (msg: string) => void
-      onSuccess: () => void
-    }
-    expect(payload.name).toBe('duplicate-slug')
-
-    // Simulate backend error
-    payload.onError('Channel slug duplicate-slug already exists.')
-    await wrapper.vm.$nextTick()
-
-    expect(wrapper.text()).toContain('Channel slug duplicate-slug already exists.')
-    expect(wrapper.emitted('close')).toBeFalsy()
-
-    // Simulate subsequent success
-    payload.onSuccess()
-    await wrapper.vm.$nextTick()
-    expect(wrapper.emitted('close')).toBeTruthy()
   })
 
   it('MessageViewport groups consecutive same-author messages within 5m and resets unread pill on channel switch', async () => {
@@ -506,7 +474,7 @@ describe('Chat UI components', () => {
     expect(wrapper.find('[data-test="mention-token"]').text()).toBe('@Alice')
   })
 
-  describe('Direct Messages UI in ChatSidebar and StartDmModal (Sub-Project 4)', () => {
+  describe('Direct Messages UI in ChatSidebar (Sub-Project 4)', () => {
     it('ChatSidebar renders dmChannels with peer name and emits startDmWithUser when clicking an online friend', async () => {
       const wrapper = mount(ChatSidebar, {
         props: {
@@ -549,43 +517,6 @@ describe('Chat UI components', () => {
       expect(onlineFriendBtn.exists()).toBe(true)
       await onlineFriendBtn.trigger('click')
       expect(wrapper.emitted('startDmWithUser')?.[0]).toEqual(['u2'])
-    })
-
-    it('StartDmModal filters friends by search query and emits selectFriend on click', async () => {
-      const wrapper = mount(StartDmModal, {
-        props: {
-          isOpen: true,
-          friends: [
-            { id: 'u1', display_name: 'Alice', avatar_color: '#0284c7' },
-            { id: 'u2', display_name: 'Bob', avatar_color: '#7c3aed' },
-            { id: 'u3', display_name: 'Charlie', avatar_color: '#059669' },
-          ],
-          onlineFriends: [{ id: 'u2', display_name: 'Bob', avatar_color: '#7c3aed' }],
-          currentUserId: 'u1',
-          errorMessage: 'Unable to start DM',
-        },
-      })
-
-      // Self (Alice) should not be listed
-      expect(wrapper.find('[data-test="start-dm-friend-u1"]').exists()).toBe(false)
-      expect(wrapper.find('[data-test="start-dm-friend-u2"]').exists()).toBe(true)
-      expect(wrapper.find('[data-test="start-dm-friend-u3"]').exists()).toBe(true)
-      expect(wrapper.text()).toContain('Unable to start DM')
-
-      const searchInput = wrapper.find('[data-test="dm-search-input"]')
-      await searchInput.setValue('char')
-
-      expect(wrapper.find('[data-test="start-dm-friend-u2"]').exists()).toBe(false)
-      const charlieBtn = wrapper.find('[data-test="start-dm-friend-u3"]')
-      expect(charlieBtn.exists()).toBe(true)
-
-      // Enter key triggers selection of the first matching friend
-      await searchInput.trigger('keydown.enter')
-      expect(wrapper.emitted('selectFriend')?.[0]).toEqual(['u3'])
-
-      // Escape key emits close
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
-      expect(wrapper.emitted('close')).toBeTruthy()
     })
 
     it('ChatSidebar displays empty state for DMs and prevents clicking on own user row', async () => {
@@ -635,16 +566,6 @@ describe('Chat UI components', () => {
       expect(empty.exists()).toBe(true)
       expect(empty.text()).toContain('@')
       expect(empty.text()).toContain('This is the start of your direct message history with @Bob')
-    })
-
-    it('StartDmModal close button has aria-label Close', () => {
-      const wrapper = mount(StartDmModal, {
-        props: { isOpen: true, friends: [] },
-      })
-      const closeBtn = wrapper.find('button[aria-label="Close"]')
-      expect(closeBtn.exists()).toBe(true)
-      expect(closeBtn.text()).toBe('×')
-      wrapper.unmount()
     })
 
     it('ChatSidebar disables button for self in online friends', () => {
@@ -920,6 +841,356 @@ describe('Chat UI components', () => {
         },
       })
       expect(disabledWrapper.find('[data-test="attachment-tray"]').exists()).toBe(false)
+    })
+  })
+
+  describe('Conversational Bubble Viewport (Task 7)', () => {
+    it('renders sender messages with justify-end, accent bubble class, and delivery indicators', () => {
+      const wrapper = mount(MessageViewport, {
+        props: {
+          conversationId: 'c-1',
+          isGroup: true,
+          currentUserId: 'u-alice',
+          messages: [
+            {
+              id: 'm-sender-sent',
+              client_id: 'c-1',
+              channel_id: 'c-1',
+              user_id: 'u-alice',
+              content: 'Hello from sender',
+              created_at: '2026-10-18T10:00:00Z',
+              status: 'sent',
+              author: { id: 'u-alice', display_name: 'Alice', avatar_color: '#0284c7' },
+            },
+            {
+              id: 'm-sender-sending',
+              client_id: 'c-2',
+              channel_id: 'c-1',
+              user_id: 'u-alice',
+              content: 'Sending message',
+              created_at: '2026-10-18T10:01:00Z',
+              status: 'sending',
+              author: { id: 'u-alice', display_name: 'Alice', avatar_color: '#0284c7' },
+            },
+          ],
+        },
+      })
+
+      const sentRow = wrapper.find('[data-message-id="m-sender-sent"]')
+      expect(sentRow.classes()).toContain('justify-end')
+      const sentBubble = wrapper.find('[data-test="message-bubble-m-sender-sent"]')
+      expect(sentBubble.classes()).toContain('bg-indigo-600')
+      const deliverySent = wrapper.find('[data-test="delivery-indicator-m-sender-sent"]')
+      expect(deliverySent.text()).toContain('✓✓')
+
+      const sendingRow = wrapper.find('[data-message-id="m-sender-sending"]')
+      expect(sendingRow.classes()).toContain('justify-end')
+      expect(wrapper.text()).toContain('Sending...')
+    })
+
+    it('renders recipient messages with justify-start, avatar, and sender display name in group chats', () => {
+      const wrapper = mount(MessageViewport, {
+        props: {
+          conversationId: 'c-1',
+          isGroup: true,
+          currentUserId: 'u-alice',
+          messages: [
+            {
+              id: 'm-bob-1',
+              client_id: 'c-1',
+              channel_id: 'c-1',
+              user_id: 'u-bob',
+              content: 'First from Bob',
+              created_at: '2026-10-18T10:00:00Z',
+              status: 'sent',
+              author: { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+            },
+            {
+              id: 'm-bob-2',
+              client_id: 'c-2',
+              channel_id: 'c-1',
+              user_id: 'u-bob',
+              content: 'Second from Bob',
+              created_at: '2026-10-18T10:01:00Z',
+              status: 'sent',
+              author: { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+            },
+          ],
+        },
+      })
+
+      const bobRow1 = wrapper.find('[data-message-id="m-bob-1"]')
+      expect(bobRow1.classes()).toContain('justify-start')
+      const bobBubble1 = wrapper.find('[data-test="message-bubble-m-bob-1"]')
+      expect(bobBubble1.classes()).not.toContain('bg-indigo-600')
+
+      // First in cluster shows sender header in group chat
+      const senderHeader = wrapper.find('[data-test="sender-header-m-bob-1"]')
+      expect(senderHeader.exists()).toBe(true)
+      expect(senderHeader.text()).toContain('Bob')
+
+      // Second message does NOT show sender header (clustered)
+      expect(wrapper.find('[data-test="sender-header-m-bob-2"]').exists()).toBe(false)
+
+      // Avatar renders at bottom of cluster (on m-bob-2, which is last in group)
+      expect(bobRow1.findComponent(UserAvatar).exists()).toBe(false)
+      const bobRow2 = wrapper.find('[data-message-id="m-bob-2"]')
+      expect(bobRow2.findComponent(UserAvatar).exists()).toBe(true)
+    })
+
+    it('omits sender header for recipient in direct message (isGroup: false / isDm: true)', () => {
+      const wrapper = mount(MessageViewport, {
+        props: {
+          conversationId: 'dm-1',
+          isDm: true,
+          peerName: 'Bob',
+          currentUserId: 'u-alice',
+          messages: [
+            {
+              id: 'm-bob-1',
+              client_id: 'c-1',
+              channel_id: 'dm-1',
+              user_id: 'u-bob',
+              content: 'Direct message from Bob',
+              created_at: '2026-10-18T10:00:00Z',
+              status: 'sent',
+              author: { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+            },
+          ],
+        },
+      })
+
+      expect(wrapper.find('[data-test="sender-header-m-bob-1"]').exists()).toBe(false)
+    })
+  })
+
+  describe('Unified Conversation Sidebar (Task 8)', () => {
+    const mockCurrentUser: Profile = {
+      id: 'u-me',
+      email: 'me@example.com',
+      display_name: 'Me',
+      avatar_color: '#0284c7',
+    }
+
+    const mockPeerBob: Profile = {
+      id: 'u-bob',
+      email: 'bob@example.com',
+      display_name: 'Bob',
+      avatar_color: '#7c3aed',
+    }
+
+    const mockConversations: Conversation[] = [
+      {
+        id: 'conv-direct-1',
+        type: 'direct',
+        title: null,
+        created_by: 'u-me',
+        created_at: '2026-10-21T01:00:00Z',
+        peer: mockPeerBob,
+        members: [
+          { conversation_id: 'conv-direct-1', user_id: 'u-me', role: 'owner', joined_at: '' },
+          { conversation_id: 'conv-direct-1', user_id: 'u-bob', role: 'member', joined_at: '', profile: mockPeerBob },
+        ],
+      },
+      {
+        id: 'conv-group-1',
+        type: 'group',
+        title: 'Project Phoenix',
+        created_by: 'u-me',
+        created_at: '2026-10-21T00:00:00Z',
+        members: [
+          { conversation_id: 'conv-group-1', user_id: 'u-me', role: 'owner', joined_at: '' },
+          { conversation_id: 'conv-group-1', user_id: 'u-bob', role: 'member', joined_at: '' },
+          { conversation_id: 'conv-group-1', user_id: 'u-charlie', role: 'member', joined_at: '' },
+        ],
+      },
+    ]
+
+    it('renders unified conversation list with direct chats and group chats, online status, and unread badges', () => {
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          conversations: mockConversations,
+          activeConversationId: 'conv-direct-1',
+          unreadCounts: { 'conv-group-1': 5 },
+          unreadMentions: { 'conv-group-1': 2 },
+          onlineFriends: [mockPeerBob],
+          currentUser: mockCurrentUser,
+          isDark: true,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+
+      // 1. Direct chat item
+      const directItem = wrapper.find('[data-test="conversation-item-conv-direct-1"]')
+      expect(directItem.exists()).toBe(true)
+      expect(directItem.text()).toContain('Bob')
+      // Live online indicator for direct peer
+      const peerAvatar = directItem.findComponent(UserAvatar)
+      expect(peerAvatar.exists()).toBe(true)
+      expect(peerAvatar.props('showOnline')).toBe(true)
+      // Timestamp rendered in conversation item
+      const directTime = directItem.find('[data-test="conversation-time-conv-direct-1"]')
+      expect(directTime.exists()).toBe(true)
+      expect(directTime.classes()).toContain('text-[11px]')
+      expect(directTime.classes()).toContain('text-[var(--fp-text-muted)]')
+      expect(directTime.text().length).toBeGreaterThan(0)
+
+      // 2. Group chat item
+      const groupItem = wrapper.find('[data-test="conversation-item-conv-group-1"]')
+      expect(groupItem.exists()).toBe(true)
+      expect(groupItem.text()).toContain('Project Phoenix')
+      expect(groupItem.text()).toContain('3 members')
+
+      // 3. Unread count and mention badges
+      expect(groupItem.text()).toContain('5')
+      const mentionBadge = wrapper.find('[data-test="mention-badge-conv-group-1"]')
+      expect(mentionBadge.exists()).toBe(true)
+      expect(mentionBadge.text()).toContain('@')
+    })
+
+    it('filters conversations when typing in the search bar and clears on escape', async () => {
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          conversations: mockConversations,
+          activeConversationId: null,
+          unreadCounts: {},
+          onlineFriends: [],
+          currentUser: mockCurrentUser,
+          isDark: true,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+
+      const searchInput = wrapper.find('[data-test="conversation-search-input"]')
+      expect(searchInput.exists()).toBe(true)
+
+      // Filter by group title
+      await searchInput.setValue('phoenix')
+      expect(wrapper.find('[data-test="conversation-item-conv-group-1"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="conversation-item-conv-direct-1"]').exists()).toBe(false)
+
+      // Filter by direct peer name
+      await searchInput.setValue('bob')
+      expect(wrapper.find('[data-test="conversation-item-conv-direct-1"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="conversation-item-conv-group-1"]').exists()).toBe(false)
+
+      // Clear search with Escape
+      await searchInput.trigger('keydown', { key: 'Escape' })
+      expect(wrapper.find('[data-test="conversation-item-conv-direct-1"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="conversation-item-conv-group-1"]').exists()).toBe(true)
+    })
+
+    it('emits openContacts and openCreateGroup when respective action buttons are clicked', async () => {
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          conversations: mockConversations,
+          activeConversationId: null,
+          unreadCounts: {},
+          onlineFriends: [],
+          currentUser: mockCurrentUser,
+          isDark: true,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+
+      // Rail contacts button
+      const railContactsBtn = wrapper.find('[data-test="open-contacts"]')
+      expect(railContactsBtn.exists()).toBe(true)
+      await railContactsBtn.trigger('click')
+      expect(wrapper.emitted('openContacts')).toBeTruthy()
+
+      // Rail create group button
+      const railCreateGroupBtn = wrapper.find('[data-test="open-create-group"]')
+      expect(railCreateGroupBtn.exists()).toBe(true)
+      await railCreateGroupBtn.trigger('click')
+      expect(wrapper.emitted('openCreateGroup')).toBeTruthy()
+      expect(wrapper.emitted('openCreateChannel')).toBeTruthy()
+
+      // Selecting a conversation emits selectConversation and selectChannel
+      await wrapper.find('[data-test="conversation-item-conv-group-1"]').trigger('click')
+      expect(wrapper.emitted('selectConversation')?.[0]).toEqual(['conv-group-1'])
+      expect(wrapper.emitted('selectChannel')?.[0]).toEqual(['conv-group-1'])
+    })
+
+    it('renders formatted timestamp, soft-deleted last message subtitle, and sorts active conversations first', () => {
+      const convActiveRecent: Conversation = {
+        id: 'conv-recent',
+        type: 'direct',
+        title: null,
+        created_by: 'u-me',
+        created_at: '2026-10-21T01:00:00Z',
+        lastMessage: {
+          id: 'm-rec',
+          client_id: 'c-rec',
+          conversation_id: 'conv-recent',
+          user_id: 'u-bob',
+          content: 'Hey there',
+          created_at: '2026-10-21T01:30:00Z',
+          status: 'sent',
+        },
+        peer: mockPeerBob,
+      }
+
+      const convDeletedLast: Conversation = {
+        id: 'conv-deleted',
+        type: 'direct',
+        title: null,
+        created_by: 'u-me',
+        created_at: '2026-10-21T00:30:00Z',
+        lastMessage: {
+          id: 'm-del',
+          client_id: 'c-del',
+          conversation_id: 'conv-deleted',
+          user_id: 'u-bob',
+          content: 'Deleted secret message',
+          deleted_at: '2026-10-21T01:15:00Z',
+          created_at: '2026-10-21T01:15:00Z',
+          status: 'sent',
+        },
+        peer: mockPeerBob,
+      }
+
+      const convNoActivity: Conversation = {
+        id: 'conv-no-act',
+        type: 'group',
+        title: 'Empty Lounge',
+        created_by: 'u-me',
+      }
+
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          // Provide in arbitrary order: no-activity first, then deleted, then recent
+          conversations: [convNoActivity, convDeletedLast, convActiveRecent],
+          activeConversationId: null,
+          unreadCounts: {},
+          onlineFriends: [],
+          currentUser: mockCurrentUser,
+          isDark: true,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+
+      // 1. Soft-deleted message renders "This message was deleted"
+      const deletedItem = wrapper.find('[data-test="conversation-item-conv-deleted"]')
+      expect(deletedItem.exists()).toBe(true)
+      expect(deletedItem.text()).toContain('This message was deleted')
+      expect(deletedItem.text()).not.toContain('Deleted secret message')
+
+      // 2. Timestamp rendered on recent item
+      const recentTime = wrapper.find('[data-test="conversation-time-conv-recent"]')
+      expect(recentTime.exists()).toBe(true)
+      expect(recentTime.text().length).toBeGreaterThan(0)
+
+      // 3. Sort ordering: conv-recent (01:30) > conv-deleted (01:15) > conv-no-act (0)
+      const allItems = wrapper.findAll('[data-test^="conversation-item-"]')
+      expect(allItems.length).toBe(3)
+      expect(allItems[0].attributes('data-test')).toBe('conversation-item-conv-recent')
+      expect(allItems[1].attributes('data-test')).toBe('conversation-item-conv-deleted')
+      expect(allItems[2].attributes('data-test')).toBe('conversation-item-conv-no-act')
     })
   })
 })

@@ -1,6 +1,23 @@
-import { ref, computed, shallowReactive, type ComputedRef, type Ref } from 'vue'
+import { ref, computed, shallowReactive, isRef, type ComputedRef, type Ref } from 'vue'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import type { Channel, ChatMessage, MessageReaction, Profile, ReplyTarget, ConnectionStatus, ChannelRead, MessageEncryptionState, EncryptedImageMetadata, ImageMessagePayload, LocalImageAttachment } from '~/types/chat'
+import type {
+  Conversation,
+  ConversationMember,
+  Contact,
+  ConversationType,
+  Channel,
+  ChatMessage,
+  MessageReaction,
+  Profile,
+  ReplyTarget,
+  ConnectionStatus,
+  ConversationRead,
+  ChannelRead,
+  MessageEncryptionState,
+  EncryptedImageMetadata,
+  ImageMessagePayload,
+  LocalImageAttachment,
+} from '~/types/chat'
 import {
   normalizeChannelSlug,
   isValidChannelSlug,
@@ -10,6 +27,9 @@ import {
   normalizeDmPair,
   getDmPeerId,
   canUserAccessChannel,
+  isValidEmail,
+  getDirectPeer,
+  formatConversationTitle,
 } from '~/utils/chat'
 import { isEncryptedEnvelope, encryptContent, decryptContent, encryptBinary } from '~/utils/crypto'
 import { createMessagesStore } from '~/composables/useMessagesState'
@@ -39,27 +59,28 @@ export function isDuplicateKeyError(error: any): boolean {
 export async function decryptMessageRow<
   T extends {
     content?: string
+    conversation_id?: string
     channel_id?: string
     reply_to?: ReplyTarget | null
     encryption?: MessageEncryptionState
   },
->(row: T, key: CryptoKey | null, fallbackChannelId?: string | null): Promise<T> {
+>(row: T, key: CryptoKey | null, fallbackConversationId?: string | null): Promise<T> {
   if (typeof row.content !== 'string') {
     return row
   }
 
-  const channelId = row.channel_id || fallbackChannelId || ''
+  const conversationId = row.conversation_id || row.channel_id || fallbackConversationId || ''
   let content = row.content
   let encryption: MessageEncryptionState
 
   if (!content.startsWith('e2ee:v1:')) {
     encryption = 'legacy'
-  } else if (!key || !channelId || !isEncryptedEnvelope(content)) {
+  } else if (!key || !conversationId || !isEncryptedEnvelope(content)) {
     content = ''
     encryption = 'undecryptable'
   } else {
     try {
-      content = await decryptContent(key, content, channelId)
+      content = await decryptContent(key, content, conversationId)
       encryption = 'e2ee'
     } catch {
       content = ''
@@ -74,12 +95,12 @@ export async function decryptMessageRow<
     if (replyTo.encryption === undefined) {
       if (!replyContent.startsWith('e2ee:v1:')) {
         replyEncryption = 'legacy'
-      } else if (!key || !channelId || !isEncryptedEnvelope(replyContent)) {
+      } else if (!key || !conversationId || !isEncryptedEnvelope(replyContent)) {
         replyContent = ''
         replyEncryption = 'undecryptable'
       } else {
         try {
-          replyContent = await decryptContent(key, replyContent, channelId)
+          replyContent = await decryptContent(key, replyContent, conversationId)
           replyEncryption = 'e2ee'
         } catch {
           replyContent = ''
@@ -111,6 +132,7 @@ export async function decryptMessageRow<
 export async function decryptMessageRows<
   T extends {
     content?: string
+    conversation_id?: string
     channel_id?: string
     reply_to?: ReplyTarget | null
     encryption?: MessageEncryptionState
@@ -118,15 +140,17 @@ export async function decryptMessageRows<
 >(
   rows: T[],
   key: CryptoKey | null,
-  fallbackChannelId?: string | null,
+  fallbackConversationId?: string | null,
 ): Promise<T[]> {
-  return Promise.all(rows.map(row => decryptMessageRow(row, key, fallbackChannelId)))
+  return Promise.all(rows.map(row => decryptMessageRow(row, key, fallbackConversationId)))
 }
 
 export function computeUnreadSnapshot(params: {
-  messages: Array<Pick<ChatMessage, 'id' | 'channel_id' | 'user_id' | 'content' | 'created_at' | 'deleted_at' | 'reply_to_id'>>
-  lastReadByChannel: Record<string, string>
-  activeChannelId: string | null
+  messages: Array<Pick<ChatMessage, 'id' | 'conversation_id' | 'channel_id' | 'user_id' | 'content' | 'created_at' | 'deleted_at' | 'reply_to_id'>>
+  lastReadByConversation?: Record<string, string>
+  lastReadByChannel?: Record<string, string>
+  activeConversationId?: string | null
+  activeChannelId?: string | null
   currentUserId: string
   currentDisplayName?: string | null
 }): {
@@ -135,23 +159,26 @@ export function computeUnreadSnapshot(params: {
 } {
   const unreadCounts: Record<string, number> = {}
   const unreadMentions: Record<string, number> = {}
+  const activeId = params.activeConversationId !== undefined ? params.activeConversationId : (params.activeChannelId || null)
+  const lastReadMap = params.lastReadByConversation || params.lastReadByChannel || {}
 
   for (const msg of params.messages) {
     if (!msg || msg.deleted_at) continue
-    if (msg.channel_id === params.activeChannelId) continue
+    const targetId = msg.conversation_id || msg.channel_id || ''
+    if (!targetId || targetId === activeId) continue
     if (params.currentUserId && msg.user_id === params.currentUserId) continue
 
-    const lastReadIso = params.lastReadByChannel[msg.channel_id]
+    const lastReadIso = lastReadMap[targetId]
     if (lastReadIso && Date.parse(msg.created_at) <= Date.parse(lastReadIso)) {
       continue
     }
 
-    unreadCounts[msg.channel_id] = (unreadCounts[msg.channel_id] || 0) + 1
+    unreadCounts[targetId] = (unreadCounts[targetId] || 0) + 1
     const textToCheck = isImagePayload(msg.content)
       ? formatImageMessageSummary(parseImagePayload(msg.content)?.images.length || 1)
       : msg.content
     if (doesMessageMentionUser(textToCheck, params.currentDisplayName)) {
-      unreadMentions[msg.channel_id] = (unreadMentions[msg.channel_id] || 0) + 1
+      unreadMentions[targetId] = (unreadMentions[targetId] || 0) + 1
     }
   }
 
@@ -170,47 +197,54 @@ export function computeOldestReadTimestamp(timestamps: string[]): string | null 
   })
 }
 
-export function computeChannelReadMap(params: {
-  channels: Array<{ id: string }>
-  readRows?: Array<{ channel_id: string; last_read_at: string }> | null
+export function computeConversationReadMap(params: {
+  conversations?: Array<{ id: string }>
+  channels?: Array<{ id: string }>
+  readRows?: Array<{ conversation_id?: string; channel_id?: string; last_read_at: string }> | null
   existingMap?: Record<string, string>
   defaultReadTimestamp: string
 }): Record<string, string> {
   const map: Record<string, string> = {}
   if (params.readRows) {
     for (const r of params.readRows) {
-      map[r.channel_id] = r.last_read_at
+      const id = r.conversation_id || r.channel_id
+      if (id) {
+        map[id] = r.last_read_at
+      }
     }
   }
-  for (const ch of params.channels) {
-    if (!map[ch.id]) {
-      map[ch.id] = params.existingMap?.[ch.id] || params.defaultReadTimestamp
+  const list = params.conversations || params.channels || []
+  for (const item of list) {
+    if (!map[item.id]) {
+      map[item.id] = params.existingMap?.[item.id] || params.defaultReadTimestamp
     }
   }
   return map
 }
 
-export function createChannelReadDebouncer(
-  upsertFn: (channelId: string, timestamp: string) => Promise<any>,
+export const computeChannelReadMap = computeConversationReadMap
+
+export function createConversationReadDebouncer(
+  upsertFn: (conversationId: string, timestamp: string) => Promise<any>,
   delayMs = 2000,
 ) {
   const timers = new Map<string, any>()
   const pendingTimestamps = new Map<string, string>()
 
-  function schedule(channelId: string, timestamp: string, immediate = false): Promise<void> | void {
-    pendingTimestamps.set(channelId, timestamp)
-    const existing = timers.get(channelId)
+  function schedule(conversationId: string, timestamp: string, immediate = false): Promise<void> | void {
+    pendingTimestamps.set(conversationId, timestamp)
+    const existing = timers.get(conversationId)
     if (existing) {
       clearTimeout(existing)
-      timers.delete(channelId)
+      timers.delete(conversationId)
     }
 
     const flush = async () => {
-      timers.delete(channelId)
-      const ts = pendingTimestamps.get(channelId) || timestamp
-      pendingTimestamps.delete(channelId)
+      timers.delete(conversationId)
+      const ts = pendingTimestamps.get(conversationId) || timestamp
+      pendingTimestamps.delete(conversationId)
       try {
-        await upsertFn(channelId, ts)
+        await upsertFn(conversationId, ts)
       } catch {
         // Ignored
       }
@@ -221,7 +255,7 @@ export function createChannelReadDebouncer(
     }
 
     const timer = setTimeout(flush, delayMs)
-    timers.set(channelId, timer)
+    timers.set(conversationId, timer)
   }
 
   function cancelAll() {
@@ -234,6 +268,8 @@ export function createChannelReadDebouncer(
 
   return { schedule, cancelAll, timers }
 }
+
+export const createChannelReadDebouncer = createConversationReadDebouncer
 
 export function subscribeWithPromise(
   channel: { subscribe: (callback: (status: string) => void) => any } | null,
@@ -269,22 +305,38 @@ export function subscribeWithPromise(
 
 export function handleIncomingRealtimeMessage(params: {
   row: Omit<ChatMessage, 'status'>
-  activeChannelId: string | null
+  activeConversationId?: string | null
+  activeChannelId?: string | null
   messagesStore: ReturnType<typeof createMessagesStore>
   typingTracker: ReturnType<typeof createTypingTracker>
   unreadCounts: Record<string, number>
   unreadMentions?: Record<string, number>
   currentUserId?: string
   currentDisplayName?: string | null
+  conversations?: Conversation[] | Ref<Conversation[]>
 }): void {
-  if (params.row.channel_id === params.activeChannelId) {
+  const activeId = params.activeConversationId !== undefined ? params.activeConversationId : params.activeChannelId
+  const targetId = params.row.conversation_id || params.row.channel_id || ''
+
+  const convList = params.conversations
+    ? (isRef(params.conversations) ? params.conversations.value : params.conversations)
+    : undefined
+  if (convList) {
+    const targetConv = convList.find(c => c.id === targetId)
+    if (targetConv) {
+      targetConv.lastMessage = params.row as ChatMessage
+      targetConv.updated_at = params.row.created_at
+    }
+  }
+
+  if (targetId && targetId === activeId) {
     params.messagesStore.reconcileIncomingMessage(params.row)
     params.typingTracker.clearUserTyping(params.row.user_id)
-  } else {
+  } else if (targetId) {
     if (params.currentUserId && params.row.user_id === params.currentUserId) {
       return
     }
-    params.unreadCounts[params.row.channel_id] = (params.unreadCounts[params.row.channel_id] || 0) + 1
+    params.unreadCounts[targetId] = (params.unreadCounts[targetId] || 0) + 1
     if (
       params.unreadMentions
       && !params.row.deleted_at
@@ -299,35 +351,40 @@ export function handleIncomingRealtimeMessage(params: {
         || (params.currentUserId && params.row.reply_to?.user_id === params.currentUserId)
       )
     ) {
-      params.unreadMentions[params.row.channel_id] = (params.unreadMentions[params.row.channel_id] || 0) + 1
+      params.unreadMentions[targetId] = (params.unreadMentions[targetId] || 0) + 1
     }
   }
 }
 
 export function handleRealtimeMessageUpdate(params: {
-  row: Partial<ChatMessage> & { id: string; channel_id?: string }
+  row: Partial<ChatMessage> & { id: string; conversation_id?: string; channel_id?: string }
   oldRow?: Partial<ChatMessage> | null
-  activeChannelId: string | null
+  activeConversationId?: string | null
+  activeChannelId?: string | null
   messagesStore: ReturnType<typeof createMessagesStore>
   unreadCounts?: Record<string, number>
   unreadMentions?: Record<string, number>
+  lastReadByConversation?: Record<string, string>
   lastReadByChannel?: Record<string, string>
   currentUserId?: string
   currentDisplayName?: string | null
 }): void {
-  const isInactive = Boolean(params.row.channel_id && params.row.channel_id !== params.activeChannelId)
-  if (isInactive) {
-    const channelId = params.row.channel_id!
+  const activeId = params.activeConversationId !== undefined ? params.activeConversationId : params.activeChannelId
+  const targetId = params.row.conversation_id || params.row.channel_id
+  const isInactive = Boolean(targetId && targetId !== activeId)
+
+  if (isInactive && targetId) {
     const isSoftDeleted = Boolean(params.row.deleted_at && !params.oldRow?.deleted_at)
     const isFromOtherUser = !params.currentUserId || !params.row.user_id || params.row.user_id !== params.currentUserId
 
     if (isSoftDeleted && isFromOtherUser) {
-      const lastReadIso = params.lastReadByChannel?.[channelId]
+      const lastReadMap = params.lastReadByConversation || params.lastReadByChannel
+      const lastReadIso = lastReadMap?.[targetId]
       const isUnread = !lastReadIso || !params.row.created_at || Date.parse(params.row.created_at) > Date.parse(lastReadIso)
 
       if (isUnread) {
-        if (params.unreadCounts && (params.unreadCounts[channelId] || 0) > 0) {
-          params.unreadCounts[channelId] -= 1
+        if (params.unreadCounts && (params.unreadCounts[targetId] || 0) > 0) {
+          params.unreadCounts[targetId] -= 1
         }
         const wasMention = Boolean(
           params.row.content
@@ -338,8 +395,8 @@ export function handleRealtimeMessageUpdate(params: {
             params.currentDisplayName,
           ),
         )
-        if (wasMention && params.unreadMentions && (params.unreadMentions[channelId] || 0) > 0) {
-          params.unreadMentions[channelId] -= 1
+        if (wasMention && params.unreadMentions && (params.unreadMentions[targetId] || 0) > 0) {
+          params.unreadMentions[targetId] -= 1
         }
       }
     }
@@ -351,10 +408,13 @@ export function handleRealtimeMessageUpdate(params: {
 export function handleRealtimeReactionEvent(params: {
   eventType: 'INSERT' | 'DELETE'
   reaction: MessageReaction
-  activeChannelId: string | null
+  activeConversationId?: string | null
+  activeChannelId?: string | null
   messagesStore: ReturnType<typeof createMessagesStore>
 }): void {
-  if (params.reaction.channel_id && params.reaction.channel_id !== params.activeChannelId) {
+  const activeId = params.activeConversationId !== undefined ? params.activeConversationId : params.activeChannelId
+  const targetId = params.reaction.conversation_id || params.reaction.channel_id
+  if (targetId && activeId && targetId !== activeId) {
     return
   }
   if (params.eventType === 'INSERT') {
@@ -367,8 +427,10 @@ export function handleRealtimeReactionEvent(params: {
 export async function resolveMessageAuthor(params: {
   userId: string
   existingAuthor?: Profile
-  channelId: string
-  activeChannelId: string | null
+  conversationId?: string
+  channelId?: string
+  activeConversationId?: string | null
+  activeChannelId?: string | null
   profilesCache: Map<string, Profile>
   fetchProfile: (userId: string) => Promise<Profile | undefined>
 }): Promise<Profile | undefined> {
@@ -376,7 +438,9 @@ export async function resolveMessageAuthor(params: {
     params.profilesCache.set(params.existingAuthor.id, params.existingAuthor)
     return params.existingAuthor
   }
-  if (params.channelId !== params.activeChannelId) {
+  const targetId = params.conversationId || params.channelId
+  const activeId = params.activeConversationId !== undefined ? params.activeConversationId : params.activeChannelId
+  if (targetId && activeId && targetId !== activeId) {
     return undefined
   }
   const cached = params.profilesCache.get(params.userId)
@@ -443,31 +507,48 @@ export function useChatRoom() {
   const authProfile = useAuthProfile()
   const e2ee = useE2ee()
 
-  const channels = ref<Channel[]>([])
-  const activeChannelId = ref<string | null>(null)
+  const conversations = ref<Conversation[]>([])
+  const activeConversationId = ref<string | null>(null)
+  const contacts = ref<Contact[]>([])
+
+  // Transitional aliases for channels and legacy components
+  const channels = conversations as any as Ref<Channel[]>
+  const activeChannelId = activeConversationId
+
   const allProfiles = ref<Profile[]>([])
   const profilesCache = shallowReactive(new Map<string, Profile>())
-  const pendingImageFiles = new Map<string, { files: File[]; channelId: string }>()
+  const pendingImageFiles = new Map<string, { files: File[]; conversationId: string; channelId?: string }>()
   let isDisposed = false
-  const readDebouncer = createChannelReadDebouncer(async (channelId, timestamp) => {
+
+  const readDebouncer = createConversationReadDebouncer(async (convId, timestamp) => {
     const current = authProfile.currentProfile.value
     if (!current?.id) return
     try {
-      await supabase
-        .from('channel_reads')
+      const { error } = await supabase
+        .from('conversation_reads')
         .upsert({
           user_id: current.id,
-          channel_id: channelId,
+          conversation_id: convId,
           last_read_at: timestamp,
         })
+      if (error) {
+        await supabase
+          .from('channel_reads')
+          .upsert({
+            user_id: current.id,
+            channel_id: convId,
+            last_read_at: timestamp,
+          })
+      }
     } catch {
-      // Ignore channel_reads upsert error
+      // Ignore read upsert error
     }
   }, 2000)
 
   const unreadCounts = ref<Record<string, number>>({})
   const unreadMentions = ref<Record<string, number>>({})
-  const lastReadByChannel = ref<Record<string, string>>({})
+  const lastReadByConversation = ref<Record<string, string>>({})
+  const lastReadByChannel = lastReadByConversation
   const activeChannelUnreadSince = ref<string | null>(null)
 
   const onlineFriends = ref<Profile[]>([])
@@ -489,26 +570,18 @@ export function useChatRoom() {
     return Array.from(map.values()).sort((a, b) => a.display_name.localeCompare(b.display_name))
   })
 
+  const activeConversation = computed<Conversation | null>(() => {
+    if (!activeConversationId.value) return null
+    return conversations.value.find(c => c.id === activeConversationId.value) || null
+  })
+
+  // Transitional aliases
+  const activeChannel = activeConversation as any as ComputedRef<Channel | null>
   const publicChannels = computed<Channel[]>(() => {
-    return channels.value.filter(c => !c.is_dm)
+    return (conversations.value as any[]).filter(c => c.type === 'group' || (!c.is_dm && c.type !== 'direct'))
   })
-
   const dmChannels = computed<Channel[]>(() => {
-    return hydrateDmChannelPeers({
-      channels: channels.value,
-      currentUserId: authProfile.currentProfile.value?.id,
-      profilesCache,
-      fallbackProfiles: knownProfiles.value,
-    })
-  })
-
-  const activeChannel = computed<Channel | null>(() => {
-    const raw = channels.value.find(c => c.id === activeChannelId.value) || null
-    if (!raw) return null
-    if (raw.is_dm) {
-      return dmChannels.value.find(c => c.id === raw.id) || raw
-    }
-    return raw
+    return (conversations.value as any[]).filter(c => c.type === 'direct' || c.is_dm)
   })
 
   const hasMoreHistory = ref<boolean>(true)
@@ -533,40 +606,52 @@ export function useChatRoom() {
     }
   }
 
-  async function markChannelRead(channelId: string, immediate = true): Promise<void> {
+  async function markConversationRead(conversationId: string, immediate = true): Promise<void> {
     const current = authProfile.currentProfile.value
     const nowIso = new Date().toISOString()
-    lastReadByChannel.value[channelId] = nowIso
+    lastReadByConversation.value[conversationId] = nowIso
     if (!current?.id) return
 
-    await readDebouncer.schedule(channelId, nowIso, immediate)
+    await readDebouncer.schedule(conversationId, nowIso, immediate)
   }
+  const markChannelRead = markConversationRead
 
-  async function loadChannelReadsAndUnreads(): Promise<void> {
+  async function loadConversationReadsAndUnreads(): Promise<void> {
     const current = authProfile.currentProfile.value
-    if (!current?.id || channels.value.length === 0) return
+    if (!current?.id || conversations.value.length === 0) return
 
     try {
-      const { data: readRows } = await supabase
-        .from('channel_reads')
+      let readRows: any[] | null = null
+      const { data: convReadRows, error: convReadErr } = await supabase
+        .from('conversation_reads')
         .select('*')
         .eq('user_id', current.id)
 
+      if (!convReadErr && convReadRows) {
+        readRows = convReadRows
+      } else {
+        const { data: chReadRows } = await supabase
+          .from('channel_reads')
+          .select('*')
+          .eq('user_id', current.id)
+        readRows = chReadRows
+      }
+
       const defaultRead = current.created_at || '1970-01-01T00:00:00.000Z'
-      const map = computeChannelReadMap({
-        channels: channels.value,
-        readRows: readRows as ChannelRead[],
-        existingMap: lastReadByChannel.value,
+      const map = computeConversationReadMap({
+        conversations: conversations.value,
+        readRows,
+        existingMap: lastReadByConversation.value,
         defaultReadTimestamp: defaultRead,
       })
-      lastReadByChannel.value = map
+      lastReadByConversation.value = map
 
       const oldestRead = computeOldestReadTimestamp(Object.values(map))
       if (!oldestRead) return
 
       const { data: recentMessages } = await supabase
         .from('messages')
-        .select('id, channel_id, user_id, content, created_at, deleted_at, reply_to_id')
+        .select('id, conversation_id, channel_id, user_id, content, created_at, deleted_at, reply_to_id')
         .gt('created_at', oldestRead)
         .order('created_at', { ascending: true })
 
@@ -574,8 +659,8 @@ export function useChatRoom() {
         const decryptedRecent = await decryptMessageRows(recentMessages as any, e2ee.key.value)
         const snapshot = computeUnreadSnapshot({
           messages: decryptedRecent as any,
-          lastReadByChannel: map,
-          activeChannelId: activeChannelId.value,
+          lastReadByConversation: map,
+          activeConversationId: activeConversationId.value,
           currentUserId: current.id,
           currentDisplayName: current.display_name,
         })
@@ -586,13 +671,15 @@ export function useChatRoom() {
       // Ignore unread hydration failure
     }
   }
+  const loadChannelReadsAndUnreads = loadConversationReadsAndUnreads
 
   async function hydrateMessagesWithReactionsAndReplies(
     rows: any[],
   ): Promise<Array<Omit<ChatMessage, 'status'>>> {
     if (!rows || rows.length === 0) return []
 
-    const decryptedRows = await decryptMessageRows(rows, e2ee.key.value, activeChannelId.value)
+    const currentConvId = activeConversationId.value
+    const decryptedRows = await decryptMessageRows(rows, e2ee.key.value, currentConvId)
 
     const messageIds = decryptedRows.map(r => r.id)
     const reactionsByMsgId = new Map<string, MessageReaction[]>()
@@ -630,6 +717,8 @@ export function useChatRoom() {
       }
       return {
         ...r,
+        conversation_id: r.conversation_id || r.channel_id || currentConvId || '',
+        channel_id: r.channel_id || r.conversation_id || currentConvId || '',
         reactions: reactionsByMsgId.get(r.id) || r.reactions || [],
         reply_to: parent
           ? {
@@ -658,7 +747,7 @@ export function useChatRoom() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, display_name, avatar_color, avatar_url')
+        .select('id, email, display_name, avatar_color, avatar_url')
         .order('display_name', { ascending: true })
 
       if (data && !error) {
@@ -672,6 +761,195 @@ export function useChatRoom() {
     }
   }
 
+  async function findUserByEmail(email: string): Promise<Profile | null> {
+    if (!email || !isValidEmail(email)) {
+      return null
+    }
+    const cleanEmail = email.trim().toLowerCase()
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .ilike('email', cleanEmail)
+        .single()
+
+      if (error || !data) {
+        return null
+      }
+      const profile = data as Profile
+      profilesCache.set(profile.id, profile)
+      if (!allProfiles.value.some(p => p.id === profile.id)) {
+        allProfiles.value = [...allProfiles.value, profile].sort((a, b) =>
+          a.display_name.localeCompare(b.display_name),
+        )
+      }
+      return profile
+    } catch {
+      return null
+    }
+  }
+
+  async function loadContacts(): Promise<void> {
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    if (!current?.id) return
+
+    try {
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('user_id, contact_user_id, created_at, profile:profiles!contacts_contact_user_id_fkey(*)')
+        .eq('user_id', current.id)
+        .order('created_at', { ascending: true })
+
+      if (data && !error) {
+        contacts.value = (data as any[]).map((row) => {
+          let profile = row.profile
+          if (profile) {
+            profilesCache.set(profile.id, profile)
+          } else {
+            profile = profilesCache.get(row.contact_user_id) || allProfiles.value.find(p => p.id === row.contact_user_id) || null
+          }
+          return {
+            user_id: row.user_id,
+            contact_user_id: row.contact_user_id,
+            created_at: row.created_at,
+            profile,
+          }
+        })
+      }
+    } catch {
+      // Ignore contacts load failure
+    }
+  }
+
+  async function addContact(contactUserId: string): Promise<{ contact: Contact | null; error: string | null }> {
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    if (!current?.id) {
+      return { contact: null, error: 'Not authenticated.' }
+    }
+    if (current.id === contactUserId) {
+      return { contact: null, error: 'Cannot add yourself as a contact.' }
+    }
+
+    const existing = contacts.value.find(c => c.contact_user_id === contactUserId)
+    if (existing) {
+      return { contact: existing, error: null }
+    }
+
+    let peerProfile = profilesCache.get(contactUserId) || allProfiles.value.find(p => p.id === contactUserId)
+    if (!peerProfile) {
+      try {
+        const { data } = await supabase.from('profiles').select('*').eq('id', contactUserId).single()
+        if (data) {
+          peerProfile = data as Profile
+          profilesCache.set(data.id, data as Profile)
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('contacts')
+        .insert({
+          user_id: current.id,
+          contact_user_id: contactUserId,
+        })
+        .select('*')
+        .single()
+
+      if (error && !isDuplicateKeyError(error)) {
+        return { contact: null, error: error.message }
+      }
+
+      const newContact: Contact = {
+        user_id: current.id,
+        contact_user_id: contactUserId,
+        created_at: data?.created_at || new Date().toISOString(),
+        profile: (data as any)?.profile || peerProfile || null,
+      }
+
+      if (!contacts.value.some(c => c.contact_user_id === contactUserId)) {
+        contacts.value = [...contacts.value, newContact]
+      }
+
+      return { contact: newContact, error: null }
+    } catch (err: any) {
+      return { contact: null, error: err?.message || 'Failed to add contact.' }
+    }
+  }
+
+  async function removeContact(contactUserId: string): Promise<{ error: string | null }> {
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    if (!current?.id) {
+      return { error: 'Not authenticated.' }
+    }
+
+    contacts.value = contacts.value.filter(c => c.contact_user_id !== contactUserId)
+
+    try {
+      const { error } = await supabase
+        .from('contacts')
+        .delete()
+        .eq('user_id', current.id)
+        .eq('contact_user_id', contactUserId)
+
+      return { error: error ? error.message : null }
+    } catch (err: any) {
+      return { error: err?.message || 'Failed to remove contact.' }
+    }
+  }
+
+  async function loadConversations(): Promise<void> {
+    const current = authProfile.currentProfile.value
+    if (!current?.id) return
+
+    try {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('*, members:conversation_members(*, profile:profiles(*))')
+        .order('updated_at', { ascending: false })
+
+      if (data && !error && data.length > 0) {
+        const convs: Conversation[] = (data as any[]).map((c) => {
+          let peer: Profile | null = null
+          if (c.type === 'direct' && c.members) {
+            const peerMember = c.members.find((m: any) => m.user_id !== current.id)
+            peer = peerMember?.profile || profilesCache.get(peerMember?.user_id) || null
+          }
+          const existingConv = conversations.value.find(item => item.id === c.id)
+          const matchingMsgs = messages.value.filter(
+            m => m.conversation_id === c.id || m.channel_id === c.id,
+          )
+          const lastMsg = matchingMsgs.length > 0
+            ? matchingMsgs[matchingMsgs.length - 1]
+            : (existingConv?.lastMessage || c.lastMessage || null)
+          return {
+            id: c.id,
+            type: c.type,
+            title: c.title,
+            created_by: c.created_by,
+            created_at: c.created_at,
+            updated_at: lastMsg?.created_at || c.updated_at,
+            members: c.members || [],
+            peer,
+            lastMessage: lastMsg,
+            unreadCount: unreadCounts.value[c.id] || 0,
+          }
+        })
+        conversations.value = convs
+        if (!activeConversationId.value && convs.length > 0) {
+          await selectConversation(convs[0].id)
+        }
+        return
+      }
+    } catch {
+      // Fallback to legacy channels
+    }
+
+    await loadChannels()
+  }
+
   async function loadChannels(): Promise<void> {
     try {
       const { data, error } = await supabase
@@ -680,13 +958,17 @@ export function useChatRoom() {
         .order('created_at', { ascending: true })
 
       if (data && !error) {
-        channels.value = data as Channel[]
-        if (!activeChannelId.value && data.length > 0) {
+        conversations.value = (data as any[]).map((ch) => ({
+          ...ch,
+          type: ch.is_dm ? ('direct' as ConversationType) : ('group' as ConversationType),
+          title: ch.slug || ch.title || null,
+        }))
+        if (!activeConversationId.value && data.length > 0) {
           const general = (data as Channel[]).find(c => !c.is_dm && c.slug === 'general')
           const firstPublic = (data as Channel[]).find(c => !c.is_dm)
           const initial = general || firstPublic || (data as Channel[])[0]
           if (initial) {
-            await selectChannel(initial.id)
+            await selectConversation(initial.id)
           }
         }
       }
@@ -696,14 +978,15 @@ export function useChatRoom() {
   }
 
   async function fetchGapMessages(): Promise<void> {
-    if (!activeChannelId.value) return
+    const convId = activeConversationId.value
+    if (!convId) return
     const lastTimestamp = messagesStore.getLastConfirmedTimestamp()
 
     try {
       let query = supabase
         .from('messages')
-        .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
-        .eq('channel_id', activeChannelId.value)
+        .select('*, author:profiles(id, display_name, avatar_color, avatar_url, email)')
+        .eq('conversation_id', convId)
 
       if (lastTimestamp) {
         query = query.gt('created_at', lastTimestamp).order('created_at', { ascending: true })
@@ -711,7 +994,22 @@ export function useChatRoom() {
         query = query.order('created_at', { ascending: true }).limit(PAGE_SIZE)
       }
 
-      const { data, error } = await query
+      let { data, error } = await query
+      if (error) {
+        let fallbackQuery = supabase
+          .from('messages')
+          .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
+          .eq('channel_id', convId)
+
+        if (lastTimestamp) {
+          fallbackQuery = fallbackQuery.gt('created_at', lastTimestamp).order('created_at', { ascending: true })
+        } else {
+          fallbackQuery = fallbackQuery.order('created_at', { ascending: true }).limit(PAGE_SIZE)
+        }
+        const res = await fallbackQuery
+        data = res.data
+        error = res.error
+      }
 
       if (data && !error && data.length > 0) {
         cacheProfilesFromMessages(data)
@@ -727,12 +1025,12 @@ export function useChatRoom() {
     try {
       const p1 = subscribeWithPromise(presenceChannel)
       const p2 = subscribeWithPromise(dbChangesChannel)
-      const p3 = activeChannelId.value ? subscribeWithPromise(typingChannel) : Promise.resolve(true)
+      const p3 = activeConversationId.value ? subscribeWithPromise(typingChannel) : Promise.resolve(true)
       const results = await Promise.all([p1, p2, p3])
       const ok = results.every(Boolean)
       if (ok) {
         await fetchGapMessages()
-        await loadChannelReadsAndUnreads()
+        await loadConversationReadsAndUnreads()
         return true
       }
       return false
@@ -787,19 +1085,20 @@ export function useChatRoom() {
         async (payload) => {
           const newRow = payload.new as any
           const currentId = authProfile.currentProfile.value?.id
+          const convId = newRow.conversation_id || newRow.channel_id
 
-          let targetChannel = channels.value.find(c => c.id === newRow.channel_id)
-          if (!targetChannel) {
+          let targetConv = conversations.value.find(c => c.id === convId)
+          if (!targetConv) {
             try {
-              const { data: fetchedChannel } = await supabase
-                .from('channels')
-                .select('*')
-                .eq('id', newRow.channel_id)
+              const { data: fetchedConv } = await supabase
+                .from('conversations')
+                .select('*, members:conversation_members(*, profile:profiles(*))')
+                .eq('id', convId)
                 .single()
-              if (fetchedChannel && canUserAccessChannel(fetchedChannel as Channel, currentId)) {
-                targetChannel = fetchedChannel as Channel
-                if (!channels.value.some(c => c.id === targetChannel!.id)) {
-                  channels.value = [...channels.value, targetChannel]
+              if (fetchedConv) {
+                targetConv = fetchedConv as Conversation
+                if (!conversations.value.some(c => c.id === targetConv!.id)) {
+                  conversations.value = [targetConv, ...conversations.value]
                 }
               }
             } catch {
@@ -807,48 +1106,23 @@ export function useChatRoom() {
             }
           }
 
-          if (!shouldProcessChannelMessage(targetChannel, currentId)) {
-            return
-          }
-
-          if (targetChannel?.is_dm && currentId) {
-            const peerId = getDmPeerId(targetChannel, currentId)
-            if (peerId && !profilesCache.has(peerId)) {
-              try {
-                const { data: peerProfile } = await supabase
-                  .from('profiles')
-                  .select('id, display_name, avatar_color, avatar_url')
-                  .eq('id', peerId)
-                  .single()
-                if (peerProfile) {
-                  profilesCache.set(peerProfile.id, peerProfile as Profile)
-                  if (!allProfiles.value.some(p => p.id === peerProfile.id)) {
-                    allProfiles.value = [...allProfiles.value, peerProfile as Profile]
-                  }
-                }
-              } catch {
-                // ignore
-              }
-            }
-          }
-
           const decryptedRow = await decryptMessageRow(
             newRow,
             e2ee.key.value,
-            activeChannelId.value,
+            activeConversationId.value,
           )
 
           const author = await resolveMessageAuthor({
             userId: decryptedRow.user_id,
             existingAuthor: decryptedRow.author,
-            channelId: decryptedRow.channel_id,
-            activeChannelId: activeChannelId.value,
+            conversationId: convId,
+            activeConversationId: activeConversationId.value,
             profilesCache,
             fetchProfile: async (userId: string) => {
               try {
                 const { data } = await supabase
                   .from('profiles')
-                  .select('id, display_name, avatar_color, avatar_url')
+                  .select('id, email, display_name, avatar_color, avatar_url')
                   .eq('id', userId)
                   .single()
                 return (data as Profile) || undefined
@@ -876,18 +1150,32 @@ export function useChatRoom() {
               }
             : (decryptedRow.reply_to || null)
 
+          const fullDecryptedRow = {
+            ...decryptedRow,
+            conversation_id: convId,
+            channel_id: convId,
+            author,
+            reply_to: replyTarget,
+            reactions: [],
+          }
+
           handleIncomingRealtimeMessage({
-            row: { ...decryptedRow, author, reply_to: replyTarget, reactions: [] },
-            activeChannelId: activeChannelId.value,
+            row: fullDecryptedRow,
+            activeConversationId: activeConversationId.value,
             messagesStore,
             typingTracker,
             unreadCounts: unreadCounts.value,
             unreadMentions: unreadMentions.value,
             currentUserId: authProfile.currentProfile.value?.id,
             currentDisplayName: authProfile.currentProfile.value?.display_name,
+            conversations: conversations.value,
           })
-          if (decryptedRow.channel_id === activeChannelId.value) {
-            markChannelRead(decryptedRow.channel_id, false)
+          if (targetConv) {
+            targetConv.lastMessage = fullDecryptedRow as any
+            targetConv.updated_at = decryptedRow.created_at
+          }
+          if (convId === activeConversationId.value) {
+            markConversationRead(convId, false)
           }
         },
       )
@@ -896,20 +1184,20 @@ export function useChatRoom() {
         { event: 'UPDATE', schema: 'public', table: 'messages' },
         async (payload) => {
           const decryptedNew = payload.new
-            ? await decryptMessageRow(payload.new as any, e2ee.key.value, activeChannelId.value)
+            ? await decryptMessageRow(payload.new as any, e2ee.key.value, activeConversationId.value)
             : payload.new
           const decryptedOld = payload.old
-            ? await decryptMessageRow(payload.old as any, e2ee.key.value, activeChannelId.value)
+            ? await decryptMessageRow(payload.old as any, e2ee.key.value, activeConversationId.value)
             : payload.old
 
           handleRealtimeMessageUpdate({
             row: decryptedNew as any,
             oldRow: decryptedOld as any,
-            activeChannelId: activeChannelId.value,
+            activeConversationId: activeConversationId.value,
             messagesStore,
             unreadCounts: unreadCounts.value,
             unreadMentions: unreadMentions.value,
-            lastReadByChannel: lastReadByChannel.value,
+            lastReadByConversation: lastReadByConversation.value,
             currentUserId: authProfile.currentProfile.value?.id,
             currentDisplayName: authProfile.currentProfile.value?.display_name,
           })
@@ -922,7 +1210,7 @@ export function useChatRoom() {
           handleRealtimeReactionEvent({
             eventType: 'INSERT',
             reaction: payload.new as MessageReaction,
-            activeChannelId: activeChannelId.value,
+            activeConversationId: activeConversationId.value,
             messagesStore,
           })
         },
@@ -934,41 +1222,110 @@ export function useChatRoom() {
           handleRealtimeReactionEvent({
             eventType: 'DELETE',
             reaction: payload.old as MessageReaction,
-            activeChannelId: activeChannelId.value,
+            activeConversationId: activeConversationId.value,
             messagesStore,
           })
         },
       )
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'channels' },
-        (payload) => {
-          const newChannel = payload.new as Channel
-          const currentId = authProfile.currentProfile.value?.id
-          if (!canUserAccessChannel(newChannel, currentId)) {
-            return
-          }
-          if (!channels.value.some(c => c.id === newChannel.id)) {
-            channels.value = [...channels.value, newChannel]
-          }
-          if (newChannel.is_dm && currentId) {
-            const peerId = getDmPeerId(newChannel, currentId)
-            if (peerId && !profilesCache.has(peerId)) {
-              supabase
-                .from('profiles')
-                .select('id, display_name, avatar_color, avatar_url')
-                .eq('id', peerId)
+        { event: 'INSERT', schema: 'public', table: 'conversations' },
+        async (payload) => {
+          const newConv = payload.new as Conversation
+          if (!conversations.value.some(c => c.id === newConv.id)) {
+            try {
+              const { data } = await supabase
+                .from('conversations')
+                .select('*, members:conversation_members(*, profile:profiles(*))')
+                .eq('id', newConv.id)
                 .single()
-                .then(({ data: peerProfile }) => {
-                  if (peerProfile) {
-                    profilesCache.set(peerProfile.id, peerProfile as Profile)
-                    if (!allProfiles.value.some(p => p.id === peerProfile.id)) {
-                      allProfiles.value = [...allProfiles.value, peerProfile as Profile]
-                    }
-                  }
-                })
-                .catch(() => {})
+              if (data && !conversations.value.some(c => c.id === data.id)) {
+                conversations.value = [data as Conversation, ...conversations.value]
+              }
+            } catch {
+              // ignore
             }
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'conversations' },
+        (payload) => {
+          const updated = payload.new as Conversation
+          if (updated?.id) {
+            conversations.value = conversations.value.map(c =>
+              c.id === updated.id ? { ...c, ...updated } : c,
+            )
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'conversation_members' },
+        async (payload) => {
+          const newMember = payload.new as ConversationMember
+          const currentId = authProfile.currentProfile.value?.id
+          if (newMember.user_id === currentId) {
+            await loadConversations()
+          } else {
+            const conv = conversations.value.find(c => c.id === newMember.conversation_id)
+            if (conv && !conv.members?.some(m => m.user_id === newMember.user_id)) {
+              let p = profilesCache.get(newMember.user_id)
+              if (!p) {
+                const { data } = await supabase.from('profiles').select('*').eq('id', newMember.user_id).single()
+                if (data) p = data as Profile
+              }
+              conv.members = [...(conv.members || []), { ...newMember, profile: p || null }]
+            }
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'conversation_members' },
+        (payload) => {
+          const oldMember = payload.old as ConversationMember
+          const currentId = authProfile.currentProfile.value?.id
+          if (oldMember.user_id === currentId) {
+            conversations.value = conversations.value.filter(c => c.id !== oldMember.conversation_id)
+            if (activeConversationId.value === oldMember.conversation_id) {
+              const next = conversations.value[0]?.id || null
+              if (next) {
+                selectConversation(next)
+              } else {
+                activeConversationId.value = null
+                messagesStore.setInitialHistory([], '')
+              }
+            }
+          } else {
+            const conv = conversations.value.find(c => c.id === oldMember.conversation_id)
+            if (conv) {
+              conv.members = conv.members?.filter(m => m.user_id !== oldMember.user_id)
+            }
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'contacts' },
+        (payload) => {
+          const newContact = payload.new as Contact
+          const currentId = authProfile.currentProfile.value?.id
+          if (newContact.user_id === currentId && !contacts.value.some(c => c.contact_user_id === newContact.contact_user_id)) {
+            const p = profilesCache.get(newContact.contact_user_id) || allProfiles.value.find(pr => pr.id === newContact.contact_user_id)
+            contacts.value = [...contacts.value, { ...newContact, profile: p || null }]
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'contacts' },
+        (payload) => {
+          const oldContact = payload.old as Contact
+          const currentId = authProfile.currentProfile.value?.id
+          if (oldContact.user_id === currentId) {
+            contacts.value = contacts.value.filter(c => c.contact_user_id !== oldContact.contact_user_id)
           }
         },
       )
@@ -1014,14 +1371,14 @@ export function useChatRoom() {
       })
   }
 
-  function setupTypingSubscription(channelId: string): void {
+  function setupTypingSubscription(conversationId: string): void {
     if (typingChannel) {
       supabase.removeChannel(typingChannel)
     }
 
     typingTracker.clearAll()
 
-    typingChannel = supabase.channel(`typing:${channelId}`)
+    typingChannel = supabase.channel(`typing:${conversationId}`)
       .on('broadcast', { event: 'typing' }, (payload) => {
         if (payload?.payload) {
           typingTracker.recordTyping(payload.payload)
@@ -1050,28 +1407,40 @@ export function useChatRoom() {
     })
   }
 
-  async function selectChannel(channelId: string): Promise<void> {
+  async function selectConversation(conversationId: string): Promise<void> {
     useImageAttachmentCache().revokeAllUrls()
-    const priorLastRead = lastReadByChannel.value[channelId] || null
-    const hadUnreads = (unreadCounts.value[channelId] || 0) > 0
+    const priorLastRead = lastReadByConversation.value[conversationId] || null
+    const hadUnreads = (unreadCounts.value[conversationId] || 0) > 0
     activeChannelUnreadSince.value = hadUnreads ? priorLastRead : null
-    activeChannelId.value = channelId
-    unreadCounts.value[channelId] = 0
-    unreadMentions.value[channelId] = 0
-    markChannelRead(channelId)
-    setupTypingSubscription(channelId)
+    activeConversationId.value = conversationId
+    unreadCounts.value[conversationId] = 0
+    unreadMentions.value[conversationId] = 0
+    markConversationRead(conversationId)
+    setupTypingSubscription(conversationId)
 
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('messages')
-        .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
-        .eq('channel_id', channelId)
+        .select('*, author:profiles(id, email, display_name, avatar_color, avatar_url)')
+        .eq('conversation_id', conversationId)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
         .limit(PAGE_SIZE)
 
-      // Guard against race condition if user switched channels while query was in flight
-      if (activeChannelId.value !== channelId) {
+      if (error) {
+        const fallback = await supabase
+          .from('messages')
+          .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
+          .eq('channel_id', conversationId)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(PAGE_SIZE)
+        data = fallback.data
+        error = fallback.error
+      }
+
+      // Guard against race condition if user switched conversations while query was in flight
+      if (activeConversationId.value !== conversationId) {
         return
       }
 
@@ -1080,22 +1449,29 @@ export function useChatRoom() {
         const chronological = [...data].reverse()
         cacheProfilesFromMessages(chronological)
         const hydrated = await hydrateMessagesWithReactionsAndReplies(chronological)
-        if (activeChannelId.value !== channelId) {
+        if (activeConversationId.value !== conversationId) {
           return
         }
-        messagesStore.setInitialHistory(hydrated, channelId)
+        messagesStore.setInitialHistory(hydrated, conversationId)
+        const targetConv = conversations.value.find(c => c.id === conversationId)
+        if (targetConv && hydrated.length > 0) {
+          targetConv.lastMessage = hydrated[hydrated.length - 1] as ChatMessage
+          targetConv.updated_at = hydrated[hydrated.length - 1].created_at || targetConv.updated_at
+        }
       } else {
-        messagesStore.setInitialHistory([], channelId)
+        messagesStore.setInitialHistory([], conversationId)
       }
     } catch {
-      if (activeChannelId.value === channelId) {
-        messagesStore.setInitialHistory([], channelId)
+      if (activeConversationId.value === conversationId) {
+        messagesStore.setInitialHistory([], conversationId)
       }
     }
   }
+  const selectChannel = selectConversation
 
   async function loadOlderMessages(): Promise<number> {
-    if (!hasMoreHistory.value || isLoadingHistory.value || !activeChannelId.value) {
+    const convId = activeConversationId.value
+    if (!hasMoreHistory.value || isLoadingHistory.value || !convId) {
       return 0
     }
 
@@ -1106,14 +1482,28 @@ export function useChatRoom() {
 
     isLoadingHistory.value = true
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('messages')
-        .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
-        .eq('channel_id', activeChannelId.value)
+        .select('*, author:profiles(id, email, display_name, avatar_color, avatar_url)')
+        .eq('conversation_id', convId)
         .or(`created_at.lt."${cursor.created_at}",and(created_at.eq."${cursor.created_at}",id.lt."${cursor.id}")`)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
         .limit(PAGE_SIZE)
+
+      let { data, error } = await query
+      if (error) {
+        const fallback = await supabase
+          .from('messages')
+          .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
+          .eq('channel_id', convId)
+          .or(`created_at.lt."${cursor.created_at}",and(created_at.eq."${cursor.created_at}",id.lt."${cursor.id}")`)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(PAGE_SIZE)
+        data = fallback.data
+        error = fallback.error
+      }
 
       if (data && !error) {
         if (data.length < PAGE_SIZE) {
@@ -1130,126 +1520,281 @@ export function useChatRoom() {
     return 0
   }
 
-  async function createChannel(name: string, description?: string): Promise<{ channel: Channel | null; error: string | null }> {
-    const slug = normalizeChannelSlug(name)
-    if (!isValidChannelSlug(slug)) {
-      return {
-        channel: null,
-        error: 'Channel name must produce a lowercase slug of 2–32 alphanumeric or hyphen characters.',
-      }
-    }
-
-    let current = authProfile.currentProfile.value
+  async function openOrCreateDirectChat(peerUserId: string): Promise<Conversation> {
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
     if (!current?.id) {
-      current = await authProfile.ensureProfile()
+      throw new Error('Not authenticated.')
     }
-    const payload = {
-      slug,
-      description: description?.trim() || null,
-      created_by: current?.id || null,
+    if (current.id === peerUserId) {
+      throw new Error('Cannot start a direct message with yourself.')
     }
 
-    const { data, error } = await supabase
-      .from('channels')
-      .insert(payload)
-      .select('*')
-      .single()
-
-    if (error) {
-      return { channel: null, error: error.message }
-    }
-
-    const newChannel = data as Channel
-    if (!channels.value.some(c => c.id === newChannel.id)) {
-      channels.value = [...channels.value, newChannel]
-    }
-    await selectChannel(newChannel.id)
-    return { channel: newChannel, error: null }
-  }
-
-  async function openOrCreateDm(peerUserId: string): Promise<{ channel: Channel | null; error: string | null }> {
-    let current = authProfile.currentProfile.value
-    if (!current?.id) {
-      current = await authProfile.ensureProfile()
-    }
-    if (!current?.id) {
-      return { channel: null, error: 'Not authenticated.' }
-    }
-
-    const pair = normalizeDmPair(current.id, peerUserId)
-    if (!pair) {
-      return { channel: null, error: 'Cannot start a direct message with yourself.' }
-    }
-
-    if (peerUserId && !profilesCache.has(peerUserId)) {
+    let peerProfile = profilesCache.get(peerUserId) || allProfiles.value.find(p => p.id === peerUserId)
+    if (!peerProfile) {
       try {
-        const { data: peerProfile } = await supabase
-          .from('profiles')
-          .select('id, display_name, avatar_color, avatar_url')
-          .eq('id', peerUserId)
-          .single()
-        if (peerProfile) {
-          profilesCache.set(peerProfile.id, peerProfile as Profile)
-          if (!allProfiles.value.some(p => p.id === peerProfile.id)) {
-            allProfiles.value = [...allProfiles.value, peerProfile as Profile]
+        const { data } = await supabase.from('profiles').select('*').eq('id', peerUserId).single()
+        if (data) {
+          peerProfile = data as Profile
+          profilesCache.set(data.id, data as Profile)
+          if (!allProfiles.value.some(p => p.id === data.id)) {
+            allProfiles.value = [...allProfiles.value, data as Profile]
           }
         }
       } catch {
-        // ignore profile fetch failure
+        // ignore
       }
     }
 
-    const existingInMemory = channels.value.find(
-      c => c.slug === pair.slug || (c.is_dm && c.dm_user_a === pair.dm_user_a && c.dm_user_b === pair.dm_user_b),
-    )
+    const existingInMemory = conversations.value.find(c => {
+      if (c.type !== 'direct') return false
+      if (c.peer?.id === peerUserId) return true
+      if (c.members?.some(m => m.user_id === peerUserId)) return true
+      return false
+    })
+
     if (existingInMemory) {
-      await selectChannel(existingInMemory.id)
-      return { channel: existingInMemory, error: null }
+      await selectConversation(existingInMemory.id)
+      return existingInMemory
     }
 
-    const payload = {
-      slug: pair.slug,
-      description: null,
-      created_by: current.id,
-      is_dm: true,
-      dm_user_a: pair.dm_user_a,
-      dm_user_b: pair.dm_user_b,
+    try {
+      const { data: existingMemberships } = await supabase
+        .from('conversation_members')
+        .select('conversation_id, conversation:conversations(*)')
+        .eq('user_id', peerUserId)
+
+      if (existingMemberships && existingMemberships.length > 0) {
+        const matched = (existingMemberships as any[]).find(
+          m => m.conversation && m.conversation.type === 'direct',
+        )
+        if (matched?.conversation) {
+          const c = matched.conversation
+          const conv: Conversation = {
+            id: c.id,
+            type: 'direct',
+            title: null,
+            created_by: c.created_by,
+            created_at: c.created_at,
+            updated_at: c.updated_at,
+            peer: peerProfile || null,
+            members: [
+              { conversation_id: c.id, user_id: current.id, role: 'owner', joined_at: c.created_at, profile: current },
+              { conversation_id: c.id, user_id: peerUserId, role: 'member', joined_at: c.created_at, profile: peerProfile || null },
+            ],
+            unreadCount: unreadCounts.value[c.id] || 0,
+          }
+          if (!conversations.value.some(item => item.id === conv.id)) {
+            conversations.value = [conv, ...conversations.value]
+          }
+          await selectConversation(conv.id)
+          return conv
+        }
+      }
+    } catch {
+      // ignore
     }
 
-    const { data, error } = await supabase
-      .from('channels')
-      .insert(payload)
+    const { data: convData, error: convError } = await supabase
+      .from('conversations')
+      .insert({
+        type: 'direct',
+        created_by: current.id,
+      })
       .select('*')
       .single()
 
-    let resolvedChannel: Channel | null = (data as Channel) || null
+    if (convError || !convData) {
+      throw new Error(convError?.message || 'Failed to create direct conversation.')
+    }
+
+    const membersToInsert = [
+      { conversation_id: convData.id, user_id: current.id, role: 'owner' },
+      { conversation_id: convData.id, user_id: peerUserId, role: 'member' },
+    ]
+    const { error: memberError } = await supabase.from('conversation_members').insert(membersToInsert)
+    if (memberError) {
+      throw new Error(memberError.message || 'Failed to add conversation members.')
+    }
+
+    const newConv: Conversation = {
+      id: convData.id,
+      type: 'direct',
+      title: null,
+      created_by: current.id,
+      created_at: convData.created_at || new Date().toISOString(),
+      updated_at: convData.updated_at || new Date().toISOString(),
+      peer: peerProfile || null,
+      members: [
+        { conversation_id: convData.id, user_id: current.id, role: 'owner', joined_at: new Date().toISOString(), profile: current },
+        { conversation_id: convData.id, user_id: peerUserId, role: 'member', joined_at: new Date().toISOString(), profile: peerProfile || null },
+      ],
+      unreadCount: 0,
+    }
+
+    if (!conversations.value.some(c => c.id === newConv.id)) {
+      conversations.value = [newConv, ...conversations.value]
+    }
+    await selectConversation(newConv.id)
+    return newConv
+  }
+
+  async function createGroup(title: string, memberUserIds: string[]): Promise<Conversation> {
+    const cleanTitle = title?.trim()
+    if (!cleanTitle) {
+      throw new Error('Group title is required.')
+    }
+
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    if (!current?.id) {
+      throw new Error('Not authenticated.')
+    }
+
+    const { data: convData, error: convError } = await supabase
+      .from('conversations')
+      .insert({
+        type: 'group',
+        title: cleanTitle,
+        created_by: current.id,
+      })
+      .select('*')
+      .single()
+
+    if (convError || !convData) {
+      throw new Error(convError?.message || 'Failed to create group conversation.')
+    }
+
+    const uniqueOtherIds = Array.from(new Set(memberUserIds.filter(id => id && id !== current.id)))
+    const membersToInsert = [
+      { conversation_id: convData.id, user_id: current.id, role: 'owner' },
+      ...uniqueOtherIds.map(uid => ({
+        conversation_id: convData.id,
+        user_id: uid,
+        role: 'member',
+      })),
+    ]
+
+    const { error: memberError } = await supabase.from('conversation_members').insert(membersToInsert)
+    if (memberError) {
+      throw new Error(memberError.message || 'Failed to add group members.')
+    }
+
+    const memberList: ConversationMember[] = membersToInsert.map(m => ({
+      conversation_id: convData.id,
+      user_id: m.user_id,
+      role: m.role as 'owner' | 'member',
+      joined_at: new Date().toISOString(),
+      profile: m.user_id === current.id ? current : (profilesCache.get(m.user_id) || allProfiles.value.find(p => p.id === m.user_id) || null),
+    }))
+
+    const newGroup: Conversation = {
+      id: convData.id,
+      type: 'group',
+      title: cleanTitle,
+      created_by: current.id,
+      created_at: convData.created_at || new Date().toISOString(),
+      updated_at: convData.updated_at || new Date().toISOString(),
+      members: memberList,
+      unreadCount: 0,
+    }
+
+    if (!conversations.value.some(c => c.id === newGroup.id)) {
+      conversations.value = [newGroup, ...conversations.value]
+    }
+    await selectConversation(newGroup.id)
+    return newGroup
+  }
+
+  async function addMemberToGroup(conversationId: string, email: string): Promise<void> {
+    const conv = conversations.value.find(c => c.id === conversationId)
+    if (conv && conv.type !== 'group') {
+      throw new Error('Cannot add members to a direct message.')
+    }
+
+    const user = await findUserByEmail(email)
+    if (!user) {
+      throw new Error(`User not found with email: ${email}`)
+    }
+
+    if (conv?.members?.some(m => m.user_id === user.id)) {
+      return
+    }
+
+    const { error } = await supabase
+      .from('conversation_members')
+      .insert({
+        conversation_id: conversationId,
+        user_id: user.id,
+        role: 'member',
+      })
 
     if (error) {
-      if (isDuplicateKeyError(error)) {
-        const { data: existingRow } = await supabase
-          .from('channels')
-          .select('*')
-          .eq('slug', pair.slug)
-          .single()
-        resolvedChannel = (existingRow as Channel) || null
-      }
-      if (!resolvedChannel) {
-        return { channel: null, error: error.message }
-      }
+      throw new Error(error.message)
     }
 
-    if (resolvedChannel) {
-      if (!channels.value.some(c => c.id === resolvedChannel!.id)) {
-        channels.value = [...channels.value, resolvedChannel]
+    if (conv) {
+      const newMember: ConversationMember = {
+        conversation_id: conversationId,
+        user_id: user.id,
+        role: 'member',
+        joined_at: new Date().toISOString(),
+        profile: user,
       }
-      await selectChannel(resolvedChannel.id)
+      conv.members = [...(conv.members || []), newMember]
+    }
+  }
+
+  async function leaveGroup(conversationId: string): Promise<void> {
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    if (!current?.id) {
+      throw new Error('Not authenticated.')
     }
 
-    return { channel: resolvedChannel, error: null }
+    const { error: leaveError } = await supabase
+      .from('conversation_members')
+      .delete()
+      .eq('conversation_id', conversationId)
+      .eq('user_id', current.id)
+
+    if (leaveError) {
+      throw new Error(leaveError.message || 'Failed to leave group.')
+    }
+
+    conversations.value = conversations.value.filter(c => c.id !== conversationId)
+
+    if (activeConversationId.value === conversationId) {
+      const next = conversations.value[0]?.id || null
+      if (next) {
+        await selectConversation(next)
+      } else {
+        activeConversationId.value = null
+        messagesStore.setInitialHistory([], '')
+      }
+    }
+  }
+
+  // Transitional wrapper for legacy createChannel
+  async function createChannel(name: string, description?: string): Promise<{ channel: Conversation | Channel | null; error: string | null }> {
+    try {
+      const group = await createGroup(name, [])
+      return { channel: group, error: null }
+    } catch (err: any) {
+      return { channel: null, error: err?.message || 'Failed to create channel.' }
+    }
+  }
+
+  // Transitional wrapper for legacy openOrCreateDm
+  async function openOrCreateDm(peerUserId: string): Promise<{ channel: Conversation | Channel | null; error: string | null }> {
+    try {
+      const conv = await openOrCreateDirectChat(peerUserId)
+      return { channel: conv, error: null }
+    } catch (err: any) {
+      return { channel: null, error: err?.message || 'Failed to open direct message.' }
+    }
   }
 
   async function sendMessage(content: string, replyToId?: string | null): Promise<void> {
-    if (!activeChannelId.value || !isValidMessageContent(content)) return
+    const conversationId = activeConversationId.value
+    if (!conversationId || !isValidMessageContent(content)) return
     let current = authProfile.currentProfile.value
     if (!current?.id) {
       current = await authProfile.ensureProfile()
@@ -1276,11 +1821,11 @@ export function useChatRoom() {
       : null
 
     const plaintext = content.trim()
-    const channelId = activeChannelId.value
 
-    messagesStore.addOptimisticMessage({
+    const optimisticMessage = messagesStore.addOptimisticMessage({
       clientId,
-      channelId,
+      conversationId,
+      channelId: conversationId,
       user: current,
       content: plaintext,
       replyToId: replyToId || null,
@@ -1288,25 +1833,50 @@ export function useChatRoom() {
       encryption: 'e2ee',
     })
 
+    const targetConv = conversations.value.find(c => c.id === conversationId)
+    if (targetConv) {
+      if (optimisticMessage) {
+        targetConv.lastMessage = optimisticMessage
+      }
+      targetConv.updated_at = new Date().toISOString()
+    }
+
     if (!e2ee.key.value) {
       messagesStore.markMessageFailed(clientId)
       return
     }
 
     try {
-      const encryptedContent = await encryptContent(e2ee.key.value, plaintext, channelId)
+      const encryptedContent = await encryptContent(e2ee.key.value, plaintext, conversationId)
 
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('messages')
         .insert({
           client_id: clientId,
-          channel_id: channelId,
+          conversation_id: conversationId,
           user_id: current.id,
           content: encryptedContent,
           reply_to_id: replyToId || null,
         })
         .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
         .single()
+
+      if (error && (error.message?.includes('conversation_id') || error.code === '42703')) {
+        // Fallback for legacy schema with channel_id
+        const fallbackRes = await supabase
+          .from('messages')
+          .insert({
+            client_id: clientId,
+            channel_id: conversationId,
+            user_id: current.id,
+            content: encryptedContent,
+            reply_to_id: replyToId || null,
+          })
+          .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
+          .single()
+        data = fallbackRes.data
+        error = fallbackRes.error
+      }
 
       if (error) {
         if (isDuplicateKeyError(error)) {
@@ -1316,8 +1886,13 @@ export function useChatRoom() {
             .eq('client_id', clientId)
             .single()
           if (existing) {
-            const decryptedExisting = await decryptMessageRow(existing, e2ee.key.value, channelId)
-            messagesStore.markMessageSent(clientId, { ...decryptedExisting, reply_to: replyTarget })
+            const decryptedExisting = await decryptMessageRow(existing, e2ee.key.value, conversationId)
+            const sentMsg = { ...decryptedExisting, reply_to: replyTarget, status: 'sent' as const }
+            messagesStore.markMessageSent(clientId, sentMsg)
+            if (targetConv) {
+              targetConv.lastMessage = sentMsg as ChatMessage
+              targetConv.updated_at = sentMsg.created_at || targetConv.updated_at
+            }
           } else {
             messagesStore.markMessageFailed(clientId)
           }
@@ -1325,8 +1900,13 @@ export function useChatRoom() {
           messagesStore.markMessageFailed(clientId)
         }
       } else if (data) {
-        const decryptedData = await decryptMessageRow(data, e2ee.key.value, channelId)
-        messagesStore.markMessageSent(clientId, { ...decryptedData, reply_to: replyTarget })
+        const decryptedData = await decryptMessageRow(data, e2ee.key.value, conversationId)
+        const sentMsg = { ...decryptedData, reply_to: replyTarget, status: 'sent' as const }
+        messagesStore.markMessageSent(clientId, sentMsg)
+        if (targetConv) {
+          targetConv.lastMessage = sentMsg as ChatMessage
+          targetConv.updated_at = sentMsg.created_at || targetConv.updated_at
+        }
       }
     } catch {
       messagesStore.markMessageFailed(clientId)
@@ -1334,11 +1914,11 @@ export function useChatRoom() {
   }
 
   async function sendImages(files: File[], overrideClientId?: string): Promise<boolean> {
-    const channelId = overrideClientId
-      ? (pendingImageFiles.get(overrideClientId)?.channelId || activeChannelId.value)
-      : activeChannelId.value
+    const conversationId = overrideClientId
+      ? (pendingImageFiles.get(overrideClientId)?.conversationId || pendingImageFiles.get(overrideClientId)?.channelId || activeConversationId.value)
+      : activeConversationId.value
 
-    if (!channelId) return false
+    if (!conversationId) return false
 
     let current = authProfile.currentProfile.value
     if (!current?.id) {
@@ -1358,7 +1938,7 @@ export function useChatRoom() {
         : '00000000-0000-4000-8000-' + Math.random().toString(16).slice(2, 14).padEnd(12, '0')
     )
 
-    pendingImageFiles.set(clientId, { files, channelId })
+    pendingImageFiles.set(clientId, { files, conversationId, channelId: conversationId })
 
     if (!overrideClientId) {
       const localPreviews: LocalImageAttachment[] = files.map((file) => ({
@@ -1382,13 +1962,21 @@ export function useChatRoom() {
       }
 
       const optimisticContent = JSON.stringify(optimisticPayload)
-      messagesStore.addOptimisticMessage({
+      const optimisticMessage = messagesStore.addOptimisticMessage({
         clientId,
-        channelId,
+        conversationId,
+        channelId: conversationId,
         user: current,
         content: optimisticContent,
         encryption: 'e2ee',
       })
+      const targetConv = conversations.value.find(c => c.id === conversationId)
+      if (targetConv) {
+        if (optimisticMessage) {
+          targetConv.lastMessage = optimisticMessage
+        }
+        targetConv.updated_at = new Date().toISOString()
+      }
     }
 
     const uploadedMetadatas: EncryptedImageMetadata[] = []
@@ -1399,8 +1987,9 @@ export function useChatRoom() {
         const resized = await resizeImage(file)
         const arrayBuffer = await resized.blob.arrayBuffer()
         const bytes = new Uint8Array(arrayBuffer)
-        const encryptedBytes = await encryptBinary(key, bytes, channelId)
-        const storagePath = `channels/${channelId}/${clientId}/${index}.enc`
+        const encryptedBytes = await encryptBinary(key, bytes, conversationId)
+        const storagePrefix = conversationId.startsWith('ch-') ? 'channels' : 'conversations'
+        const storagePath = `${storagePrefix}/${conversationId}/${clientId}/${index}.enc`
 
         const { error: uploadError } = await supabase.storage
           .from('message-attachments')
@@ -1434,18 +2023,33 @@ export function useChatRoom() {
     const payloadJson = JSON.stringify(finalPayload)
 
     try {
-      const encryptedEnvelope = await encryptContent(key, payloadJson, channelId)
+      const encryptedEnvelope = await encryptContent(key, payloadJson, conversationId)
 
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('messages')
         .insert({
           client_id: clientId,
-          channel_id: channelId,
+          conversation_id: conversationId,
           user_id: current.id,
           content: encryptedEnvelope,
         })
         .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
         .single()
+
+      if (error && (error.message?.includes('conversation_id') || error.code === '42703')) {
+        const fallbackRes = await supabase
+          .from('messages')
+          .insert({
+            client_id: clientId,
+            channel_id: conversationId,
+            user_id: current.id,
+            content: encryptedEnvelope,
+          })
+          .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
+          .single()
+        data = fallbackRes.data
+        error = fallbackRes.error
+      }
 
       if (error) {
         if (isDuplicateKeyError(error)) {
@@ -1487,6 +2091,12 @@ export function useChatRoom() {
       return
     }
 
+    const conversationId = retrying.conversation_id || retrying.channel_id
+    if (!conversationId) {
+      messagesStore.markMessageFailed(clientId)
+      return
+    }
+
     if (isImagePayload(retrying.content)) {
       const pending = pendingImageFiles.get(clientId)
       if (!pending) {
@@ -1504,20 +2114,36 @@ export function useChatRoom() {
       const encryptedContent = await encryptContent(
         e2ee.key.value,
         retrying.content,
-        retrying.channel_id,
+        conversationId,
       )
 
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('messages')
         .insert({
           client_id: clientId,
-          channel_id: retrying.channel_id,
+          conversation_id: conversationId,
           user_id: retrying.user_id,
           content: encryptedContent,
           reply_to_id: retrying.reply_to_id || null,
         })
         .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
         .single()
+
+      if (error && (error.message?.includes('conversation_id') || error.code === '42703')) {
+        const fallbackRes = await supabase
+          .from('messages')
+          .insert({
+            client_id: clientId,
+            channel_id: conversationId,
+            user_id: retrying.user_id,
+            content: encryptedContent,
+            reply_to_id: retrying.reply_to_id || null,
+          })
+          .select('*, author:profiles(id, display_name, avatar_color, avatar_url)')
+          .single()
+        data = fallbackRes.data
+        error = fallbackRes.error
+      }
 
       if (error) {
         if (isDuplicateKeyError(error)) {
@@ -1530,7 +2156,7 @@ export function useChatRoom() {
             const decryptedExisting = await decryptMessageRow(
               existing,
               e2ee.key.value,
-              retrying.channel_id,
+              conversationId,
             )
             messagesStore.markMessageSent(clientId, { ...decryptedExisting, reply_to: retrying.reply_to })
           } else {
@@ -1543,7 +2169,7 @@ export function useChatRoom() {
         const decryptedData = await decryptMessageRow(
           data,
           e2ee.key.value,
-          retrying.channel_id,
+          conversationId,
         )
         messagesStore.markMessageSent(clientId, { ...decryptedData, reply_to: retrying.reply_to })
       }
@@ -1579,9 +2205,9 @@ export function useChatRoom() {
 
     const trimmed = newContent.trim()
     const editedAt = new Date().toISOString()
-    const channelId = targetMsg?.channel_id || activeChannelId.value
-    if (!channelId) {
-      return { error: 'Channel not found.' }
+    const conversationId = targetMsg?.conversation_id || targetMsg?.channel_id || activeConversationId.value
+    if (!conversationId) {
+      return { error: 'Conversation not found.' }
     }
 
     messagesStore.reconcileUpdatedMessage({
@@ -1592,7 +2218,7 @@ export function useChatRoom() {
     })
 
     try {
-      const encryptedContent = await encryptContent(e2ee.key.value, trimmed, channelId)
+      const encryptedContent = await encryptContent(e2ee.key.value, trimmed, conversationId)
 
       const { error } = await supabase
         .from('messages')
@@ -1651,7 +2277,8 @@ export function useChatRoom() {
     messageId: string,
     emoji: string,
   ): Promise<{ error: string | null }> {
-    if (!isValidReactionEmoji(emoji) || !activeChannelId.value) {
+    const conversationId = activeConversationId.value
+    if (!isValidReactionEmoji(emoji) || !conversationId) {
       return { error: 'Invalid reaction.' }
     }
     const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
@@ -1678,7 +2305,8 @@ export function useChatRoom() {
     } else {
       const optimisticReaction: MessageReaction = {
         message_id: messageId,
-        channel_id: activeChannelId.value,
+        conversation_id: conversationId,
+        channel_id: conversationId,
         user_id: current.id,
         emoji,
       }
@@ -1708,9 +2336,11 @@ export function useChatRoom() {
     if (isDisposed) return
     await loadAllProfiles()
     if (isDisposed) return
-    await loadChannels()
+    await loadContacts()
     if (isDisposed) return
-    await loadChannelReadsAndUnreads()
+    await loadConversations()
+    if (isDisposed) return
+    await loadConversationReadsAndUnreads()
     if (isDisposed) return
 
     setupPresenceSubscription()
@@ -1760,11 +2390,32 @@ export function useChatRoom() {
   }
 
   return {
+    conversations,
+    activeConversationId,
+    activeConversation,
+    contacts,
+    findUserByEmail,
+    addContact,
+    removeContact,
+    loadContacts,
+    selectConversation,
+    openOrCreateDirectChat,
+    createGroup,
+    addMemberToGroup,
+    leaveGroup,
+    loadConversations,
+
+    // Transitional aliases for channels and legacy components
     channels,
     publicChannels,
     dmChannels,
     activeChannelId,
     activeChannel,
+    selectChannel,
+    createChannel,
+    openOrCreateDm,
+
+    // Messages state & actions
     messages,
     hasMoreHistory,
     isLoadingHistory,
@@ -1778,9 +2429,6 @@ export function useChatRoom() {
     connectionStatus,
     reconnectCountdownSec,
     initializeChat,
-    selectChannel,
-    createChannel,
-    openOrCreateDm,
     sendMessage,
     sendImages,
     retryMessage,
@@ -1793,6 +2441,7 @@ export function useChatRoom() {
     retryConnectionNow,
     syncOwnProfile,
     markChannelRead,
+    markConversationRead,
     cleanupChat,
   }
 }

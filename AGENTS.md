@@ -33,7 +33,9 @@ The codebase separates **Supabase/Realtime I/O orchestration** from **pure, test
 │   ├── components/
 │   │   ├── ChatSidebar.vue         # Channel list, unread badges, online friends, theme & logout controls
 │   │   ├── ConnectionBanner.vue    # Reconnecting / disconnected banner with countdown & manual retry
-│   │   ├── CreateChannelModal.vue  # Modal form with live slug preview & validation
+│   │   ├── ContactsModal.vue       # Contacts address book & email lookup modal
+│   │   ├── CreateGroupModal.vue    # Group creation modal with multi-select contacts
+│   │   ├── GroupInfoModal.vue      # Group info, member list, add member & leave modal
 │   │   ├── E2eeGate.vue            # Passphrase unlock form & unconfigured/loading gate
 │   │   ├── MessageComposer.vue     # Textarea composer (Enter to send, Shift+Enter newline, typing hook)
 │   │   ├── MessageViewport.vue     # Upward infinite scroll, scroll-lock preservation, new-message pill, E2EE badges

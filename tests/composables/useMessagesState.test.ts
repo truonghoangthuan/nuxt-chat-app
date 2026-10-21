@@ -9,19 +9,20 @@ describe('useMessagesState', () => {
     const store = createMessagesStore()
     const opt = store.addOptimisticMessage({
       clientId: 'c-1',
-      channelId: 'ch-1',
+      conversationId: 'conv-1',
       user: alice,
       content: 'Hello friends!',
       createdAt: '2026-10-16T10:00:00.000Z',
     })
     expect(opt?.status).toBe('sending')
+    expect(opt?.conversation_id).toBe('conv-1')
     expect(store.messages.value).toHaveLength(1)
 
     // Realtime arrives first
     const outcome = store.reconcileIncomingMessage({
       id: 'srv-1',
       client_id: 'c-1',
-      channel_id: 'ch-1',
+      conversation_id: 'conv-1',
       user_id: alice.id,
       content: 'Hello friends!',
       created_at: '2026-10-16T10:00:01.000Z',
@@ -30,30 +31,32 @@ describe('useMessagesState', () => {
     expect(outcome).toBe('updated')
     expect(store.messages.value).toHaveLength(1)
     expect(store.messages.value[0].id).toBe('srv-1')
+    expect(store.messages.value[0].conversation_id).toBe('conv-1')
     expect(store.messages.value[0].status).toBe('sent')
 
     // HTTP ack arrives second — still 1 message
     store.markMessageSent('c-1', {
       id: 'srv-1',
       client_id: 'c-1',
-      channel_id: 'ch-1',
+      conversation_id: 'conv-1',
       user_id: alice.id,
       content: 'Hello friends!',
       created_at: '2026-10-16T10:00:01.000Z',
       author: alice,
     })
     expect(store.messages.value).toHaveLength(1)
+    expect(store.messages.value[0].conversation_id).toBe('conv-1')
   })
 
   it('rejects whitespace-only or >4000 char optimistic messages', () => {
     const store = createMessagesStore()
-    expect(store.addOptimisticMessage({ clientId: 'c-empty', channelId: 'ch-1', user: alice, content: '   ' })).toBeNull()
+    expect(store.addOptimisticMessage({ clientId: 'c-empty', conversationId: 'conv-1', user: alice, content: '   ' })).toBeNull()
     expect(store.messages.value).toHaveLength(0)
   })
 
   it('transitions failed messages to retrying and allows dismissing failed messages', () => {
     const store = createMessagesStore()
-    store.addOptimisticMessage({ clientId: 'c-2', channelId: 'ch-1', user: alice, content: 'Test retry' })
+    store.addOptimisticMessage({ clientId: 'c-2', conversationId: 'conv-1', user: alice, content: 'Test retry' })
     store.markMessageFailed('c-2')
     expect(store.messages.value[0].status).toBe('failed')
 
@@ -68,44 +71,45 @@ describe('useMessagesState', () => {
   it('prepends older history pages and merges reconnect gap messages without duplicates in chronological order', () => {
     const store = createMessagesStore()
     store.setInitialHistory([
-      { id: 'm-3', client_id: 'c-3', channel_id: 'ch-1', user_id: alice.id, content: 'Third', created_at: '2026-10-16T10:03:00Z' },
-      { id: 'm-2', client_id: 'c-2', channel_id: 'ch-1', user_id: alice.id, content: 'Second', created_at: '2026-10-16T10:02:00Z' },
+      { id: 'm-3', client_id: 'c-3', conversation_id: 'conv-1', user_id: alice.id, content: 'Third', created_at: '2026-10-16T10:03:00Z' },
+      { id: 'm-2', client_id: 'c-2', conversation_id: 'conv-1', user_id: alice.id, content: 'Second', created_at: '2026-10-16T10:02:00Z' },
     ])
     expect(store.messages.value.map(m => m.id)).toEqual(['m-2', 'm-3'])
 
     const addedOlder = store.prependHistoryPage([
-      { id: 'm-2', client_id: 'c-2', channel_id: 'ch-1', user_id: alice.id, content: 'Second', created_at: '2026-10-16T10:02:00Z' },
-      { id: 'm-1', client_id: 'c-1', channel_id: 'ch-1', user_id: alice.id, content: 'First', created_at: '2026-10-16T10:01:00Z' },
+      { id: 'm-2', client_id: 'c-2', conversation_id: 'conv-1', user_id: alice.id, content: 'Second', created_at: '2026-10-16T10:02:00Z' },
+      { id: 'm-1', client_id: 'c-1', conversation_id: 'conv-1', user_id: alice.id, content: 'First', created_at: '2026-10-16T10:01:00Z' },
     ])
     expect(addedOlder).toBe(1)
     expect(store.messages.value.map(m => m.id)).toEqual(['m-1', 'm-2', 'm-3'])
     expect(store.getOldestCursor()).toEqual({ created_at: '2026-10-16T10:01:00Z', id: 'm-1' })
 
     const addedGap = store.mergeGapMessages([
-      { id: 'm-3', client_id: 'c-3', channel_id: 'ch-1', user_id: alice.id, content: 'Third', created_at: '2026-10-16T10:03:00Z' },
-      { id: 'm-4', client_id: 'c-4', channel_id: 'ch-1', user_id: alice.id, content: 'Fourth', created_at: '2026-10-16T10:04:00Z' },
+      { id: 'm-3', client_id: 'c-3', conversation_id: 'conv-1', user_id: alice.id, content: 'Third', created_at: '2026-10-16T10:03:00Z' },
+      { id: 'm-4', client_id: 'c-4', conversation_id: 'conv-1', user_id: alice.id, content: 'Fourth', created_at: '2026-10-16T10:04:00Z' },
     ])
     expect(addedGap).toBe(1)
     expect(store.messages.value.map(m => m.id)).toEqual(['m-1', 'm-2', 'm-3', 'm-4'])
   })
 
-  it('filters pending messages by channel when setting initial history', () => {
+  it('filters pending messages by conversation when setting initial history', () => {
     const store = createMessagesStore()
     store.addOptimisticMessage({
-      clientId: 'c-ch1',
-      channelId: 'ch-1',
+      clientId: 'c-conv1',
+      conversationId: 'conv-1',
       user: alice,
-      content: 'Ch 1 pending',
+      content: 'Conv 1 pending',
     })
     expect(store.messages.value).toHaveLength(1)
 
-    // Switch to ch-2 with initial history
+    // Switch to conv-2 with initial history
     store.setInitialHistory([
-      { id: 'm-ch2-1', client_id: 'c-ch2-1', channel_id: 'ch-2', user_id: alice.id, content: 'Ch 2 msg', created_at: '2026-10-16T10:00:00Z' },
-    ], 'ch-2')
+      { id: 'm-conv2-1', client_id: 'c-conv2-1', conversation_id: 'conv-2', user_id: alice.id, content: 'Conv 2 msg', created_at: '2026-10-16T10:00:00Z' },
+    ], 'conv-2')
 
     expect(store.messages.value).toHaveLength(1)
-    expect(store.messages.value[0].id).toBe('m-ch2-1')
+    expect(store.messages.value[0].id).toBe('m-conv2-1')
+    expect(store.messages.value[0].conversation_id).toBe('conv-2')
   })
 
   it('preserves realtime messages received during history fetch', () => {
@@ -114,7 +118,7 @@ describe('useMessagesState', () => {
     store.reconcileIncomingMessage({
       id: 'm-live',
       client_id: 'c-live',
-      channel_id: 'ch-1',
+      conversation_id: 'conv-1',
       user_id: alice.id,
       content: 'Live incoming',
       created_at: '2026-10-16T10:05:00Z',
@@ -122,11 +126,13 @@ describe('useMessagesState', () => {
 
     // History query returns older rows
     store.setInitialHistory([
-      { id: 'm-old', client_id: 'c-old', channel_id: 'ch-1', user_id: alice.id, content: 'Old history', created_at: '2026-10-16T10:00:00Z' },
-    ], 'ch-1')
+      { id: 'm-old', client_id: 'c-old', conversation_id: 'conv-1', user_id: alice.id, content: 'Old history', created_at: '2026-10-16T10:00:00Z' },
+    ], 'conv-1')
 
     // Both should be present
     expect(store.messages.value.map(m => m.id)).toEqual(['m-old', 'm-live'])
+    expect(store.messages.value[0].conversation_id).toBe('conv-1')
+    expect(store.messages.value[1].conversation_id).toBe('conv-1')
   })
 
   it('updates author profile in-place across all matching messages when a user edits their profile', () => {
@@ -135,7 +141,7 @@ describe('useMessagesState', () => {
       {
         id: 'm-1',
         client_id: 'c-1',
-        channel_id: 'ch-1',
+        conversation_id: 'conv-1',
         user_id: alice.id,
         content: 'First from Alice',
         created_at: '2026-10-16T10:00:00Z',
@@ -144,7 +150,7 @@ describe('useMessagesState', () => {
       {
         id: 'm-2',
         client_id: 'c-2',
-        channel_id: 'ch-1',
+        conversation_id: 'conv-1',
         user_id: 'u-bob',
         content: 'From Bob',
         created_at: '2026-10-16T10:01:00Z',
@@ -173,7 +179,7 @@ describe('useMessagesState', () => {
       {
         id: 'm-parent',
         client_id: 'c-parent',
-        channel_id: 'ch-1',
+        conversation_id: 'conv-1',
         user_id: alice.id,
         content: 'Original parent text',
         created_at: '2026-10-18T10:00:00Z',
@@ -182,7 +188,7 @@ describe('useMessagesState', () => {
       {
         id: 'm-reply',
         client_id: 'c-reply',
-        channel_id: 'ch-1',
+        conversation_id: 'conv-1',
         user_id: 'u-bob',
         content: 'Replying to Alice',
         created_at: '2026-10-18T10:01:00Z',
@@ -226,7 +232,7 @@ describe('useMessagesState', () => {
       {
         id: 'm-1',
         client_id: 'c-1',
-        channel_id: 'ch-1',
+        conversation_id: 'conv-1',
         user_id: alice.id,
         content: 'React to me!',
         created_at: '2026-10-18T10:00:00Z',
@@ -237,7 +243,7 @@ describe('useMessagesState', () => {
     const added1 = store.applyReactionAdded({
       id: 'r-1',
       message_id: 'm-1',
-      channel_id: 'ch-1',
+      conversation_id: 'conv-1',
       user_id: 'u-bob',
       emoji: '👍',
     })
@@ -248,7 +254,7 @@ describe('useMessagesState', () => {
     const addedDup = store.applyReactionAdded({
       id: 'r-1',
       message_id: 'm-1',
-      channel_id: 'ch-1',
+      conversation_id: 'conv-1',
       user_id: 'u-bob',
       emoji: '👍',
     })
@@ -270,7 +276,7 @@ describe('useMessagesState', () => {
       {
         id: 'm-later',
         client_id: 'c-later',
-        channel_id: 'ch-1',
+        conversation_id: 'conv-1',
         user_id: alice.id,
         content: 'Later by 500ms',
         created_at: '2026-10-18T10:00:00.500Z',
@@ -278,7 +284,7 @@ describe('useMessagesState', () => {
       {
         id: 'm-earlier',
         client_id: 'c-earlier',
-        channel_id: 'ch-1',
+        conversation_id: 'conv-1',
         user_id: alice.id,
         content: 'Earlier at sharp second',
         created_at: '2026-10-18T10:00:00Z',
@@ -294,7 +300,7 @@ describe('useMessagesState', () => {
       {
         id: 'm-micro-later',
         client_id: 'c-micro-later',
-        channel_id: 'ch-1',
+        conversation_id: 'conv-1',
         user_id: alice.id,
         content: 'Later by microseconds',
         created_at: '2026-10-18T10:00:00.123789Z',
@@ -302,7 +308,7 @@ describe('useMessagesState', () => {
       {
         id: 'm-micro-earlier',
         client_id: 'c-micro-earlier',
-        channel_id: 'ch-1',
+        conversation_id: 'conv-1',
         user_id: alice.id,
         content: 'Earlier by microseconds',
         created_at: '2026-10-18T10:00:00.123456Z',
@@ -316,7 +322,7 @@ describe('useMessagesState', () => {
     const store = createMessagesStore()
     store.addOptimisticMessage({
       clientId: 'c-opt-gap',
-      channelId: 'ch-1',
+      conversationId: 'conv-1',
       user: alice,
       content: 'Pending gap test',
     })
@@ -326,7 +332,7 @@ describe('useMessagesState', () => {
       {
         id: 'srv-gap-1',
         client_id: 'c-opt-gap',
-        channel_id: 'ch-1',
+        conversation_id: 'conv-1',
         user_id: alice.id,
         content: 'Pending gap test',
         created_at: '2026-10-18T10:05:00Z',
@@ -346,7 +352,7 @@ describe('useMessagesState', () => {
     // 1. Defaults to e2ee on optimistic add
     const opt = store.addOptimisticMessage({
       clientId: 'c-enc-1',
-      channelId: 'ch-1',
+      conversationId: 'conv-1',
       user: alice,
       content: 'Encrypted message',
     })
@@ -357,7 +363,7 @@ describe('useMessagesState', () => {
     store.markMessageSent('c-enc-1', {
       id: 'srv-enc-1',
       client_id: 'c-enc-1',
-      channel_id: 'ch-1',
+      conversation_id: 'conv-1',
       user_id: alice.id,
       content: 'Encrypted message',
       created_at: '2026-10-18T10:00:00Z',
@@ -369,7 +375,7 @@ describe('useMessagesState', () => {
     store.reconcileIncomingMessage({
       id: 'srv-legacy-1',
       client_id: 'c-legacy-1',
-      channel_id: 'ch-1',
+      conversation_id: 'conv-1',
       user_id: alice.id,
       content: 'Legacy message',
       created_at: '2026-10-18T10:01:00Z',
@@ -382,7 +388,7 @@ describe('useMessagesState', () => {
       {
         id: 'p-1',
         client_id: 'cp-1',
-        channel_id: 'ch-1',
+        conversation_id: 'conv-1',
         user_id: alice.id,
         content: 'Parent text',
         created_at: '2026-10-18T10:00:00Z',
@@ -391,7 +397,7 @@ describe('useMessagesState', () => {
       {
         id: 'r-1',
         client_id: 'cr-1',
-        channel_id: 'ch-1',
+        conversation_id: 'conv-1',
         user_id: 'u-bob',
         content: 'Reply text',
         created_at: '2026-10-18T10:01:00Z',
@@ -438,7 +444,7 @@ describe('useMessagesState', () => {
     })
     store.addOptimisticMessage({
       clientId: 'c-img-1',
-      channelId: 'ch-1',
+      conversationId: 'conv-1',
       user: alice,
       content: imagePayload,
       encryption: 'e2ee',
@@ -453,5 +459,32 @@ describe('useMessagesState', () => {
     expect(store.messages.value[0].status).toBe('sent')
     expect(store.messages.value[0].created_at).toBe('2026-10-20T12:00:00.000Z')
     expect(store.messages.value[0].content).toBe(imagePayload)
+  })
+
+  it('supports legacy channelId and channel_id for backward compatibility', () => {
+    const store = createMessagesStore()
+    const opt = store.addOptimisticMessage({
+      clientId: 'c-compat',
+      channelId: 'ch-compat-1',
+      user: alice,
+      content: 'Compatibility message',
+    })
+
+    expect(opt?.conversation_id).toBe('ch-compat-1')
+    expect(opt?.channel_id).toBe('ch-compat-1')
+
+    store.setInitialHistory([
+      {
+        id: 'm-compat-1',
+        client_id: 'c-compat-1',
+        channel_id: 'ch-compat-1',
+        user_id: alice.id,
+        content: 'From legacy channel payload',
+        created_at: '2026-10-18T10:00:00Z',
+      },
+    ], 'ch-compat-1')
+
+    expect(store.messages.value[0].conversation_id).toBe('ch-compat-1')
+    expect(store.messages.value[0].channel_id).toBe('ch-compat-1')
   })
 })

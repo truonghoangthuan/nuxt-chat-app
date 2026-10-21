@@ -6,6 +6,8 @@ import type {
   MentionSegment,
   ActiveMentionQuery,
   Channel,
+  Conversation,
+  Profile,
 } from '~/types/chat'
 
 export const AVATAR_PALETTE = [
@@ -287,6 +289,7 @@ export function buildMessageTimeline(
     lastReadAt?: string | null
     currentUserId?: string
     currentDisplayName?: string | null
+    isGroup?: boolean
   },
 ): TimelineMessageItem[] {
   const lastReadMs = options?.lastReadAt ? Date.parse(options.lastReadAt) : Number.NaN
@@ -322,35 +325,62 @@ export function buildMessageTimeline(
       ),
     )
 
-    if (index === 0) {
-      return {
-        message: msg,
-        showDateDivider: true,
-        dateLabel,
-        isCompact: false,
-        showUnreadDivider,
-        isMentioningMe,
-      }
+    const isSender = Boolean(options?.currentUserId && msg.user_id === options.currentUserId)
+
+    let showDateDivider = true
+    let isCompact = false
+    let isFirstInGroup = true
+
+    if (index > 0) {
+      const prev = messages[index - 1]
+      const prevDate = new Date(prev.created_at)
+      const prevTimeMs = prevDate.getTime()
+      const prevDayKey = Number.isNaN(prevTimeMs) ? '' : getLocalDayKey(prevDate)
+      showDateDivider = currDayKey !== prevDayKey
+
+      const timeDiffMs = Math.abs(currTimeMs - prevTimeMs)
+      const sameUser = prev.user_id === msg.user_id
+      const withinWindow = !Number.isNaN(timeDiffMs) && timeDiffMs <= GROUPING_WINDOW_MS
+      const sameDay = !showDateDivider
+
+      isCompact = !showDateDivider
+        && !showUnreadDivider
+        && !msg.reply_to_id
+        && sameUser
+        && withinWindow
+
+      const continuesPrevGroup = sameUser && sameDay && withinWindow
+      isFirstInGroup = !continuesPrevGroup
     }
 
-    const prev = messages[index - 1]
-    const prevDate = new Date(prev.created_at)
-    const prevDayKey = Number.isNaN(prevDate.getTime()) ? '' : getLocalDayKey(prevDate)
-    const showDateDivider = currDayKey !== prevDayKey
+    let isLastInGroup = true
+    if (index < messages.length - 1) {
+      const next = messages[index + 1]
+      const nextDate = new Date(next.created_at)
+      const nextTimeMs = nextDate.getTime()
+      const nextDayKey = Number.isNaN(nextTimeMs) ? '' : getLocalDayKey(nextDate)
+      const nextDateDivider = currDayKey !== nextDayKey
 
-    const timeDiffMs = Math.abs(currTimeMs - prevDate.getTime())
-    const isCompact = !showDateDivider
-      && !showUnreadDivider
-      && !msg.reply_to_id
-      && prev.user_id === msg.user_id
-      && !Number.isNaN(timeDiffMs)
-      && timeDiffMs <= GROUPING_WINDOW_MS
+      const nextDiffMs = Math.abs(nextTimeMs - currTimeMs)
+      const nextSameUser = next.user_id === msg.user_id
+      const nextWithinWindow = !Number.isNaN(nextDiffMs) && nextDiffMs <= GROUPING_WINDOW_MS
+      const nextSameDay = !nextDateDivider
+
+      const nextContinuesThisGroup = nextSameUser && nextSameDay && nextWithinWindow
+      isLastInGroup = !nextContinuesThisGroup
+    }
+
+    const showSenderHeader = Boolean(!isSender && options?.isGroup && isFirstInGroup)
 
     return {
       message: msg,
       showDateDivider,
       dateLabel,
       isCompact,
+      isSender,
+      isFirstInGroup,
+      isLastInGroup,
+      showSenderHeader,
       showUnreadDivider,
       isMentioningMe,
     }
@@ -416,4 +446,83 @@ export function canUserAccessChannel(
   const ub = channel.dm_user_b ? channel.dm_user_b.trim().toLowerCase() : null
   return ua === cid || ub === cid
 }
+
+export function isValidEmail(email: string): boolean {
+  if (typeof email !== 'string') return false
+  const trimmed = email.trim()
+  if (!trimmed) return false
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+}
+
+export function getDirectPeer(
+  conversation: Conversation,
+  currentUserId?: string | null,
+): Profile | null {
+  if (conversation.type !== 'direct') {
+    return null
+  }
+
+  if (conversation.peer) {
+    if (!currentUserId || conversation.peer.id !== currentUserId) {
+      return conversation.peer
+    }
+  }
+
+  if (conversation.members && conversation.members.length > 0) {
+    const peerMember = conversation.members.find(
+      m => currentUserId ? m.user_id !== currentUserId : true,
+    )
+    if (peerMember?.profile) {
+      return peerMember.profile
+    }
+  }
+
+  return null
+}
+
+export function formatConversationTitle(
+  conversation: Conversation,
+  currentUserId?: string | null,
+): string {
+  if (conversation.type === 'direct') {
+    const peer = getDirectPeer(conversation, currentUserId)
+    if (peer?.display_name) {
+      return peer.display_name
+    }
+    if (peer?.email) {
+      return peer.email
+    }
+    return conversation.title || 'Direct Message'
+  }
+
+  return conversation.title || 'Group Chat'
+}
+
+export function formatConversationTime(
+  conv: Conversation,
+  now: Date = new Date(),
+): string {
+  const timestamp = conv.lastMessage?.created_at || conv.updated_at || conv.created_at
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const targetDay = getLocalDayKey(date)
+  const today = getLocalDayKey(now)
+  if (targetDay === today) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+  if (targetDay === getLocalDayKey(yesterday)) {
+    return 'Yesterday'
+  }
+
+  if (date.getFullYear() === now.getFullYear()) {
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  }
+
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 

@@ -1,15 +1,33 @@
 <script setup lang="ts">
-import { Sun, Moon, X, Settings, LogOut, Plus } from '@lucide/vue'
-import type { Channel, Profile, ConnectionStatus } from '~/types/chat'
-import { getDmPeerId } from '~/utils/chat'
+import { ref, computed } from 'vue'
+import {
+  Sun,
+  Moon,
+  X,
+  Settings,
+  LogOut,
+  Plus,
+  Users,
+  MessageSquare,
+  MessageSquarePlus,
+  Search,
+} from '@lucide/vue'
+import type { Conversation, Channel, Profile, ConnectionStatus } from '~/types/chat'
+import {
+  getDirectPeer,
+  formatConversationTitle,
+  formatConversationTime,
+} from '~/utils/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
 import { Button } from '~/components/ui/button'
 
 const props = withDefaults(
   defineProps<{
-    channels: Channel[]
+    conversations?: Conversation[]
+    activeConversationId?: string | null
+    channels?: Channel[]
     dmChannels?: Channel[]
-    activeChannelId: string | null
+    activeChannelId?: string | null
     unreadCounts: Record<string, number>
     unreadMentions?: Record<string, number>
     onlineFriends: Profile[]
@@ -19,15 +37,23 @@ const props = withDefaults(
     isOpenMobile: boolean
   }>(),
   {
+    conversations: undefined,
+    activeConversationId: null,
+    channels: () => [],
     dmChannels: () => [],
+    activeChannelId: null,
     unreadMentions: () => ({}),
   },
 )
 
 const emit = defineEmits<{
+  (e: 'selectConversation', conversationId: string): void
   (e: 'selectChannel', channelId: string): void
-  (e: 'openCreateChannel'): void
+  (e: 'openContacts'): void
+  (e: 'openNewChat'): void
   (e: 'openStartDm'): void
+  (e: 'openCreateGroup'): void
+  (e: 'openCreateChannel'): void
   (e: 'startDmWithUser', userId: string): void
   (e: 'openProfileSettings'): void
   (e: 'toggleTheme'): void
@@ -35,21 +61,157 @@ const emit = defineEmits<{
   (e: 'closeMobile'): void
 }>()
 
-function onChannelClick(channelId: string) {
-  emit('selectChannel', channelId)
-  emit('closeMobile')
+const searchQuery = ref('')
+
+const activeId = computed(() => props.activeConversationId || props.activeChannelId)
+
+const rawConversations = computed<Conversation[]>(() => {
+  if (props.conversations !== undefined) {
+    return props.conversations
+  }
+  const synthesized: Conversation[] = []
+  if (props.dmChannels) {
+    for (const dm of props.dmChannels) {
+      synthesized.push({
+        id: dm.id,
+        type: 'direct',
+        title: dm.title || dm.peer?.display_name || 'Direct Message',
+        created_by: dm.created_by,
+        created_at: dm.created_at,
+        peer: dm.peer,
+      })
+    }
+  }
+  if (props.channels) {
+    for (const ch of props.channels) {
+      synthesized.push({
+        id: ch.id,
+        type: ch.type || (ch.is_dm ? 'direct' : 'group'),
+        title: ch.title || (ch.slug ? `#${ch.slug}` : 'General'),
+        created_by: ch.created_by,
+        created_at: ch.created_at,
+        peer: ch.peer,
+      })
+    }
+  }
+  return synthesized
+})
+
+function getPeerForConv(conv: Conversation): Profile | null {
+  return getDirectPeer(conv, props.currentUser?.id)
 }
 
-function isPeerOnline(dm: Channel): boolean {
-  const peerId = dm.peer?.id || (props.currentUser ? getDmPeerId(dm, props.currentUser.id) : null)
-  if (!peerId) return false
-  return props.onlineFriends.some(f => f.id === peerId)
+function isPeerOnline(conv: Conversation): boolean {
+  if (conv.type !== 'direct') return false
+  const peer = getPeerForConv(conv)
+  if (peer?.id) {
+    return props.onlineFriends.some(f => f.id === peer.id)
+  }
+  if (conv.members && conv.members.length > 0 && props.currentUser) {
+    const peerMember = conv.members.find(m => m.user_id !== props.currentUser?.id)
+    if (peerMember) {
+      return props.onlineFriends.some(f => f.id === peerMember.user_id)
+    }
+  }
+  return false
+}
+
+function getConvTitle(conv: Conversation): string {
+  return formatConversationTitle(conv, props.currentUser?.id)
+}
+
+function getConvSubtitle(conv: Conversation): string {
+  if (conv.lastMessage) {
+    if (conv.lastMessage.deleted_at) {
+      return 'This message was deleted'
+    }
+    if (conv.lastMessage.encryption === 'undecryptable') {
+      return '🔒 Unable to decrypt'
+    }
+    if (conv.lastMessage.content?.startsWith('e2ee:')) {
+      return '🔒 Encrypted message'
+    }
+    if (conv.lastMessage.content) {
+      const sender = conv.lastMessage.author?.display_name
+      if (conv.type === 'group' && sender) {
+        return `${sender}: ${conv.lastMessage.content}`
+      }
+      return conv.lastMessage.content
+    }
+  }
+  if (conv.type === 'direct') {
+    const peer = getPeerForConv(conv)
+    return peer?.email || 'Direct message'
+  }
+  if (conv.members && conv.members.length > 0) {
+    return `${conv.members.length} members`
+  }
+  return 'Group chat'
+}
+
+function getConversationActivityTimestamp(conv: Conversation): number {
+  if (conv.lastMessage?.created_at) {
+    const t = Date.parse(conv.lastMessage.created_at)
+    if (!Number.isNaN(t)) return t
+  }
+  if (conv.updated_at) {
+    const t = Date.parse(conv.updated_at)
+    if (!Number.isNaN(t)) return t
+  }
+  if (conv.created_at) {
+    const t = Date.parse(conv.created_at)
+    if (!Number.isNaN(t)) return t
+  }
+  return 0
+}
+
+const filteredConversations = computed<Conversation[]>(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+  let list = rawConversations.value
+
+  if (query) {
+    list = list.filter(conv => {
+      const title = getConvTitle(conv).toLowerCase()
+      if (title.includes(query)) return true
+      if (conv.title && conv.title.toLowerCase().includes(query)) return true
+      const peer = getPeerForConv(conv)
+      if (peer?.display_name?.toLowerCase().includes(query)) return true
+      if (peer?.email?.toLowerCase().includes(query)) return true
+      return false
+    })
+  }
+
+  return [...list].sort((a, b) => {
+    const timeA = getConversationActivityTimestamp(a)
+    const timeB = getConversationActivityTimestamp(b)
+    return timeB - timeA
+  })
+})
+
+function onConversationClick(convId: string) {
+  emit('selectConversation', convId)
+  emit('selectChannel', convId)
+  emit('closeMobile')
 }
 
 function onOnlineFriendClick(friend: Profile) {
   if (props.currentUser && friend.id === props.currentUser.id) return
   emit('startDmWithUser', friend.id)
   emit('closeMobile')
+}
+
+function onNewDirectChatClick() {
+  emit('openNewChat')
+  emit('openStartDm')
+}
+
+function onNewGroupClick() {
+  emit('openCreateGroup')
+  emit('openCreateChannel')
+}
+
+function onContactsClick() {
+  emit('openContacts')
 }
 </script>
 
@@ -78,41 +240,47 @@ function onOnlineFriendClick(friend: Profile) {
 
         <div class="w-7 h-px bg-[var(--fp-border)] my-0.5"></div>
 
-        <!-- Channels Workspace Active Indicator -->
+        <!-- Chats Workspace Active Indicator -->
         <button
           type="button"
           class="relative w-10 h-10 rounded-[10px] flex items-center justify-center bg-indigo-500/15 text-[var(--fp-text-primary)] transition-colors cursor-pointer"
-          title="Channels & Direct Messages"
+          title="Chats"
         >
           <span class="absolute -left-3 w-[3px] h-5 rounded-r bg-indigo-500"></span>
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" />
-          </svg>
+          <MessageSquare class="size-[18px]" aria-hidden="true" />
         </button>
 
-        <!-- Quick Create Channel -->
+        <!-- Contacts Button -->
         <button
           type="button"
+          data-test="open-contacts"
           class="w-10 h-10 rounded-[10px] flex items-center justify-center text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] transition-colors cursor-pointer"
-          title="Create Channel"
-          @click="emit('openCreateChannel')"
+          title="Contacts"
+          @click="onContactsClick"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-            <circle cx="12" cy="12" r="9" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v8M8 12h8" />
-          </svg>
+          <Users class="size-[18px]" aria-hidden="true" />
         </button>
 
-        <!-- Quick New Direct Message -->
+        <!-- New Direct Chat Button -->
         <button
           type="button"
+          data-test="open-start-dm"
           class="w-10 h-10 rounded-[10px] flex items-center justify-center text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] transition-colors cursor-pointer"
-          title="New Direct Message"
-          @click="emit('openStartDm')"
+          title="New Direct Chat"
+          @click="onNewDirectChatClick"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
+          <MessageSquarePlus class="size-[18px]" aria-hidden="true" />
+        </button>
+
+        <!-- New Group Button -->
+        <button
+          type="button"
+          data-test="open-create-group"
+          class="w-10 h-10 rounded-[10px] flex items-center justify-center text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] transition-colors cursor-pointer"
+          title="New Group"
+          @click="onNewGroupClick"
+        >
+          <Plus class="size-[18px]" aria-hidden="true" />
         </button>
       </div>
 
@@ -148,13 +316,13 @@ function onOnlineFriendClick(friend: Profile) {
       </div>
     </nav>
 
-    <!-- Channel & Presence Tree Drawer -->
+    <!-- Drawer / Sidebar Body -->
     <aside
       aria-label="Channel and Friends Directory"
-      class="fixed inset-y-0 left-0 z-40 w-64 md:w-[248px] flex flex-col bg-[var(--fp-drawer)] text-[var(--fp-text-secondary)] border-r md:border border-[var(--fp-border)] md:rounded-[14px] shadow-[var(--fp-specular)] transition-transform duration-200 ease-in-out md:static md:translate-x-0"
+      class="fixed inset-y-0 left-0 z-40 w-64 md:w-[264px] flex flex-col bg-[var(--fp-drawer)] text-[var(--fp-text-secondary)] border-r md:border border-[var(--fp-border)] md:rounded-[14px] shadow-[var(--fp-specular)] transition-transform duration-200 ease-in-out md:static md:translate-x-0"
       :class="isOpenMobile ? 'translate-x-0' : '-translate-x-full'"
     >
-      <!-- Workspace Studio Header -->
+      <!-- Header -->
       <div class="h-[54px] px-3.5 flex items-center justify-between border-b border-[var(--fp-border)] shrink-0">
         <div class="flex items-center gap-2 min-w-0">
           <div class="md:hidden fp-font-display w-7 h-7 rounded-[8px] fp-btn-primary flex items-center justify-center text-white text-xs font-extrabold shrink-0">
@@ -181,7 +349,7 @@ function onOnlineFriendClick(friend: Profile) {
 
           <button
             type="button"
-            class="md:hidden text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] p-1 text-lg font-bold leading-none"
+            class="md:hidden text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] p-1 text-lg font-bold leading-none cursor-pointer"
             @click="emit('closeMobile')"
           >
             <X class="size-4" aria-hidden="true" />
@@ -189,113 +357,165 @@ function onOnlineFriendClick(friend: Profile) {
         </div>
       </div>
 
-      <!-- Scrollable Navigation (Channels + DMs + Online Friends) -->
-      <div class="flex-1 overflow-y-auto px-2.5 py-3.5 space-y-5">
-        <!-- Channels Section -->
-        <div>
-          <div class="flex items-center justify-between px-2 mb-1.5 text-[11px] font-semibold tracking-wide text-[var(--fp-text-secondary)]">
-            <span>Channels</span>
-            <button
-              type="button"
-              class="text-xs text-[var(--fp-accent-bright)] hover:underline flex items-center gap-0.5 font-semibold transition-colors cursor-pointer"
-              @click="emit('openCreateChannel')"
-            >
-              <Plus class="size-3" aria-hidden="true" /> New
-            </button>
-          </div>
-
-          <div class="space-y-0.5">
-            <button
-              v-for="ch in channels"
-              :key="ch.id"
-              type="button"
-              class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[8px] text-[14px] font-medium transition-all group cursor-pointer"
-              :class="activeChannelId === ch.id ? 'bg-[var(--fp-active)] text-[var(--fp-text-primary)] font-semibold shadow-[inset_2px_0_0_#6366f1]' : 'text-[var(--fp-text-secondary)] hover:bg-[var(--fp-hover)] hover:text-[var(--fp-text-primary)]'"
-              @click="onChannelClick(ch.id)"
-            >
-              <div class="flex items-center gap-2 truncate">
-                <span
-                  class="fp-font-mono text-sm font-semibold transition-colors"
-                  :class="activeChannelId === ch.id ? 'text-[var(--fp-accent-bright)]' : 'text-[var(--fp-text-muted)] group-hover:text-[var(--fp-text-secondary)]'"
-                >#</span>
-                <span class="truncate">{{ ch.slug }}</span>
-              </div>
-
-              <!-- Unread & Mention badges -->
-              <div class="flex items-center gap-1 shrink-0">
-                <span
-                  v-if="(unreadMentions?.[ch.id] || 0) > 0"
-                  :data-test="`mention-badge-${ch.id}`"
-                  class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-slate-950 shadow-xs"
-                  title="You were mentioned"
-                >
-                  @
-                </span>
-                <span
-                  v-if="(unreadCounts[ch.id] || 0) > 0"
-                  class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500 text-white min-w-[20px] text-center shadow-xs"
-                >
-                  {{ unreadCounts[ch.id] }}
-                </span>
-              </div>
-            </button>
-          </div>
+      <!-- Top Search Input -->
+      <div class="px-2.5 pt-3 pb-1 shrink-0">
+        <div class="relative flex items-center">
+          <Search class="absolute left-2.5 size-3.5 text-[var(--fp-text-muted)] pointer-events-none" aria-hidden="true" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            data-test="conversation-search-input"
+            placeholder="Search conversations..."
+            class="w-full h-8 pl-8 pr-7 text-xs rounded-[8px] bg-[var(--fp-surface)] border border-[var(--fp-border)] text-[var(--fp-text-primary)] placeholder-[var(--fp-text-muted)] focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-all"
+            @keydown.esc="searchQuery = ''"
+          />
+          <button
+            v-if="searchQuery"
+            type="button"
+            class="absolute right-2 text-[var(--fp-text-muted)] hover:text-[var(--fp-text-primary)] p-0.5 cursor-pointer"
+            aria-label="Clear search"
+            @click="searchQuery = ''"
+          >
+            <X class="size-3" aria-hidden="true" />
+          </button>
         </div>
+      </div>
 
-        <!-- Direct Messages Section -->
+      <!-- Quick Action Buttons -->
+      <div class="px-2.5 pt-1.5 pb-2 flex items-center gap-1.5 shrink-0">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          class="flex-1 h-7.5 px-2 text-xs font-semibold flex items-center justify-center gap-1.5 border-[var(--fp-border)] bg-[var(--fp-surface)] hover:bg-[var(--fp-hover)] text-[var(--fp-text-primary)] rounded-[8px] cursor-pointer"
+          data-test="sidebar-open-contacts"
+          title="Open Contacts"
+          @click="onContactsClick"
+        >
+          <Users class="size-3.5 text-indigo-500" aria-hidden="true" />
+          <span>Contacts</span>
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          class="flex-1 h-7.5 px-2 text-xs font-semibold flex items-center justify-center gap-1.5 border-[var(--fp-border)] bg-[var(--fp-surface)] hover:bg-[var(--fp-hover)] text-[var(--fp-text-primary)] rounded-[8px] cursor-pointer"
+          data-test="sidebar-open-create-group"
+          title="New Group"
+          @click="onNewGroupClick"
+        >
+          <Plus class="size-3.5 text-indigo-500" aria-hidden="true" />
+          <span>New Group</span>
+        </Button>
+      </div>
+
+      <!-- Scrollable Navigation (Conversations + Online Friends) -->
+      <div class="flex-1 overflow-y-auto px-2.5 py-2 space-y-4">
+        <!-- Unified Conversations Section -->
         <div>
           <div class="flex items-center justify-between px-2 mb-1.5 text-[11px] font-semibold tracking-wide text-[var(--fp-text-secondary)]">
-            <span>Direct Messages</span>
+            <span>Conversations</span>
             <button
               type="button"
-              data-test="open-start-dm"
               class="text-xs text-[var(--fp-accent-bright)] hover:underline flex items-center gap-0.5 font-semibold transition-colors cursor-pointer"
-              @click="emit('openStartDm')"
+              title="New Direct Chat"
+              @click="onNewDirectChatClick"
             >
-              <Plus class="size-3" aria-hidden="true" /> New
+              <Plus class="size-3" aria-hidden="true" /> New Chat
             </button>
           </div>
 
-          <div v-if="!dmChannels || dmChannels.length === 0" class="px-2 py-1.5 text-xs text-[var(--fp-text-muted)] italic">
-            No conversations yet
+          <!-- Empty State -->
+          <div
+            v-if="filteredConversations.length === 0"
+            class="px-3 py-6 text-center text-xs text-[var(--fp-text-muted)] italic"
+          >
+            <template v-if="searchQuery.trim()">
+              No conversations match your search
+            </template>
+            <template v-else>
+              No conversations yet. Start a new direct chat or create a group!
+            </template>
           </div>
 
+          <!-- Conversations List -->
           <div v-else class="space-y-0.5">
             <button
-              v-for="dm in dmChannels"
-              :key="dm.id"
+              v-for="conv in filteredConversations"
+              :key="conv.id"
               type="button"
-              :data-test="`dm-channel-${dm.id}`"
-              class="w-full flex items-center justify-between px-2 py-1.5 rounded-[8px] text-[13.5px] font-medium transition-all group cursor-pointer"
-              :class="activeChannelId === dm.id ? 'bg-[var(--fp-active)] text-[var(--fp-text-primary)] font-semibold shadow-[inset_2px_0_0_#6366f1]' : 'text-[var(--fp-text-secondary)] hover:bg-[var(--fp-hover)] hover:text-[var(--fp-text-primary)]'"
-              @click="onChannelClick(dm.id)"
+              :data-test="`conversation-item-${conv.id}`"
+              class="w-full flex items-center px-2.5 py-2 rounded-[8px] text-[13.5px] font-medium transition-all group cursor-pointer text-left"
+              :class="activeId === conv.id ? 'bg-[var(--fp-active)] text-[var(--fp-text-primary)] font-semibold shadow-[inset_2px_0_0_#6366f1]' : 'text-[var(--fp-text-secondary)] hover:bg-[var(--fp-hover)] hover:text-[var(--fp-text-primary)]'"
+              @click="onConversationClick(conv.id)"
             >
-              <div class="flex items-center gap-2 truncate">
+              <div
+                :data-test="conv.type === 'direct' ? `dm-channel-${conv.id}` : undefined"
+                class="w-full flex items-center gap-2.5 min-w-0"
+              >
+                <!-- Direct Peer Avatar -->
                 <UserAvatar
-                  :display-name="dm.peer?.display_name || 'Friend'"
-                  :avatar-color="dm.peer?.avatar_color"
-                  :avatar-url="dm.peer?.avatar_url"
-                  :show-online="isPeerOnline(dm)"
+                  v-if="conv.type === 'direct'"
+                  :display-name="getPeerForConv(conv)?.display_name || getConvTitle(conv)"
+                  :avatar-color="getPeerForConv(conv)?.avatar_color"
+                  :avatar-url="getPeerForConv(conv)?.avatar_url"
+                  :show-online="isPeerOnline(conv)"
                   size="sm"
                 />
-                <span class="truncate">{{ dm.peer?.display_name || 'Direct Message' }}</span>
-              </div>
+                <!-- Group Avatar -->
+                <div
+                  v-else
+                  class="w-7 h-7 rounded-[7px] bg-indigo-500/15 border border-indigo-500/30 text-indigo-500 flex items-center justify-center font-bold text-xs select-none shrink-0"
+                  :title="getConvTitle(conv)"
+                >
+                  <Users class="size-3.5" aria-hidden="true" />
+                </div>
 
-              <div class="flex items-center gap-1 shrink-0">
-                <span
-                  v-if="(unreadMentions?.[dm.id] || 0) > 0"
-                  :data-test="`mention-badge-${dm.id}`"
-                  class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-slate-950 shadow-xs"
-                  title="You were mentioned"
-                >
-                  @
-                </span>
-                <span
-                  v-if="(unreadCounts[dm.id] || 0) > 0"
-                  class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500 text-white min-w-[20px] text-center shadow-xs"
-                >
-                  {{ unreadCounts[dm.id] }}
-                </span>
+                <!-- Text & Metadata Content -->
+                <div class="flex-1 min-w-0 flex flex-col justify-center">
+                  <!-- Row 1: Title & Timestamp -->
+                  <div class="flex items-center justify-between gap-1.5">
+                    <span
+                      class="truncate text-[13.5px] font-medium"
+                      :class="activeId === conv.id ? 'text-[var(--fp-text-primary)] font-semibold' : 'text-[var(--fp-text-primary)]'"
+                    >
+                      {{ getConvTitle(conv) }}
+                    </span>
+                    <span
+                      v-if="formatConversationTime(conv)"
+                      :data-test="`conversation-time-${conv.id}`"
+                      class="text-[11px] text-[var(--fp-text-muted)] shrink-0 font-normal"
+                    >
+                      {{ formatConversationTime(conv) }}
+                    </span>
+                  </div>
+
+                  <!-- Row 2: Subtitle & Badges -->
+                  <div class="flex items-center justify-between gap-1.5 mt-0.5">
+                    <span
+                      class="truncate text-[11px] text-[var(--fp-text-muted)]"
+                      :class="{ italic: conv.lastMessage?.deleted_at }"
+                    >
+                      {{ getConvSubtitle(conv) }}
+                    </span>
+                    <div class="flex items-center gap-1 shrink-0">
+                      <span
+                        v-if="(unreadMentions?.[conv.id] || 0) > 0"
+                        :data-test="`mention-badge-${conv.id}`"
+                        class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-slate-950 shadow-xs"
+                        title="You were mentioned"
+                      >
+                        @
+                      </span>
+                      <span
+                        v-if="(unreadCounts[conv.id] || 0) > 0"
+                        class="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500 text-white min-w-[20px] text-center shadow-xs"
+                      >
+                        {{ unreadCounts[conv.id] }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </button>
           </div>
@@ -342,7 +562,7 @@ function onOnlineFriendClick(friend: Profile) {
                 v-if="!currentUser || friend.id !== currentUser.id"
                 class="text-[11px] font-semibold text-[var(--fp-text-muted)] group-hover:text-[var(--fp-accent-bright)] shrink-0 transition-colors"
               >
-                DM
+                Chat
               </span>
             </button>
           </div>

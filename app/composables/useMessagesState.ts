@@ -47,7 +47,11 @@ export function createMessagesStore() {
 
   function addOptimisticMessage(params: {
     clientId: string
-    channelId: string
+    conversationId?: string
+    /**
+     * @deprecated transitional alias for conversationId
+     */
+    channelId?: string
     user: Profile
     content: string
     createdAt?: string
@@ -64,10 +68,13 @@ export function createMessagesStore() {
       return existing
     }
 
+    const conversationId = params.conversationId || params.channelId || ''
+
     const newMessage: ChatMessage = {
       id: params.clientId,
       client_id: params.clientId,
-      channel_id: params.channelId,
+      conversation_id: conversationId,
+      channel_id: conversationId,
       user_id: params.user.id,
       content: params.content,
       created_at: params.createdAt || new Date().toISOString(),
@@ -101,8 +108,10 @@ export function createMessagesStore() {
           current.created_at = createdAt
         }
       } else {
+        const convId = serverRowOrId.conversation_id || serverRowOrId.channel_id || current.conversation_id
         current.client_id = serverRowOrId.client_id
-        current.channel_id = serverRowOrId.channel_id
+        current.conversation_id = convId
+        current.channel_id = convId
         current.user_id = serverRowOrId.user_id
         current.content = serverRowOrId.content
         current.created_at = serverRowOrId.created_at
@@ -130,8 +139,11 @@ export function createMessagesStore() {
       }
     } else {
       if (typeof serverRowOrId !== 'string') {
+        const convId = serverRowOrId.conversation_id || serverRowOrId.channel_id || ''
         messages.value.push({
           ...serverRowOrId,
+          conversation_id: convId,
+          channel_id: convId,
           status: 'sent',
         })
       }
@@ -165,9 +177,13 @@ export function createMessagesStore() {
       return 'ignored'
     }
 
+    const convId = serverRow.conversation_id || serverRow.channel_id || ''
+
     const existingByClientId = messages.value.find(m => m.client_id === serverRow.client_id)
     if (existingByClientId) {
       existingByClientId.id = serverRow.id
+      existingByClientId.conversation_id = convId || existingByClientId.conversation_id
+      existingByClientId.channel_id = convId || existingByClientId.channel_id
       existingByClientId.content = serverRow.content
       existingByClientId.created_at = serverRow.created_at
       existingByClientId.status = 'sent'
@@ -198,6 +214,8 @@ export function createMessagesStore() {
 
     messages.value.push({
       ...serverRow,
+      conversation_id: convId,
+      channel_id: convId,
       status: 'sent',
     })
     reorderMessages()
@@ -247,10 +265,17 @@ export function createMessagesStore() {
     )
     if (exists) return false
 
+    const convId = reaction.conversation_id || reaction.channel_id || ''
+    const normalizedReaction: MessageReaction = {
+      ...reaction,
+      conversation_id: convId,
+      channel_id: convId,
+    }
+
     const copy = [...messages.value]
     copy[idx] = {
       ...target,
-      reactions: [...currentReactions, reaction],
+      reactions: [...currentReactions, normalizedReaction],
     }
     messages.value = copy
     return true
@@ -282,21 +307,34 @@ export function createMessagesStore() {
     return true
   }
 
-  function setInitialHistory(rows: Array<Omit<ChatMessage, 'status'>>, currentChannelId?: string): void {
+  function setInitialHistory(
+    rows: Array<Omit<ChatMessage, 'status'>>,
+    currentConversationId?: string,
+  ): void {
     const pending = messages.value.filter(m => {
       const isPending = m.status === 'sending' || m.status === 'failed'
       if (!isPending) return false
-      return currentChannelId ? m.channel_id === currentChannelId : true
+      const mConvId = m.conversation_id || m.channel_id
+      return currentConversationId ? mConvId === currentConversationId : true
     })
 
     // Retain any confirmed messages that arrived during history fetch
     const existingConfirmed = messages.value.filter(m => {
       if (m.status !== 'sent') return false
-      if (currentChannelId && m.channel_id !== currentChannelId) return false
+      const mConvId = m.conversation_id || m.channel_id
+      if (currentConversationId && mConvId !== currentConversationId) return false
       return true
     })
 
-    const mapped: ChatMessage[] = rows.map(r => ({ ...r, status: 'sent' }))
+    const mapped: ChatMessage[] = rows.map(r => {
+      const convId = r.conversation_id || r.channel_id || ''
+      return {
+        ...r,
+        conversation_id: convId,
+        channel_id: convId,
+        status: 'sent',
+      }
+    })
     messages.value = [...mapped, ...existingConfirmed, ...pending]
     reorderMessages()
   }
@@ -312,7 +350,15 @@ export function createMessagesStore() {
 
     const pending = messages.value.filter(m => m.status === 'sending' || m.status === 'failed')
     const existingConfirmed = messages.value.filter(m => m.status === 'sent')
-    const newlyAdded: ChatMessage[] = newRows.map(r => ({ ...r, status: 'sent' }))
+    const newlyAdded: ChatMessage[] = newRows.map(r => {
+      const convId = r.conversation_id || r.channel_id || ''
+      return {
+        ...r,
+        conversation_id: convId,
+        channel_id: convId,
+        status: 'sent',
+      }
+    })
 
     messages.value = [...newlyAdded, ...existingConfirmed, ...pending]
     reorderMessages()
