@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { shallowReactive, computed } from 'vue'
 import {
   handleIncomingRealtimeMessage,
@@ -7,6 +7,7 @@ import {
   isDuplicateKeyError,
   resolveMessageAuthor,
   applyRealtimeProfileUpdate,
+  filterOnlineFriends,
   computeUnreadSnapshot,
   computeOldestReadTimestamp,
   computeChannelReadMap,
@@ -220,6 +221,22 @@ describe('useChatRoom realtime message routing & profile caching', () => {
     expect(cache.get('u-alice')).toEqual(updatedAlice)
     expect(store.messages.value[0].author).toEqual(updatedAlice)
     expect(updatedFriends[0]).toEqual(updatedAlice)
+  })
+
+  it('filterOnlineFriends only keeps users who are added friends in contacts', () => {
+    const onlineUsers: Profile[] = [
+      { id: 'u-friend-1', display_name: 'Friend One', avatar_color: '#0284c7', email: 'f1@example.com' },
+      { id: 'u-stranger-2', display_name: 'Stranger Two', avatar_color: '#10b981', email: 's2@example.com' },
+      { id: 'u-friend-3', display_name: 'Friend Three', avatar_color: '#f59e0b', email: 'f3@example.com' },
+    ]
+    const contacts: any[] = [
+      { user_id: 'u-self', contact_user_id: 'u-friend-1' },
+      { user_id: 'u-self', contact_user_id: 'u-friend-3' },
+    ]
+
+    const result = filterOnlineFriends(onlineUsers, contacts)
+    expect(result.map(u => u.id)).toEqual(['u-friend-1', 'u-friend-3'])
+    expect(result.some(u => u.id === 'u-stranger-2')).toBe(false)
   })
 
   it('detects Postgres 23505 duplicate key unique constraint error for idempotent retry', () => {

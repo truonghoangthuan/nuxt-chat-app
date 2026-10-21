@@ -1,4 +1,4 @@
-﻿import { ref, computed, shallowReactive, isRef, type ComputedRef, type Ref } from 'vue'
+import { ref, computed, shallowReactive, isRef, type ComputedRef, type Ref } from 'vue'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import type {
   Conversation,
@@ -482,6 +482,14 @@ export function applyRealtimeProfileUpdate(params: {
   return updatedFriends
 }
 
+export function filterOnlineFriends(
+  onlineUsers: Profile[],
+  contacts: Contact[],
+): Profile[] {
+  const friendIds = new Set(contacts.map(c => c.contact_user_id))
+  return onlineUsers.filter(u => friendIds.has(u.id))
+}
+
 export function hydrateDmChannelPeers(params: {
   channels: Channel[]
   currentUserId?: string | null
@@ -564,7 +572,12 @@ export function useChatRoom() {
   const lastReadByChannel = lastReadByConversation
   const activeChannelUnreadSince = ref<string | null>(null)
 
+  const rawOnlineUsers = ref<Profile[]>([])
   const onlineFriends = ref<Profile[]>([])
+
+  function syncOnlineFriends(): void {
+    onlineFriends.value = filterOnlineFriends(rawOnlineUsers.value, contacts.value)
+  }
 
   const knownProfiles = computed<Profile[]>(() => {
     const map = new Map<string, Profile>()
@@ -828,6 +841,7 @@ export function useChatRoom() {
             profile,
           }
         })
+        syncOnlineFriends()
       }
     } catch {
       // Ignore contacts load failure
@@ -884,6 +898,7 @@ export function useChatRoom() {
 
       if (!contacts.value.some(c => c.contact_user_id === contactUserId)) {
         contacts.value = [...contacts.value, newContact]
+        syncOnlineFriends()
       }
 
       return { contact: newContact, error: null }
@@ -899,6 +914,7 @@ export function useChatRoom() {
     }
 
     contacts.value = contacts.value.filter(c => c.contact_user_id !== contactUserId)
+    syncOnlineFriends()
 
     try {
       const { error } = await supabase
@@ -1067,7 +1083,8 @@ export function useChatRoom() {
     presenceChannel
       .on('presence', { event: 'sync' }, () => {
         const state = presenceChannel?.presenceState() || {}
-        onlineFriends.value = deduplicatePresenceState(state as any)
+        rawOnlineUsers.value = deduplicatePresenceState(state as any)
+        syncOnlineFriends()
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
@@ -1330,6 +1347,7 @@ export function useChatRoom() {
           if (newContact.user_id === currentId && !contacts.value.some(c => c.contact_user_id === newContact.contact_user_id)) {
             const p = profilesCache.get(newContact.contact_user_id) || allProfiles.value.find(pr => pr.id === newContact.contact_user_id)
             contacts.value = [...contacts.value, { ...newContact, profile: p || null }]
+            syncOnlineFriends()
           }
         },
       )
@@ -1341,6 +1359,7 @@ export function useChatRoom() {
           const currentId = authProfile.currentProfile.value?.id
           if (oldContact.user_id === currentId) {
             contacts.value = contacts.value.filter(c => c.contact_user_id !== oldContact.contact_user_id)
+            syncOnlineFriends()
           }
         },
       )
@@ -1368,12 +1387,13 @@ export function useChatRoom() {
             allProfiles.value = allProfiles.value.map(p =>
               p.id === updatedProfile.id ? { ...p, ...updatedProfile } : p,
             )
-            onlineFriends.value = applyRealtimeProfileUpdate({
+            rawOnlineUsers.value = applyRealtimeProfileUpdate({
               profile: updatedProfile,
               profilesCache,
               messagesStore,
-              onlineFriends: onlineFriends.value,
+              onlineFriends: rawOnlineUsers.value,
             })
+            syncOnlineFriends()
           }
         },
       )
@@ -2368,12 +2388,13 @@ export function useChatRoom() {
   }
 
   async function syncOwnProfile(profile: Profile): Promise<void> {
-    onlineFriends.value = applyRealtimeProfileUpdate({
+    rawOnlineUsers.value = applyRealtimeProfileUpdate({
       profile,
       profilesCache,
       messagesStore,
-      onlineFriends: onlineFriends.value,
+      onlineFriends: rawOnlineUsers.value,
     })
+    syncOnlineFriends()
     if (presenceChannel) {
       try {
         await presenceChannel.track({
