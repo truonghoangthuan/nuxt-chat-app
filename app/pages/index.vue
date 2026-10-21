@@ -230,7 +230,20 @@ onUnmounted(() => {
 
 <template>
   <div class="h-dvh flex overflow-hidden bg-[var(--fp-void)] md:p-3 md:gap-2.5 transition-colors">
-    <!-- In-App Notification Toasts -->
+    <!-- Passphrase / E2EE Entry Gate -->
+    <E2eeGate
+      v-if="e2eeStatus !== 'unlocked'"
+      :status="e2eeStatus"
+      :error="e2eeError"
+      :is-unlocking="e2eeIsUnlocking"
+      @unlock="handleUnlock"
+      @retry-config="handleRetryConfig"
+      @logout="handleLogout"
+    />
+
+    <!-- Main Workspace (only when unlocked) -->
+    <template v-else>
+      <!-- In-App Notification Toasts -->
     <NotificationToastContainer
       :toasts="notificationToasts || []"
       @navigate="handleSelectConversation"
@@ -266,19 +279,7 @@ onUnmounted(() => {
       @close-mobile="isMobileSidebarOpen = false"
     />
 
-    <!-- Main Floating Inset Chat Stage or E2EE Gate -->
-    <E2eeGate
-      v-if="e2eeStatus !== 'unlocked'"
-      :status="e2eeStatus"
-      :error="e2eeError"
-      :is-unlocking="e2eeIsUnlocking"
-      @unlock="handleUnlock"
-      @retry-config="handleRetryConfig"
-      @logout="handleLogout"
-    />
-
     <main
-      v-else
       class="flex-1 flex flex-col min-w-0 h-full overflow-hidden fp-stage-surface md:rounded-[14px] md:border md:border-[var(--fp-border)]"
     >
       <!-- Connection Banner -->
@@ -514,5 +515,6 @@ onUnmounted(() => {
       :channel-id="activeConversationId || activeChannelId || ''"
       @update:open="isLightboxOpen = $event"
     />
+    </template>
   </div>
 </template>

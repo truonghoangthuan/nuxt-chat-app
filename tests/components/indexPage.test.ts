@@ -115,6 +115,14 @@ describe('IndexPage (app/pages/index.vue)', () => {
     mockChatRoomState.onlineFriends.value = []
   })
 
+  it('blocks application workspace and sidebar completely behind E2eeGate when locked', async () => {
+    mockE2eeState.status.value = 'locked'
+    const wrapper = mount(IndexPage)
+
+    expect(wrapper.findComponent({ name: 'E2eeGate' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'ChatSidebar' }).exists()).toBe(false)
+  })
+
   it('renders direct conversation header with peer name and online status', async () => {
     const peer: Profile = {
       id: 'u-alice',
