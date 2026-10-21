@@ -54,14 +54,16 @@ export function useAuthProfile() {
     }
 
     // Fallback: create/upsert profile if missing
+    const fallbackEmail = authUser.email || ''
     const fallbackName = (authUser.user_metadata?.display_name as string | undefined)?.trim()
-      || authUser.email?.split('@')[0]
+      || fallbackEmail.split('@')[0]
       || 'Friend'
     const fallbackColor = (authUser.user_metadata?.avatar_color as string | undefined)
       || getAvatarColor(userId)
 
     const fallbackProfile: Profile = {
       id: userId,
+      email: fallbackEmail,
       display_name: fallbackName,
       avatar_color: fallbackColor,
     }
@@ -94,14 +96,14 @@ export function useAuthProfile() {
     }
 
     let authUser: any = user.value
-    let userId = extractAuthUserId(authUser) || currentProfile.value?.id || null
+    let userId = extractAuthUserId(authUser)
 
-    if (!userId && supabase?.auth?.getUser) {
+    if ((!userId || !authUser?.email) && supabase?.auth?.getUser) {
       try {
         const { data } = await supabase.auth.getUser()
         if (data?.user) {
           authUser = data.user
-          userId = extractAuthUserId(authUser)
+          userId = extractAuthUserId(authUser) || userId
         }
       } catch {
         // Ignore auth lookup error
@@ -109,17 +111,26 @@ export function useAuthProfile() {
     }
 
     if (!userId) {
+      userId = currentProfile.value?.id || null
+    }
+
+    if (!userId) {
       return { profile: null, error: 'You must be signed in to update your profile.' }
+    }
+
+    const email = authUser?.email || currentProfile.value?.email || ''
+
+    const profilePayload: Profile = {
+      id: userId,
+      email,
+      display_name: cleanName,
+      avatar_color: avatarColor,
+      avatar_url: cleanAvatarUrl || null,
     }
 
     const { data, error } = await supabase
       .from('profiles')
-      .update({
-        display_name: cleanName,
-        avatar_color: avatarColor,
-        avatar_url: cleanAvatarUrl || null,
-      })
-      .eq('id', userId)
+      .upsert(profilePayload)
       .select('*')
       .single()
 
@@ -127,12 +138,7 @@ export function useAuthProfile() {
       return { profile: null, error: error.message }
     }
 
-    const updated = (data as Profile) || {
-      id: userId,
-      display_name: cleanName,
-      avatar_color: avatarColor,
-      avatar_url: cleanAvatarUrl || null,
-    }
+    const updated = (data as Profile) || profilePayload
     currentProfile.value = updated
     return { profile: updated, error: null }
   }
@@ -201,4 +207,3 @@ export function useAuthProfile() {
     signOut,
   }
 }
-

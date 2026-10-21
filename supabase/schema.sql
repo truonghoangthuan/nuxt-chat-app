@@ -70,6 +70,23 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
+-- Backfill: insert profiles for any existing auth.users lacking a profile row
+insert into public.profiles (id, email, display_name, avatar_color)
+select
+  u.id,
+  coalesce(u.email, ''),
+  coalesce(
+    nullif(trim(u.raw_user_meta_data->>'display_name'), ''),
+    nullif(split_part(coalesce(u.email, ''), '@', 1), ''),
+    'Friend'
+  ),
+  coalesce(u.raw_user_meta_data->>'avatar_color', '#0284c7')
+from auth.users u
+where not exists (
+  select 1 from public.profiles p where p.id = u.id
+)
+on conflict (id) do nothing;
+
 -- ============================================================================
 -- 2. Contacts Table (Personal Address Book)
 -- ============================================================================
@@ -180,6 +197,7 @@ create policy "Authenticated users can insert conversation members"
     )
   );
 
+-- Users can leave, or owners can remove members
 create policy "Users can remove themselves or owners can manage members"
   on public.conversation_members for delete
   to authenticated
