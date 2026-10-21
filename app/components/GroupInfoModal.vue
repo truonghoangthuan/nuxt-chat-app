@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
+import { Pencil, Check, X } from '@lucide/vue'
 import type { Conversation } from '~/types/chat'
 import { isValidEmail } from '~/utils/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
@@ -22,10 +23,40 @@ const emit = defineEmits<{
   (e: 'close'): void
   (e: 'addMember', email: string): void
   (e: 'leave', conversationId: string): void
+  (e: 'updateTitle', newTitle: string): void
 }>()
 
 const newMemberEmail = ref('')
 const addMemberError = ref<string | null>(null)
+const isEditingTitle = ref(false)
+const editedTitle = ref('')
+const titleError = ref<string | null>(null)
+
+function startEditTitle() {
+  editedTitle.value = props.conversation?.title || ''
+  titleError.value = null
+  isEditingTitle.value = true
+}
+
+function cancelEditTitle() {
+  isEditingTitle.value = false
+  titleError.value = null
+}
+
+function handleSaveTitle() {
+  const trimmed = editedTitle.value.trim()
+  if (!trimmed) {
+    titleError.value = 'Group name cannot be empty.'
+    return
+  }
+  if (trimmed.length > 100) {
+    titleError.value = 'Group name must be 100 characters or less.'
+    return
+  }
+  titleError.value = null
+  emit('updateTitle', trimmed)
+  isEditingTitle.value = false
+}
 
 function onKeyDown(e: KeyboardEvent) {
   if (e.key === 'Escape' && props.isOpen) {
@@ -36,6 +67,8 @@ function onKeyDown(e: KeyboardEvent) {
 watch(
   () => props.isOpen,
   (open) => {
+    isEditingTitle.value = false
+    titleError.value = null
     if (open) {
       newMemberEmail.value = ''
       addMemberError.value = null
@@ -92,6 +125,8 @@ function handleLeave() {
 function handleClose() {
   newMemberEmail.value = ''
   addMemberError.value = null
+  isEditingTitle.value = false
+  titleError.value = null
   emit('close')
 }
 </script>
@@ -109,10 +144,59 @@ function handleClose() {
     >
       <!-- Header -->
       <div class="px-5 py-4 border-b border-[var(--fp-border)] flex items-center justify-between shrink-0">
-        <div>
-          <h3 data-test="group-title" class="fp-font-display text-[16px] font-bold text-[var(--fp-text-primary)]">
-            {{ groupTitle }}
-          </h3>
+        <div class="min-w-0 flex-1 mr-3">
+          <!-- Static Title View -->
+          <div v-if="!isEditingTitle" class="flex items-center gap-2">
+            <h3 data-test="group-title" class="fp-font-display text-[16px] font-bold text-[var(--fp-text-primary)] truncate">
+              {{ groupTitle }}
+            </h3>
+            <button
+              type="button"
+              data-test="edit-title-btn"
+              aria-label="Edit group name"
+              class="w-6 h-6 rounded-md text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] flex items-center justify-center cursor-pointer transition-colors shrink-0"
+              @click="startEditTitle"
+            >
+              <Pencil class="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <!-- Edit Title Form -->
+          <div v-else>
+            <form data-test="edit-title-form" class="flex items-center gap-1.5" @submit.prevent="handleSaveTitle">
+              <input
+                v-model="editedTitle"
+                data-test="edit-title-input"
+                type="text"
+                maxlength="100"
+                class="flex-1 min-w-0 px-2.5 py-1 text-sm font-semibold rounded-[6px] border border-[var(--fp-border)] bg-[var(--fp-input-bg)] text-[var(--fp-text-primary)] focus:outline-none focus:border-indigo-500"
+                placeholder="Group name"
+                autofocus
+                @keydown.esc="cancelEditTitle"
+              />
+              <button
+                type="submit"
+                data-test="save-title-btn"
+                aria-label="Save group name"
+                class="w-7 h-7 rounded-[6px] bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center cursor-pointer shrink-0 transition-colors"
+              >
+                <Check class="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                data-test="cancel-edit-title-btn"
+                aria-label="Cancel editing"
+                class="w-7 h-7 rounded-[6px] border border-[var(--fp-border)] text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] flex items-center justify-center cursor-pointer shrink-0 transition-colors"
+                @click="cancelEditTitle"
+              >
+                <X class="w-3.5 h-3.5" />
+              </button>
+            </form>
+            <p v-if="titleError" data-test="title-error" class="text-xs text-rose-500 font-medium mt-1">
+              {{ titleError }}
+            </p>
+          </div>
+
           <p data-test="member-count" class="text-xs text-[var(--fp-text-secondary)] mt-0.5">
             {{ memberCountText }}
           </p>
@@ -120,7 +204,7 @@ function handleClose() {
         <button
           type="button"
           aria-label="Close"
-          class="w-7 h-7 rounded-md text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] text-lg font-bold flex items-center justify-center cursor-pointer transition-colors"
+          class="w-7 h-7 rounded-md text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] text-lg font-bold flex items-center justify-center cursor-pointer transition-colors shrink-0"
           @click="handleClose"
         >
           ×
