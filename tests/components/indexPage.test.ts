@@ -51,6 +51,14 @@ const mockChatRoomState = {
   retryConnectionNow: vi.fn(),
   syncOwnProfile: vi.fn(),
   cleanupChat: vi.fn(),
+  soundEnabled: ref(true),
+  desktopEnabled: ref(true),
+  notificationPermission: ref('default'),
+  notificationToasts: ref([]),
+  toggleSound: vi.fn(),
+  toggleDesktop: vi.fn(),
+  requestNotificationPermission: vi.fn(),
+  dismissNotificationToast: vi.fn(),
 }
 
 const mockAuthProfileState = {

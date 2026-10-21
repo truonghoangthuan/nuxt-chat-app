@@ -3,9 +3,14 @@ import { X } from '@lucide/vue'
 import type { NotificationToastItem } from '~/types/notification'
 import UserAvatar from '~/components/UserAvatar.vue'
 
-const props = defineProps<{
-  toasts: NotificationToastItem[]
-}>()
+const props = withDefaults(
+  defineProps<{
+    toasts?: NotificationToastItem[]
+  }>(),
+  {
+    toasts: () => [],
+  },
+)
 
 const emit = defineEmits<{
   (e: 'navigate', conversationId: string): void
@@ -20,7 +25,7 @@ function handleClick(toast: NotificationToastItem) {
 
 <template>
   <div
-    v-if="toasts.length > 0"
+    v-if="toasts && toasts.length > 0"
     class="fixed top-4 right-4 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-3 sm:px-0"
     role="region"
     aria-label="Notifications"

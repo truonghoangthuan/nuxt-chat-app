@@ -83,6 +83,36 @@ describe('useChatRoom realtime message routing & profile caching', () => {
     expect(typing.typingLabel.value).toBe('')
   })
 
+  it('dispatches incoming message to notificationManager if provided', () => {
+    const store = createMessagesStore()
+    const typing = createTypingTracker(() => 'u-me', 3000)
+    const notifyMock = vi.fn()
+    const mockNotifManager = {
+      notifyIncomingMessage: notifyMock,
+    } as any
+
+    handleIncomingRealtimeMessage({
+      row: {
+        id: 'm-20',
+        client_id: 'c-20',
+        conversation_id: 'conv-99',
+        user_id: 'u-alice',
+        content: 'Notification test',
+        created_at: '2026-10-21T10:00:00Z',
+      },
+      activeConversationId: 'conv-1',
+      messagesStore: store,
+      typingTracker: typing,
+      unreadCounts: {},
+      notificationManager: mockNotifManager,
+    })
+
+    expect(notifyMock).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.objectContaining({ id: 'm-20', content: 'Notification test' }),
+      activeConversationId: 'conv-1',
+    }))
+  })
+
   it('skips profile query for inactive channel messages and caches fetched profiles', async () => {
     const cache = new Map<string, Profile>()
     const fetchProfile = vi.fn().mockResolvedValue({
