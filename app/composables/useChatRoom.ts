@@ -1,4 +1,4 @@
-import { ref, computed, shallowReactive, isRef, type ComputedRef, type Ref } from 'vue'
+﻿import { ref, computed, shallowReactive, isRef, type ComputedRef, type Ref } from 'vue'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import type {
   Conversation,
@@ -38,6 +38,7 @@ import { deduplicatePresenceState } from '~/composables/usePresenceState'
 import { createConnectionManager } from '~/composables/useConnectionManager'
 import { useAuthProfile } from '~/composables/useAuthProfile'
 import { useE2ee } from '~/composables/useE2ee'
+import { useNotification, createNotificationManager } from '~/composables/useNotification'
 import { useImageAttachmentCache } from '~/composables/useImageAttachmentCache'
 import {
   isImagePayload,
@@ -314,6 +315,8 @@ export function handleIncomingRealtimeMessage(params: {
   currentUserId?: string
   currentDisplayName?: string | null
   conversations?: Conversation[] | Ref<Conversation[]>
+  notificationManager?: ReturnType<typeof createNotificationManager>
+  onNavigate?: (convId: string) => void
 }): void {
   const activeId = params.activeConversationId !== undefined ? params.activeConversationId : params.activeChannelId
   const targetId = params.row.conversation_id || params.row.channel_id || ''
@@ -353,6 +356,15 @@ export function handleIncomingRealtimeMessage(params: {
     ) {
       params.unreadMentions[targetId] = (params.unreadMentions[targetId] || 0) + 1
     }
+  }
+
+  if (params.notificationManager) {
+    params.notificationManager.notifyIncomingMessage({
+      message: params.row as ChatMessage,
+      activeConversationId: activeId,
+      currentUserId: params.currentUserId,
+      onNavigate: params.onNavigate,
+    })
   }
 }
 
@@ -506,6 +518,7 @@ export function useChatRoom() {
   const supabase = useSupabaseClient()
   const authProfile = useAuthProfile()
   const e2ee = useE2ee()
+  const notification = useNotification()
 
   const conversations = ref<Conversation[]>([])
   const activeConversationId = ref<string | null>(null)
@@ -1169,6 +1182,8 @@ export function useChatRoom() {
             currentUserId: authProfile.currentProfile.value?.id,
             currentDisplayName: authProfile.currentProfile.value?.display_name,
             conversations: conversations.value,
+            notificationManager: notification,
+            onNavigate: (id) => selectConversation(id),
           })
           if (targetConv) {
             targetConv.lastMessage = fullDecryptedRow as any
@@ -2443,5 +2458,13 @@ export function useChatRoom() {
     markChannelRead,
     markConversationRead,
     cleanupChat,
+    soundEnabled: notification.soundEnabled,
+    desktopEnabled: notification.desktopEnabled,
+    notificationPermission: notification.permission,
+    notificationToasts: notification.toasts,
+    toggleSound: notification.toggleSound,
+    toggleDesktop: notification.toggleDesktop,
+    requestNotificationPermission: notification.requestPermission,
+    dismissNotificationToast: notification.dismissToast,
   }
 }

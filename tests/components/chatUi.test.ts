@@ -638,6 +638,33 @@ describe('Chat UI components', () => {
       expect(lgAvatar.html()).toContain('w-11 h-11')
     })
 
+    it('ChatSidebar renders notification toggle button and emits toggleNotifications', async () => {
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          channels: [],
+          dmChannels: [],
+          activeChannelId: null,
+          unreadCounts: {},
+          onlineFriends: [],
+          currentUser: null,
+          isDark: true,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+          notificationsEnabled: true,
+        },
+      })
+
+      const btn = wrapper.find('[data-test="toggle-notifications-btn"]')
+      expect(btn.exists()).toBe(true)
+      expect(btn.attributes('title')).toBe('Mute notifications')
+
+      await btn.trigger('click')
+      expect(wrapper.emitted('toggleNotifications')).toBeTruthy()
+
+      await wrapper.setProps({ notificationsEnabled: false })
+      expect(wrapper.find('[data-test="toggle-notifications-btn"]').attributes('title')).toBe('Enable notifications')
+    })
+
     it('E2eeGate renders locked passphrase form, emits unlock, and shows unconfigured state', async () => {
       const wrapper = mount(E2eeGate, {
         props: {

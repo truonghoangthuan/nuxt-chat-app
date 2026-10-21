@@ -13,6 +13,7 @@ import CreateGroupModal from '~/components/CreateGroupModal.vue'
 import GroupInfoModal from '~/components/GroupInfoModal.vue'
 import ProfileSettingsModal from '~/components/ProfileSettingsModal.vue'
 import ImageViewerModal from '~/components/ImageViewerModal.vue'
+import NotificationToastContainer from '~/components/NotificationToastContainer.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
 import { Menu, Users, Info } from '@lucide/vue'
 import E2eeGate from '~/components/E2eeGate.vue'
@@ -67,6 +68,14 @@ const {
   retryConnectionNow,
   syncOwnProfile,
   cleanupChat,
+  soundEnabled,
+  desktopEnabled,
+  notificationPermission,
+  notificationToasts,
+  toggleSound,
+  toggleDesktop,
+  requestNotificationPermission,
+  dismissNotificationToast,
 } = useChatRoom()
 
 const { currentProfile, updateProfile, signOut } = useAuthProfile()
@@ -98,13 +107,25 @@ function handleOpenLightbox(payload: { images: EncryptedImageMetadata[]; initial
 
 async function handleSelectConversation(conversationId: string) {
   replyingTo.value = null
+  isMobileSidebarOpen.value = false
   await selectConversation(conversationId)
 }
 
 async function handleStartDirectChat(userId: string) {
   replyingTo.value = null
+  isMobileSidebarOpen.value = false
   await openOrCreateDirectChat(userId)
   isContactsModalOpen.value = false
+}
+
+async function handleToggleNotifications() {
+  if (notificationPermission.value === 'default') {
+    await requestNotificationPermission()
+  } else {
+    const next = !(soundEnabled.value || desktopEnabled.value)
+    if (soundEnabled.value !== next) toggleSound()
+    if (desktopEnabled.value !== next) toggleDesktop()
+  }
 }
 
 async function handleCreateGroup(payload: {
@@ -159,11 +180,13 @@ async function handleRetryConfig() {
 async function handleSendMessage(content: string) {
   const replyId = replyingTo.value?.id || null
   replyingTo.value = null
+  isMobileSidebarOpen.value = false
   await sendMessage(content, replyId)
 }
 
 async function handleSendImages(files: File[]) {
   replyingTo.value = null
+  isMobileSidebarOpen.value = false
   await sendImages(files)
 }
 
@@ -198,6 +221,12 @@ onUnmounted(() => {
 
 <template>
   <div class="h-dvh flex overflow-hidden bg-[var(--fp-void)] md:p-3 md:gap-2.5 transition-colors">
+    <!-- In-App Notification Toasts -->
+    <NotificationToastContainer
+      :toasts="notificationToasts || []"
+      @navigate="handleSelectConversation"
+      @dismiss="dismissNotificationToast || (() => {})"
+    />
     <!-- Sidebar (Icon Rail + Conversation List) -->
     <ChatSidebar
       :conversations="conversations"
@@ -212,6 +241,9 @@ onUnmounted(() => {
       :is-dark="isDark"
       :connection-status="connectionStatus"
       :is-open-mobile="isMobileSidebarOpen"
+      :notifications-enabled="soundEnabled || desktopEnabled"
+      :notification-permission="notificationPermission"
+      @toggle-notifications="handleToggleNotifications"
       @select-conversation="handleSelectConversation"
       @select-channel="handleSelectConversation"
       @open-contacts="isContactsModalOpen = true"

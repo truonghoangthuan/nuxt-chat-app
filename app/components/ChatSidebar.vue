@@ -5,6 +5,8 @@ import {
   Moon,
   X,
   Settings,
+  Bell,
+  BellOff,
   LogOut,
   Plus,
   Users,
@@ -35,6 +37,8 @@ const props = withDefaults(
     isDark: boolean
     connectionStatus: ConnectionStatus
     isOpenMobile: boolean
+    notificationsEnabled?: boolean
+    notificationPermission?: NotificationPermission
   }>(),
   {
     conversations: undefined,
@@ -43,6 +47,8 @@ const props = withDefaults(
     dmChannels: () => [],
     activeChannelId: null,
     unreadMentions: () => ({}),
+    notificationsEnabled: true,
+    notificationPermission: 'default',
   },
 )
 
@@ -56,6 +62,7 @@ const emit = defineEmits<{
   (e: 'openCreateChannel'): void
   (e: 'startDmWithUser', userId: string): void
   (e: 'openProfileSettings'): void
+  (e: 'toggleNotifications'): void
   (e: 'toggleTheme'): void
   (e: 'logout'): void
   (e: 'closeMobile'): void
@@ -602,6 +609,21 @@ function onContactsClick() {
             @click="emit('openProfileSettings')"
           >
             <Settings class="size-4" aria-hidden="true" />
+          </Button>
+
+          <!-- Notifications Toggle -->
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            data-test="toggle-notifications-btn"
+            class="size-8 rounded-lg text-[var(--fp-text-secondary)] hover:bg-[var(--fp-hover)] hover:text-[var(--fp-text-primary)]"
+            :aria-label="notificationPermission === 'denied' ? 'Notifications blocked by browser' : (notificationsEnabled ? 'Mute notifications' : 'Enable notifications')"
+            :title="notificationPermission === 'denied' ? 'Notifications blocked in browser settings' : (notificationsEnabled ? 'Mute notifications' : 'Enable notifications')"
+            @click="emit('toggleNotifications')"
+          >
+            <Bell v-if="notificationsEnabled && notificationPermission !== 'denied'" class="size-4" aria-hidden="true" />
+            <BellOff v-else class="size-4 text-amber-500" aria-hidden="true" />
           </Button>
 
           <!-- Theme Toggle -->
