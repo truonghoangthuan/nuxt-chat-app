@@ -1883,4 +1883,39 @@ let capturedMessagesSelect = ''
     expect(capturedMessagesSelect).toContain('conversation_id')
     expect(capturedMessagesSelect).not.toContain('channel_id')
   })
+
+  it('selectChannel disambiguates author profile embedding with messages_user_id_fkey', async () => {
+    let capturedSelect = ''
+    mockSupabase.from = vi.fn((table: string) => {
+      if (table === 'messages') {
+        return {
+          select: vi.fn((fields: string) => {
+            capturedSelect = fields
+            return {
+              eq: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+                  }),
+                }),
+              }),
+            }
+          }),
+        }
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      }
+    })
+
+    const room = useChatRoom()
+    await room.selectChannel('conv-test-1')
+
+    expect(capturedSelect).toContain('author:profiles!messages_user_id_fkey')
+    expect(capturedSelect).not.toMatch(/author:profiles\(/)
+  })
 })
