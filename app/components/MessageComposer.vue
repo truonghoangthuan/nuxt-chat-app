@@ -298,7 +298,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="px-3 md:px-4 pb-3 md:pb-3.5 pt-1 bg-transparent shrink-0">
+  <div class="px-4 pb-4 pt-1.5 bg-transparent shrink-0">
     <!-- Hidden file input for images -->
     <input
       ref="fileInputRef"
@@ -314,12 +314,12 @@ onUnmounted(() => {
     <div class="h-5 mb-1 px-2 flex items-center">
       <span
         v-if="typingLabel"
-        class="text-xs text-[var(--fp-text-secondary)] flex items-center gap-2 transition-opacity"
+        class="text-xs text-[var(--om-text-secondary)] flex items-center gap-2 transition-opacity"
       >
         <span class="inline-flex gap-1">
-          <span class="w-1.5 h-1.5 bg-[var(--fp-accent-bright)] rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-          <span class="w-1.5 h-1.5 bg-[var(--fp-accent-bright)] rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-          <span class="w-1.5 h-1.5 bg-[var(--fp-accent-bright)] rounded-full animate-bounce"></span>
+          <span class="w-1.5 h-1.5 bg-[var(--om-accent-bright)] rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+          <span class="w-1.5 h-1.5 bg-[var(--om-accent-bright)] rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+          <span class="w-1.5 h-1.5 bg-[var(--om-accent-bright)] rounded-full animate-bounce"></span>
         </span>
         <span>{{ typingLabel }}</span>
       </span>
@@ -329,9 +329,9 @@ onUnmounted(() => {
     <div
       v-if="filteredMentions.length > 0"
       data-test="mention-autocomplete"
-      class="mb-2 rounded-[12px] border border-[var(--fp-border-strong)] bg-[var(--fp-surface-elevated)] shadow-2xl overflow-hidden"
+      class="mb-2 rounded-[12px] border border-[var(--om-border-strong)] bg-[var(--om-card)] shadow-2xl overflow-hidden"
     >
-      <div class="px-3.5 py-1.5 text-[11px] font-semibold tracking-wide text-[var(--fp-text-secondary)] border-b border-[var(--fp-border)]">
+      <div class="px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--om-text-muted)] border-b border-[var(--om-border)]">
         Mention a friend
       </div>
       <button
@@ -340,7 +340,7 @@ onUnmounted(() => {
         type="button"
         :data-test="`mention-option-${candidate.id}`"
         class="w-full px-3.5 py-2 flex items-center gap-2.5 text-xs text-left transition-colors cursor-pointer"
-        :class="idx === selectedMentionIndex ? 'bg-[var(--fp-active)] text-[var(--fp-text-primary)] font-semibold' : 'text-[var(--fp-text-secondary)] hover:bg-[var(--fp-hover)] hover:text-[var(--fp-text-primary)]'"
+        :class="idx === selectedMentionIndex ? 'bg-[var(--om-active)] text-[var(--om-text-primary)] font-semibold' : 'text-[var(--om-text-secondary)] hover:bg-[var(--om-hover)] hover:text-[var(--om-text-primary)]'"
         @click="selectMention(candidate)"
       >
         <UserAvatar
@@ -349,14 +349,14 @@ onUnmounted(() => {
           :avatar-url="candidate.avatar_url"
           size="sm"
         />
-        <span>@{{ candidate.display_name }}</span>
+        <span class="font-medium text-[var(--om-text-primary)]">@{{ candidate.display_name }}</span>
       </button>
     </div>
 
     <!-- Floating Command-Bar Deck -->
     <div
       data-test="composer-deck"
-      class="fp-composer-surface rounded-[12px] border border-[var(--fp-border)] focus-within:border-indigo-500/60 transition-colors overflow-hidden"
+      class="rounded-[14px] border border-[var(--om-border-strong)] bg-[var(--om-card)] shadow-lg shadow-black/10 transition-colors focus-within:border-indigo-500/50 overflow-hidden"
       @dragover.prevent
       @drop.prevent="handleDrop"
       @keydown="handleDeckKeydown"
@@ -368,8 +368,8 @@ onUnmounted(() => {
         data-test="reply-banner"
         class="px-3.5 py-1.5 bg-indigo-500/10 border-b border-indigo-500/20 flex items-center justify-between gap-2 text-xs"
       >
-        <div class="truncate text-[var(--fp-text-secondary)]">
-          Replying to <span class="font-semibold text-[var(--fp-accent-bright)]">@{{ replyingTo.author?.display_name || 'Friend' }}</span>:
+        <div class="truncate text-[var(--om-text-secondary)]">
+          Replying to <span class="font-semibold text-[var(--om-accent-bright)] font-mono">@{{ replyingTo.author?.display_name || 'Friend' }}</span>:
           <span class="italic ml-1">{{ isImagePayload(replyingTo.content) ? formatImageMessageSummary(parseImagePayload(replyingTo.content)?.images.length || 1) : replyingTo.content }}</span>
         </div>
         <Button
@@ -377,7 +377,7 @@ onUnmounted(() => {
           variant="ghost"
           size="icon-sm"
           data-test="cancel-reply"
-          class="text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)]"
+          class="text-[var(--om-text-secondary)] hover:text-[var(--om-text-primary)] cursor-pointer"
           aria-label="Cancel reply"
           @click="emit('cancelReply')"
         >
@@ -406,13 +406,13 @@ onUnmounted(() => {
       <div
         v-if="pendingAttachments.length > 0"
         data-test="attachment-tray"
-        class="px-3 py-2 border-b border-[var(--fp-border)] flex items-center gap-2.5 overflow-x-auto"
+        class="px-3 py-2 border-b border-[var(--om-border)] flex items-center gap-2.5 overflow-x-auto"
       >
         <div
           v-for="(att, idx) in pendingAttachments"
           :key="idx"
           data-test="attachment-preview"
-          class="relative group shrink-0 w-16 h-16 rounded-lg overflow-hidden border border-[var(--fp-border)] bg-[var(--fp-hover)]"
+          class="relative group shrink-0 w-16 h-16 rounded-[8px] overflow-hidden border border-[var(--om-border)] bg-[var(--om-hover)]"
         >
           <img
             :src="att.url"
@@ -432,21 +432,19 @@ onUnmounted(() => {
       </div>
 
       <!-- Input Row -->
-      <div class="flex items-end gap-2 p-2">
+      <div class="flex items-end gap-2 p-2.5">
         <!-- Paperclip Button -->
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          size="icon-sm"
           :disabled="disabled"
           data-test="attach-image-button"
-          class="text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] self-end mb-0.5 shrink-0"
+          class="size-8 rounded-[8px] flex items-center justify-center text-[var(--om-text-secondary)] hover:text-[var(--om-text-primary)] hover:bg-[var(--om-hover)] transition-colors self-end mb-0.5 shrink-0 cursor-pointer disabled:opacity-40"
           title="Attach images"
           aria-label="Attach images"
           @click="triggerFileInput"
         >
           <Paperclip class="size-4" aria-hidden="true" />
-        </Button>
+        </button>
 
         <textarea
           ref="textareaRef"
@@ -454,7 +452,7 @@ onUnmounted(() => {
           rows="1"
           :disabled="disabled || pendingAttachments.length > 0"
           :placeholder="pendingAttachments.length > 0 ? 'Images attached (text disabled)' : `Message ${isDm ? '@' : '#'}${channelSlug || 'channel'}`"
-          class="min-h-9 max-h-40 w-full resize-none border-0 bg-transparent px-2.5 py-1.5 text-[14.5px] text-[var(--fp-text-primary)] shadow-none outline-none placeholder:text-[var(--fp-text-muted)] focus-visible:ring-0 disabled:opacity-60"
+          class="min-h-[38px] max-h-40 w-full resize-none border-0 bg-transparent px-2 py-1.5 text-sm text-[var(--om-text-primary)] shadow-none outline-none placeholder:text-[var(--om-text-muted)] focus:outline-none focus-visible:ring-0 disabled:opacity-60"
           @input="handleInput"
           @click="handleClick"
           @keyup="syncCursor"
@@ -463,19 +461,19 @@ onUnmounted(() => {
         />
 
         <div class="flex items-center gap-2 shrink-0 pb-0.5 pr-0.5">
-          <span class="hidden lg:inline-block text-[11px] text-[var(--fp-text-muted)] select-none">
+          <span class="hidden lg:inline-block text-[11px] font-mono text-[var(--om-text-muted)] select-none">
             Enter ↵
           </span>
-          <Button
+          <button
             type="button"
             :disabled="disabled || (!content.trim() && pendingAttachments.length === 0)"
-            class="h-9 rounded-lg bg-indigo-600 px-3.5 text-xs font-semibold text-white hover:bg-indigo-700 focus-visible:ring-indigo-500 disabled:opacity-40"
+            class="size-8 rounded-[8px] bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 shrink-0 cursor-pointer"
             title="Send message"
+            aria-label="Send message"
             @click="handleSend"
           >
-            <span>Send</span>
             <Send class="size-3.5" aria-hidden="true" />
-          </Button>
+          </button>
         </div>
       </div>
     </div>
