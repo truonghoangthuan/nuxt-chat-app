@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
 import { Send, X, Plus } from '@lucide/vue'
 import { Button } from '~/components/ui/button'
 import type { ChatMessage, Profile } from '~/types/chat'
@@ -9,6 +9,7 @@ import UserAvatar from '~/components/UserAvatar.vue'
 
 const props = withDefaults(
   defineProps<{
+    conversationId?: string
     channelSlug: string
     isDm?: boolean
     typingLabel?: string
@@ -17,6 +18,7 @@ const props = withDefaults(
     mentionCandidates?: Profile[]
   }>(),
   {
+    conversationId: '',
     isDm: false,
     typingLabel: '',
     disabled: false,
@@ -27,12 +29,29 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'send', content: string): void
-  (e: 'sendImages', files: File[]): void
+  (e: 'sendImages', files: File[], caption?: string): void
   (e: 'typing'): void
   (e: 'cancelReply'): void
 }>()
 
-const content = ref('')
+const drafts = ref<Record<string, string>>({})
+const conversationKey = computed(() => props.conversationId || props.channelSlug || 'default')
+const content = ref(drafts.value[conversationKey.value] || '')
+
+watch(conversationKey, (newKey, oldKey) => {
+  if (oldKey) {
+    drafts.value[oldKey] = content.value
+  }
+  content.value = drafts.value[newKey] || ''
+  clearPendingAttachments()
+  cursorIndex.value = content.value.length
+  dismissedMentionStartIndex.value = null
+  selectedMentionIndex.value = 0
+  nextTick(() => {
+    autoResize()
+  })
+})
+
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const cursorIndex = ref(0)
@@ -114,7 +133,6 @@ function queueFiles(files: FileList | File[]) {
   }
 
   validationError.value = ''
-  content.value = ''
 
   for (const file of incoming) {
     const url = typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
@@ -186,6 +204,7 @@ function selectMention(profile: Profile) {
     activeMention.value,
     profile.display_name,
   )
+  drafts.value[conversationKey.value] = content.value
   cursorIndex.value = newCaretPos
   selectedMentionIndex.value = 0
   dismissedMentionStartIndex.value = null
@@ -216,18 +235,11 @@ function handleInput() {
   syncCursor()
   selectedMentionIndex.value = 0
   autoResize()
+  drafts.value[conversationKey.value] = content.value
   emit('typing')
 }
 
 function handleKeydown(event: KeyboardEvent) {
-  if (pendingAttachments.value.length > 0) {
-    if (shouldSendOnKeydown(event)) {
-      event.preventDefault()
-      handleSend()
-    }
-    return
-  }
-
   if (filteredMentions.value.length > 0) {
     if (event.key === 'Escape') {
       event.preventDefault()
@@ -275,8 +287,16 @@ function handleSend() {
 
   if (pendingAttachments.value.length > 0) {
     const filesToSend = pendingAttachments.value.map(a => a.file)
+    const captionText = content.value.trim() || undefined
     clearPendingAttachments()
-    emit('sendImages', filesToSend)
+    content.value = ''
+    drafts.value[conversationKey.value] = ''
+    cursorIndex.value = 0
+    selectedMentionIndex.value = 0
+    nextTick(() => {
+      autoResize()
+    })
+    emit('sendImages', filesToSend, captionText)
     return
   }
 
@@ -285,6 +305,7 @@ function handleSend() {
 
   emit('send', trimmed)
   content.value = ''
+  drafts.value[conversationKey.value] = ''
   cursorIndex.value = 0
   selectedMentionIndex.value = 0
   nextTick(() => {
@@ -450,8 +471,8 @@ onUnmounted(() => {
           ref="textareaRef"
           v-model="content"
           rows="1"
-          :disabled="disabled || pendingAttachments.length > 0"
-          :placeholder="pendingAttachments.length > 0 ? 'Images attached (text disabled)' : `Message ${isDm ? '@' : '#'}${channelSlug || 'channel'}`"
+          :disabled="disabled"
+          :placeholder="pendingAttachments.length > 0 ? 'Add a caption...' : `Message ${isDm ? '@' : '#'}${channelSlug || 'channel'}`"
           class="flex-1 bg-transparent border-0 text-[var(--ap-text-primary)] placeholder-[var(--ap-text-muted)] text-[13.5px] leading-relaxed py-1 px-1 resize-none focus:outline-none focus:ring-0 custom-scroll max-h-32 disabled:opacity-60"
           @input="handleInput"
           @click="handleClick"
