@@ -366,6 +366,86 @@ describe('Chat UI components', () => {
     expect(wrapper.emitted('cancelReply')).toBeTruthy()
   })
 
+  it('MessageComposer focuses textarea when replyingTo is set', async () => {
+    const wrapper = mount(MessageComposer, {
+      attachTo: document.body,
+      props: {
+        channelSlug: 'general',
+        replyingTo: null,
+      },
+    })
+    const textarea = wrapper.find('textarea')
+    const focusSpy = vi.spyOn(textarea.element, 'focus')
+
+    await wrapper.setProps({
+      replyingTo: {
+        id: 'm-1',
+        client_id: 'c-1',
+        channel_id: 'ch-1',
+        user_id: 'u-alice',
+        content: 'Original message',
+        created_at: '2026-10-18T10:00:00Z',
+        status: 'sent',
+      },
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(focusSpy).toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('renders scroll-to-bottom button when scrolled up even with 0 unread messages', async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(MessageViewport, {
+      attachTo: document.body,
+      props: {
+        conversationId: 'c-1',
+        currentUserId: 'u-1',
+        messages: [
+          {
+            id: 'm-1',
+            client_id: 'c-1',
+            channel_id: 'c-1',
+            user_id: 'u-2',
+            content: 'Hello world',
+            created_at: '2026-10-18T10:00:00Z',
+            status: 'sent',
+          },
+        ],
+      },
+    })
+
+    // Flush initial open timers
+    vi.runAllTimers()
+    await wrapper.vm.$nextTick()
+
+    const scrollContainer = wrapper.find('.custom-scroll')
+    let currentScrollTop = 100
+    Object.defineProperty(scrollContainer.element, 'scrollHeight', { value: 1000, configurable: true })
+    Object.defineProperty(scrollContainer.element, 'clientHeight', { value: 400, configurable: true })
+    Object.defineProperty(scrollContainer.element, 'scrollTop', {
+      get() { return currentScrollTop },
+      set(v) { currentScrollTop = v },
+      configurable: true,
+    })
+
+    currentScrollTop = 100
+    await scrollContainer.trigger('scroll')
+    await wrapper.vm.$nextTick()
+
+    const btn = wrapper.find('[data-test="scroll-to-bottom"]')
+    expect(btn.exists()).toBe(true)
+
+    // Trigger scroll back to near bottom
+    currentScrollTop = 550
+    await scrollContainer.trigger('scroll')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-test="scroll-to-bottom"]').exists()).toBe(false)
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
+
   it('ChatSidebar renders @ mention badge alongside unread count when unreadMentions > 0', () => {
     const wrapper = mount(ChatSidebar, {
       props: {
@@ -1209,6 +1289,100 @@ describe('Chat UI components', () => {
       const sendingRow = wrapper.find('[data-message-id="m-sender-sending"]')
       expect(sendingRow.classes()).toContain('justify-end')
       expect(wrapper.text()).toContain('Sending...')
+    })
+
+    it('renders timestamp outside message bubble', () => {
+      const wrapper = mount(MessageViewport, {
+        props: {
+          conversationId: 'c-1',
+          currentUserId: 'u-alice',
+          messages: [
+            {
+              id: 'm-sender',
+              client_id: 'c-1',
+              channel_id: 'c-1',
+              user_id: 'u-alice',
+              content: 'Sender msg',
+              created_at: '2026-10-18T10:00:00Z',
+              status: 'sent',
+              author: { id: 'u-alice', display_name: 'Alice', avatar_color: '#0284c7' },
+            },
+            {
+              id: 'm-recipient',
+              client_id: 'c-2',
+              channel_id: 'c-1',
+              user_id: 'u-bob',
+              content: 'Recipient msg',
+              created_at: '2026-10-18T10:01:00Z',
+              status: 'sent',
+              author: { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+            },
+          ],
+        },
+      })
+
+      const senderBubble = wrapper.find('[data-test="message-bubble-m-sender"]')
+      // Delivery indicator and time should NOT be inside the sender bubble
+      expect(senderBubble.find('[data-test="delivery-indicator-m-sender"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="delivery-indicator-m-sender"]').exists()).toBe(true)
+    })
+
+    it('renders reaction toolbar and omits 3-dots mobile menu in MessageViewport', () => {
+      const wrapper = mount(MessageViewport, {
+        props: {
+          conversationId: 'c-1',
+          currentUserId: 'u-alice',
+          messages: [
+            {
+              id: 'm-sent',
+              client_id: 'c-1',
+              channel_id: 'c-1',
+              user_id: 'u-alice',
+              content: 'Sent message',
+              created_at: '2026-10-18T10:00:00Z',
+              status: 'sent',
+              author: { id: 'u-alice', display_name: 'Alice', avatar_color: '#0284c7' },
+            },
+          ],
+        },
+      })
+
+      expect(wrapper.find('[data-test="open-mobile-actions"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="react-m-sent-👍"]').exists()).toBe(true)
+      const toolbar = wrapper.find('[data-test="react-m-sent-👍"]').element.closest('div')
+      expect(toolbar?.className).not.toContain('hidden')
+      expect(toolbar?.className).toContain('group-hover:opacity-100')
+    })
+
+    it('emits viewProfile when clicking recipient avatar or group sender header', async () => {
+      const author = { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed', email: 'bob@example.com' }
+      const wrapper = mount(MessageViewport, {
+        props: {
+          conversationId: 'c-1',
+          isGroup: true,
+          currentUserId: 'u-alice',
+          messages: [
+            {
+              id: 'm-bob-1',
+              client_id: 'c-1',
+              channel_id: 'c-1',
+              user_id: 'u-bob',
+              content: 'Hello Bob',
+              created_at: '2026-10-18T10:00:00Z',
+              status: 'sent',
+              author,
+            },
+          ],
+        },
+      })
+
+      const avatarTrigger = wrapper.find('[data-test="recipient-avatar-trigger"]')
+      await avatarTrigger.trigger('click')
+      expect(wrapper.emitted('viewProfile')?.[0]).toEqual([author])
+
+      const headerTrigger = wrapper.find('[data-test="sender-header-m-bob-1"]')
+      await headerTrigger.trigger('click')
+      expect(wrapper.emitted('viewProfile')?.[1]).toEqual([author])
     })
 
     it('renders recipient messages with justify-start, avatar, and sender display name in group chats', () => {

@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import type { ChatMessage, EncryptedImageMetadata } from '~/types/chat'
+import type { ChatMessage, EncryptedImageMetadata, Profile } from '~/types/chat'
 import { buildMessageTimeline, REACTION_EMOJIS, summarizeReactions, tokenizeMessageMentions } from '~/utils/chat'
 import { isImagePayload, parseImagePayload, formatImageMessageSummary } from '~/utils/image'
 import UserAvatar from '~/components/UserAvatar.vue'
-import MessageActionsMenu from '~/components/MessageActionsMenu.vue'
 import MessageImageGrid from '~/components/MessageImageGrid.vue'
-import { Pin, ChevronLeft, ChevronRight, X } from '@lucide/vue'
+import { Pin, ChevronLeft, ChevronRight, X, ChevronDown } from '@lucide/vue'
 
 const props = withDefaults(
   defineProps<{
@@ -47,6 +46,7 @@ const emit = defineEmits<{
   (e: 'toggleReaction', payload: { messageId: string; emoji: string }): void
   (e: 'selectImage', payload: { images: EncryptedImageMetadata[]; initialIndex: number }): void
   (e: 'togglePin', messageId: string): void
+  (e: 'viewProfile', profile: Profile): void
 }>()
 
 const viewportRef = ref<HTMLDivElement | null>(null)
@@ -467,7 +467,12 @@ onUnmounted(() => {
         >
           <!-- Recipient Avatar (rendered at the bottom of the cluster) -->
           <template v-if="!item.isSender">
-            <div v-if="item.isLastInGroup" class="shrink-0 mb-0.5">
+            <div
+              v-if="item.isLastInGroup"
+              data-test="recipient-avatar-trigger"
+              class="shrink-0 mb-0.5 cursor-pointer hover:opacity-80 transition-opacity"
+              @click="item.message.author && emit('viewProfile', item.message.author)"
+            >
               <UserAvatar
                 :display-name="item.message.author?.display_name || 'Friend'"
                 :avatar-color="item.message.author?.avatar_color"
@@ -478,10 +483,10 @@ onUnmounted(() => {
             <div v-else class="w-9 shrink-0" aria-hidden="true"></div>
           </template>
 
-          <!-- Frosted Hover Action Toolbar (Desktop) -->
+          <!-- Frosted Action Toolbar (Hover on Desktop, Tap/Focus on Touch) -->
           <div
             v-if="item.message.status === 'sent' && !item.message.deleted_at"
-            class="hidden md:flex opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity items-center gap-0.5 bg-white/90 dark:bg-white/10 backdrop-blur-xl border border-black/10 dark:border-white/15 rounded-full px-2 py-0.5 shadow-xl shrink-0 self-center"
+            class="flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 active:opacity-100 focus-within:opacity-100 transition-opacity items-center gap-0.5 bg-white/90 dark:bg-white/10 backdrop-blur-xl border border-black/10 dark:border-white/15 rounded-full px-2 py-0.5 shadow-xl shrink-0 self-center z-10"
             :class="item.isSender ? 'order-first mr-1.5' : 'order-last ml-1.5'"
           >
             <button
@@ -533,19 +538,6 @@ onUnmounted(() => {
             </template>
           </div>
 
-          <!-- Mobile Actions Dropdown Menu -->
-          <MessageActionsMenu
-            v-if="item.message.status === 'sent' && !item.message.deleted_at"
-            :message="item.message"
-            :current-user-id="currentUserId"
-            :class="item.isSender ? 'order-first mr-1.5' : 'order-last ml-1.5'"
-            @toggle-reaction="emit('toggleReaction', $event)"
-            @reply="emit('reply', $event)"
-            @edit="startEdit"
-            @delete="emit('delete', $event)"
-            @toggle-pin="emit('togglePin', $event)"
-          />
-
           <!-- Message Column (Header + Bubble + Delivery States + Reactions) -->
           <div
             class="flex flex-col min-w-0 max-w-[85%] sm:max-w-[75%] md:max-w-[70%]"
@@ -555,15 +547,48 @@ onUnmounted(() => {
             <div
               v-if="item.showSenderHeader"
               :data-test="`sender-header-${item.message.id}`"
-              class="text-[12px] font-semibold mb-1 ml-1 truncate max-w-full"
+              class="text-[12px] font-semibold mb-1 ml-1 truncate max-w-full cursor-pointer hover:underline transition"
               :style="{ color: item.message.author?.avatar_color || '#0284c7' }"
+              @click="item.message.author && emit('viewProfile', item.message.author)"
             >
               {{ item.message.author?.display_name || 'Friend' }}
             </div>
 
-            <!-- Apple iMessage Bubble Container -->
+            <!-- Bubble & External Timestamp Row -->
             <div
-              :data-test="`message-bubble-${item.message.id}`"
+              class="flex items-end gap-1.5 max-w-full"
+              :class="item.isSender ? 'flex-row justify-end' : 'flex-row justify-start'"
+            >
+              <!-- Time & Delivery Indicator for Sender (Outside, Left of bubble) -->
+              <div
+                v-if="item.isSender"
+                class="flex items-center gap-1 text-[10.5px] font-mono text-[var(--ap-text-muted)] select-none shrink-0 mb-1"
+              >
+                <span>{{ formatTime(item.message.created_at) }}</span>
+                <span
+                  v-if="item.message.status === 'sending'"
+                  :data-test="`delivery-indicator-${item.message.id}`"
+                  class="inline-flex items-center gap-1 italic text-blue-500 dark:text-blue-400"
+                >
+                  <svg class="animate-spin h-2.5 w-2.5" viewBox="0 0 24 24" fill="none">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                  </svg>
+                  <span>Sending...</span>
+                </span>
+                <span
+                  v-else-if="item.message.status === 'sent'"
+                  :data-test="`delivery-indicator-${item.message.id}`"
+                  class="font-bold text-blue-500 dark:text-blue-400 tracking-tighter"
+                  title="Sent"
+                >
+                  ✓✓
+                </span>
+              </div>
+
+              <!-- Apple iMessage Bubble Container -->
+              <div
+                :data-test="`message-bubble-${item.message.id}`"
               class="relative px-4 py-2.5 text-[13.5px] leading-relaxed shadow-xs break-words transition-all"
               :class="[
                 item.isSender
@@ -774,35 +799,14 @@ onUnmounted(() => {
                 </span>
               </div>
 
-              <!-- Time & Delivery Status inside Bubble -->
-              <div
-                class="mt-1 flex items-center justify-end gap-1.5 text-[11px] font-mono select-none"
-                :class="item.isSender ? 'text-white/75' : 'text-[var(--ap-text-muted)]'"
-              >
-                <span>{{ formatTime(item.message.created_at) }}</span>
+            </div>
 
-                <!-- Delivery indicator for sender -->
-                <template v-if="item.isSender">
-                  <span
-                    v-if="item.message.status === 'sending'"
-                    :data-test="`delivery-indicator-${item.message.id}`"
-                    class="inline-flex items-center gap-1 italic text-white/85"
-                  >
-                    <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-                    </svg>
-                    <span>Sending...</span>
-                  </span>
-                  <span
-                    v-else-if="item.message.status === 'sent'"
-                    :data-test="`delivery-indicator-${item.message.id}`"
-                    class="font-bold text-white tracking-tighter"
-                    title="Sent"
-                  >
-                    ✓✓
-                  </span>
-                </template>
+              <!-- Time for Recipient (Outside, Right of bubble) -->
+              <div
+                v-if="!item.isSender"
+                class="text-[10.5px] font-mono text-[var(--ap-text-muted)] select-none shrink-0 mb-1"
+              >
+                {{ formatTime(item.message.created_at) }}
               </div>
             </div>
 
@@ -855,15 +859,20 @@ onUnmounted(() => {
       </template>
     </div>
 
-    <!-- Floating "New Messages" Pill -->
+    <!-- Floating "Scroll to Bottom" Button / Pill -->
     <button
-      v-if="unreadNewCount > 0"
+      v-if="!isNearBottom"
       type="button"
       data-test="scroll-to-bottom"
-      class="absolute bottom-3 right-6 z-10 px-3.5 py-1.5 rounded-full bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium shadow-lg shadow-blue-500/30 transition-transform animate-bounce flex items-center gap-1.5 cursor-pointer backdrop-blur-md"
+      class="absolute bottom-3 right-6 z-10 transition-all cursor-pointer backdrop-blur-md shadow-lg"
+      :class="unreadNewCount > 0
+        ? 'px-3.5 py-1.5 rounded-full bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium shadow-blue-500/30 animate-bounce flex items-center gap-1.5'
+        : 'w-9 h-9 rounded-full bg-white/80 dark:bg-[#1a1d28]/90 hover:bg-white dark:hover:bg-[#1a1d28] border border-black/10 dark:border-white/10 text-[var(--ap-text-primary)] flex items-center justify-center shadow-black/10 hover:scale-105 active:scale-95'"
+      :aria-label="unreadNewCount > 0 ? `${unreadNewCount} new messages` : 'Scroll to bottom'"
       @click="scrollToBottom(true)"
     >
-      <span>↓ {{ unreadNewCount }} new message{{ unreadNewCount > 1 ? 's' : '' }}</span>
+      <span v-if="unreadNewCount > 0">↓ {{ unreadNewCount }} new message{{ unreadNewCount > 1 ? 's' : '' }}</span>
+      <ChevronDown v-else class="w-4 h-4 text-[var(--ap-text-secondary)]" />
     </button>
   </div>
 </template>

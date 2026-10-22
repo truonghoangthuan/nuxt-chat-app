@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import type { ChatMessage, EncryptedImageMetadata } from '~/types/chat'
+import type { ChatMessage, EncryptedImageMetadata, Profile } from '~/types/chat'
 import { useChatRoom } from '~/composables/useChatRoom'
 import { useAuthProfile } from '~/composables/useAuthProfile'
 import { useTheme } from '~/composables/useTheme'
@@ -13,6 +13,7 @@ import CreateGroupModal from '~/components/CreateGroupModal.vue'
 import GroupInfoModal from '~/components/GroupInfoModal.vue'
 import ProfileSettingsModal from '~/components/ProfileSettingsModal.vue'
 import ImageViewerModal from '~/components/ImageViewerModal.vue'
+import UserProfileModal from '~/components/UserProfileModal.vue'
 import NotificationToastContainer from '~/components/NotificationToastContainer.vue'
 import NotificationPermissionBanner from '~/components/NotificationPermissionBanner.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
@@ -98,6 +99,13 @@ const isContactsModalOpen = ref(false)
 const isCreateGroupModalOpen = ref(false)
 const isGroupInfoModalOpen = ref(false)
 const isProfileSettingsModalOpen = ref(false)
+const isUserProfileModalOpen = ref(false)
+const selectedUserProfile = ref<Profile | null>(null)
+
+function handleViewProfile(profile: Profile) {
+  selectedUserProfile.value = profile
+  isUserProfileModalOpen.value = true
+}
 const replyingTo = ref<ChatMessage | null>(null)
 const isLightboxOpen = ref(false)
 const lightboxImages = ref<EncryptedImageMetadata[]>([])
@@ -475,6 +483,7 @@ onUnmounted(() => {
           @toggle-reaction="toggleReaction($event.messageId, $event.emoji)"
           @select-image="handleOpenLightbox"
           @toggle-pin="togglePinMessage"
+          @view-profile="handleViewProfile"
         />
 
         <!-- Message Composer -->
@@ -532,6 +541,16 @@ onUnmounted(() => {
         :profile="currentProfile"
         @close="isProfileSettingsModalOpen = false"
         @save="handleSaveProfile"
+      />
+
+      <!-- User Profile View Modal -->
+      <UserProfileModal
+        :is-open="isUserProfileModalOpen"
+        :profile="selectedUserProfile"
+        :is-online="onlineFriends.some(f => f.id === selectedUserProfile?.id)"
+        :is-current-user="selectedUserProfile?.id === currentProfile?.id"
+        @close="isUserProfileModalOpen = false"
+        @start-dm="handleStartDirectChat"
       />
 
       <!-- Image Lightbox Viewer Modal -->
