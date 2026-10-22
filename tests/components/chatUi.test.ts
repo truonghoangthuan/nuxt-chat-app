@@ -560,6 +560,33 @@ describe('Chat UI components', () => {
     expect(code.classes()).toContain('font-mono')
   })
 
+  it('MessageViewport desktop toolbar renders pin button and emits togglePin', async () => {
+    const wrapper = mount(MessageViewport, {
+      props: {
+        channelId: 'ch-1',
+        currentUserId: 'u-1',
+        messages: [
+          {
+            id: 'm-pinned-item',
+            client_id: 'c-1',
+            channel_id: 'ch-1',
+            user_id: 'u-1',
+            content: 'Pinned note',
+            created_at: '2026-10-22T10:00:00Z',
+            status: 'sent',
+            pinned_at: '2026-10-22T10:05:00Z',
+            author: { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' },
+          },
+        ],
+      },
+    })
+
+    const pinBtn = wrapper.find('[data-test="pin-m-pinned-item"]')
+    expect(pinBtn.exists()).toBe(true)
+    await pinBtn.trigger('click')
+    expect(wrapper.emitted('togglePin')?.[0]).toEqual(['m-pinned-item'])
+  })
+
   describe('Direct Messages UI in ChatSidebar (Sub-Project 4)', () => {
     it('ChatSidebar renders dmChannels with peer name and emits startDmWithUser when clicking an online friend', async () => {
       const wrapper = mount(ChatSidebar, {

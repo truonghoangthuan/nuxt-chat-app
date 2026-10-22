@@ -45,6 +45,7 @@ const emit = defineEmits<{
   (e: 'delete', messageId: string): void
   (e: 'toggleReaction', payload: { messageId: string; emoji: string }): void
   (e: 'selectImage', payload: { images: EncryptedImageMetadata[]; initialIndex: number }): void
+  (e: 'togglePin', messageId: string): void
 }>()
 
 const viewportRef = ref<HTMLDivElement | null>(null)
@@ -398,6 +399,15 @@ onUnmounted(() => {
             </button>
             <button
               type="button"
+              :data-test="`pin-${item.message.id}`"
+              class="px-2 py-0.5 text-[11px] font-medium text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] rounded-full hover:bg-black/5 dark:hover:bg-white/15 cursor-pointer"
+              :title="item.message.pinned_at ? 'Unpin' : 'Pin'"
+              @click="emit('togglePin', item.message.id)"
+            >
+              {{ item.message.pinned_at ? 'Unpin' : 'Pin' }}
+            </button>
+            <button
+              type="button"
               :data-test="`reply-${item.message.id}`"
               class="px-2 py-0.5 text-[11px] font-medium text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] rounded-full hover:bg-black/5 dark:hover:bg-white/15 cursor-pointer"
               @click="emit('reply', item.message)"
@@ -435,6 +445,7 @@ onUnmounted(() => {
             @reply="emit('reply', $event)"
             @edit="startEdit"
             @delete="emit('delete', $event)"
+            @toggle-pin="emit('togglePin', $event)"
           />
 
           <!-- Message Column (Header + Bubble + Delivery States + Reactions) -->

@@ -53,4 +53,18 @@ describe('MessageActionsMenu', () => {
     await wrapper.find('[data-test="mobile-delete"]').trigger('click')
     expect(wrapper.emitted('delete')?.[0]).toEqual(['m-1'])
   })
+
+  it('renders Pin/Unpin button and emits togglePin when clicked', async () => {
+    const wrapper = mount(MessageActionsMenu, {
+      props: { message, currentUserId: 'u-1' },
+    })
+
+    await wrapper.find('[data-test="open-mobile-actions"]').trigger('click')
+    const pinBtn = wrapper.find('[data-test="mobile-pin"]')
+    expect(pinBtn.exists()).toBe(true)
+    expect(pinBtn.text()).toBe('Pin')
+
+    await pinBtn.trigger('click')
+    expect(wrapper.emitted('togglePin')?.[0]).toEqual(['m-1'])
+  })
 })
