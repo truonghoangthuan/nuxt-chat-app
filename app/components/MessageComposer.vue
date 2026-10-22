@@ -61,6 +61,17 @@ const dismissedMentionStartIndex = ref<number | null>(null)
 const validationError = ref('')
 const pendingAttachments = ref<Array<{ file: File; url: string }>>([])
 
+watch(
+  () => props.replyingTo,
+  (val) => {
+    if (val) {
+      nextTick(() => {
+        textareaRef.value?.focus()
+      })
+    }
+  },
+)
+
 const activeMention = computed(() => {
   const current = extractActiveMentionQuery(content.value, cursorIndex.value)
   if (!current) return null

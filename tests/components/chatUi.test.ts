@@ -366,6 +366,34 @@ describe('Chat UI components', () => {
     expect(wrapper.emitted('cancelReply')).toBeTruthy()
   })
 
+  it('MessageComposer focuses textarea when replyingTo is set', async () => {
+    const wrapper = mount(MessageComposer, {
+      attachTo: document.body,
+      props: {
+        channelSlug: 'general',
+        replyingTo: null,
+      },
+    })
+    const textarea = wrapper.find('textarea')
+    const focusSpy = vi.spyOn(textarea.element, 'focus')
+
+    await wrapper.setProps({
+      replyingTo: {
+        id: 'm-1',
+        client_id: 'c-1',
+        channel_id: 'ch-1',
+        user_id: 'u-alice',
+        content: 'Original message',
+        created_at: '2026-10-18T10:00:00Z',
+        status: 'sent',
+      },
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(focusSpy).toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('ChatSidebar renders @ mention badge alongside unread count when unreadMentions > 0', () => {
     const wrapper = mount(ChatSidebar, {
       props: {
