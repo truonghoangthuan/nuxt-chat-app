@@ -30,6 +30,7 @@ import {
   isValidEmail,
   getDirectPeer,
   formatConversationTitle,
+  validateBackgroundFile,
 } from '~/utils/chat'
 import { isEncryptedEnvelope, encryptContent, decryptContent, encryptBinary } from '~/utils/crypto'
 import { createMessagesStore } from '~/composables/useMessagesState'
@@ -1024,6 +1025,7 @@ export function useChatRoom() {
             peer,
             lastMessage: lastMsg,
             unreadCount: unreadCounts.value[c.id] || 0,
+            background_url: c.background_url || null,
           }
         })
         conversations.value = convs
@@ -1741,6 +1743,7 @@ export function useChatRoom() {
         { conversation_id: convData.id, user_id: peerUserId, role: 'member', joined_at: new Date().toISOString(), profile: peerProfile || null },
       ],
       unreadCount: 0,
+      background_url: convData.background_url || null,
     }
 
     if (!conversations.value.some(c => c.id === newConv.id)) {
@@ -1807,6 +1810,7 @@ export function useChatRoom() {
       updated_at: convData.updated_at || new Date().toISOString(),
       members: memberList,
       unreadCount: 0,
+      background_url: convData.background_url || null,
     }
 
     if (!conversations.value.some(c => c.id === newGroup.id)) {
@@ -1932,6 +1936,115 @@ export function useChatRoom() {
       targetConv.title = previousTitle
       targetConv.updated_at = previousUpdatedAt
       return { error: err?.message || 'Failed to update group title.' }
+    }
+  }
+
+  async function updateChatBackground(
+    conversationId: string,
+    backgroundOrFile: string | File,
+  ): Promise<{ error: string | null }> {
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    if (!current?.id) {
+      return { error: 'Not authenticated.' }
+    }
+
+    const targetConv = conversations.value.find(c => c.id === conversationId)
+    if (!targetConv) {
+      return { error: 'Conversation not found.' }
+    }
+
+    let finalUrl: string
+    if (typeof backgroundOrFile !== 'string') {
+      const file = backgroundOrFile
+      const validation = validateBackgroundFile(file)
+      if (!validation.valid) {
+        return { error: validation.error || 'Invalid background file.' }
+      }
+
+      try {
+        const ext = file.name ? file.name.split('.').pop() || 'jpg' : 'jpg'
+        const filePath = `conversations/${conversationId}/bg-${Date.now()}.${ext}`
+        const { error: uploadError } = await supabase.storage
+          .from('chat-backgrounds')
+          .upload(filePath, file, { contentType: file.type, upsert: true })
+
+        if (uploadError) {
+          return { error: uploadError.message || 'Failed to upload background image.' }
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from('chat-backgrounds')
+          .getPublicUrl(filePath)
+
+        finalUrl = publicUrlData.publicUrl
+      } catch (err: any) {
+        return { error: err?.message || 'Failed to upload background image.' }
+      }
+    } else {
+      finalUrl = backgroundOrFile.trim()
+    }
+
+    const prevBg = targetConv.background_url
+    const prevUpdated = targetConv.updated_at
+    const nowIso = new Date().toISOString()
+
+    // Optimistic update
+    targetConv.background_url = finalUrl
+    targetConv.updated_at = nowIso
+
+    try {
+      const { error: dbError } = await supabase
+        .from('conversations')
+        .update({ background_url: finalUrl, updated_at: nowIso })
+        .eq('id', conversationId)
+
+      if (dbError) {
+        targetConv.background_url = prevBg
+        targetConv.updated_at = prevUpdated
+        return { error: dbError.message || 'Failed to update background.' }
+      }
+      return { error: null }
+    } catch (err: any) {
+      targetConv.background_url = prevBg
+      targetConv.updated_at = prevUpdated
+      return { error: err?.message || 'Failed to update background.' }
+    }
+  }
+
+  async function removeChatBackground(conversationId: string): Promise<{ error: string | null }> {
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    if (!current?.id) {
+      return { error: 'Not authenticated.' }
+    }
+
+    const targetConv = conversations.value.find(c => c.id === conversationId)
+    if (!targetConv) {
+      return { error: 'Conversation not found.' }
+    }
+
+    const prevBg = targetConv.background_url
+    const prevUpdated = targetConv.updated_at
+    const nowIso = new Date().toISOString()
+
+    targetConv.background_url = null
+    targetConv.updated_at = nowIso
+
+    try {
+      const { error: dbError } = await supabase
+        .from('conversations')
+        .update({ background_url: null, updated_at: nowIso })
+        .eq('id', conversationId)
+
+      if (dbError) {
+        targetConv.background_url = prevBg
+        targetConv.updated_at = prevUpdated
+        return { error: dbError.message || 'Failed to reset background.' }
+      }
+      return { error: null }
+    } catch (err: any) {
+      targetConv.background_url = prevBg
+      targetConv.updated_at = prevUpdated
+      return { error: err?.message || 'Failed to reset background.' }
     }
   }
 
@@ -2632,6 +2745,8 @@ export function useChatRoom() {
     addMemberToGroup,
     leaveGroup,
     updateGroupTitle,
+    updateChatBackground,
+    removeChatBackground,
     loadConversations,
 
     // Transitional aliases for channels and legacy components

@@ -1936,4 +1936,27 @@ let capturedMessagesSelect = ''
     expect(capturedSelect).toContain('author:profiles!messages_user_id_fkey')
     expect(capturedSelect).not.toMatch(/author:profiles\(/)
   })
+
+  it('updates chat background with a preset and syncs to conversation state', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Background Group', ['u-bob'])
+
+    const res = await room.updateChatBackground(group.id, 'preset:aurora')
+    expect(res.error).toBeNull()
+
+    const updated = room.conversations.value.find(c => c.id === group.id)
+    expect(updated?.background_url).toBe('preset:aurora')
+  })
+
+  it('removes chat background and resets to null', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Background Reset Group', ['u-bob'])
+    await room.updateChatBackground(group.id, 'preset:sunset')
+
+    const res = await room.removeChatBackground(group.id)
+    expect(res.error).toBeNull()
+
+    const updated = room.conversations.value.find(c => c.id === group.id)
+    expect(updated?.background_url).toBeNull()
+  })
 })
