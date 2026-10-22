@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import type { ChatMessage, EncryptedImageMetadata, Profile } from '~/types/chat'
-import { buildMessageTimeline, REACTION_EMOJIS, summarizeReactions, tokenizeMessageMentions } from '~/utils/chat'
+import { buildMessageTimeline, REACTION_EMOJIS, summarizeReactions, tokenizeMessageMentions, highlightTextSegments } from '~/utils/chat'
 import { isImagePayload, parseImagePayload, formatImageMessageSummary } from '~/utils/image'
 import UserAvatar from '~/components/UserAvatar.vue'
 import MessageImageGrid from '~/components/MessageImageGrid.vue'
@@ -21,6 +21,7 @@ const props = withDefaults(
     currentDisplayName?: string
     lastReadAt?: string | null
     loadOlder?: () => Promise<number>
+    searchQuery?: string
   }>(),
   {
     conversationId: null,
@@ -34,6 +35,7 @@ const props = withDefaults(
     currentDisplayName: '',
     lastReadAt: null,
     loadOlder: () => Promise.resolve(0),
+    searchQuery: '',
   },
 )
 
@@ -81,7 +83,7 @@ const currentPinnedMessage = computed(() => {
   return pinnedMessages.value[currentPinnedIndex.value] || null
 })
 
-function jumpToPinnedMessage(messageId: string) {
+function jumpToMessage(messageId: string) {
   const el = document.getElementById(`message-${messageId}`) || viewportRef.value?.querySelector(`[data-message-id="${messageId}"]`)
   if (el) {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -93,6 +95,14 @@ function jumpToPinnedMessage(messageId: string) {
     }, 2500)
   }
 }
+
+function jumpToPinnedMessage(messageId: string) {
+  jumpToMessage(messageId)
+}
+
+defineExpose({
+  jumpToMessage,
+})
 
 function startEdit(msg: ChatMessage) {
   editingMessageId.value = msg.id
@@ -715,7 +725,18 @@ onUnmounted(() => {
                         ? 'bg-white/20 border-white/30 text-white'
                         : 'bg-black/5 dark:bg-white/10 border-black/10 dark:border-white/10 text-pink-600 dark:text-pink-400'"
                     >{{ seg.text }}</code>
-                    <span v-else>{{ seg.text }}</span>
+                    <template v-else>
+                      <template v-if="searchQuery">
+                        <template v-for="(chunk, cIdx) in highlightTextSegments(seg.text, searchQuery)" :key="cIdx">
+                          <mark
+                            v-if="chunk.isMatch"
+                            class="bg-amber-400/40 dark:bg-amber-400/50 text-inherit rounded-xs px-0.5"
+                          >{{ chunk.text }}</mark>
+                          <span v-else>{{ chunk.text }}</span>
+                        </template>
+                      </template>
+                      <span v-else>{{ seg.text }}</span>
+                    </template>
                   </template>
                 </div>
               </div>
@@ -779,7 +800,18 @@ onUnmounted(() => {
                       ? 'bg-white/20 border-white/30 text-white'
                       : 'bg-black/5 dark:bg-white/10 border-black/10 dark:border-white/10 text-pink-600 dark:text-pink-400'"
                   >{{ seg.text }}</code>
-                  <span v-else>{{ seg.text }}</span>
+                  <template v-else>
+                    <template v-if="searchQuery">
+                      <template v-for="(chunk, cIdx) in highlightTextSegments(seg.text, searchQuery)" :key="cIdx">
+                        <mark
+                          v-if="chunk.isMatch"
+                          class="bg-amber-400/40 dark:bg-amber-400/50 text-inherit rounded-xs px-0.5"
+                        >{{ chunk.text }}</mark>
+                        <span v-else>{{ chunk.text }}</span>
+                      </template>
+                    </template>
+                    <span v-else>{{ seg.text }}</span>
+                  </template>
                 </template>
                 <span
                   v-if="item.message.edited_at && !item.message.deleted_at"
