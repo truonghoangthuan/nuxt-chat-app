@@ -141,6 +141,14 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - **Absolute Asset Paths:** Windows Notification Platform XML parsers reject relative icon paths (`/favicon.ico`). Always resolve absolute URLs using `${window.location.origin}/...`.
     - **Proactive Permission UX:** Browser `Notification.permission` defaults to `'default'`. Never assume notifications are active without permission; surface a non-intrusive permission banner triggered by explicit user gestures.
 
+14. **PostgREST Multi-FK Embedding Disambiguation (`PGRST201`):**
+    - When a table has multiple foreign keys referencing the same target table (e.g., `messages.user_id` and `messages.pinned_by` -> `profiles.id`, or `contacts.user_id` and `contacts.contact_user_id` -> `profiles.id`), PostgREST cannot infer relationship embedding without explicit disambiguation.
+    - Every join query MUST explicitly name the foreign key constraint: e.g., `author:profiles!messages_user_id_fkey(...)` or `profile:profiles!contacts_contact_user_id_fkey(*)`. Bare `author:profiles(...)` will fail in production with HTTP 300 / `PGRST201`.
+
+15. **Schema Column Projection Discipline (`42703`) & PL/pgSQL Delimiters:**
+    - **Projection Discipline:** Never project unmigrated, renamed, or obsolete columns (e.g., `channel_id` on `public.messages`) in Supabase `.select()` projections; PostgREST translates them to SQL queries that immediately fail with HTTP 400 (`code: 42703`). Always project actual schema columns (`conversation_id`).
+    - **PL/pgSQL Body Delimiters:** Always enclose PostgreSQL function bodies in `as $$ ... $$;`. Single `$` is a syntax error in PostgreSQL. In JS scripts or string replacement helpers, never use `str.replace(target, '...$$...')` directly because JS treats `$$` as an unescape pattern for a literal `$`; always use `str.replace(target, () => '...$$...')` or `split/join`.
+
 ## 5. Testing Standards
 
 - **Path Aliases:** Both `~` and `@` resolve to `./app` in Nuxt and `vitest.config.ts`.
