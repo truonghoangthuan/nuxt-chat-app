@@ -30,6 +30,9 @@ import {
   filterMessagesByKeyword,
   highlightTextSegments,
   escapeRegExp,
+  validateBackgroundFile,
+  resolveChatBackgroundStyle,
+  CHAT_BACKGROUND_PRESETS,
 } from '~/utils/chat'
 import type { ChatMessage, Conversation, Profile } from '~/types/chat'
 
@@ -758,6 +761,26 @@ describe('Conversation utilities', () => {
         { text: '$100.00', isMatch: true },
         { text: ' today', isMatch: false },
       ])
+    })
+  })
+
+  describe('Chat Background Helpers', () => {
+    it('validates allowed image types and size limit', () => {
+      expect(validateBackgroundFile({ type: 'image/png', size: 1024 } as any)).toEqual({ valid: true })
+      expect(validateBackgroundFile({ type: 'application/pdf', size: 1024 } as any).valid).toBe(false)
+      expect(validateBackgroundFile({ type: 'image/jpeg', size: 6 * 1024 * 1024 } as any).valid).toBe(false)
+    })
+
+    it('resolves preset styles and custom URLs correctly', () => {
+      expect(resolveChatBackgroundStyle(null)).toBeNull()
+      expect(resolveChatBackgroundStyle('')).toBeNull()
+
+      const presetStyle = resolveChatBackgroundStyle('preset:aurora')
+      expect(presetStyle).not.toBeNull()
+      expect(presetStyle?.backgroundImage).toContain('gradient')
+
+      const urlStyle = resolveChatBackgroundStyle('https://example.com/bg.jpg')
+      expect(urlStyle?.backgroundImage).toBe('url("https://example.com/bg.jpg")')
     })
   })
 })
