@@ -1,10 +1,10 @@
-# Client-Side Decrypted Message Search Implementation Plan
+# Client-Side Decrypted Message Search & User Profile Enhancements Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement client-side decrypted message search across active conversation messages with in-header search bar, match navigation, keyword `<mark>` highlighting, and smooth jump-to-message with ring highlight.
+**Goal:** Implement client-side decrypted message search across active conversation messages with in-header search bar, match navigation, keyword `<mark>` highlighting, smooth jump-to-message with ring highlight, enlarged user profile dialog avatars, and click-to-view profile triggers across chat headers and rosters.
 
-**Architecture:** A pure utility layer in `app/utils/chat.ts` filters decrypted messages and segments text for keyword highlighting. `MessageViewport.vue` exposes `jumpToMessage` and wraps matching substrings in `<mark>`. A dedicated `MessageSearchBar.vue` provides in-header search inputs, match counters, and next/prev controls, integrated into `app/pages/index.vue` with `Cmd+F` / `Ctrl+F` shortcuts.
+**Architecture:** A pure utility layer in `app/utils/chat.ts` filters decrypted messages and segments text for keyword highlighting. `MessageViewport.vue` exposes `jumpToMessage` and wraps matching substrings in `<mark>`. A dedicated `MessageSearchBar.vue` provides in-header search inputs, match counters, and next/prev controls, integrated into `app/pages/index.vue` with `Cmd+F` / `Ctrl+F` shortcuts. `UserAvatar.vue` adds `xl` and `2xl` sizing options, `UserProfileModal.vue` uses an enlarged 80px avatar, and member avatar/name clicks in header and group info modal trigger the profile modal.
 
 **Tech Stack:** Nuxt 4, Vue 3 Composition API, Tailwind CSS, Lucide icons (`Search`, `ChevronUp`, `ChevronDown`, `X`), Vitest with `@vue/test-utils` and `happy-dom`.
 
@@ -12,7 +12,7 @@
 
 - Never send plaintext message content or search queries to the Supabase server or database.
 - Search must operate strictly in-memory on decrypted `ChatMessage` objects in the active store.
-- Preserve all existing `MessageViewport.vue` and `index.vue` data-test attributes and component contracts.
+- Preserve all existing `MessageViewport.vue`, `UserProfileModal.vue`, and `index.vue` data-test attributes and component contracts.
 - Maintain SSR and Vitest safety by guarding window/document references.
 
 ---
@@ -211,7 +211,7 @@ git commit -m "feat(utils): add filterMessagesByKeyword and highlightTextSegment
 Create `tests/components/MessageViewportSearch.test.ts`:
 
 ```typescript
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import MessageViewport from '~/components/MessageViewport.vue'
 import type { ChatMessage } from '~/types/chat'
@@ -664,7 +664,205 @@ git commit -m "feat(search): add in-header MessageSearchBar with match cycling a
 
 ---
 
-### Task 4: Full Test Suite Verification & Integration Check
+### Task 4: Enlarged Avatar in `UserProfileModal.vue` & Member Profile Triggers across Header & Roster
+
+**Files:**
+- Modify: `app/components/UserAvatar.vue`
+- Modify: `app/components/UserProfileModal.vue`
+- Modify: `app/components/GroupInfoModal.vue`
+- Modify: `app/pages/index.vue`
+- Modify: `tests/components/UserProfileModal.test.ts`
+- Modify: `tests/components/GroupModals.test.ts`
+
+**Interfaces:**
+- Consumes:
+  - `Profile` from `~/types/chat`
+  - `UserAvatar` size options
+- Produces:
+  - `size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'` in `UserAvatar.vue`
+  - 80px enlarged avatar in `UserProfileModal.vue` (`size="2xl"`)
+  - Clickable avatar and name in direct chat header (`index.vue`) opening `UserProfileModal`
+  - Clickable member avatar and name in `GroupInfoModal.vue` emitting `viewProfile` to open `UserProfileModal`
+
+- [ ] **Step 1: Write/update tests for enlarged avatar and roster click-to-profile**
+
+In `tests/components/UserProfileModal.test.ts`, update assertions to verify `size="2xl"` avatar is rendered:
+
+```typescript
+it('renders enlarged 2xl avatar in user profile modal', () => {
+  const wrapper = mount(UserProfileModal, {
+    props: {
+      isOpen: true,
+      profile: sampleProfile,
+    },
+  })
+
+  const avatar = wrapper.findComponent({ name: 'UserAvatar' })
+  expect(avatar.exists()).toBe(true)
+  expect(avatar.props('size')).toBe('2xl')
+})
+```
+
+In `tests/components/GroupModals.test.ts`, add test for clicking member in roster emits `viewProfile`:
+
+```typescript
+it('emits viewProfile when clicking a member item in the roster', async () => {
+  const wrapper = mount(GroupInfoModal, {
+    props: {
+      isOpen: true,
+      conversation: sampleConversation,
+    },
+  })
+
+  const memberItem = wrapper.find('[data-test="member-item-user-2"]')
+  expect(memberItem.exists()).toBe(true)
+
+  await memberItem.trigger('click')
+  expect(wrapper.emitted('viewProfile')).toBeTruthy()
+  expect(wrapper.emitted('viewProfile')?.[0][0]).toEqual(sampleConversation.members[1].profile)
+})
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx vitest run tests/components/UserProfileModal.test.ts tests/components/GroupModals.test.ts`
+Expected: FAIL.
+
+- [ ] **Step 3: Update `UserAvatar.vue` to support `xl` and `2xl`**
+
+In `app/components/UserAvatar.vue`:
+```typescript
+const props = withDefaults(
+  defineProps<{
+    displayName: string
+    avatarColor?: string
+    avatarUrl?: string | null
+    showOnline?: boolean
+    size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
+  }>(),
+  {
+    avatarColor: '',
+    avatarUrl: '',
+    showOnline: false,
+    size: 'md',
+  },
+)
+
+const sizeClasses = computed(() => {
+  if (props.size === 'sm') return 'w-7 h-7 rounded-[7px] text-[11px]'
+  if (props.size === 'lg') return 'w-11 h-11 rounded-[11px] text-sm'
+  if (props.size === 'xl') return 'w-16 h-16 rounded-[16px] text-xl'
+  if (props.size === '2xl') return 'w-20 h-20 rounded-[20px] text-2xl'
+  return 'w-9 h-9 rounded-[9px] text-[13px]'
+})
+
+const dotClasses = computed(() => {
+  if (props.size === 'sm') return 'w-2 h-2 -bottom-0.5 -right-0.5'
+  if (props.size === 'lg') return 'w-3 h-3 -bottom-0.5 -right-0.5'
+  if (props.size === 'xl') return 'w-3.5 h-3.5 -bottom-0.5 -right-0.5'
+  if (props.size === '2xl') return 'w-4 h-4 -bottom-0.5 -right-0.5 ring-[3px]'
+  return 'w-2.5 h-2.5 -bottom-0.5 -right-0.5'
+})
+```
+
+- [ ] **Step 4: Update `UserProfileModal.vue` with `size="2xl"` avatar**
+
+In `app/components/UserProfileModal.vue`:
+```vue
+      <!-- Profile Header (Avatar + Name + Status) -->
+      <div class="flex flex-col items-center text-center gap-3.5 mt-2">
+        <UserAvatar
+          :display-name="profile.display_name"
+          :avatar-color="profile.avatar_color"
+          :avatar-url="profile.avatar_url"
+          :show-online="isOnline"
+          size="2xl"
+          class="ring-4 ring-black/5 dark:ring-white/10 shadow-xl"
+        />
+
+        <div class="flex flex-col items-center gap-1">
+          <h3 class="text-lg font-bold text-[var(--ap-text-primary)] tracking-tight">
+            {{ profile.display_name }}
+          </h3>
+...
+```
+
+- [ ] **Step 5: Wire `viewProfile` click triggers in `GroupInfoModal.vue` and `index.vue` header**
+
+In `app/components/GroupInfoModal.vue`:
+1. Add emit:
+```typescript
+const emit = defineEmits<{
+  (e: 'close'): void
+  (e: 'leave', conversationId: string): void
+  (e: 'addMember', email: string): void
+  (e: 'updateTitle', newTitle: string): void
+  (e: 'viewProfile', profile: Profile): void
+}>()
+```
+2. In Member Roster row:
+```vue
+<div
+  v-for="member in members"
+  :key="member.user_id"
+  :data-test="`member-item-${member.user_id}`"
+  class="flex items-center justify-between p-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer"
+  @click="member.profile && emit('viewProfile', member.profile)"
+>
+```
+
+In `app/pages/index.vue`:
+1. In header direct chat peer avatar and name:
+```vue
+<div
+  class="min-w-0 flex items-center gap-2.5 cursor-pointer hover:opacity-85 transition-opacity"
+  @click="activeConversation?.peer && handleViewProfile(activeConversation.peer)"
+>
+  <UserAvatar
+    :display-name="activeConversation.peer?.display_name || 'Friend'"
+    :avatar-color="activeConversation.peer?.avatar_color"
+    :avatar-url="activeConversation.peer?.avatar_url"
+    :show-online="onlineFriends.some(f => f.id === activeConversation?.peer?.id)"
+    size="sm"
+  />
+  <div class="min-w-0 flex items-center gap-2">
+    <h2 class="text-[14px] font-semibold text-[var(--ap-text-primary)] flex items-center gap-1 truncate">
+      <span class="text-blue-500 dark:text-blue-400 font-mono">@</span>
+      <span class="truncate">{{ activeConversation.peer?.display_name || 'Direct Message' }}</span>
+    </h2>
+...
+```
+2. On `<GroupInfoModal ...>`:
+```vue
+<GroupInfoModal
+  :is-open="isGroupInfoModalOpen"
+  :conversation="activeConversation"
+  :current-user-id="currentProfile?.id"
+  :online-user-ids="onlineFriends.map(f => f.id)"
+  @close="isGroupInfoModalOpen = false"
+  @leave="handleLeaveGroup"
+  @add-member="handleAddMember"
+  @update-title="handleUpdateGroupTitle"
+  @view-profile="handleViewProfile"
+/>
+```
+
+- [ ] **Step 6: Run tests to verify all tests pass**
+
+Run: `npx vitest run tests/components/UserProfileModal.test.ts tests/components/GroupModals.test.ts`
+Run: `npm test`
+Expected: PASS.
+
+- [ ] **Step 7: Commit changes**
+
+```bash
+git add app/components/UserAvatar.vue app/components/UserProfileModal.vue app/components/GroupInfoModal.vue app/pages/index.vue tests/components/UserProfileModal.test.ts tests/components/GroupModals.test.ts
+git commit -m "feat(profile): enlarge avatar to 2xl in UserProfileModal and add viewProfile triggers in header and group roster"
+```
+
+---
+
+### Task 5: Full Test Suite Verification & Integration Check
 
 **Files:**
 - Test: All test files in `tests/`
@@ -674,13 +872,12 @@ git commit -m "feat(search): add in-header MessageSearchBar with match cycling a
 Run: `npm test`
 Expected: 295+ tests passing across all suites.
 
-- [ ] **Step 2: Check git status and build verification**
+- [ ] **Step 2: Check build verification**
 
 Run: `npm run build`
 Expected: Production build succeeds with 0 errors.
 
-- [ ] **Step 3: Final commit if needed**
+- [ ] **Step 3: Verification before completion**
 
-```bash
-git status
-```
+Run: `git status`
+Expected: Clean working tree.

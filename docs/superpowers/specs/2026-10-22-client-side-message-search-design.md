@@ -1,10 +1,10 @@
-# Client-Side Decrypted Message Search Design Specification
+# Client-Side Decrypted Message Search & User Profile Dialog Design Specification
 
 ## Overview
 
 Messages in `nuxt-chat-app` are stored end-to-end encrypted (AES-GCM-256) in Postgres. The server cannot perform `LIKE` queries or full-text indexing without access to the encryption key. Therefore, search across message text must happen entirely on the client after messages are decrypted in memory.
 
-This feature introduces an in-memory client-side message search system for the active conversation, featuring an in-header search bar, match navigation, keyword text highlighting, and smooth auto-scrolling with bubble ring animation.
+In addition, member profiles can be viewed in a dedicated `UserProfileModal` dialog. This specification covers both the client-side search feature and the enhancement to make member avatars in the user profile dialog significantly larger, ensuring member avatars and names across headers, rosters, and chat views reliably open this profile modal.
 
 ---
 
@@ -73,7 +73,7 @@ Expose `jumpToMessage(messageId: string): void` via `defineExpose`:
 
 ---
 
-## 3. In-Header Search Bar & UX (`app/pages/index.vue` or `app/components/MessageSearchBar.vue`)
+## 3. In-Header Search Bar & UX (`app/pages/index.vue` and `app/components/MessageSearchBar.vue`)
 
 ### 3.1 Trigger & Shortcuts
 - A `Search` icon button in the header toolbar (`data-test="open-search-btn"`).
@@ -81,7 +81,7 @@ Expose `jumpToMessage(messageId: string): void` via `defineExpose`:
 - `Escape` key closes the search bar and clears the active query.
 
 ### 3.2 Search Controls & State
-- State in `index.vue` (or `MessageSearchBar.vue`):
+- State in `index.vue` and `MessageSearchBar.vue`:
   - `isSearchOpen = ref(false)`
   - `searchQuery = ref('')`
   - `searchActiveIndex = ref(0)`
@@ -103,7 +103,29 @@ Expose `jumpToMessage(messageId: string): void` via `defineExpose`:
 
 ---
 
-## 4. Testing Strategy
+## 4. User Profile Dialog Avatar Size & Trigger Enhancements
+
+### 4.1 Enlarged Avatar in `UserProfileModal.vue` & `UserAvatar.vue`
+- Update `UserAvatar.vue`:
+  - Extend `size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'`
+  - Support `xl`: `w-16 h-16 rounded-[16px] text-xl` (64px) with dot `w-3.5 h-3.5`
+  - Support `2xl`: `w-20 h-20 rounded-[20px] text-2xl` (80px) with dot `w-4 h-4`
+- Update `UserProfileModal.vue`:
+  - Upgrade modal avatar from `size="lg"` (44px) to `size="2xl"` (80px).
+  - Add frosted iridescent border ring `ring-4 ring-black/5 dark:ring-white/10 shadow-xl`.
+
+### 4.2 Member Profile Modal Triggers
+- Ensure clicking on member avatar or name triggers `UserProfileModal`:
+  1. **Message Viewport:**
+     - In group / DM chat messages: recipient avatar click and group sender header click emit `viewProfile`.
+  2. **Direct Chat Header (`index.vue`):**
+     - Clicking the peer avatar or name in header triggers `handleViewProfile(activeConversation.peer)`.
+  3. **Group Members Roster (`GroupInfoModal.vue`):**
+     - Clicking a member avatar or name in the members roster emits `viewProfile(member.profile)` to open `UserProfileModal`.
+
+---
+
+## 5. Testing Strategy
 
 1. **Unit Tests (`tests/utils/chat.test.ts`):**
    - Test `filterMessagesByKeyword` with:
@@ -117,9 +139,11 @@ Expose `jumpToMessage(messageId: string): void` via `defineExpose`:
      - Single and multiple matches with case preservation.
      - Regex special characters safely escaped.
 
-2. **Component Tests (`tests/components/chatUi.test.ts` or new `tests/components/MessageSearch.test.ts`):**
+2. **Component Tests (`tests/components/MessageViewportSearch.test.ts`, `tests/components/MessageSearchBar.test.ts`, `tests/components/UserProfileModal.test.ts`):**
    - Renders search toggle button in header.
    - Opening search reveals input field and navigation buttons.
-   - Typing query updates match count.
    - Prev/Next buttons trigger jump to matching message.
    - Keyword highlighting renders `<mark>` tags in `MessageViewport`.
+   - `UserAvatar` supports `xl` and `2xl` sizes.
+   - `UserProfileModal` renders `size="2xl"` avatar.
+   - Clicking member avatar or name in header and roster triggers profile modal.
