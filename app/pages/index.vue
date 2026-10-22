@@ -64,6 +64,7 @@ const {
   dismissMessage,
   editMessage,
   deleteMessage,
+  togglePinMessage,
   toggleReaction,
   loadOlderMessages,
   notifyTyping,
@@ -473,6 +474,7 @@ onUnmounted(() => {
           @delete="deleteMessage($event)"
           @toggle-reaction="toggleReaction($event.messageId, $event.emoji)"
           @select-image="handleOpenLightbox"
+          @toggle-pin="togglePinMessage"
         />
 
         <!-- Message Composer -->

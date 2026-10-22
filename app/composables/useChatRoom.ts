@@ -2386,6 +2386,49 @@ export function useChatRoom() {
     }
   }
 
+  async function togglePinMessage(messageId: string): Promise<{ error: string | null }> {
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    if (!current?.id) {
+      return { error: 'Not authenticated.' }
+    }
+
+    const targetMsg = messages.value.find(m => m.id === messageId)
+    if (!targetMsg) {
+      return { error: 'Message not found.' }
+    }
+
+    const originalPinnedAt = targetMsg.pinned_at ?? null
+    const originalPinnedBy = targetMsg.pinned_by ?? null
+    const wasPinned = Boolean(targetMsg.pinned_at)
+    const newPinnedAt = wasPinned ? null : new Date().toISOString()
+    const newPinnedBy = wasPinned ? null : current.id
+
+    // Optimistic update
+    messagesStore.reconcileUpdatedMessage({
+      id: messageId,
+      pinned_at: newPinnedAt,
+      pinned_by: newPinnedBy,
+    })
+
+    const { data, error } = await supabase.rpc('toggle_pin_message', {
+      p_message_id: messageId,
+    })
+
+    const rpcError = error ? error.message : ((data as any)?.error || null)
+
+    if (rpcError) {
+      // Revert optimistic update
+      messagesStore.reconcileUpdatedMessage({
+        id: messageId,
+        pinned_at: originalPinnedAt,
+        pinned_by: originalPinnedBy,
+      })
+      return { error: rpcError }
+    }
+
+    return { error: null }
+  }
+
   async function deleteMessage(messageId: string): Promise<{ error: string | null }> {
     const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
     if (!current?.id) {
@@ -2591,6 +2634,7 @@ export function useChatRoom() {
     dismissMessage,
     editMessage,
     deleteMessage,
+    togglePinMessage,
     toggleReaction,
     loadOlderMessages,
     notifyTyping,

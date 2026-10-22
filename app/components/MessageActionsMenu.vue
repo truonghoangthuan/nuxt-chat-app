@@ -15,6 +15,7 @@ const emit = defineEmits<{
   (event: 'reply', message: ChatMessage): void
   (event: 'edit', message: ChatMessage): void
   (event: 'delete', messageId: string): void
+  (event: 'togglePin', messageId: string): void
 }>()
 
 const isOpen = ref(false)
@@ -61,6 +62,15 @@ function run(action: () => void) {
         </button>
       </div>
       <div class="mt-1.5 grid gap-0.5">
+        <button
+          type="button"
+          role="menuitem"
+          data-test="mobile-pin"
+          class="rounded-[6px] px-2.5 py-1.5 text-left text-xs font-medium text-[var(--om-text-primary)] hover:bg-[var(--om-hover)] transition-colors cursor-pointer"
+          @click="run(() => emit('togglePin', message.id))"
+        >
+          {{ message.pinned_at ? 'Unpin' : 'Pin' }}
+        </button>
         <button
           type="button"
           role="menuitem"

@@ -320,6 +320,64 @@ create policy "Users can update accessible messages"
   using (auth.uid() = user_id and public.can_access_conversation(conversation_id))
   with check (auth.uid() = user_id and public.can_access_conversation(conversation_id));
 
+-- Migration: add pinned_at and pinned_by columns and partial index
+alter table public.messages
+  add column if not exists pinned_at timestamptz,
+  add column if not exists pinned_by uuid references public.profiles(id) on delete set null;
+
+create index if not exists messages_pinned_idx
+  on public.messages (conversation_id, pinned_at desc)
+  where pinned_at is not null;
+
+-- Function: atomically toggle pinned status of a message
+create or replace function public.toggle_pin_message(p_message_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $
+declare
+  v_msg record;
+  v_pinned_at timestamptz;
+  v_pinned_by uuid;
+begin
+  select id, conversation_id, pinned_at, pinned_by
+  into v_msg
+  from public.messages
+  where id = p_message_id;
+
+  if not found then
+    return jsonb_build_object('error', 'Message not found');
+  end if;
+
+  if not public.can_access_conversation(v_msg.conversation_id) then
+    return jsonb_build_object('error', 'Access denied');
+  end if;
+
+  if v_msg.pinned_at is null then
+    v_pinned_at := now();
+    v_pinned_by := auth.uid();
+  else
+    v_pinned_at := null;
+    v_pinned_by := null;
+  end if;
+
+  update public.messages
+  set pinned_at = v_pinned_at,
+      pinned_by = v_pinned_by
+  where id = p_message_id;
+
+  return jsonb_build_object(
+    'success', true,
+    'pinned_at', v_pinned_at,
+    'pinned_by', v_pinned_by
+  );
+end;
+$;
+
+revoke execute on function public.toggle_pin_message(uuid) from anon;
+grant execute on function public.toggle_pin_message(uuid) to authenticated;
+
 -- ============================================================================
 -- 5. Message Reactions Table
 -- ============================================================================

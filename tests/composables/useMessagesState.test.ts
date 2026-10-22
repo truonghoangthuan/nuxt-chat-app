@@ -487,4 +487,36 @@ describe('useMessagesState', () => {
     expect(store.messages.value[0].conversation_id).toBe('ch-compat-1')
     expect(store.messages.value[0].channel_id).toBe('ch-compat-1')
   })
+
+  it('reconcileUpdatedMessage updates pinned_at and pinned_by', () => {
+    const store = createMessagesStore()
+    const msg = store.addOptimisticMessage({
+      clientId: 'c-1',
+      conversationId: 'conv-1',
+      user: { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' },
+      content: 'Hello pin',
+    })!
+    store.markMessageSent('c-1', { ...msg, id: 'm-1' })
+
+    const pinnedAt = new Date().toISOString()
+    store.reconcileUpdatedMessage({
+      id: 'm-1',
+      pinned_at: pinnedAt,
+      pinned_by: 'u-1',
+    })
+
+    const found = store.messages.value.find(m => m.id === 'm-1')
+    expect(found?.pinned_at).toBe(pinnedAt)
+    expect(found?.pinned_by).toBe('u-1')
+
+    // Unpin
+    store.reconcileUpdatedMessage({
+      id: 'm-1',
+      pinned_at: null,
+      pinned_by: null,
+    })
+    const unpinned = store.messages.value.find(m => m.id === 'm-1')
+    expect(unpinned?.pinned_at).toBeNull()
+    expect(unpinned?.pinned_by).toBeNull()
+  })
 })
