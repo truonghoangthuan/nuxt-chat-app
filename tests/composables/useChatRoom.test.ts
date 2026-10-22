@@ -1026,6 +1026,13 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
 
     mockSupabase = {
       from: vi.fn((table: string) => {
+        if (table === 'conversation_reads' || table === 'channel_reads') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          }
+        }
         if (table === 'messages') {
           return {
             insert: mockInsert,
@@ -1309,9 +1316,11 @@ describe('useChatRoom contacts and conversations', () => {
   let mockMembersDeleteError: any
   let mockConversationsUpdateError: { message: string } | null = null
 let mockTogglePinError: string | null = null
+let capturedMessagesSelect = ''
 
   beforeEach(async () => {
     mockConversationsUpdateError = null
+    capturedMessagesSelect = ''
     mockMembersInsertError = null
     mockMembersDeleteError = null
     mockProfilesDb = new Map([
@@ -1493,14 +1502,20 @@ let mockTogglePinError: string | null = null
         if (table === 'messages') {
           return {
             insert: mockMessagesInsert,
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                order: vi.fn().mockReturnValue({
+            select: vi.fn((fields?: string) => {
+              if (fields) capturedMessagesSelect = fields
+              return {
+                gt: vi.fn().mockReturnValue({
+                  order: vi.fn().mockResolvedValue({ data: [], error: null }),
+                }),
+                eq: vi.fn().mockReturnValue({
                   order: vi.fn().mockReturnValue({
-                    limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+                    order: vi.fn().mockReturnValue({
+                      limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+                    }),
                   }),
                 }),
-              }),
+              }
             }),
           }
         }
@@ -1833,5 +1848,39 @@ let mockTogglePinError: string | null = null
     const after = room.messages.value.find(m => m.id === msg.id)
     expect(after?.pinned_at).toBeNull()
     mockTogglePinError = null
+  })
+
+  it('initializeChat queries recent unread messages using conversation_id without channel_id', async () => {
+    mockConversationsDb.push({
+      id: 'conv-test-1',
+      type: 'public',
+      title: 'General',
+      created_at: '2026-10-18T10:00:00Z',
+      updated_at: '2026-10-18T10:00:00Z',
+    })
+    mockMembersDb.push({
+      conversation_id: 'conv-test-1',
+      user_id: 'u-alice',
+      role: 'member',
+      joined_at: '2026-10-18T10:00:00Z',
+      conversation: {
+        id: 'conv-test-1',
+        type: 'public',
+        title: 'General',
+        created_at: '2026-10-18T10:00:00Z',
+        updated_at: '2026-10-18T10:00:00Z',
+      },
+    })
+
+    mockSupabase.auth.getUser = vi.fn().mockResolvedValue({
+      data: { user: { id: 'u-alice', email: 'alice@example.com' } },
+      error: null,
+    })
+    const room = useChatRoom()
+    await room.initializeChat()
+
+    expect(capturedMessagesSelect).toBeTruthy()
+    expect(capturedMessagesSelect).toContain('conversation_id')
+    expect(capturedMessagesSelect).not.toContain('channel_id')
   })
 })
