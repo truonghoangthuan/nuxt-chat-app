@@ -46,6 +46,7 @@ const mockChatRoomState = {
   dismissMessage: vi.fn(),
   editMessage: vi.fn(),
   deleteMessage: vi.fn(),
+  togglePinMessage: vi.fn(),
   toggleReaction: vi.fn(),
   loadOlderMessages: vi.fn(),
   notifyTyping: vi.fn(),

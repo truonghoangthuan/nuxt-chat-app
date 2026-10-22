@@ -64,6 +64,7 @@ const {
   dismissMessage,
   editMessage,
   deleteMessage,
+  togglePinMessage,
   toggleReaction,
   loadOlderMessages,
   notifyTyping,
