@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import type { ChatMessage, EncryptedImageMetadata } from '~/types/chat'
 import { buildMessageTimeline, REACTION_EMOJIS, summarizeReactions, tokenizeMessageMentions } from '~/utils/chat'
 import { isImagePayload, parseImagePayload, formatImageMessageSummary } from '~/utils/image'
@@ -50,6 +50,7 @@ const emit = defineEmits<{
 const viewportRef = ref<HTMLDivElement | null>(null)
 const unreadNewCount = ref(0)
 const isNearBottom = ref(true)
+const pendingScrollOnOpen = ref(true)
 
 const editingMessageId = ref<string | null>(null)
 const editingContent = ref('')
@@ -127,17 +128,51 @@ function checkScrollPosition() {
   }
 }
 
+function forceScrollToBottom() {
+  const el = viewportRef.value
+  if (!el) return
+  el.scrollTop = el.scrollHeight
+  unreadNewCount.value = 0
+  isNearBottom.value = true
+}
+
+function scheduleScrollToBottom() {
+  nextTick(() => {
+    forceScrollToBottom()
+    if (typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(() => {
+        forceScrollToBottom()
+      })
+    }
+    setTimeout(() => {
+      if (isNearBottom.value || pendingScrollOnOpen.value) {
+        forceScrollToBottom()
+      }
+    }, 80)
+  })
+}
+
 function scrollToBottom(smooth = false) {
   nextTick(() => {
     const el = viewportRef.value
     if (!el) return
-    el.scrollTo({
-      top: el.scrollHeight,
-      behavior: smooth ? 'smooth' : 'auto',
-    })
+    if (smooth && !pendingScrollOnOpen.value) {
+      el.scrollTo({
+        top: el.scrollHeight,
+        behavior: 'smooth',
+      })
+    } else {
+      el.scrollTop = el.scrollHeight
+    }
     unreadNewCount.value = 0
     isNearBottom.value = true
   })
+}
+
+function onViewportImageLoad() {
+  if (isNearBottom.value || pendingScrollOnOpen.value) {
+    forceScrollToBottom()
+  }
 }
 
 async function handleLoadOlder() {
@@ -157,6 +192,9 @@ async function handleLoadOlder() {
 
 function handleScroll() {
   checkScrollPosition()
+  if (!isNearBottom.value) {
+    pendingScrollOnOpen.value = false
+  }
   const el = viewportRef.value
   if (el && el.scrollTop <= 40 && props.hasMoreHistory && !props.isLoadingHistory) {
     handleLoadOlder()
@@ -189,6 +227,13 @@ watch(
     const newest = newMessages[newMessages.length - 1]
     const currentNewestId = newest.client_id || newest.id
 
+    // If we just opened this chat, force scroll to bottom!
+    if (pendingScrollOnOpen.value) {
+      prevNewestId.value = currentNewestId
+      scheduleScrollToBottom()
+      return
+    }
+
     // Ignore history prepends or same newest message
     if (props.isLoadingHistory || currentNewestId === prevNewestId.value) {
       return
@@ -211,14 +256,31 @@ watch(
   () => {
     unreadNewCount.value = 0
     isNearBottom.value = true
-    const newest = props.messages[props.messages.length - 1]
-    prevNewestId.value = newest ? (newest.client_id || newest.id) : null
-    scrollToBottom(false)
+    pendingScrollOnOpen.value = true
+    prevNewestId.value = null
+    scheduleScrollToBottom()
   },
 )
 
+let resizeObserver: ResizeObserver | null = null
+
 onMounted(() => {
-  scrollToBottom(false)
+  scheduleScrollToBottom()
+  if (typeof ResizeObserver !== 'undefined' && viewportRef.value) {
+    resizeObserver = new ResizeObserver(() => {
+      if (isNearBottom.value || pendingScrollOnOpen.value) {
+        forceScrollToBottom()
+      }
+    })
+    resizeObserver.observe(viewportRef.value)
+  }
+})
+
+onUnmounted(() => {
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
 })
 </script>
 
@@ -229,6 +291,7 @@ onMounted(() => {
       ref="viewportRef"
       class="flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-3 custom-scroll"
       @scroll="handleScroll"
+      @load.capture="onViewportImageLoad"
     >
       <!-- History Loader -->
       <div v-if="hasMoreHistory" class="text-center py-2">
@@ -236,7 +299,7 @@ onMounted(() => {
           type="button"
           data-test="load-older-button"
           :disabled="isLoadingHistory"
-          class="px-3.5 py-1.5 text-xs font-semibold text-white/70 hover:text-white bg-white/5 hover:bg-white/10 rounded-full border border-white/10 shadow-xs disabled:opacity-50 transition-colors cursor-pointer font-mono backdrop-blur-md"
+          class="px-3.5 py-1.5 text-xs font-semibold text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-full border border-black/10 dark:border-white/10 shadow-xs disabled:opacity-50 transition-colors cursor-pointer font-mono backdrop-blur-md"
           @click="handleLoadOlder"
         >
           <span v-if="isLoadingHistory">Loading older messages...</span>
@@ -252,16 +315,16 @@ onMounted(() => {
       >
         <div class="relative mb-5 flex items-center justify-center">
           <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-pink-500 via-purple-500 to-cyan-400 p-0.5 shadow-[0_0_30px_rgba(168,85,247,0.35)] animate-pulse">
-            <div class="w-full h-full bg-[#161824] rounded-full flex items-center justify-center text-xl font-bold font-mono text-white/90">
+            <div class="w-full h-full bg-white dark:bg-[#161824] rounded-full flex items-center justify-center text-xl font-bold font-mono text-[var(--ap-text-primary)]">
               {{ !isGroupComputed ? '@' : '#' }}
             </div>
           </div>
         </div>
-        <h3 class="text-base font-semibold text-white/95 tracking-tight">No Messages Yet</h3>
-        <p class="text-[13px] text-white/70 font-medium max-w-sm mt-1">
+        <h3 class="text-base font-semibold text-[var(--ap-text-primary)] tracking-tight">No Messages Yet</h3>
+        <p class="text-[13px] text-[var(--ap-text-secondary)] font-medium max-w-sm mt-1">
           {{ !isGroupComputed ? `This is the start of your direct message history with ${peerName ? '@' + peerName : 'your friend'}` : 'This is the start of this channel' }}
         </p>
-        <p class="text-xs text-white/40 mt-1 mb-5">Be the first to say hello, share photos, or kick off a conversation with end-to-end encryption.</p>
+        <p class="text-xs text-[var(--ap-text-muted)] mt-1 mb-5">Be the first to say hello, share photos, or kick off a conversation with end-to-end encryption.</p>
       </div>
 
       <!-- Messages List -->
@@ -273,9 +336,9 @@ onMounted(() => {
         <div
           v-if="item.showDateDivider"
           data-test="date-divider"
-          class="flex items-center gap-3 my-3.5 before:flex-1 before:h-px before:bg-white/5 after:flex-1 after:h-px after:bg-white/5"
+          class="flex items-center gap-3 my-3.5 before:flex-1 before:h-px before:bg-black/10 dark:before:bg-white/5 after:flex-1 after:h-px after:bg-black/10 dark:after:bg-white/5"
         >
-          <span class="px-3 py-1 rounded-full text-[11px] font-mono font-medium text-white/50 bg-white/5 backdrop-blur-md border border-white/5 shadow-xs">
+          <span class="px-3 py-1 rounded-full text-[11px] font-mono font-medium text-[var(--ap-text-muted)] bg-black/5 dark:bg-white/5 backdrop-blur-md border border-black/10 dark:border-white/5 shadow-xs">
             {{ item.dateLabel }}
           </span>
         </div>
@@ -286,7 +349,7 @@ onMounted(() => {
           data-test="unread-divider"
           class="flex items-center gap-3 my-3 before:flex-1 before:h-px before:bg-rose-500/30 after:flex-1 after:h-px after:bg-rose-500/30"
         >
-          <span class="px-3 py-0.5 rounded-full text-[11px] font-mono font-bold tracking-wide text-rose-400 bg-rose-500/10 border border-rose-500/20 backdrop-blur-md">
+          <span class="px-3 py-0.5 rounded-full text-[11px] font-mono font-bold tracking-wide text-rose-500 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 backdrop-blur-md">
             New messages
           </span>
         </div>
@@ -299,7 +362,7 @@ onMounted(() => {
           class="relative flex w-full group py-0.5 transition-colors"
           :class="[
             item.isSender ? 'justify-end' : 'justify-start items-end gap-2',
-            item.isMentioningMe ? 'bg-amber-500/10 border-l-2 border-amber-400 pl-2 rounded-2xl' : '',
+            item.isMentioningMe ? 'bg-amber-500/10 border-l-2 border-amber-500 dark:border-amber-400 pl-2 rounded-2xl' : '',
             item.isFirstInGroup && !item.showDateDivider && !item.showUnreadDivider ? 'mt-2' : 'mt-0.5',
           ]"
         >
@@ -319,7 +382,7 @@ onMounted(() => {
           <!-- Frosted Hover Action Toolbar (Desktop) -->
           <div
             v-if="item.message.status === 'sent' && !item.message.deleted_at"
-            class="hidden md:flex opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity items-center gap-0.5 bg-white/10 backdrop-blur-xl border border-white/15 rounded-full px-2 py-0.5 shadow-xl shrink-0 self-center"
+            class="hidden md:flex opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity items-center gap-0.5 bg-white/90 dark:bg-white/10 backdrop-blur-xl border border-black/10 dark:border-white/15 rounded-full px-2 py-0.5 shadow-xl shrink-0 self-center"
             :class="item.isSender ? 'order-first mr-1.5' : 'order-last ml-1.5'"
           >
             <button
@@ -327,7 +390,7 @@ onMounted(() => {
               :key="emoji"
               type="button"
               :data-test="`react-${item.message.id}-${emoji}`"
-              class="p-1 text-xs hover:bg-white/15 rounded-full transition-transform hover:scale-125 cursor-pointer"
+              class="p-1 text-xs hover:bg-black/5 dark:hover:bg-white/15 rounded-full transition-transform hover:scale-125 cursor-pointer"
               :title="`React ${emoji}`"
               @click="emit('toggleReaction', { messageId: item.message.id, emoji })"
             >
@@ -336,7 +399,7 @@ onMounted(() => {
             <button
               type="button"
               :data-test="`reply-${item.message.id}`"
-              class="px-2 py-0.5 text-[11px] font-medium text-white/70 hover:text-white rounded-full hover:bg-white/15 cursor-pointer"
+              class="px-2 py-0.5 text-[11px] font-medium text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] rounded-full hover:bg-black/5 dark:hover:bg-white/15 cursor-pointer"
               @click="emit('reply', item.message)"
             >
               Reply
@@ -346,7 +409,7 @@ onMounted(() => {
                 v-if="item.message.encryption !== 'undecryptable' && !isImagePayload(item.message.content)"
                 type="button"
                 :data-test="`edit-${item.message.id}`"
-                class="px-2 py-0.5 text-[11px] font-medium text-white/70 hover:text-white rounded-full hover:bg-white/15 cursor-pointer"
+                class="px-2 py-0.5 text-[11px] font-medium text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] rounded-full hover:bg-black/5 dark:hover:bg-white/15 cursor-pointer"
                 @click="startEdit(item.message)"
               >
                 Edit
@@ -354,7 +417,7 @@ onMounted(() => {
               <button
                 type="button"
                 :data-test="`delete-${item.message.id}`"
-                class="px-2 py-0.5 text-[11px] font-medium text-rose-400 hover:text-rose-300 rounded-full hover:bg-rose-500/20 cursor-pointer"
+                class="px-2 py-0.5 text-[11px] font-medium text-rose-500 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 rounded-full hover:bg-rose-500/10 dark:hover:bg-rose-500/20 cursor-pointer"
                 @click="emit('delete', item.message.id)"
               >
                 Delete
@@ -384,7 +447,7 @@ onMounted(() => {
               v-if="item.showSenderHeader"
               :data-test="`sender-header-${item.message.id}`"
               class="text-[12px] font-semibold mb-1 ml-1 truncate max-w-full"
-              :style="{ color: item.message.author?.avatar_color || '#38bdf8' }"
+              :style="{ color: item.message.author?.avatar_color || '#0284c7' }"
             >
               {{ item.message.author?.display_name || 'Friend' }}
             </div>
@@ -392,11 +455,11 @@ onMounted(() => {
             <!-- Apple iMessage Bubble Container -->
             <div
               :data-test="`message-bubble-${item.message.id}`"
-              class="relative px-4 py-2.5 text-[13.5px] leading-relaxed shadow-sm break-words transition-all"
+              class="relative px-4 py-2.5 text-[13.5px] leading-relaxed shadow-xs break-words transition-all"
               :class="[
                 item.isSender
                   ? 'bg-indigo-600 bg-gradient-to-br from-[#0a84ff] to-[#0062cc] text-white rounded-[22px] rounded-br-[4px] shadow-md shadow-blue-600/25'
-                  : 'bg-white/8 hover:bg-white/10 backdrop-blur-md border border-white/10 text-white rounded-[22px] rounded-bl-[4px]',
+                  : 'bg-black/[0.04] dark:bg-white/8 hover:bg-black/[0.06] dark:hover:bg-white/10 backdrop-blur-md border border-black/[0.08] dark:border-white/10 text-[var(--ap-text-primary)] rounded-[22px] rounded-bl-[4px]',
                 item.message.status === 'sending' ? 'opacity-85' : '',
                 item.message.status === 'failed' ? 'border-rose-500/50' : '',
               ]"
@@ -406,9 +469,9 @@ onMounted(() => {
                 v-if="item.message.reply_to_id"
                 :data-test="`reply-quote-${item.message.id}`"
                 class="mb-2 px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 truncate max-w-full backdrop-blur-xs"
-                :class="item.isSender ? 'bg-white/15 border-l-2 border-white/70 text-white/90' : 'bg-white/5 border-l-2 border-blue-400 text-white/80'"
+                :class="item.isSender ? 'bg-white/15 border-l-2 border-white/70 text-white/90' : 'bg-black/5 dark:bg-white/5 border-l-2 border-blue-500 dark:border-blue-400 text-[var(--ap-text-secondary)]'"
               >
-                <span class="font-semibold shrink-0" :class="item.isSender ? 'text-white' : 'text-blue-300'">
+                <span class="font-semibold shrink-0" :class="item.isSender ? 'text-white' : 'text-blue-600 dark:text-blue-300'">
                   @{{ item.message.reply_to?.author?.display_name || 'Friend' }}
                 </span>
                 <span class="truncate italic">
@@ -421,7 +484,7 @@ onMounted(() => {
                 v-if="item.message.deleted_at"
                 :data-test="`deleted-tombstone-${item.message.id}`"
                 class="text-xs italic px-2.5 py-1 rounded-xl border border-dashed inline-block"
-                :class="item.isSender ? 'bg-white/10 border-white/30 text-white/80' : 'bg-white/5 border-white/15 text-white/40'"
+                :class="item.isSender ? 'bg-white/10 border-white/30 text-white/80' : 'bg-black/5 dark:bg-white/5 border-black/15 dark:border-white/15 text-[var(--ap-text-muted)]'"
               >
                 This message was deleted
               </p>
@@ -431,7 +494,7 @@ onMounted(() => {
                 v-else-if="item.message.encryption === 'undecryptable'"
                 :data-test="`undecryptable-${item.message.id}`"
                 class="text-xs italic px-2.5 py-1 rounded-xl border border-dashed inline-block"
-                :class="item.isSender ? 'bg-white/10 border-white/30 text-white/80' : 'bg-white/5 border-white/15 text-white/40'"
+                :class="item.isSender ? 'bg-white/10 border-white/30 text-white/80' : 'bg-black/5 dark:bg-white/5 border-black/15 dark:border-white/15 text-[var(--ap-text-muted)]'"
               >
                 🔒 Unable to decrypt this message
               </p>
@@ -442,7 +505,7 @@ onMounted(() => {
                   v-model="editingContent"
                   type="text"
                   :data-test="`edit-input-${item.message.id}`"
-                  class="w-full px-3 py-1.5 text-xs rounded-xl border border-blue-400 bg-white/10 text-white focus:outline-none"
+                  class="w-full px-3 py-1.5 text-xs rounded-xl border border-blue-400 bg-white/10 text-[var(--ap-text-primary)] focus:outline-none"
                   @keydown.enter.prevent="saveEdit(item.message.id)"
                   @keydown.esc.prevent="cancelEdit"
                 />
@@ -458,7 +521,7 @@ onMounted(() => {
                   <button
                     type="button"
                     :data-test="`cancel-edit-${item.message.id}`"
-                    class="px-3 py-1 rounded-full cursor-pointer text-white/70 hover:text-white hover:bg-white/10"
+                    class="px-3 py-1 rounded-full cursor-pointer text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/10"
                     @click="cancelEdit"
                   >
                     Cancel
@@ -478,7 +541,7 @@ onMounted(() => {
               <!-- Xcode Dark Code Block -->
               <div
                 v-else-if="parseCodeBlock(item.message.content).isCode"
-                class="rounded-xl bg-black/40 border border-white/10 overflow-hidden font-mono text-xs my-1"
+                class="rounded-xl bg-black/80 dark:bg-black/40 border border-black/20 dark:border-white/10 overflow-hidden font-mono text-xs my-1"
               >
                 <div class="px-3 py-1.5 bg-white/5 border-b border-white/5 flex items-center justify-between text-white/50 text-[11px]">
                   <div class="flex items-center gap-1.5">
@@ -512,8 +575,8 @@ onMounted(() => {
                       item.isSender
                         ? 'bg-white/20 text-white border border-white/30'
                         : (seg.isMe
-                            ? 'bg-amber-500/25 text-amber-200 border border-amber-500/40'
-                            : 'bg-blue-500/25 text-blue-200 border border-blue-500/35')
+                            ? 'bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/35'
+                            : 'bg-blue-500/15 text-blue-700 dark:text-blue-200 border border-blue-500/30')
                     ]"
                   >{{ seg.text }}</span>
                   <span v-else>{{ seg.text }}</span>
@@ -522,7 +585,7 @@ onMounted(() => {
                   v-if="item.message.edited_at && !item.message.deleted_at"
                   :data-test="`edited-badge-${item.message.id}`"
                   class="ml-1 text-[11px] italic"
-                  :class="item.isSender ? 'text-white/75' : 'text-white/40'"
+                  :class="item.isSender ? 'text-white/75' : 'text-[var(--ap-text-muted)]'"
                 >
                   (edited)
                 </span>
@@ -530,7 +593,7 @@ onMounted(() => {
                   v-if="item.message.encryption === 'legacy' && !item.message.deleted_at"
                   :data-test="`legacy-badge-${item.message.id}`"
                   class="ml-1.5 text-[11px] px-1.5 py-0.5 rounded-full"
-                  :class="item.isSender ? 'text-white/80 bg-white/15 border border-white/25' : 'text-white/40 bg-white/5 border border-white/10'"
+                  :class="item.isSender ? 'text-white/80 bg-white/15 border border-white/25' : 'text-[var(--ap-text-muted)] bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10'"
                 >
                   Legacy · unencrypted
                 </span>
@@ -539,7 +602,7 @@ onMounted(() => {
               <!-- Time & Delivery Status inside Bubble -->
               <div
                 class="mt-1 flex items-center justify-end gap-1.5 text-[11px] font-mono select-none"
-                :class="item.isSender ? 'text-white/75' : 'text-white/40'"
+                :class="item.isSender ? 'text-white/75' : 'text-[var(--ap-text-muted)]'"
               >
                 <span>{{ formatTime(item.message.created_at) }}</span>
 
@@ -572,13 +635,13 @@ onMounted(() => {
             <div
               v-if="item.message.status === 'failed'"
               :data-test="`delivery-indicator-${item.message.id}`"
-              class="mt-1.5 flex items-center gap-1.5 text-xs text-rose-400 font-medium px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/25 backdrop-blur-md"
+              class="mt-1.5 flex items-center gap-1.5 text-xs text-rose-500 dark:text-rose-400 font-medium px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/25 backdrop-blur-md"
             >
               <span>Failed to send</span>
               <button
                 type="button"
                 :data-test="`retry-${item.message.client_id}`"
-                class="underline hover:text-rose-300 font-semibold cursor-pointer ml-1"
+                class="underline hover:text-rose-600 dark:hover:text-rose-300 font-semibold cursor-pointer ml-1"
                 @click="emit('retry', item.message.client_id)"
               >
                 Retry
@@ -586,7 +649,7 @@ onMounted(() => {
               <button
                 type="button"
                 :data-test="`dismiss-${item.message.client_id}`"
-                class="underline hover:text-rose-300 cursor-pointer ml-1 text-white/50"
+                class="underline hover:text-rose-600 dark:hover:text-rose-300 cursor-pointer ml-1 text-[var(--ap-text-muted)]"
                 @click="emit('dismiss', item.message.client_id)"
               >
                 Dismiss
@@ -605,7 +668,7 @@ onMounted(() => {
                 type="button"
                 :data-test="`reaction-pill-${item.message.id}-${summary.emoji}`"
                 class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono border transition-all cursor-pointer shadow-xs backdrop-blur-md"
-                :class="summary.reactedByMe ? 'bg-blue-500/25 border-blue-400/50 text-blue-200 font-semibold' : 'bg-white/8 hover:bg-white/12 border-white/10 text-white/80 hover:text-white'"
+                :class="summary.reactedByMe ? 'bg-blue-500/20 border-blue-400/50 text-blue-700 dark:text-blue-200 font-semibold' : 'bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border-black/10 dark:border-white/10 text-[var(--ap-text-primary)]'"
                 @click="emit('toggleReaction', { messageId: item.message.id, emoji: summary.emoji })"
               >
                 <span>{{ summary.emoji }}</span>

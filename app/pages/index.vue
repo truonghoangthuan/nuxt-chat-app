@@ -311,15 +311,15 @@ onUnmounted(() => {
         />
 
         <!-- Frosted Stage Header (56px) -->
-        <header class="h-14 px-4 md:px-6 border-b border-white/5 flex items-center justify-between gap-4 shrink-0 bg-white/2 backdrop-blur-md">
+        <header class="h-14 px-4 md:px-6 border-b border-[var(--ap-glass-border)] flex items-center justify-between gap-4 shrink-0 bg-[var(--ap-stage)] backdrop-blur-md">
           <div class="flex items-center gap-3 min-w-0">
             <button
               type="button"
-              class="md:hidden p-1.5 rounded-full text-white/70 hover:text-white hover:bg-white/10 cursor-pointer"
+              class="md:hidden p-1.5 rounded-full text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer"
               aria-label="Open mobile navigation"
               @click="isMobileSidebarOpen = true"
             >
-              <Menu class="w-5 h-5 text-white/80" />
+              <Menu class="w-5 h-5 text-[var(--ap-text-secondary)]" />
             </button>
 
             <div class="min-w-0 flex items-center gap-2.5">
@@ -333,17 +333,17 @@ onUnmounted(() => {
                   size="sm"
                 />
                 <div class="min-w-0 flex items-center gap-2">
-                  <h2 class="text-[14px] font-semibold text-white/95 flex items-center gap-1 truncate">
-                    <span class="text-blue-400 font-mono">@</span>
+                  <h2 class="text-[14px] font-semibold text-[var(--ap-text-primary)] flex items-center gap-1 truncate">
+                    <span class="text-blue-500 dark:text-blue-400 font-mono">@</span>
                     <span class="truncate">{{ activeConversation.peer?.display_name || 'Direct Message' }}</span>
                   </h2>
                   <span
                     class="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition-colors"
-                    :class="onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-white/5 border-white/10 text-white/40'"
+                    :class="onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-muted)]'"
                   >
                     <span
                       class="w-1.5 h-1.5 rounded-full inline-block"
-                      :class="onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'bg-emerald-400 shadow-[0_0_6px_#34c759]' : 'bg-white/30'"
+                      :class="onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'bg-emerald-500 shadow-[0_0_6px_#34c759]' : 'bg-black/30 dark:bg-white/30'"
                     ></span>
                     {{ onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'Active now' : 'Offline' }}
                   </span>
@@ -352,7 +352,7 @@ onUnmounted(() => {
 
               <!-- Group Conversation -->
               <template v-else-if="activeConversation?.type === 'group'">
-                <div class="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-400 flex items-center justify-center shrink-0">
+                <div class="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-500 dark:text-blue-400 flex items-center justify-center shrink-0">
                   <Users class="w-4 h-4" />
                 </div>
                 <div class="min-w-0 flex items-center gap-2">
@@ -362,10 +362,10 @@ onUnmounted(() => {
                     class="text-left flex items-center gap-2 hover:opacity-80 transition cursor-pointer truncate"
                     @click="isGroupInfoModalOpen = true"
                   >
-                    <h2 class="text-[14px] font-semibold text-white/95 truncate">
+                    <h2 class="text-[14px] font-semibold text-[var(--ap-text-primary)] truncate">
                       {{ activeConversation?.title || 'Group Chat' }}
                     </h2>
-                    <span class="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-white/5 border border-white/10 text-white/60">
+                    <span class="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)]">
                       {{ activeConversation?.members?.length || 0 }} members
                     </span>
                   </button>
@@ -382,17 +382,17 @@ onUnmounted(() => {
                   size="sm"
                 />
                 <div class="min-w-0 flex items-center gap-2">
-                  <h2 class="text-[14px] font-semibold text-white/95 flex items-center gap-1 truncate">
-                    <span class="text-blue-400 font-mono">@</span>
+                  <h2 class="text-[14px] font-semibold text-[var(--ap-text-primary)] flex items-center gap-1 truncate">
+                    <span class="text-blue-500 dark:text-blue-400 font-mono">@</span>
                     <span class="truncate">{{ activeChannel.peer?.display_name || 'Direct Message' }}</span>
                   </h2>
                   <span
                     class="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition-colors"
-                    :class="onlineFriends.some(f => f.id === activeChannel?.peer?.id) ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-white/5 border-white/10 text-white/40'"
+                    :class="onlineFriends.some(f => f.id === activeChannel?.peer?.id) ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-muted)]'"
                   >
                     <span
                       class="w-1.5 h-1.5 rounded-full inline-block"
-                      :class="onlineFriends.some(f => f.id === activeChannel?.peer?.id) ? 'bg-emerald-400 shadow-[0_0_6px_#34c759]' : 'bg-white/30'"
+                      :class="onlineFriends.some(f => f.id === activeChannel?.peer?.id) ? 'bg-emerald-500 shadow-[0_0_6px_#34c759]' : 'bg-black/30 dark:bg-white/30'"
                     ></span>
                     {{ onlineFriends.some(f => f.id === activeChannel?.peer?.id) ? 'Active now' : 'Offline' }}
                   </span>
@@ -400,20 +400,20 @@ onUnmounted(() => {
               </template>
               <template v-else-if="activeChannel">
                 <div class="min-w-0 flex items-center gap-2.5">
-                  <h2 class="text-[14px] font-semibold text-white/95 flex items-center gap-1 shrink-0">
-                    <span class="text-blue-400 font-mono">#</span>
+                  <h2 class="text-[14px] font-semibold text-[var(--ap-text-primary)] flex items-center gap-1 shrink-0">
+                    <span class="text-blue-500 dark:text-blue-400 font-mono">#</span>
                     <span>{{ activeChannel?.slug || 'general' }}</span>
                   </h2>
                   <template v-if="activeChannel?.description">
-                    <span class="hidden sm:inline-block w-px h-3.5 bg-white/10 shrink-0"></span>
-                    <p class="hidden sm:block text-[13px] text-white/60 truncate">
+                    <span class="hidden sm:inline-block w-px h-3.5 bg-black/10 dark:bg-white/10 shrink-0"></span>
+                    <p class="hidden sm:block text-[13px] text-[var(--ap-text-secondary)] truncate">
                       {{ activeChannel.description }}
                     </p>
                   </template>
                 </div>
               </template>
               <template v-else>
-                <h2 class="text-[14px] font-semibold text-white/60">
+                <h2 class="text-[14px] font-semibold text-[var(--ap-text-muted)]">
                   Select a conversation
                 </h2>
               </template>
@@ -426,11 +426,11 @@ onUnmounted(() => {
               v-if="activeConversation?.type === 'group'"
               type="button"
               data-test="open-group-info"
-              class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/8 hover:bg-white/12 border border-white/10 text-xs font-medium text-white/80 hover:text-white transition cursor-pointer"
+              class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border border-black/10 dark:border-white/10 text-xs font-medium text-[var(--ap-text-primary)] transition cursor-pointer"
               aria-label="Group Info & Settings"
               @click="isGroupInfoModalOpen = true"
             >
-              <Info class="w-3.5 h-3.5 text-blue-400" />
+              <Info class="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
               <span class="hidden sm:inline">Group Info</span>
             </button>
 
@@ -442,11 +442,11 @@ onUnmounted(() => {
                 :avatar-color="friend.avatar_color"
                 :avatar-url="friend.avatar_url"
                 size="sm"
-                class="ring-2 ring-[#10121a] rounded-full"
+                class="ring-2 ring-white dark:ring-[#10121a] rounded-full"
               />
             </div>
-            <div class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-white/60">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34c759]"></span>
+            <div class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-medium text-[var(--ap-text-secondary)]">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_#34c759]"></span>
               <span>{{ onlineFriends.length }} online</span>
             </div>
           </div>

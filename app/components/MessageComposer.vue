@@ -315,12 +315,12 @@ onUnmounted(() => {
       <div class="h-5 mb-1 px-3 flex items-center">
         <span
           v-if="typingLabel"
-          class="text-xs text-white/70 flex items-center gap-2 transition-opacity"
+          class="text-xs text-[var(--ap-text-muted)] flex items-center gap-2 transition-opacity"
         >
           <span class="inline-flex gap-1">
-            <span class="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-            <span class="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-            <span class="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></span>
+            <span class="w-1.5 h-1.5 bg-blue-500 dark:bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+            <span class="w-1.5 h-1.5 bg-blue-500 dark:bg-blue-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+            <span class="w-1.5 h-1.5 bg-blue-500 dark:bg-blue-400 rounded-full animate-bounce"></span>
           </span>
           <span>{{ typingLabel }}</span>
         </span>
@@ -330,9 +330,9 @@ onUnmounted(() => {
       <div
         v-if="filteredMentions.length > 0"
         data-test="mention-autocomplete"
-        class="mb-2 rounded-2xl border border-white/15 bg-[#161824]/90 backdrop-blur-2xl shadow-2xl p-1 overflow-hidden"
+        class="mb-2 rounded-2xl border border-black/10 dark:border-white/15 bg-white/95 dark:bg-[#161824]/90 backdrop-blur-2xl shadow-2xl p-1 overflow-hidden"
       >
-        <div class="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/40 border-b border-white/5">
+        <div class="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--ap-text-muted)] border-b border-black/5 dark:border-white/5">
           Mention a friend
         </div>
         <button
@@ -341,7 +341,7 @@ onUnmounted(() => {
           type="button"
           :data-test="`mention-option-${candidate.id}`"
           class="w-full px-3 py-2 flex items-center gap-2.5 text-xs text-left rounded-xl transition-colors cursor-pointer"
-          :class="idx === selectedMentionIndex ? 'bg-blue-600/30 text-white font-medium' : 'text-white/80 hover:bg-white/5 hover:text-white'"
+          :class="idx === selectedMentionIndex ? 'bg-blue-600/15 dark:bg-blue-600/30 text-blue-900 dark:text-white font-medium' : 'text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--ap-text-primary)]'"
           @click="selectMention(candidate)"
         >
           <UserAvatar
@@ -350,7 +350,7 @@ onUnmounted(() => {
             :avatar-url="candidate.avatar_url"
             size="sm"
           />
-          <span class="font-medium text-white/90">@{{ candidate.display_name }}</span>
+          <span class="font-medium text-[var(--ap-text-primary)]">@{{ candidate.display_name }}</span>
         </button>
       </div>
 
@@ -358,18 +358,18 @@ onUnmounted(() => {
       <div
         v-if="replyingTo"
         data-test="reply-banner"
-        class="mb-2 px-4 py-1.5 rounded-full bg-white/8 border border-white/10 backdrop-blur-md flex items-center justify-between gap-2 text-xs"
+        class="mb-2 px-4 py-1.5 rounded-full bg-black/5 dark:bg-white/8 border border-black/10 dark:border-white/10 backdrop-blur-md flex items-center justify-between gap-2 text-xs"
       >
-        <div class="truncate text-white/70">
-          Replying to <span class="font-semibold text-blue-300 font-mono">@{{ replyingTo.author?.display_name || 'Friend' }}</span>:
-          <span class="italic ml-1 text-white/90">{{ isImagePayload(replyingTo.content) ? formatImageMessageSummary(parseImagePayload(replyingTo.content)?.images.length || 1) : replyingTo.content }}</span>
+        <div class="truncate text-[var(--ap-text-secondary)]">
+          Replying to <span class="font-semibold text-blue-600 dark:text-blue-300 font-mono">@{{ replyingTo.author?.display_name || 'Friend' }}</span>:
+          <span class="italic ml-1 text-[var(--ap-text-primary)]">{{ isImagePayload(replyingTo.content) ? formatImageMessageSummary(parseImagePayload(replyingTo.content)?.images.length || 1) : replyingTo.content }}</span>
         </div>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
           data-test="cancel-reply"
-          class="text-white/60 hover:text-white rounded-full size-6 cursor-pointer"
+          class="text-[var(--ap-text-muted)] hover:text-[var(--ap-text-primary)] rounded-full size-6 cursor-pointer"
           aria-label="Cancel reply"
           @click="emit('cancelReply')"
         >
@@ -381,12 +381,12 @@ onUnmounted(() => {
       <div
         v-if="validationError"
         data-test="attachment-error"
-        class="mb-2 px-4 py-1.5 rounded-full text-xs text-rose-300 bg-rose-500/15 border border-rose-500/25 backdrop-blur-md flex items-center justify-between"
+        class="mb-2 px-4 py-1.5 rounded-full text-xs text-rose-600 dark:text-rose-300 bg-rose-500/15 border border-rose-500/25 backdrop-blur-md flex items-center justify-between"
       >
         <span>{{ validationError }}</span>
         <button
           type="button"
-          class="text-rose-400 hover:text-rose-200 cursor-pointer"
+          class="text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-200 cursor-pointer"
           aria-label="Dismiss error"
           @click="validationError = ''"
         >
@@ -398,13 +398,13 @@ onUnmounted(() => {
       <div
         v-if="pendingAttachments.length > 0"
         data-test="attachment-tray"
-        class="mb-2 p-2 rounded-2xl bg-white/8 border border-white/10 backdrop-blur-md flex items-center gap-2.5 overflow-x-auto custom-scroll"
+        class="mb-2 p-2 rounded-2xl bg-black/5 dark:bg-white/8 border border-black/10 dark:border-white/10 backdrop-blur-md flex items-center gap-2.5 overflow-x-auto custom-scroll"
       >
         <div
           v-for="(att, idx) in pendingAttachments"
           :key="idx"
           data-test="attachment-preview"
-          class="relative group shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-white/10 bg-black/40"
+          class="relative group shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-black/10 dark:bg-black/40"
         >
           <img
             :src="att.url"
@@ -426,7 +426,7 @@ onUnmounted(() => {
       <!-- Apple Floating Frosted Pill Dock -->
       <div
         data-test="composer-deck"
-        class="relative rounded-full bg-white/8 hover:bg-white/10 backdrop-blur-2xl border border-white/15 shadow-2xl p-1.5 flex items-center gap-2 transition-all focus-within:bg-white/12 focus-within:ring-2 focus-within:ring-blue-500/40"
+        class="relative rounded-full bg-black/[0.04] dark:bg-white/8 hover:bg-black/[0.06] dark:hover:bg-white/10 backdrop-blur-2xl border border-black/[0.08] dark:border-white/15 shadow-xl p-1.5 flex items-center gap-2 transition-all focus-within:bg-black/[0.06] dark:focus-within:bg-white/12 focus-within:ring-2 focus-within:ring-blue-500/40"
         @dragover.prevent
         @drop.prevent="handleDrop"
         @keydown="handleDeckKeydown"
@@ -437,7 +437,7 @@ onUnmounted(() => {
           type="button"
           :disabled="disabled"
           data-test="attach-image-button"
-          class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all shrink-0 cursor-pointer disabled:opacity-40"
+          class="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] flex items-center justify-center transition-all shrink-0 cursor-pointer disabled:opacity-40"
           title="Attach images"
           aria-label="Attach images"
           @click="triggerFileInput"
@@ -452,7 +452,7 @@ onUnmounted(() => {
           rows="1"
           :disabled="disabled || pendingAttachments.length > 0"
           :placeholder="pendingAttachments.length > 0 ? 'Images attached (text disabled)' : `Message ${isDm ? '@' : '#'}${channelSlug || 'channel'}`"
-          class="flex-1 bg-transparent border-0 text-white placeholder-white/40 text-[13.5px] leading-relaxed py-1 px-1 resize-none focus:outline-none focus:ring-0 custom-scroll max-h-32 disabled:opacity-60"
+          class="flex-1 bg-transparent border-0 text-[var(--ap-text-primary)] placeholder-[var(--ap-text-muted)] text-[13.5px] leading-relaxed py-1 px-1 resize-none focus:outline-none focus:ring-0 custom-scroll max-h-32 disabled:opacity-60"
           @input="handleInput"
           @click="handleClick"
           @keyup="syncCursor"

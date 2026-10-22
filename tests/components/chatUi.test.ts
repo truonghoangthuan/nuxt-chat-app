@@ -1259,6 +1259,51 @@ describe('Chat UI components', () => {
       expect(allItems[1].attributes('data-test')).toBe('conversation-item-conv-deleted')
       expect(allItems[2].attributes('data-test')).toBe('conversation-item-conv-no-act')
     })
+
+    it('ChatSidebar does not render macOS window traffic light dots', () => {
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          conversations: [],
+          activeConversationId: null,
+          unreadCounts: {},
+          onlineFriends: [],
+          currentUser: mockCurrentUser,
+          isDark: false,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+
+      expect(wrapper.html()).not.toContain('#ff5f56')
+      expect(wrapper.html()).not.toContain('#ffbd2e')
+    })
+
+    it('ChatSidebar light mode items use theme tokens instead of hardcoded white text', () => {
+      const conv: Conversation = {
+        id: 'conv-light',
+        type: 'group',
+        title: 'Team Chat',
+        created_by: 'u-1',
+        created_at: '2026-10-18T10:00:00Z',
+      }
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          conversations: [conv],
+          activeConversationId: null,
+          unreadCounts: {},
+          onlineFriends: [],
+          currentUser: mockCurrentUser,
+          isDark: false,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+
+      const item = wrapper.find('[data-test="conversation-item-conv-light"]')
+      expect(item.exists()).toBe(true)
+      expect(item.html()).not.toContain('text-white/95')
+      expect(item.html()).toContain('var(--ap-text-primary)')
+    })
   })
 })
 

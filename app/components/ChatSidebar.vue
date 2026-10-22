@@ -236,24 +236,17 @@ function onContactsClick() {
       class="fixed inset-y-0 left-0 z-40 w-64 md:w-64 flex flex-col bg-[var(--ap-sidebar)] backdrop-blur-2xl md:rounded-2xl border-r md:border border-[var(--ap-glass-border)] shadow-xl shrink-0 overflow-hidden transition-transform duration-200 ease-in-out md:static md:translate-x-0"
       :class="isOpenMobile ? 'translate-x-0' : '-translate-x-full'"
     >
-      <!-- macOS Header Bar with Traffic Lights & Quick Actions -->
-      <div class="h-12 px-3.5 flex items-center justify-between border-b border-white/5 shrink-0">
-        <!-- Traffic lights -->
-        <div class="flex items-center gap-1.5">
-          <div class="w-3 h-3 rounded-full bg-[#ff5f56] border border-black/20 shadow-xs"></div>
-          <div class="w-3 h-3 rounded-full bg-[#ffbd2e] border border-black/20 shadow-xs"></div>
-          <div class="w-3 h-3 rounded-full bg-[#27c93f] border border-black/20 shadow-xs"></div>
-        </div>
-
+      <!-- Header Bar with Quick Actions (Traffic lights removed) -->
+      <div class="h-12 px-3.5 flex items-center justify-between border-b border-[var(--ap-glass-border)] shrink-0">
         <!-- Title -->
-        <span class="text-xs font-semibold text-white/90 tracking-tight">Messages</span>
+        <span class="text-xs font-semibold text-[var(--ap-text-primary)] tracking-tight">Messages</span>
 
         <!-- Quick actions -->
         <div class="flex items-center gap-1">
           <!-- Realtime status indicator -->
           <div
             class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border transition-colors mr-0.5"
-            :class="connectionStatus === 'connected' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'"
+            :class="connectionStatus === 'connected' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400'"
             :title="`Status: ${connectionStatus}`"
           >
             <span
@@ -267,7 +260,7 @@ function onContactsClick() {
           <button
             type="button"
             data-test="open-contacts"
-            class="w-6 h-6 rounded-full hover:bg-white/10 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer"
+            class="w-6 h-6 rounded-full hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition-colors cursor-pointer"
             title="Contacts"
             @click="onContactsClick"
           >
@@ -278,7 +271,7 @@ function onContactsClick() {
           <button
             type="button"
             data-test="open-start-dm"
-            class="w-6 h-6 rounded-full hover:bg-white/10 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer"
+            class="w-6 h-6 rounded-full hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition-colors cursor-pointer"
             title="New Direct Chat"
             @click="onNewDirectChatClick"
           >
@@ -289,7 +282,7 @@ function onContactsClick() {
           <button
             type="button"
             data-test="open-create-group"
-            class="w-6 h-6 rounded-full hover:bg-white/10 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer"
+            class="w-6 h-6 rounded-full hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition-colors cursor-pointer"
             title="New Group"
             @click="onNewGroupClick"
           >
@@ -299,7 +292,7 @@ function onContactsClick() {
           <!-- Mobile Close Button -->
           <button
             type="button"
-            class="md:hidden text-white/70 hover:text-white p-1 text-sm font-bold leading-none cursor-pointer"
+            class="md:hidden text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] p-1 text-sm font-bold leading-none cursor-pointer"
             @click="emit('closeMobile')"
           >
             <X class="size-3.5" aria-hidden="true" />
@@ -310,19 +303,19 @@ function onContactsClick() {
       <!-- Search Capsule -->
       <div class="px-3 py-2 shrink-0">
         <div class="relative flex items-center">
-          <Search class="absolute left-3 size-3.5 text-white/40 pointer-events-none" aria-hidden="true" />
+          <Search class="absolute left-3 size-3.5 text-[var(--ap-text-muted)] pointer-events-none" aria-hidden="true" />
           <input
             v-model="searchQuery"
             type="text"
             data-test="conversation-search-input"
             placeholder="Search"
-            class="w-full h-8 pl-8 pr-7 bg-white/8 border border-white/10 rounded-full text-xs text-white placeholder-white/40 focus:outline-none focus:bg-white/12 focus:ring-1 focus:ring-blue-500/50 transition-all"
+            class="w-full h-8 pl-8 pr-7 bg-black/5 dark:bg-white/8 border border-black/10 dark:border-white/10 rounded-full text-xs text-[var(--ap-text-primary)] placeholder-[var(--ap-text-muted)] focus:outline-none focus:bg-black/8 dark:focus:bg-white/12 focus:ring-1 focus:ring-blue-500/50 transition-all"
             @keydown.esc="searchQuery = ''"
           />
           <button
             v-if="searchQuery"
             type="button"
-            class="absolute right-2.5 text-white/40 hover:text-white p-0.5 cursor-pointer"
+            class="absolute right-2.5 text-[var(--ap-text-muted)] hover:text-[var(--ap-text-primary)] p-0.5 cursor-pointer"
             aria-label="Clear search"
             @click="searchQuery = ''"
           >
@@ -335,14 +328,14 @@ function onContactsClick() {
       <div class="flex-1 overflow-y-auto px-2 py-1 space-y-3 custom-scroll">
         <!-- Unified Conversations Section -->
         <div>
-          <div class="flex items-center justify-between px-2 mb-1 text-[11px] font-semibold uppercase tracking-wider text-white/40">
+          <div class="flex items-center justify-between px-2 mb-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--ap-text-muted)]">
             <span>Conversations</span>
           </div>
 
           <!-- Empty State -->
           <div
             v-if="filteredConversations.length === 0"
-            class="px-3 py-6 text-center text-xs text-white/40 italic"
+            class="px-3 py-6 text-center text-xs text-[var(--ap-text-muted)] italic"
           >
             <template v-if="searchQuery.trim()">
               No conversations match your search
@@ -360,7 +353,7 @@ function onContactsClick() {
               type="button"
               :data-test="`conversation-item-${conv.id}`"
               class="w-full flex items-center px-2.5 py-2 rounded-xl text-[13.5px] transition-all group cursor-pointer text-left"
-              :class="activeId === conv.id ? 'bg-blue-600/25 border border-blue-500/30 text-white font-medium shadow-xs' : 'text-white/80 hover:bg-white/5 border border-transparent'"
+              :class="activeId === conv.id ? 'bg-blue-600/15 dark:bg-blue-600/25 border border-blue-500/30 text-blue-900 dark:text-white font-medium shadow-xs' : 'text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'"
               @click="onConversationClick(conv.id)"
             >
               <div
@@ -379,7 +372,7 @@ function onContactsClick() {
                 <!-- Group Avatar -->
                 <div
                   v-else
-                  class="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-400 flex items-center justify-center font-bold text-xs select-none shrink-0"
+                  class="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-500 dark:text-blue-400 flex items-center justify-center font-bold text-xs select-none shrink-0"
                   :title="getConvTitle(conv)"
                 >
                   <Users class="size-4" aria-hidden="true" />
@@ -390,7 +383,8 @@ function onContactsClick() {
                   <!-- Row 1: Title & Timestamp -->
                   <div class="flex items-center justify-between gap-1.5">
                     <span
-                      class="truncate text-[13px] font-medium text-white/95"
+                      class="truncate text-[13px] font-medium"
+                      :class="activeId === conv.id ? 'text-blue-900 dark:text-white' : 'text-[var(--ap-text-primary)]'"
                     >
                       {{ getConvTitle(conv) }}
                     </span>
@@ -406,8 +400,11 @@ function onContactsClick() {
                   <!-- Row 2: Subtitle & Badges -->
                   <div class="flex items-center justify-between gap-1.5 mt-0.5">
                     <span
-                      class="truncate text-[11px] text-white/50"
-                      :class="{ italic: conv.lastMessage?.deleted_at }"
+                      class="truncate text-[11px]"
+                      :class="[
+                        activeId === conv.id ? 'text-blue-700/80 dark:text-blue-200/70' : 'text-[var(--ap-text-muted)]',
+                        { italic: conv.lastMessage?.deleted_at }
+                      ]"
                     >
                       {{ getConvSubtitle(conv) }}
                     </span>
@@ -436,14 +433,14 @@ function onContactsClick() {
 
         <!-- Online Friends Section -->
         <div>
-          <div class="flex items-center justify-between px-2 mb-1 text-[11px] font-semibold uppercase tracking-wider text-white/40">
+          <div class="flex items-center justify-between px-2 mb-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--ap-text-muted)]">
             <span>Online Friends</span>
-            <span class="text-[10px] bg-white/5 text-white/60 border border-white/10 px-1.5 py-0.2 rounded-full font-mono font-semibold">
+            <span class="text-[10px] bg-black/5 dark:bg-white/5 text-[var(--ap-text-secondary)] border border-black/10 dark:border-white/10 px-1.5 py-0.2 rounded-full font-mono font-semibold">
               {{ onlineFriends.length }}
             </span>
           </div>
 
-          <div v-if="onlineFriends.length === 0" class="px-2 py-2 text-xs text-white/40 italic">
+          <div v-if="onlineFriends.length === 0" class="px-2 py-2 text-xs text-[var(--ap-text-muted)] italic">
             No other friends currently online
           </div>
 
@@ -454,7 +451,7 @@ function onContactsClick() {
               type="button"
               :data-test="`online-friend-${friend.id}`"
               :disabled="Boolean(currentUser && friend.id === currentUser.id)"
-              class="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl text-[12.5px] font-medium text-white/80 hover:bg-white/5 transition-colors text-left group"
+              class="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl text-[12.5px] font-medium text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left group"
               :class="currentUser && friend.id === currentUser.id ? 'cursor-default' : 'cursor-pointer'"
               @click="onOnlineFriendClick(friend)"
             >
@@ -468,12 +465,12 @@ function onContactsClick() {
                 />
                 <span class="truncate">
                   {{ friend.display_name }}
-                  <span v-if="currentUser && friend.id === currentUser.id" class="text-white/40 text-[11px] ml-1">(you)</span>
+                  <span v-if="currentUser && friend.id === currentUser.id" class="text-[var(--ap-text-muted)] text-[11px] ml-1">(you)</span>
                 </span>
               </div>
               <span
                 v-if="!currentUser || friend.id !== currentUser.id"
-                class="text-[11px] font-medium text-blue-400 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity"
+                class="text-[11px] font-medium text-blue-500 dark:text-blue-400 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity"
               >
                 Chat
               </span>
@@ -483,7 +480,7 @@ function onContactsClick() {
       </div>
 
       <!-- Footer Profile Capsule -->
-      <div class="p-2 border-t border-white/5 bg-white/3 shrink-0 flex items-center justify-between gap-1.5">
+      <div class="p-2 border-t border-[var(--ap-glass-border)] bg-black/2 dark:bg-white/3 shrink-0 flex items-center justify-between gap-1.5">
         <div class="flex items-center gap-2 min-w-0 pl-1">
           <UserAvatar
             :display-name="currentUser?.display_name || 'You'"
@@ -493,11 +490,11 @@ function onContactsClick() {
             size="sm"
           />
           <div class="truncate">
-            <div class="text-xs font-semibold text-white/95 truncate">
+            <div class="text-xs font-semibold text-[var(--ap-text-primary)] truncate">
               {{ currentUser?.display_name || 'Guest' }}
             </div>
-            <div class="text-[10px] text-emerald-400 font-medium truncate flex items-center gap-1">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <div class="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium truncate flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
               Online
             </div>
           </div>
@@ -510,7 +507,7 @@ function onContactsClick() {
             variant="ghost"
             size="icon"
             data-test="open-profile-settings"
-            class="size-7.5 rounded-full text-white/70 hover:bg-white/10 hover:text-white"
+            class="size-7.5 rounded-full text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10 hover:text-[var(--ap-text-primary)]"
             aria-label="Profile Settings"
             title="Profile Settings"
             @click="emit('openProfileSettings')"
@@ -524,13 +521,13 @@ function onContactsClick() {
             variant="ghost"
             size="icon"
             data-test="toggle-notifications-btn"
-            class="relative size-7.5 rounded-full text-white/70 hover:bg-white/10 hover:text-white"
+            class="relative size-7.5 rounded-full text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10 hover:text-[var(--ap-text-primary)]"
             :aria-label="notificationPermission === 'denied' ? 'Notifications blocked by browser' : (notificationsEnabled ? 'Mute notifications' : 'Enable notifications')"
             :title="notificationPermission === 'denied' ? 'Notifications blocked in browser settings' : (notificationsEnabled ? 'Mute notifications' : 'Enable notifications')"
             @click="emit('toggleNotifications')"
           >
             <Bell v-if="notificationsEnabled && notificationPermission !== 'denied'" class="size-3.5" aria-hidden="true" />
-            <BellOff v-else class="size-3.5 text-amber-400" aria-hidden="true" />
+            <BellOff v-else class="size-3.5 text-amber-500" aria-hidden="true" />
             <span
               v-if="notificationsEnabled && notificationPermission === 'default'"
               data-test="notifications-pending-badge"
@@ -544,7 +541,7 @@ function onContactsClick() {
             type="button"
             variant="ghost"
             size="icon"
-            class="size-7.5 rounded-full text-white/70 hover:bg-white/10 hover:text-white"
+            class="size-7.5 rounded-full text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10 hover:text-[var(--ap-text-primary)]"
             :aria-label="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
             :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
             @click="emit('toggleTheme')"
@@ -558,7 +555,7 @@ function onContactsClick() {
             type="button"
             variant="ghost"
             size="icon"
-            class="size-7.5 rounded-full text-white/70 hover:bg-rose-500/20 hover:text-rose-400"
+            class="size-7.5 rounded-full text-[var(--ap-text-secondary)] hover:bg-rose-500/20 hover:text-rose-500"
             aria-label="Log out"
             title="Log Out"
             @click="emit('logout')"
