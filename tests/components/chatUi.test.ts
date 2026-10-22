@@ -653,7 +653,12 @@ describe('Chat UI components', () => {
         },
       })
 
-      expect(sidebar.find('nav[aria-label="Workspace navigation"]').exists()).toBe(true)
+      expect(sidebar.find('[data-test="open-contacts"]').exists()).toBe(true)
+      expect(sidebar.find('[data-test="open-start-dm"]').exists()).toBe(true)
+      expect(sidebar.find('[data-test="open-create-group"]').exists()).toBe(true)
+      expect(sidebar.find('[data-test="toggle-notifications-btn"]').exists()).toBe(true)
+      expect(sidebar.find('[data-test="open-profile-settings"]').exists()).toBe(true)
+      expect(sidebar.find('[data-test="conversation-search-input"]').exists()).toBe(true)
       expect(sidebar.find('aside[aria-label="Channel and Friends Directory"]').exists()).toBe(true)
       expect(sidebar.text()).toContain('Live')
 

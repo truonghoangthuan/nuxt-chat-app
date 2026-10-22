@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onUnmounted } from 'vue'
-import { Send, X, Paperclip } from '@lucide/vue'
+import { Send, X, Plus } from '@lucide/vue'
 import { Button } from '~/components/ui/button'
 import type { ChatMessage, Profile } from '~/types/chat'
 import { shouldSendOnKeydown, extractActiveMentionQuery, applyMentionAutocomplete } from '~/utils/chat'
@@ -203,7 +203,7 @@ function autoResize() {
   const el = textareaRef.value
   if (!el) return
   el.style.height = 'auto'
-  el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+  el.style.height = `${Math.min(el.scrollHeight, 128)}px`
 }
 
 function handleClick() {
@@ -298,7 +298,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="px-4 pb-4 pt-1.5 bg-transparent shrink-0">
+  <div class="p-4 bg-transparent shrink-0">
     <!-- Hidden file input for images -->
     <input
       ref="fileInputRef"
@@ -310,78 +310,70 @@ onUnmounted(() => {
       @change="handleFileChange"
     />
 
-    <!-- Typing indicator bar -->
-    <div class="h-5 mb-1 px-2 flex items-center">
-      <span
-        v-if="typingLabel"
-        class="text-xs text-[var(--om-text-secondary)] flex items-center gap-2 transition-opacity"
-      >
-        <span class="inline-flex gap-1">
-          <span class="w-1.5 h-1.5 bg-[var(--om-accent-bright)] rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-          <span class="w-1.5 h-1.5 bg-[var(--om-accent-bright)] rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-          <span class="w-1.5 h-1.5 bg-[var(--om-accent-bright)] rounded-full animate-bounce"></span>
+    <div class="max-w-[65ch] mx-auto w-full relative">
+      <!-- Typing Indicator -->
+      <div class="h-5 mb-1 px-3 flex items-center">
+        <span
+          v-if="typingLabel"
+          class="text-xs text-white/70 flex items-center gap-2 transition-opacity"
+        >
+          <span class="inline-flex gap-1">
+            <span class="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+            <span class="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+            <span class="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></span>
+          </span>
+          <span>{{ typingLabel }}</span>
         </span>
-        <span>{{ typingLabel }}</span>
-      </span>
-    </div>
-
-    <!-- @Mention Autocomplete Menu -->
-    <div
-      v-if="filteredMentions.length > 0"
-      data-test="mention-autocomplete"
-      class="mb-2 rounded-[12px] border border-[var(--om-border-strong)] bg-[var(--om-card)] shadow-2xl overflow-hidden"
-    >
-      <div class="px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--om-text-muted)] border-b border-[var(--om-border)]">
-        Mention a friend
       </div>
-      <button
-        v-for="(candidate, idx) in filteredMentions"
-        :key="candidate.id"
-        type="button"
-        :data-test="`mention-option-${candidate.id}`"
-        class="w-full px-3.5 py-2 flex items-center gap-2.5 text-xs text-left transition-colors cursor-pointer"
-        :class="idx === selectedMentionIndex ? 'bg-[var(--om-active)] text-[var(--om-text-primary)] font-semibold' : 'text-[var(--om-text-secondary)] hover:bg-[var(--om-hover)] hover:text-[var(--om-text-primary)]'"
-        @click="selectMention(candidate)"
-      >
-        <UserAvatar
-          :display-name="candidate.display_name"
-          :avatar-color="candidate.avatar_color"
-          :avatar-url="candidate.avatar_url"
-          size="sm"
-        />
-        <span class="font-medium text-[var(--om-text-primary)]">@{{ candidate.display_name }}</span>
-      </button>
-    </div>
 
-    <!-- Floating Command-Bar Deck -->
-    <div
-      data-test="composer-deck"
-      class="rounded-[14px] border border-[var(--om-border-strong)] bg-[var(--om-card)] shadow-lg shadow-black/10 transition-colors focus-within:border-indigo-500/50 overflow-hidden"
-      @dragover.prevent
-      @drop.prevent="handleDrop"
-      @keydown="handleDeckKeydown"
-      @paste="handlePaste"
-    >
-      <!-- Replying To Banner -->
+      <!-- @Mention Autocomplete Menu -->
+      <div
+        v-if="filteredMentions.length > 0"
+        data-test="mention-autocomplete"
+        class="mb-2 rounded-2xl border border-white/15 bg-[#161824]/90 backdrop-blur-2xl shadow-2xl p-1 overflow-hidden"
+      >
+        <div class="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/40 border-b border-white/5">
+          Mention a friend
+        </div>
+        <button
+          v-for="(candidate, idx) in filteredMentions"
+          :key="candidate.id"
+          type="button"
+          :data-test="`mention-option-${candidate.id}`"
+          class="w-full px-3 py-2 flex items-center gap-2.5 text-xs text-left rounded-xl transition-colors cursor-pointer"
+          :class="idx === selectedMentionIndex ? 'bg-blue-600/30 text-white font-medium' : 'text-white/80 hover:bg-white/5 hover:text-white'"
+          @click="selectMention(candidate)"
+        >
+          <UserAvatar
+            :display-name="candidate.display_name"
+            :avatar-color="candidate.avatar_color"
+            :avatar-url="candidate.avatar_url"
+            size="sm"
+          />
+          <span class="font-medium text-white/90">@{{ candidate.display_name }}</span>
+        </button>
+      </div>
+
+      <!-- Replying To Banner (Frosted Pill) -->
       <div
         v-if="replyingTo"
         data-test="reply-banner"
-        class="px-3.5 py-1.5 bg-indigo-500/10 border-b border-indigo-500/20 flex items-center justify-between gap-2 text-xs"
+        class="mb-2 px-4 py-1.5 rounded-full bg-white/8 border border-white/10 backdrop-blur-md flex items-center justify-between gap-2 text-xs"
       >
-        <div class="truncate text-[var(--om-text-secondary)]">
-          Replying to <span class="font-semibold text-[var(--om-accent-bright)] font-mono">@{{ replyingTo.author?.display_name || 'Friend' }}</span>:
-          <span class="italic ml-1">{{ isImagePayload(replyingTo.content) ? formatImageMessageSummary(parseImagePayload(replyingTo.content)?.images.length || 1) : replyingTo.content }}</span>
+        <div class="truncate text-white/70">
+          Replying to <span class="font-semibold text-blue-300 font-mono">@{{ replyingTo.author?.display_name || 'Friend' }}</span>:
+          <span class="italic ml-1 text-white/90">{{ isImagePayload(replyingTo.content) ? formatImageMessageSummary(parseImagePayload(replyingTo.content)?.images.length || 1) : replyingTo.content }}</span>
         </div>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
           data-test="cancel-reply"
-          class="text-[var(--om-text-secondary)] hover:text-[var(--om-text-primary)] cursor-pointer"
+          class="text-white/60 hover:text-white rounded-full size-6 cursor-pointer"
           aria-label="Cancel reply"
           @click="emit('cancelReply')"
         >
-          <X class="size-4" aria-hidden="true" />
+          <X class="size-3.5" aria-hidden="true" />
         </Button>
       </div>
 
@@ -389,12 +381,12 @@ onUnmounted(() => {
       <div
         v-if="validationError"
         data-test="attachment-error"
-        class="px-3.5 py-1.5 text-xs text-rose-500 bg-rose-500/10 border-b border-rose-500/20 flex items-center justify-between"
+        class="mb-2 px-4 py-1.5 rounded-full text-xs text-rose-300 bg-rose-500/15 border border-rose-500/25 backdrop-blur-md flex items-center justify-between"
       >
         <span>{{ validationError }}</span>
         <button
           type="button"
-          class="text-rose-400 hover:text-rose-300 cursor-pointer"
+          class="text-rose-400 hover:text-rose-200 cursor-pointer"
           aria-label="Dismiss error"
           @click="validationError = ''"
         >
@@ -406,13 +398,13 @@ onUnmounted(() => {
       <div
         v-if="pendingAttachments.length > 0"
         data-test="attachment-tray"
-        class="px-3 py-2 border-b border-[var(--om-border)] flex items-center gap-2.5 overflow-x-auto"
+        class="mb-2 p-2 rounded-2xl bg-white/8 border border-white/10 backdrop-blur-md flex items-center gap-2.5 overflow-x-auto custom-scroll"
       >
         <div
           v-for="(att, idx) in pendingAttachments"
           :key="idx"
           data-test="attachment-preview"
-          class="relative group shrink-0 w-16 h-16 rounded-[8px] overflow-hidden border border-[var(--om-border)] bg-[var(--om-hover)]"
+          class="relative group shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-white/10 bg-black/40"
         >
           <img
             :src="att.url"
@@ -431,28 +423,36 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Input Row -->
-      <div class="flex items-end gap-2 p-2.5">
-        <!-- Paperclip Button -->
+      <!-- Apple Floating Frosted Pill Dock -->
+      <div
+        data-test="composer-deck"
+        class="relative rounded-full bg-white/8 hover:bg-white/10 backdrop-blur-2xl border border-white/15 shadow-2xl p-1.5 flex items-center gap-2 transition-all focus-within:bg-white/12 focus-within:ring-2 focus-within:ring-blue-500/40"
+        @dragover.prevent
+        @drop.prevent="handleDrop"
+        @keydown="handleDeckKeydown"
+        @paste="handlePaste"
+      >
+        <!-- Plus / Attachment Button -->
         <button
           type="button"
           :disabled="disabled"
           data-test="attach-image-button"
-          class="size-8 rounded-[8px] flex items-center justify-center text-[var(--om-text-secondary)] hover:text-[var(--om-text-primary)] hover:bg-[var(--om-hover)] transition-colors self-end mb-0.5 shrink-0 cursor-pointer disabled:opacity-40"
+          class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all shrink-0 cursor-pointer disabled:opacity-40"
           title="Attach images"
           aria-label="Attach images"
           @click="triggerFileInput"
         >
-          <Paperclip class="size-4" aria-hidden="true" />
+          <Plus class="size-4" aria-hidden="true" />
         </button>
 
+        <!-- Auto-resizing Textarea -->
         <textarea
           ref="textareaRef"
           v-model="content"
           rows="1"
           :disabled="disabled || pendingAttachments.length > 0"
           :placeholder="pendingAttachments.length > 0 ? 'Images attached (text disabled)' : `Message ${isDm ? '@' : '#'}${channelSlug || 'channel'}`"
-          class="min-h-[38px] max-h-40 w-full resize-none border-0 bg-transparent px-2 py-1.5 text-sm text-[var(--om-text-primary)] shadow-none outline-none placeholder:text-[var(--om-text-muted)] focus:outline-none focus-visible:ring-0 disabled:opacity-60"
+          class="flex-1 bg-transparent border-0 text-white placeholder-white/40 text-[13.5px] leading-relaxed py-1 px-1 resize-none focus:outline-none focus:ring-0 custom-scroll max-h-32 disabled:opacity-60"
           @input="handleInput"
           @click="handleClick"
           @keyup="syncCursor"
@@ -460,21 +460,17 @@ onUnmounted(() => {
           @paste="handlePaste"
         />
 
-        <div class="flex items-center gap-2 shrink-0 pb-0.5 pr-0.5">
-          <span class="hidden lg:inline-block text-[11px] font-mono text-[var(--om-text-muted)] select-none">
-            Enter ↵
-          </span>
-          <button
-            type="button"
-            :disabled="disabled || (!content.trim() && pendingAttachments.length === 0)"
-            class="size-8 rounded-[8px] bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 shrink-0 cursor-pointer"
-            title="Send message"
-            aria-label="Send message"
-            @click="handleSend"
-          >
-            <Send class="size-3.5" aria-hidden="true" />
-          </button>
-        </div>
+        <!-- Send Button -->
+        <button
+          type="button"
+          :disabled="disabled || (!content.trim() && pendingAttachments.length === 0)"
+          class="w-8 h-8 rounded-full bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/30 transition-all active:scale-90 shrink-0 cursor-pointer disabled:opacity-40"
+          title="Send message"
+          aria-label="Send message"
+          @click="handleSend"
+        >
+          <Send class="size-3.5" aria-hidden="true" />
+        </button>
       </div>
     </div>
   </div>

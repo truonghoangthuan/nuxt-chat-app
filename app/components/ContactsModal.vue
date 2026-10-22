@@ -134,27 +134,27 @@ async function handleSearchOrAdd() {
   <div
     v-if="isOpen"
     data-test="contacts-modal-backdrop"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
     @click.self="handleClose"
   >
     <div
       data-test="contacts-modal"
-      class="w-full max-w-md rounded-[14px] border border-[var(--om-border-strong)] bg-[var(--om-card)] overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
+      class="w-full max-w-md rounded-2xl border border-white/15 bg-[#161824]/90 backdrop-blur-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
     >
       <!-- Header -->
-      <div class="px-5 py-4 border-b border-[var(--om-border)] flex items-center justify-between shrink-0">
+      <div class="px-5 py-4 border-b border-white/5 flex items-center justify-between shrink-0">
         <div>
-          <h3 class="text-[16px] font-semibold text-[var(--om-text-primary)]">
+          <h3 class="text-[15px] font-semibold text-white/95 tracking-tight">
             Contacts
           </h3>
-          <p class="text-xs text-[var(--om-text-muted)] mt-0.5">
+          <p class="text-xs text-white/40 mt-0.5">
             Manage your friends and address book
           </p>
         </div>
         <button
           type="button"
           aria-label="Close"
-          class="w-7 h-7 rounded-[6px] text-[var(--om-text-secondary)] hover:text-[var(--om-text-primary)] hover:bg-[var(--om-hover)] text-lg font-bold flex items-center justify-center cursor-pointer transition-colors"
+          class="w-7 h-7 rounded-full text-white/60 hover:text-white hover:bg-white/10 text-lg font-bold flex items-center justify-center cursor-pointer transition-colors"
           @click="handleClose"
         >
           ×
@@ -162,25 +162,25 @@ async function handleSearchOrAdd() {
       </div>
 
       <!-- Search / Add by Email Section -->
-      <div class="p-4 border-b border-[var(--om-border)] space-y-3 shrink-0">
+      <div class="p-4 border-b border-white/5 space-y-3 shrink-0">
         <form class="flex gap-2" @submit.prevent="handleSearchOrAdd">
           <input
             v-model="searchEmail"
             type="email"
             placeholder="Find user by email..."
-            class="flex-1 px-3.5 py-1.5 rounded-[8px] border border-[var(--om-border)] bg-[var(--om-input-bg)] text-sm text-[var(--om-text-primary)] placeholder-[var(--om-text-muted)] focus:outline-none focus:border-indigo-500 transition-colors"
+            class="flex-1 h-9 px-3.5 text-xs rounded-full border border-white/10 bg-white/8 text-white placeholder-white/40 focus:outline-none focus:bg-white/12 focus:ring-1 focus:ring-blue-500/50 transition-all"
           />
           <button
             type="submit"
             :disabled="!searchEmail.trim() || isSearching"
-            class="px-3.5 py-1.5 rounded-[8px] text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shrink-0"
+            class="h-9 px-4 rounded-full text-xs font-semibold bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-md shadow-blue-500/30 shrink-0"
           >
             {{ isSearching ? 'Searching...' : (findUserByEmail ? 'Search' : 'Add') }}
           </button>
         </form>
 
         <!-- Search Error -->
-        <p v-if="searchError" class="text-xs text-rose-500 font-medium">
+        <p v-if="searchError" class="text-xs text-rose-400 font-medium">
           {{ searchError }}
         </p>
 
@@ -188,7 +188,7 @@ async function handleSearchOrAdd() {
         <div
           v-if="searchResult"
           data-test="search-result-preview"
-          class="p-3 rounded-[10px] border border-[var(--om-border)] bg-[var(--om-input-bg)] flex items-center justify-between gap-3"
+          class="p-3 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md flex items-center justify-between gap-3"
         >
           <div class="flex items-center gap-3 min-w-0">
             <UserAvatar
@@ -199,10 +199,10 @@ async function handleSearchOrAdd() {
               size="sm"
             />
             <div class="truncate">
-              <div class="text-sm font-semibold text-[var(--om-text-primary)] truncate">
+              <div class="text-sm font-semibold text-white/95 truncate">
                 {{ searchResult.display_name }}
               </div>
-              <div class="text-xs text-[var(--om-text-muted)] truncate">
+              <div class="text-xs text-white/40 truncate">
                 {{ searchResult.email }}
               </div>
             </div>
@@ -210,20 +210,20 @@ async function handleSearchOrAdd() {
 
           <div class="flex items-center gap-2 shrink-0">
             <template v-if="isSearchResultContact">
-              <span class="px-2 py-0.5 rounded-[4px] text-[11px] font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 In Contacts
               </span>
               <button
                 type="button"
                 data-test="search-result-message-btn"
-                class="px-2.5 py-1 rounded-[6px] text-xs font-semibold bg-indigo-500/15 text-[var(--om-accent-bright)] hover:bg-indigo-600 hover:text-white transition-colors cursor-pointer"
+                class="px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 hover:bg-blue-500 hover:text-white transition-colors cursor-pointer"
                 @click="handleSelect(searchResult.id)"
               >
                 Message
               </button>
             </template>
             <template v-else-if="isSearchResultSelf">
-              <span class="px-2 py-0.5 rounded-[4px] text-[11px] font-medium text-[var(--om-text-muted)] italic">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-medium text-white/40 italic">
                 You
               </span>
             </template>
@@ -231,7 +231,7 @@ async function handleSearchOrAdd() {
               <button
                 type="button"
                 data-test="add-contact-btn"
-                class="px-2.5 py-1 rounded-[6px] text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-all cursor-pointer"
+                class="px-3.5 py-1 rounded-full text-xs font-semibold bg-blue-500 hover:bg-blue-600 text-white transition-all cursor-pointer shadow-md shadow-blue-500/30"
                 @click="handleAddContact(searchResult.email)"
               >
                 Add to Contacts
@@ -242,11 +242,11 @@ async function handleSearchOrAdd() {
       </div>
 
       <!-- Contacts Directory -->
-      <div class="flex-1 overflow-y-auto p-4">
+      <div class="flex-1 overflow-y-auto p-4 custom-scroll">
         <!-- Empty State -->
         <div
           v-if="sortedContacts.length === 0"
-          class="py-10 text-center text-xs text-[var(--om-text-muted)] italic"
+          class="py-10 text-center text-xs text-white/40 italic"
         >
           No contacts yet. Search an email above to add friends.
         </div>
@@ -257,7 +257,7 @@ async function handleSearchOrAdd() {
             v-for="contact in sortedContacts"
             :key="contact.contact_user_id"
             data-test="contact-item"
-            class="flex items-center justify-between p-2 rounded-[8px] hover:bg-[var(--om-hover)] transition-colors group"
+            class="flex items-center justify-between p-2 rounded-xl hover:bg-white/5 transition-colors group"
           >
             <!-- Clickable contact info -->
             <div
@@ -272,13 +272,13 @@ async function handleSearchOrAdd() {
                 size="sm"
               />
               <div class="truncate">
-                <div class="text-sm font-semibold text-[var(--om-text-primary)] truncate">
+                <div class="text-sm font-semibold text-white/95 truncate">
                   {{ contact.profile?.display_name || 'Unknown User' }}
                 </div>
-                <div class="text-[11px] text-[var(--om-text-muted)] flex items-center gap-1.5 truncate">
+                <div class="text-[11px] text-white/40 flex items-center gap-1.5 truncate font-mono">
                   <span>{{ contact.profile?.email || contact.contact_user_id }}</span>
                   <span>•</span>
-                  <span :class="onlineUserIds.includes(contact.contact_user_id) ? 'text-emerald-500 font-medium' : 'text-[var(--om-text-muted)]'">
+                  <span :class="onlineUserIds.includes(contact.contact_user_id) ? 'text-emerald-400 font-medium' : 'text-white/40'">
                     {{ onlineUserIds.includes(contact.contact_user_id) ? 'Online' : 'Offline' }}
                   </span>
                 </div>
@@ -291,7 +291,7 @@ async function handleSearchOrAdd() {
                 type="button"
                 :data-test="`message-contact-${contact.contact_user_id}`"
                 title="Send Message"
-                class="px-2.5 py-1 rounded-[6px] text-xs font-semibold bg-indigo-500/15 text-[var(--om-accent-bright)] hover:bg-indigo-600 hover:text-white transition-colors cursor-pointer"
+                class="px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 hover:bg-blue-500 hover:text-white transition-colors cursor-pointer"
                 @click="handleSelect(contact.contact_user_id)"
               >
                 Message
@@ -301,7 +301,7 @@ async function handleSearchOrAdd() {
                 :data-test="`remove-contact-${contact.contact_user_id}`"
                 aria-label="Remove contact"
                 title="Remove contact"
-                class="p-1.5 rounded-[6px] text-[var(--om-text-muted)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                class="p-1.5 rounded-full text-white/40 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
                 @click.stop="handleRemove(contact.contact_user_id)"
               >
                 <!-- Trash Icon -->

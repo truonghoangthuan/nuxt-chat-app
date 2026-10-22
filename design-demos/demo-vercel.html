@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vercel Monolith — Friends Chat UI Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --vc-bg: #000000;
+      --vc-sidebar: #050505;
+      --vc-stage: #000000;
+      --vc-card: #0a0a0a;
+      --vc-card-elevated: #111111;
+      --vc-border: #1f1f1f;
+      --vc-border-hover: #333333;
+      --vc-border-focus: #ffffff;
+      --vc-text-primary: #ededed;
+      --vc-text-secondary: #888888;
+      --vc-text-muted: #555555;
+      --vc-accent: #ffffff;
+    }
+    body {
+      font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--vc-bg);
+      color: var(--vc-text-primary);
+      margin: 0;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    .font-mono {
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #000000;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #262626;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: #404040;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col antialiased select-none text-[13px]">
+
+  <!-- Top Floating Switcher Bar -->
+  <header class="h-10 px-4 bg-[#000000] border-b border-[var(--vc-border)] flex items-center justify-between shrink-0 z-50">
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
+        <svg class="w-3.5 h-3.5 text-white" viewBox="0 0 1155 1000" fill="currentColor"><path d="m577.3 0 577.4 1000H0z"/></svg>
+        <span class="font-bold text-xs tracking-tight text-white uppercase font-mono">Direction 2: Vercel Monolith</span>
+        <span class="px-1.5 py-0.2 rounded text-[10px] font-mono bg-white/10 border border-white/20 text-white">Stark · Utilitarian · Edge</span>
+      </div>
+    </div>
+
+    <!-- Quick Switcher Controls -->
+    <div class="flex items-center gap-2">
+      <div class="flex items-center rounded bg-[#111] border border-[var(--vc-border)] p-0.5">
+        <a href="demo-linear.html" class="px-2.5 py-1 rounded text-xs font-medium text-[var(--vc-text-secondary)] hover:text-white transition-colors">
+          Linear
+        </a>
+        <button class="px-2.5 py-1 rounded text-xs font-medium bg-white text-black font-semibold shadow-xs">
+          Vercel
+        </button>
+        <a href="demo-apple.html" class="px-2.5 py-1 rounded text-xs font-medium text-[var(--vc-text-secondary)] hover:text-white transition-colors">
+          Apple
+        </a>
+      </div>
+
+      <div class="h-4 w-px bg-[var(--vc-border)] mx-1"></div>
+
+      <!-- State Toggle Controls -->
+      <button id="btn-toggle-empty" onclick="toggleEmptyState()" class="px-2 py-1 rounded text-xs font-mono text-[var(--vc-text-secondary)] hover:text-white hover:bg-white/5 border border-transparent hover:border-[var(--vc-border)] transition-colors">
+        [TOGGLE EMPTY]
+      </button>
+      <button id="btn-stream-msg" onclick="simulateStreamingMessage()" class="px-2.5 py-1 rounded text-xs font-mono bg-white/5 border border-white/20 text-white hover:bg-white/10 transition-colors flex items-center gap-1.5">
+        <span class="w-1.5 h-1.5 bg-emerald-400"></span>
+        [STREAM LOG]
+      </button>
+      <a href="index.html" class="px-2 py-1 rounded text-xs font-mono text-[var(--vc-text-secondary)] hover:text-white">
+        [HUB]
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Chat Workspace -->
+  <div class="flex-1 flex overflow-hidden">
+
+    <!-- Vercel Left Workspace Rail (Sidebar) -->
+    <aside class="w-64 bg-[var(--vc-sidebar)] border-r border-[var(--vc-border)] flex flex-col shrink-0">
+      <!-- Workspace Brand Header -->
+      <div class="h-12 px-3.5 border-b border-[var(--vc-border)] flex items-center justify-between">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="w-5 h-5 bg-white text-black flex items-center justify-center font-bold text-xs">▲</div>
+          <span class="font-bold text-xs tracking-wider text-white font-mono uppercase truncate">SYSTEM//WORKSPACE</span>
+        </div>
+        <div class="flex items-center gap-1 font-mono text-[10px] text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-1.5 py-0.5">
+          <span class="w-1 h-1 rounded-full bg-emerald-400 animate-pulse"></span>
+          24ms
+        </div>
+      </div>
+
+      <!-- Quick Action / Search -->
+      <div class="p-2 border-b border-[var(--vc-border)]">
+        <div class="relative flex items-center">
+          <span class="absolute left-2.5 font-mono text-xs text-[var(--vc-text-muted)]">❯</span>
+          <input type="text" placeholder="FILTER CHANNELS..." class="w-full h-7 pl-6 pr-2 bg-[#0a0a0a] border border-[var(--vc-border)] text-xs font-mono text-white placeholder-[var(--vc-text-muted)] focus:outline-none focus:border-white transition-all uppercase">
+        </div>
+      </div>
+
+      <!-- Navigation Feed -->
+      <div class="flex-1 overflow-y-auto p-2 space-y-4 custom-scroll font-mono text-xs">
+        <!-- Channels Section -->
+        <div>
+          <div class="px-2 py-1 flex items-center justify-between text-[10px] font-bold text-[var(--vc-text-muted)] tracking-widest uppercase">
+            <span>CHANNELS [04]</span>
+            <span class="hover:text-white cursor-pointer">+</span>
+          </div>
+          <div class="space-y-0.5">
+            <button class="w-full h-7 px-2 flex items-center justify-between text-left bg-white text-black font-semibold">
+              <span class="truncate"># general</span>
+              <span class="text-[10px] bg-black text-white px-1">4 NEW</span>
+            </button>
+            <button class="w-full h-7 px-2 flex items-center justify-between text-left text-[var(--vc-text-secondary)] hover:text-white hover:bg-[#111] transition-colors">
+              <span class="truncate"># architecture</span>
+            </button>
+            <button class="w-full h-7 px-2 flex items-center justify-between text-left text-[var(--vc-text-secondary)] hover:text-white hover:bg-[#111] transition-colors">
+              <span class="truncate"># deployments</span>
+            </button>
+            <button class="w-full h-7 px-2 flex items-center justify-between text-left text-[var(--vc-text-secondary)] hover:text-white hover:bg-[#111] transition-colors">
+              <span class="truncate"># security-e2ee</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Direct Peers Section -->
+        <div>
+          <div class="px-2 py-1 flex items-center justify-between text-[10px] font-bold text-[var(--vc-text-muted)] tracking-widest uppercase">
+            <span>DIRECT PEERS [03]</span>
+          </div>
+          <div class="space-y-0.5">
+            <button class="w-full h-7 px-2 flex items-center justify-between text-left text-[var(--vc-text-secondary)] hover:text-white hover:bg-[#111] transition-colors">
+              <span class="truncate flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                alex.rivera
+              </span>
+              <span class="text-[10px] text-[var(--vc-text-muted)]">ACTIVE</span>
+            </button>
+            <button class="w-full h-7 px-2 flex items-center justify-between text-left text-[var(--vc-text-secondary)] hover:text-white hover:bg-[#111] transition-colors">
+              <span class="truncate flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                sophia.chen
+              </span>
+            </button>
+            <button class="w-full h-7 px-2 flex items-center justify-between text-left text-[var(--vc-text-secondary)] hover:text-white hover:bg-[#111] transition-colors">
+              <span class="truncate flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                marcus.vance
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Current User Footer -->
+      <div class="h-12 px-3 border-t border-[var(--vc-border)] flex items-center justify-between bg-[#000] font-mono">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="w-5 h-5 bg-[#222] border border-[#444] text-[10px] font-bold flex items-center justify-center text-white">
+            ER
+          </div>
+          <div class="truncate text-xs">
+            <div class="font-bold text-white truncate">elena.rostova</div>
+            <div class="text-[10px] text-emerald-400">● VERIFIED_NODE</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Message Stage -->
+    <main class="flex-1 flex flex-col min-w-0 bg-[var(--vc-stage)] relative">
+
+      <!-- Stage Header -->
+      <div class="h-12 px-5 border-b border-[var(--vc-border)] flex items-center justify-between shrink-0 bg-[#000]">
+        <div class="flex items-center gap-3 min-w-0 font-mono">
+          <div class="flex items-center gap-2">
+            <span class="text-white font-bold text-sm"># GENERAL</span>
+            <span class="text-[10px] border border-[var(--vc-border)] px-1.5 py-0.5 text-[var(--vc-text-secondary)]">EDGE REGION: IAD1</span>
+          </div>
+          <span class="text-xs text-[var(--vc-text-muted)] hidden md:inline">| SHA256: E2EE_ACTIVE</span>
+        </div>
+
+        <div class="flex items-center gap-2 font-mono text-xs">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span class="text-[var(--vc-text-secondary)]">LIVE SYNC</span>
+        </div>
+      </div>
+
+      <!-- Messages Viewport -->
+      <div id="message-viewport" class="flex-1 overflow-y-auto px-6 py-6 space-y-4 custom-scroll relative">
+
+        <!-- Empty State Container (Hidden by default) -->
+        <div id="empty-state-view" class="hidden h-full flex flex-col items-center justify-center text-center py-16 font-mono">
+          <div class="p-3 border border-[var(--vc-border)] bg-[#050505] text-xs text-[var(--vc-text-secondary)] mb-4 max-w-sm text-left">
+            <div class="text-white font-bold mb-1">[EDGE LOG BUFFER EMPTY]</div>
+            <div>STATUS: 200 OK</div>
+            <div>CHANNEL: #general</div>
+            <div>CURSOR: INITIAL_ZERO</div>
+            <div class="text-[var(--vc-text-muted)] mt-2">Ready to receive incoming event stream.</div>
+          </div>
+          <button onclick="presetSend('System initialized. Cursor verified.')" class="px-3 py-1.5 bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200 transition-colors">
+            DISPATCH FIRST EVENT ↵
+          </button>
+        </div>
+
+        <!-- Normal Populated Message Timeline -->
+        <div id="populated-timeline" class="space-y-4 max-w-[70ch] mx-auto">
+
+          <!-- Date Divider -->
+          <div class="flex items-center gap-3 my-4 before:flex-1 before:h-px before:bg-[var(--vc-border)] after:flex-1 after:h-px after:bg-[var(--vc-border)]">
+            <span class="px-2 py-0.5 font-mono text-[10px] text-[var(--vc-text-muted)] uppercase border border-[var(--vc-border)] bg-[#050505]">
+              LOG DATE: 2026-10-22 UTC
+            </span>
+          </div>
+
+          <!-- Message 1: Alex Rivera (Card with Razor Border) -->
+          <div class="group relative border border-[var(--vc-border)] hover:border-[var(--vc-border-hover)] bg-[#050505] p-3.5 transition-all">
+            <div class="flex items-center justify-between font-mono text-xs mb-2">
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-white">alex.rivera</span>
+                <span class="text-[10px] bg-white/10 px-1 text-[var(--vc-text-secondary)]">AUTHOR</span>
+              </div>
+              <span class="text-[11px] text-[var(--vc-text-muted)]">10:41:22 UTC</span>
+            </div>
+
+            <div class="text-[13.5px] leading-relaxed text-[#d4d4d4] space-y-2">
+              <p>
+                Audit complete on composite cursor boundaries. Postgres query plans confirm index scan utilization via <span class="font-mono text-xs text-white bg-white/10 px-1 py-0.5">messages_channel_cursor_idx</span>.
+              </p>
+              <div class="border-l-2 border-white pl-3 text-xs text-[var(--vc-text-secondary)] font-mono py-0.5">
+                ESTIMATED LATENCY: 1.2ms · ZERO FULL-TABLE SCANS
+              </div>
+            </div>
+
+            <!-- Reactions -->
+            <div class="flex items-center gap-1.5 mt-3 font-mono text-xs">
+              <button onclick="toggleReaction(this)" class="px-2 py-0.5 border border-[var(--vc-border)] hover:border-white text-[var(--vc-text-secondary)] hover:text-white flex items-center gap-1.5 bg-[#0a0a0a]">
+                <span>✓</span>
+                <span class="count">3</span>
+              </button>
+              <button onclick="toggleReaction(this)" class="px-2 py-0.5 border border-[var(--vc-border)] hover:border-white text-[var(--vc-text-secondary)] hover:text-white flex items-center gap-1.5 bg-[#0a0a0a]">
+                <span>🔥</span>
+                <span class="count">2</span>
+              </button>
+            </div>
+
+            <!-- Hover Action Dock -->
+            <div class="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-[#111] border border-[#333] px-1 py-0.5 font-mono text-xs">
+              <button onclick="addReaction('✓', this)" class="px-1 hover:text-white text-[var(--vc-text-secondary)]">+</button>
+              <button onclick="setReplyContext('alex.rivera', 'Audit complete on composite cursor boundaries...')" class="px-1 hover:text-white text-[var(--vc-text-secondary)]">REPLY</button>
+            </div>
+          </div>
+
+          <!-- Message 2: Elena Rostova (You) with Terminal Code Block -->
+          <div class="group relative border border-[#333] bg-[#080808] p-3.5 transition-all">
+            <div class="flex items-center justify-between font-mono text-xs mb-2">
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-white">elena.rostova</span>
+                <span class="text-[10px] bg-white text-black px-1 font-bold">YOU</span>
+              </div>
+              <div class="flex items-center gap-2 text-[11px] font-mono text-[var(--vc-text-muted)]">
+                <span>10:43:08 UTC</span>
+                <span class="text-white font-bold">[DELIVERED]</span>
+              </div>
+            </div>
+
+            <div class="text-[13.5px] leading-relaxed text-[#d4d4d4] space-y-2">
+              <p>
+                Deployed the patch to edge runtime in commit <span class="font-mono text-xs text-white underline">#7f9a2b</span>. Here is the verified cursor generator:
+              </p>
+
+              <!-- Vercel Terminal Code Card -->
+              <div class="border border-[var(--vc-border)] bg-[#000000] my-2">
+                <div class="h-7 px-3 bg-[#0a0a0a] border-b border-[var(--vc-border)] flex items-center justify-between font-mono text-xs">
+                  <div class="flex items-center gap-2 text-[var(--vc-text-secondary)]">
+                    <span class="text-emerald-400">●</span>
+                    <span>composables/useMessagesState.ts</span>
+                  </div>
+                  <button onclick="copyCode(this)" class="text-[11px] text-[var(--vc-text-muted)] hover:text-white transition-colors">
+                    [COPY]
+                  </button>
+                </div>
+                <pre class="p-3 text-xs font-mono leading-relaxed text-[#ededed] overflow-x-auto"><span class="text-[#888]">1</span> <span class="text-[#f43f5e]">export function</span> <span class="text-[#38bdf8]">buildCursorQuery</span>(cursor: Cursor): <span class="text-[#f43f5e]">string</span> {
+<span class="text-[#888]">2</span>   <span class="text-[#555]">// Strict monotonic ordering query</span>
+<span class="text-[#888]">3</span>   <span class="text-[#f43f5e]">return</span> <span class="text-[#4ade80]">`created_at.lt."${cursor.ts}",and(created_at.eq."${cursor.ts}",id.lt."${cursor.id}")`</span>;
+<span class="text-[#888]">4</span> }</pre>
+              </div>
+
+              <div class="font-mono text-xs text-[var(--vc-text-secondary)]">
+                $ vitest run tests/composables/useMessagesState.test.ts → 15 PASSED
+              </div>
+            </div>
+
+            <!-- Reactions -->
+            <div class="flex items-center gap-1.5 mt-3 font-mono text-xs">
+              <button onclick="toggleReaction(this)" class="px-2 py-0.5 border border-white text-white flex items-center gap-1.5 bg-[#141414]">
+                <span>▲</span>
+                <span class="count">5</span>
+              </button>
+            </div>
+
+            <div class="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-[#111] border border-[#333] px-1 py-0.5 font-mono text-xs">
+              <button onclick="addReaction('▲', this)" class="px-1 hover:text-white text-[var(--vc-text-secondary)]">+</button>
+              <button onclick="setReplyContext('elena.rostova', 'Deployed the patch to edge runtime...')" class="px-1 hover:text-white text-[var(--vc-text-secondary)]">REPLY</button>
+            </div>
+          </div>
+
+          <!-- Message 3: Sophia Chen -->
+          <div class="group relative border border-[var(--vc-border)] hover:border-[var(--vc-border-hover)] bg-[#050505] p-3.5 transition-all">
+            <div class="flex items-center justify-between font-mono text-xs mb-2">
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-white">sophia.chen</span>
+                <span class="text-[10px] bg-white/10 px-1 text-[var(--vc-text-secondary)]">AI_LEAD</span>
+              </div>
+              <span class="text-[11px] font-mono text-[var(--vc-text-muted)]">10:45:10 UTC</span>
+            </div>
+
+            <div class="mb-2 p-1.5 bg-[#0e0e0e] border-l-2 border-white font-mono text-xs text-[var(--vc-text-secondary)] truncate">
+              REF elena.rostova: "vitest run tests/composables/useMessagesState.test.ts"
+            </div>
+
+            <div class="text-[13.5px] leading-relaxed text-[#d4d4d4]">
+              <p>
+                Zero latency jitter on the edge worker preview. All streaming buffer chunks align cleanly with the cursor boundary.
+              </p>
+            </div>
+
+            <div class="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-[#111] border border-[#333] px-1 py-0.5 font-mono text-xs">
+              <button onclick="setReplyContext('sophia.chen', 'Zero latency jitter on the edge worker...')" class="px-1 hover:text-white text-[var(--vc-text-secondary)]">REPLY</button>
+            </div>
+          </div>
+
+          <!-- Dynamic Container for Live Messages -->
+          <div id="dynamic-messages" class="space-y-4"></div>
+
+        </div>
+
+      </div>
+
+      <!-- Vercel Input Composer Deck -->
+      <div class="p-4 bg-[#000000] border-t border-[var(--vc-border)] shrink-0 font-mono">
+        <div class="max-w-[70ch] mx-auto">
+
+          <!-- Typing indicator bar -->
+          <div id="typing-indicator" class="h-4 mb-1 px-1 flex items-center gap-2 text-[11px] text-[var(--vc-text-muted)] opacity-0 transition-opacity">
+            <span class="w-1.5 h-1.5 bg-white animate-pulse"></span>
+            <span id="typing-text">STREAMING BUFFER ACTIVE...</span>
+          </div>
+
+          <!-- Reply Banner -->
+          <div id="reply-banner" class="hidden mb-2 p-2 bg-[#0c0c0c] border border-white/20 flex items-center justify-between text-xs">
+            <div class="truncate text-[var(--vc-text-secondary)]">
+              REPLYING TO <span id="reply-author" class="font-bold text-white"></span>:
+              <span id="reply-snippet" class="italic ml-1 text-[var(--vc-text-muted)]"></span>
+            </div>
+            <button onclick="clearReplyContext()" class="text-white hover:text-neutral-300">[CANCEL]</button>
+          </div>
+
+          <!-- Composer Box -->
+          <div class="border border-[var(--vc-border)] focus-within:border-white bg-[#050505] transition-all">
+            <div class="flex items-center justify-between px-3 py-1.5 border-b border-[var(--vc-border)] text-[11px] text-[var(--vc-text-muted)]">
+              <span>DISPATCH_CHANNEL: #general</span>
+              <span>MARKDOWN: ACTIVE</span>
+            </div>
+            <div class="flex items-end gap-2 p-2">
+              <span class="font-mono text-sm text-[var(--vc-text-muted)] pl-1 pb-1">❯</span>
+              <textarea
+                id="message-input"
+                rows="1"
+                placeholder="ENTER INSTRUCTION OR PAYLOAD..."
+                class="w-full resize-none bg-transparent border-0 text-xs font-mono text-white placeholder-[var(--vc-text-muted)] focus:outline-none focus:ring-0 leading-relaxed custom-scroll max-h-36 py-1"
+                onkeydown="handleKeydown(event)"
+                oninput="autoResize(this)"
+              ></textarea>
+              <button
+                onclick="sendMessage()"
+                class="px-3 py-1 bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200 transition-colors shrink-0 mb-0.5 active:scale-95"
+              >
+                DISPATCH ↵
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    let activeReply = null;
+
+    function autoResize(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 140) + 'px';
+    }
+
+    function handleKeydown(event) {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+      }
+    }
+
+    function setReplyContext(author, snippet) {
+      activeReply = { author, snippet };
+      document.getElementById('reply-author').textContent = author;
+      document.getElementById('reply-snippet').textContent = snippet.slice(0, 50) + '...';
+      document.getElementById('reply-banner').classList.remove('hidden');
+      document.getElementById('message-input').focus();
+    }
+
+    function clearReplyContext() {
+      activeReply = null;
+      document.getElementById('reply-banner').classList.add('hidden');
+    }
+
+    function toggleEmptyState() {
+      const populated = document.getElementById('populated-timeline');
+      const empty = document.getElementById('empty-state-view');
+      const btn = document.getElementById('btn-toggle-empty');
+      if (populated.classList.contains('hidden')) {
+        populated.classList.remove('hidden');
+        empty.classList.add('hidden');
+        btn.textContent = '[TOGGLE EMPTY]';
+      } else {
+        populated.classList.add('hidden');
+        empty.classList.remove('hidden');
+        btn.textContent = '[SHOW FEED]';
+      }
+    }
+
+    function presetSend(text) {
+      toggleEmptyState();
+      document.getElementById('message-input').value = text;
+      sendMessage();
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('message-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const container = document.getElementById('dynamic-messages');
+      const timeStr = new Date().toISOString().slice(11, 19) + ' UTC';
+
+      let replyHtml = '';
+      if (activeReply) {
+        replyHtml = `
+          <div class="mb-2 p-1.5 bg-[#0e0e0e] border-l-2 border-white font-mono text-xs text-[var(--vc-text-secondary)] truncate">
+            REF ${activeReply.author}: "${activeReply.snippet}"
+          </div>
+        `;
+      }
+
+      const msgId = 'msg-' + Date.now();
+      const msgHtml = `
+        <div id="${msgId}" class="group relative border border-[#333] bg-[#080808] p-3.5 transition-all">
+          <div class="flex items-center justify-between font-mono text-xs mb-2">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-white">elena.rostova</span>
+              <span class="text-[10px] bg-white text-black px-1 font-bold">YOU</span>
+            </div>
+            <div class="flex items-center gap-2 text-[11px] font-mono text-[var(--vc-text-muted)]">
+              <span>${timeStr}</span>
+              <span class="status-indicator text-amber-400">[QUEUED...]</span>
+            </div>
+          </div>
+          ${replyHtml}
+          <div class="text-[13.5px] leading-relaxed text-[#d4d4d4]">
+            <p>${escapeHtml(text)}</p>
+          </div>
+        </div>
+      `;
+
+      container.insertAdjacentHTML('beforeend', msgHtml);
+      input.value = '';
+      autoResize(input);
+      clearReplyContext();
+
+      const viewport = document.getElementById('message-viewport');
+      viewport.scrollTop = viewport.scrollHeight;
+
+      setTimeout(() => {
+        const el = document.getElementById(msgId);
+        if (el) {
+          const status = el.querySelector('.status-indicator');
+          if (status) {
+            status.className = 'status-indicator text-white font-bold';
+            status.textContent = '[CONFIRMED 200]';
+          }
+        }
+      }, 400);
+    }
+
+    function simulateStreamingMessage() {
+      const container = document.getElementById('dynamic-messages');
+      const timeStr = new Date().toISOString().slice(11, 19) + ' UTC';
+      const streamId = 'stream-' + Date.now();
+
+      const typing = document.getElementById('typing-indicator');
+      typing.classList.remove('opacity-0');
+
+      setTimeout(() => {
+        typing.classList.add('opacity-0');
+
+        const streamHtml = `
+          <div id="${streamId}" class="group relative border border-[var(--vc-border)] bg-[#050505] p-3.5 transition-all font-mono">
+            <div class="flex items-center justify-between text-xs mb-2">
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-white">deploy-bot.edge</span>
+                <span class="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-500/30 px-1">STREAMING</span>
+              </div>
+              <span class="text-[11px] text-[var(--vc-text-muted)]">${timeStr}</span>
+            </div>
+            <div class="stream-text text-xs leading-relaxed text-emerald-300 font-mono"></div>
+          </div>
+        `;
+        container.insertAdjacentHTML('beforeend', streamHtml);
+
+        const targetEl = document.querySelector(`#${streamId} .stream-text`);
+        const logLines = [
+          "OPTIMIZING ASSETS...",
+          " GENERATING PRERENDER MANIFEST...",
+          " DEPLOYING TO 38 EDGE LOCATIONS...",
+          " PURGING EDGE CACHE: /api/realtime...",
+          " HEALTH CHECK PASSED. LATENCY: 18ms."
+        ];
+
+        let i = 0;
+        const interval = setInterval(() => {
+          if (i < logLines.length) {
+            targetEl.textContent += (i > 0 ? "\n" : "") + logLines[i];
+            i++;
+            const viewport = document.getElementById('message-viewport');
+            viewport.scrollTop = viewport.scrollHeight;
+          } else {
+            clearInterval(interval);
+            const badge = document.querySelector(`#${streamId} span.bg-emerald-950`);
+            if (badge) badge.textContent = 'DEPLOYED';
+          }
+        }, 120);
+
+      }, 500);
+    }
+
+    function toggleReaction(btn) {
+      const countEl = btn.querySelector('.count');
+      let count = parseInt(countEl.textContent, 10);
+      if (btn.classList.contains('border-white')) {
+        btn.classList.remove('border-white', 'text-white');
+        countEl.textContent = count - 1;
+      } else {
+        btn.classList.add('border-white', 'text-white');
+        countEl.textContent = count + 1;
+      }
+    }
+
+    function addReaction(symbol, btn) {
+      const card = btn.closest('.group');
+      let bar = card.querySelector('.flex.items-center.gap-1.5.mt-3');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.className = 'flex items-center gap-1.5 mt-3 font-mono text-xs';
+        card.appendChild(bar);
+      }
+      const newPill = `
+        <button onclick="toggleReaction(this)" class="px-2 py-0.5 border border-white text-white flex items-center gap-1.5 bg-[#141414]">
+          <span>${symbol}</span>
+          <span class="count">1</span>
+        </button>
+      `;
+      bar.insertAdjacentHTML('beforeend', newPill);
+    }
+
+    function copyCode(btn) {
+      navigator.clipboard.writeText(`export function buildCursorQuery(cursor: Cursor): string {\n  return \`created_at.lt."\${cursor.ts}",and(created_at.eq."\${cursor.ts}",id.lt."\${cursor.id}")\`;\n}`);
+      btn.textContent = '[COPIED]';
+      setTimeout(() => btn.textContent = '[COPY]', 1500);
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>

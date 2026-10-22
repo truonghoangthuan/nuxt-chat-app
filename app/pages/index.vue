@@ -243,7 +243,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="h-dvh flex overflow-hidden bg-[var(--om-canvas)] md:p-2.5 md:gap-2.5 transition-colors">
+  <div class="h-dvh flex overflow-hidden bg-[var(--ap-canvas)] p-2 md:p-3 md:gap-3 transition-colors">
     <!-- Passphrase / E2EE Entry Gate -->
     <E2eeGate
       v-if="e2eeStatus !== 'unlocked'"
@@ -264,7 +264,7 @@ onUnmounted(() => {
         @dismiss="dismissNotificationToast || (() => {})"
       />
 
-      <!-- Sidebar (Unified 2-Pane Sidebar) -->
+      <!-- Sidebar (Unified 260px Apple Messages Sidebar) -->
       <ChatSidebar
         :conversations="conversations"
         :active-conversation-id="activeConversationId"
@@ -295,7 +295,7 @@ onUnmounted(() => {
       />
 
       <main
-        class="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[var(--om-stage)] md:rounded-[12px] md:border md:border-[var(--om-border)] shadow-sm"
+        class="flex-1 flex flex-col min-w-0 h-full bg-[var(--ap-stage)] backdrop-blur-2xl rounded-2xl border border-[var(--ap-glass-border)] shadow-xl overflow-hidden"
       >
         <!-- Connection Banner -->
         <ConnectionBanner
@@ -310,16 +310,16 @@ onUnmounted(() => {
           @request-permission="requestNotificationPermission"
         />
 
-        <!-- Stage Precision Top Header -->
-        <header class="h-[52px] px-4 md:px-5 bg-[var(--om-stage)]/95 backdrop-blur-xs border-b border-[var(--om-border)] flex items-center justify-between gap-4 shrink-0">
+        <!-- Frosted Stage Header (56px) -->
+        <header class="h-14 px-4 md:px-6 border-b border-white/5 flex items-center justify-between gap-4 shrink-0 bg-white/2 backdrop-blur-md">
           <div class="flex items-center gap-3 min-w-0">
             <button
               type="button"
-              class="md:hidden p-1.5 rounded-lg text-[var(--om-text-secondary)] hover:text-[var(--om-text-primary)] hover:bg-[var(--om-hover)] cursor-pointer"
+              class="md:hidden p-1.5 rounded-full text-white/70 hover:text-white hover:bg-white/10 cursor-pointer"
               aria-label="Open mobile navigation"
               @click="isMobileSidebarOpen = true"
             >
-              <Menu class="w-5 h-5 text-[var(--om-text-secondary)]" />
+              <Menu class="w-5 h-5 text-white/80" />
             </button>
 
             <div class="min-w-0 flex items-center gap-2.5">
@@ -333,14 +333,18 @@ onUnmounted(() => {
                   size="sm"
                 />
                 <div class="min-w-0 flex items-center gap-2">
-                  <h2 class="text-[14px] font-semibold text-[var(--om-text-primary)] flex items-center gap-1 truncate">
-                    <span class="text-[var(--om-accent-bright)] font-mono">@</span>
+                  <h2 class="text-[14px] font-semibold text-white/95 flex items-center gap-1 truncate">
+                    <span class="text-blue-400 font-mono">@</span>
                     <span class="truncate">{{ activeConversation.peer?.display_name || 'Direct Message' }}</span>
                   </h2>
                   <span
-                    class="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border"
-                    :class="onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-[var(--om-hover)] border-[var(--om-border)] text-[var(--om-text-muted)]'"
+                    class="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition-colors"
+                    :class="onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-white/5 border-white/10 text-white/40'"
                   >
+                    <span
+                      class="w-1.5 h-1.5 rounded-full inline-block"
+                      :class="onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'bg-emerald-400 shadow-[0_0_6px_#34c759]' : 'bg-white/30'"
+                    ></span>
                     {{ onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'Active now' : 'Offline' }}
                   </span>
                 </div>
@@ -348,7 +352,7 @@ onUnmounted(() => {
 
               <!-- Group Conversation -->
               <template v-else-if="activeConversation?.type === 'group'">
-                <div class="w-8 h-8 rounded-lg bg-[var(--om-card)] border border-[var(--om-border)] flex items-center justify-center text-[var(--om-accent-bright)] shrink-0">
+                <div class="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-400 flex items-center justify-center shrink-0">
                   <Users class="w-4 h-4" />
                 </div>
                 <div class="min-w-0 flex items-center gap-2">
@@ -358,10 +362,10 @@ onUnmounted(() => {
                     class="text-left flex items-center gap-2 hover:opacity-80 transition cursor-pointer truncate"
                     @click="isGroupInfoModalOpen = true"
                   >
-                    <h2 class="text-[14px] font-semibold text-[var(--om-text-primary)] truncate">
+                    <h2 class="text-[14px] font-semibold text-white/95 truncate">
                       {{ activeConversation?.title || 'Group Chat' }}
                     </h2>
-                    <span class="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--om-hover)] border border-[var(--om-border)] text-[var(--om-text-muted)]">
+                    <span class="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-white/5 border border-white/10 text-white/60">
                       {{ activeConversation?.members?.length || 0 }} members
                     </span>
                   </button>
@@ -378,34 +382,38 @@ onUnmounted(() => {
                   size="sm"
                 />
                 <div class="min-w-0 flex items-center gap-2">
-                  <h2 class="text-[14px] font-semibold text-[var(--om-text-primary)] flex items-center gap-1 truncate">
-                    <span class="text-[var(--om-accent-bright)] font-mono">@</span>
+                  <h2 class="text-[14px] font-semibold text-white/95 flex items-center gap-1 truncate">
+                    <span class="text-blue-400 font-mono">@</span>
                     <span class="truncate">{{ activeChannel.peer?.display_name || 'Direct Message' }}</span>
                   </h2>
                   <span
-                    class="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border"
-                    :class="onlineFriends.some(f => f.id === activeChannel?.peer?.id) ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-[var(--om-hover)] border-[var(--om-border)] text-[var(--om-text-muted)]'"
+                    class="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition-colors"
+                    :class="onlineFriends.some(f => f.id === activeChannel?.peer?.id) ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-white/5 border-white/10 text-white/40'"
                   >
+                    <span
+                      class="w-1.5 h-1.5 rounded-full inline-block"
+                      :class="onlineFriends.some(f => f.id === activeChannel?.peer?.id) ? 'bg-emerald-400 shadow-[0_0_6px_#34c759]' : 'bg-white/30'"
+                    ></span>
                     {{ onlineFriends.some(f => f.id === activeChannel?.peer?.id) ? 'Active now' : 'Offline' }}
                   </span>
                 </div>
               </template>
               <template v-else-if="activeChannel">
                 <div class="min-w-0 flex items-center gap-2.5">
-                  <h2 class="text-[14px] font-semibold text-[var(--om-text-primary)] flex items-center gap-1 shrink-0">
-                    <span class="text-[var(--om-accent-bright)] font-mono">#</span>
+                  <h2 class="text-[14px] font-semibold text-white/95 flex items-center gap-1 shrink-0">
+                    <span class="text-blue-400 font-mono">#</span>
                     <span>{{ activeChannel?.slug || 'general' }}</span>
                   </h2>
                   <template v-if="activeChannel?.description">
-                    <span class="hidden sm:inline-block w-px h-3.5 bg-[var(--om-border)] shrink-0"></span>
-                    <p class="hidden sm:block text-[13px] text-[var(--om-text-secondary)] truncate">
+                    <span class="hidden sm:inline-block w-px h-3.5 bg-white/10 shrink-0"></span>
+                    <p class="hidden sm:block text-[13px] text-white/60 truncate">
                       {{ activeChannel.description }}
                     </p>
                   </template>
                 </div>
               </template>
               <template v-else>
-                <h2 class="text-[14px] font-semibold text-[var(--om-text-secondary)]">
+                <h2 class="text-[14px] font-semibold text-white/60">
                   Select a conversation
                 </h2>
               </template>
@@ -418,11 +426,11 @@ onUnmounted(() => {
               v-if="activeConversation?.type === 'group'"
               type="button"
               data-test="open-group-info"
-              class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[var(--om-hover)] border border-[var(--om-border)] text-xs font-medium text-[var(--om-text-secondary)] hover:text-[var(--om-text-primary)] hover:border-[var(--om-border-strong)] transition cursor-pointer"
+              class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/8 hover:bg-white/12 border border-white/10 text-xs font-medium text-white/80 hover:text-white transition cursor-pointer"
               aria-label="Group Info & Settings"
               @click="isGroupInfoModalOpen = true"
             >
-              <Info class="w-3.5 h-3.5 text-[var(--om-accent-bright)]" />
+              <Info class="w-3.5 h-3.5 text-blue-400" />
               <span class="hidden sm:inline">Group Info</span>
             </button>
 
@@ -434,11 +442,11 @@ onUnmounted(() => {
                 :avatar-color="friend.avatar_color"
                 :avatar-url="friend.avatar_url"
                 size="sm"
-                class="ring-2 ring-[var(--om-stage)] rounded-[7px]"
+                class="ring-2 ring-[#10121a] rounded-full"
               />
             </div>
-            <div class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--om-hover)] border border-[var(--om-border)] text-xs font-medium text-[var(--om-text-secondary)]">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <div class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-white/60">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34c759]"></span>
               <span>{{ onlineFriends.length }} online</span>
             </div>
           </div>
