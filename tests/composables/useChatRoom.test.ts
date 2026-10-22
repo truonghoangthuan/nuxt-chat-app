@@ -1069,6 +1069,9 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
         getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
       },
       rpc: vi.fn((fnName: string, params: any) => {
+        if (fnName === 'toggle_pin_message') {
+          return Promise.resolve({ data: { success: true }, error: null })
+        }
         if (fnName === 'lookup_profile_by_email') {
           const match = Array.from(mockProfilesDb.values()).find(
             p => p.email.toLowerCase() === params.search_email.toLowerCase(),
@@ -1087,6 +1090,9 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
             created_at: new Date().toISOString(),
           })
           return Promise.resolve({ data: null, error: null })
+        }
+        if (fnName === 'toggle_pin_message') {
+          return Promise.resolve({ data: { success: true }, error: null })
         }
         if (fnName === 'remove_mutual_friend') {
           mockContactsDb = mockContactsDb.filter(
@@ -1515,6 +1521,9 @@ describe('useChatRoom contacts and conversations', () => {
           )
           return Promise.resolve({ data: match ? [match] : [], error: null })
         }
+        if (fnName === 'toggle_pin_message') {
+          return Promise.resolve({ data: { success: true }, error: null })
+        }
         if (fnName === 'add_mutual_friend') {
           mockContactsDb.push({
             user_id: 'u-alice',
@@ -1779,5 +1788,24 @@ describe('useChatRoom contacts and conversations', () => {
     const noAuthRes = await room.updateGroupTitle(dm.id, 'New Name')
     expect(noAuthRes.error).toBe('Not authenticated.')
     auth.currentProfile.value = origProfile
+  })
+
+  it('togglePinMessage toggles pin state optimistically and calls RPC', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Pin Team', ['u-bob'])
+    await room.sendMessage('Important note')
+    const msg = room.messages.value[0]
+    expect(msg).toBeDefined()
+
+    const res = await room.togglePinMessage(msg.id)
+    expect(res.error).toBeNull()
+    const pinned = room.messages.value.find(m => m.id === msg.id)
+    expect(pinned?.pinned_at).toBeTruthy()
+
+    // Toggle again to unpin
+    const res2 = await room.togglePinMessage(msg.id)
+    expect(res2.error).toBeNull()
+    const unpinned = room.messages.value.find(m => m.id === msg.id)
+    expect(unpinned?.pinned_at).toBeNull()
   })
 })

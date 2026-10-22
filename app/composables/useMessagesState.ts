@@ -136,6 +136,12 @@ export function createMessagesStore() {
         if (serverRowOrId.encryption !== undefined) {
           current.encryption = serverRowOrId.encryption
         }
+        if (serverRowOrId.pinned_at !== undefined) {
+          current.pinned_at = serverRowOrId.pinned_at
+        }
+        if (serverRowOrId.pinned_by !== undefined) {
+          current.pinned_by = serverRowOrId.pinned_by
+        }
       }
     } else {
       if (typeof serverRowOrId !== 'string') {
@@ -208,6 +214,12 @@ export function createMessagesStore() {
       if (serverRow.encryption !== undefined) {
         existingByClientId.encryption = serverRow.encryption
       }
+      if (serverRow.pinned_at !== undefined) {
+        existingByClientId.pinned_at = serverRow.pinned_at
+      }
+      if (serverRow.pinned_by !== undefined) {
+        existingByClientId.pinned_by = serverRow.pinned_by
+      }
       reorderMessages()
       return 'updated'
     }
@@ -236,6 +248,8 @@ export function createMessagesStore() {
           edited_at: serverRow.edited_at !== undefined ? serverRow.edited_at : msg.edited_at,
           deleted_at: serverRow.deleted_at !== undefined ? serverRow.deleted_at : msg.deleted_at,
           encryption: serverRow.encryption !== undefined ? serverRow.encryption : msg.encryption,
+          pinned_at: serverRow.pinned_at !== undefined ? serverRow.pinned_at : msg.pinned_at,
+          pinned_by: serverRow.pinned_by !== undefined ? serverRow.pinned_by : msg.pinned_by,
         }
       }
       if (updated.reply_to_id === serverRow.id && updated.reply_to) {
