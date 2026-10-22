@@ -195,7 +195,7 @@ onUnmounted(() => {
   <div
     v-if="open"
     data-test="lightbox-modal"
-    class="fixed inset-0 z-50 flex flex-col bg-black/90 backdrop-blur-sm select-none"
+    class="fixed inset-0 z-50 flex flex-col bg-black/90 backdrop-blur-md select-none"
     role="dialog"
     aria-modal="true"
     @click.self="handleClose"
@@ -204,7 +204,7 @@ onUnmounted(() => {
     <header class="flex items-center justify-between px-4 py-3 sm:px-6 text-white/90 shrink-0 z-10 bg-gradient-to-b from-black/60 to-transparent">
       <div
         data-test="lightbox-counter"
-        class="text-sm font-medium tracking-wide"
+        class="text-xs font-mono font-medium tracking-wide text-white/80"
       >
         {{ currentIndex + 1 }} / {{ images.length }}
       </div>
@@ -214,7 +214,7 @@ onUnmounted(() => {
           type="button"
           data-test="lightbox-download"
           :disabled="!activeImageUrl"
-          class="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          class="p-2 rounded-[8px] text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           title="Download image"
           @click="handleDownload"
         >
@@ -226,7 +226,7 @@ onUnmounted(() => {
         <button
           type="button"
           data-test="lightbox-close"
-          class="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          class="p-2 rounded-[8px] text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           title="Close (Escape)"
           @click="handleClose"
         >
@@ -274,7 +274,7 @@ onUnmounted(() => {
       <div
         v-if="errorMessage"
         data-test="lightbox-error"
-        class="flex flex-col items-center justify-center gap-3 p-6 rounded-xl bg-neutral-900/80 border border-neutral-700/60 max-w-sm text-center text-rose-300"
+        class="flex flex-col items-center justify-center gap-3 p-6 rounded-[12px] bg-neutral-900/90 border border-neutral-800 max-w-sm text-center text-rose-300"
       >
         <div class="w-12 h-12 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -291,7 +291,7 @@ onUnmounted(() => {
         class="flex flex-col items-center justify-center gap-3 text-white/70"
       >
         <div class="w-10 h-10 border-3 border-white/20 border-t-white rounded-full animate-spin" />
-        <span class="text-xs font-medium tracking-wide">Decrypting image...</span>
+        <span class="text-xs font-mono font-medium tracking-wide">Decrypting image...</span>
       </div>
 
       <!-- Active image -->
@@ -300,7 +300,7 @@ onUnmounted(() => {
         data-test="lightbox-image"
         :src="activeImageUrl"
         :alt="`Image ${currentIndex + 1} of ${images.length}`"
-        class="max-h-full max-w-full object-contain rounded-lg shadow-2xl transition-all select-none"
+        class="max-h-full max-w-full object-contain rounded-[10px] shadow-2xl transition-all select-none"
       >
     </div>
   </div>
