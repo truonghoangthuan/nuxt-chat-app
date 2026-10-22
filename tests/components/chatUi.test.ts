@@ -587,6 +587,67 @@ describe('Chat UI components', () => {
     expect(wrapper.emitted('togglePin')?.[0]).toEqual(['m-pinned-item'])
   })
 
+  it('MessageViewport renders pinned message banner when pinned messages exist', async () => {
+    const wrapper = mount(MessageViewport, {
+      props: {
+        channelId: 'ch-1',
+        currentUserId: 'u-1',
+        messages: [
+          {
+            id: 'm-pin-banner',
+            client_id: 'c-pin',
+            channel_id: 'ch-1',
+            user_id: 'u-2',
+            content: 'Important announcement for all',
+            created_at: '2026-10-22T10:00:00Z',
+            pinned_at: '2026-10-22T10:05:00Z',
+            status: 'sent',
+            author: { id: 'u-2', display_name: 'Bob', avatar_color: '#0284c7' },
+          },
+        ],
+      },
+    })
+
+    const banner = wrapper.find('[data-test="pinned-messages-banner"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('Important announcement for all')
+    expect(banner.text()).toContain('Bob')
+
+    // Clicking banner triggers scroll/jump
+    await banner.find('[data-test="jump-pinned-message"]').trigger('click')
+
+    // Unpin button inside banner emits togglePin
+    const unpinBtn = banner.find('[data-test="unpin-banner-btn"]')
+    expect(unpinBtn.exists()).toBe(true)
+    await unpinBtn.trigger('click')
+    expect(wrapper.emitted('togglePin')?.[0]).toEqual(['m-pin-banner'])
+  })
+
+  it('MessageViewport does not show deleted messages in pinned banner', () => {
+    const wrapper = mount(MessageViewport, {
+      props: {
+        channelId: 'ch-1',
+        currentUserId: 'u-1',
+        messages: [
+          {
+            id: 'm-pin-deleted',
+            client_id: 'c-pin-del',
+            channel_id: 'ch-1',
+            user_id: 'u-2',
+            content: 'Deleted note',
+            created_at: '2026-10-22T10:00:00Z',
+            pinned_at: '2026-10-22T10:05:00Z',
+            deleted_at: '2026-10-22T10:10:00Z',
+            status: 'sent',
+            author: { id: 'u-2', display_name: 'Bob', avatar_color: '#0284c7' },
+          },
+        ],
+      },
+    })
+
+    expect(wrapper.find('[data-test="pinned-messages-banner"]').exists()).toBe(false)
+  })
+
   describe('Direct Messages UI in ChatSidebar (Sub-Project 4)', () => {
     it('ChatSidebar renders dmChannels with peer name and emits startDmWithUser when clicking an online friend', async () => {
       const wrapper = mount(ChatSidebar, {

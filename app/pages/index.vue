@@ -473,6 +473,7 @@ onUnmounted(() => {
           @delete="deleteMessage($event)"
           @toggle-reaction="toggleReaction($event.messageId, $event.emoji)"
           @select-image="handleOpenLightbox"
+          @toggle-pin="togglePinMessage"
         />
 
         <!-- Message Composer -->

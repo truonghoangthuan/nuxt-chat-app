@@ -6,6 +6,7 @@ import { isImagePayload, parseImagePayload, formatImageMessageSummary } from '~/
 import UserAvatar from '~/components/UserAvatar.vue'
 import MessageActionsMenu from '~/components/MessageActionsMenu.vue'
 import MessageImageGrid from '~/components/MessageImageGrid.vue'
+import { Pin, ChevronLeft, ChevronRight, X } from '@lucide/vue'
 
 const props = withDefaults(
   defineProps<{
@@ -56,6 +57,37 @@ const pendingScrollOnOpen = ref(true)
 const editingMessageId = ref<string | null>(null)
 const editingContent = ref('')
 const copiedCodeMessageId = ref<string | null>(null)
+const activePinnedIndex = ref(0)
+const highlightedMessageId = ref<string | null>(null)
+
+const pinnedMessages = computed(() =>
+  props.messages
+    .filter(m => Boolean(m.pinned_at) && !m.deleted_at)
+    .sort((a, b) => {
+      const tA = a.pinned_at ? Date.parse(a.pinned_at) : 0
+      const tB = b.pinned_at ? Date.parse(b.pinned_at) : 0
+      return tB - tA
+    }),
+)
+
+const currentPinnedMessage = computed(() => {
+  if (pinnedMessages.value.length === 0) return null
+  const idx = activePinnedIndex.value % pinnedMessages.value.length
+  return pinnedMessages.value[idx] || pinnedMessages.value[0] || null
+})
+
+function jumpToPinnedMessage(messageId: string) {
+  const el = document.getElementById(`message-${messageId}`) || viewportRef.value?.querySelector(`[data-message-id="${messageId}"]`)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    highlightedMessageId.value = messageId
+    setTimeout(() => {
+      if (highlightedMessageId.value === messageId) {
+        highlightedMessageId.value = null
+      }
+    }, 2500)
+  }
+}
 
 function startEdit(msg: ChatMessage) {
   editingMessageId.value = msg.id
@@ -287,6 +319,66 @@ onUnmounted(() => {
 
 <template>
   <div class="relative flex-1 flex flex-col min-h-0 bg-transparent">
+    <!-- Pinned Messages Banner -->
+    <div
+      v-if="pinnedMessages.length > 0 && currentPinnedMessage"
+      data-test="pinned-messages-banner"
+      class="sticky top-0 z-20 mx-4 mt-2 px-3.5 py-2 rounded-2xl bg-white/80 dark:bg-[#1a1d28]/90 backdrop-blur-xl border border-black/10 dark:border-white/10 shadow-lg flex items-center justify-between gap-3 text-xs"
+    >
+      <div
+        data-test="jump-pinned-message"
+        class="flex items-center gap-2.5 min-w-0 cursor-pointer flex-1"
+        @click="jumpToPinnedMessage(currentPinnedMessage.id)"
+      >
+        <div class="size-6 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+          <Pin class="size-3.5 fill-current" />
+        </div>
+        <div class="min-w-0 flex flex-col">
+          <div class="flex items-center gap-1.5 font-semibold text-[var(--ap-text-primary)]">
+            <span>Pinned Message</span>
+            <span v-if="pinnedMessages.length > 1" class="text-[10px] text-[var(--ap-text-muted)] font-normal">
+              ({{ activePinnedIndex + 1 }} of {{ pinnedMessages.length }})
+            </span>
+          </div>
+          <p class="truncate text-[var(--ap-text-secondary)] text-[11.5px]">
+            <span class="font-medium text-[var(--ap-text-primary)]">{{ currentPinnedMessage.author?.display_name || 'Friend' }}:</span>
+            {{ isImagePayload(currentPinnedMessage.content) ? 'Shared photos' : currentPinnedMessage.content }}
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1 shrink-0">
+        <template v-if="pinnedMessages.length > 1">
+          <button
+            type="button"
+            aria-label="Previous pinned message"
+            class="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-[var(--ap-text-secondary)] cursor-pointer"
+            @click.stop="activePinnedIndex = (activePinnedIndex - 1 + pinnedMessages.length) % pinnedMessages.length"
+          >
+            <ChevronLeft class="size-3.5" />
+          </button>
+          <button
+            type="button"
+            aria-label="Next pinned message"
+            class="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-[var(--ap-text-secondary)] cursor-pointer"
+            @click.stop="activePinnedIndex = (activePinnedIndex + 1) % pinnedMessages.length"
+          >
+            <ChevronRight class="size-3.5" />
+          </button>
+        </template>
+
+        <button
+          type="button"
+          data-test="unpin-banner-btn"
+          title="Unpin message"
+          class="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-[var(--ap-text-muted)] hover:text-rose-500 cursor-pointer transition-colors"
+          @click.stop="emit('togglePin', currentPinnedMessage.id)"
+        >
+          <X class="size-3.5" />
+        </button>
+      </div>
+    </div>
+
     <!-- Messages Scroll Container with custom-scroll -->
     <div
       ref="viewportRef"
@@ -473,6 +565,7 @@ onUnmounted(() => {
                   : 'bg-black/[0.04] dark:bg-white/8 hover:bg-black/[0.06] dark:hover:bg-white/10 backdrop-blur-md border border-black/[0.08] dark:border-white/10 text-[var(--ap-text-primary)] rounded-[22px] rounded-bl-[4px]',
                 item.message.status === 'sending' ? 'opacity-85' : '',
                 item.message.status === 'failed' ? 'border-rose-500/50' : '',
+                highlightedMessageId === item.message.id ? 'ring-2 ring-blue-500 ring-offset-2' : '',
               ]"
             >
               <!-- Quoted Reply Preview -->
