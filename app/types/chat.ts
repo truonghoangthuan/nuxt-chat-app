@@ -175,6 +175,7 @@ export interface EncryptedImageMetadata {
 export interface ImageMessagePayload {
   type: 'images'
   images: EncryptedImageMetadata[]
+  caption?: string
 }
 
 export interface LocalImageAttachment {

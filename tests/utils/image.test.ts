@@ -74,7 +74,9 @@ describe('Image utilities', () => {
   describe('formatImageMessageSummary', () => {
     it('formats summary label correctly', () => {
       expect(formatImageMessageSummary(1)).toBe('📷 1 photo')
+      expect(formatImageMessageSummary(1, 'Sunset on the beach')).toBe('📷 1 photo: Sunset on the beach')
       expect(formatImageMessageSummary(4)).toBe('📷 4 photos')
+      expect(formatImageMessageSummary(3, 'Trip highlights')).toBe('📷 3 photos: Trip highlights')
       expect(formatImageMessageSummary(0)).toBe('📷 0 photos')
       expect(formatImageMessageSummary(10)).toBe('📷 10 photos')
     })
@@ -103,6 +105,43 @@ describe('Image utilities', () => {
       expect(parsed?.images[0].width).toBe(800)
       expect(parsed?.images[0].height).toBe(600)
       expect(parsed?.images[0].size).toBe(1024)
+      expect(parsed?.caption).toBeUndefined()
+    })
+
+    it('parses valid image payload with caption', () => {
+      const json = JSON.stringify({
+        type: 'images',
+        images: [
+          {
+            path: 'channel/image1.enc',
+            mimeType: 'image/png',
+            width: 800,
+            height: 600,
+            size: 1024,
+          },
+        ],
+        caption: 'Beautiful sunset',
+      })
+      const parsed = parseImagePayload(json)
+      expect(parsed).not.toBeNull()
+      expect(parsed?.caption).toBe('Beautiful sunset')
+    })
+
+    it('returns null for invalid caption type', () => {
+      const json = JSON.stringify({
+        type: 'images',
+        images: [
+          {
+            path: 'channel/image1.enc',
+            mimeType: 'image/png',
+            width: 800,
+            height: 600,
+            size: 1024,
+          },
+        ],
+        caption: 12345,
+      })
+      expect(parseImagePayload(json)).toBeNull()
     })
 
     it('returns null for invalid inputs', () => {
