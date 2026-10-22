@@ -675,11 +675,20 @@ export function useChatRoom() {
       const oldestRead = computeOldestReadTimestamp(Object.values(map))
       if (!oldestRead) return
 
-      const { data: recentMessages } = await supabase
+      let { data: recentMessages, error: msgErr } = await supabase
         .from('messages')
-        .select('id, conversation_id, channel_id, user_id, content, created_at, deleted_at, reply_to_id')
+        .select('id, conversation_id, user_id, content, created_at, deleted_at, reply_to_id')
         .gt('created_at', oldestRead)
         .order('created_at', { ascending: true })
+
+      if (msgErr && (msgErr.code === '42703' || msgErr.message?.includes('conversation_id'))) {
+        const { data: fallbackMessages } = await supabase
+          .from('messages')
+          .select('id, channel_id, user_id, content, created_at, deleted_at, reply_to_id')
+          .gt('created_at', oldestRead)
+          .order('created_at', { ascending: true })
+        recentMessages = fallbackMessages
+      }
 
       if (recentMessages) {
         const decryptedRecent = await decryptMessageRows(recentMessages as any, e2ee.key.value)
