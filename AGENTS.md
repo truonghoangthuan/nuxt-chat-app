@@ -23,6 +23,8 @@ A lightweight, resilient Slack-style real-time chat web app for friends across p
 
 - **Environment Variables:** Copy `.env.example` to `.env` and set `SUPABASE_URL` and `SUPABASE_KEY`.
 - **Database Schema:** `supabase/schema.sql` defines `public.profiles`, `public.channels`, `public.messages`, `public.e2ee_config`, the `on_auth_user_created` profile-creation trigger, the `enforce_message_e2ee_envelope` trigger, RLS policies, the composite cursor index `messages_channel_cursor_idx`, and the `supabase_realtime` publication.
+- **Windows CLI Tooling:** GitHub CLI (`gh`) is often at `C:\Program Files\GitHub CLI\gh.exe` if not present in default `$env:PATH`.
+- **Windows Line Endings:** Git with `core.autocrlf = true` checks out CRLF. Normalize or match exact CRLF when applying targeted file edits.
 
 ## 3. Architecture & Directory Layout
 
@@ -114,9 +116,30 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
    - Encrypted attachments and rich media decrypt asynchronously and attach `blob:` URLs after the initial message history render.
    - Viewports must couple `scrollToBottom` with layout-aware triggers: image load capture (`@load.capture="onViewportImageLoad"`), a `ResizeObserver` observing scroll container expansion, and `pendingScrollOnOpen` tracking so late layout shifts maintain bottom-pinning without jumping when the user intentionally scrolls up.
 
-9. **Test-Asserted Class & Attribute Preservation (Component Restyling):**
-   - When restyling UI components (`MessageViewport.vue`, `MessageComposer.vue`, `ChatSidebar.vue`), never drop or alter legacy CSS classes or input attribute strings that test suites explicitly assert (e.g., `text-[var(--fp-text-muted)]`, `bg-indigo-600`, and `placeholder="Message #${channel}"`).
-   - Layer new visual styling tokens (such as Apple Fluid gradient or frosted glass classes) alongside asserted tokens rather than removing them, ensuring visual fidelity without breaking unit and component test assertions.
+9. **Component Restyling vs. Structural Redesign Discipline:**
+   - **Functional Invariants (Strictly Preserved):** Always preserve functional `data-test` hooks (`data-test="open-contacts"`, `data-test="open-start-dm"`, `data-test="open-create-group"`, `data-test="load-older-button"`), event emits, keyboard shortcuts (Enter / Shift+Enter), and accessibility roles.
+   - **Visual Restyling (In-Place):** When performing visual tweaks within an existing layout, layer new visual tokens alongside legacy asserted tokens (e.g., keeping asserted placeholder substrings or utility classes) so tests pass without modification.
+   - **Structural Layout Redesign (Authorized Modernization):** When an approved design demo or explicit user request calls for replacing layout architecture (e.g., unifying a 2-pane rail+drawer into a single 1-pane sidebar), refactor the component structure cleanly rather than hacking phantom DOM elements. Immediately update obsolete structural assertions in the corresponding test suite (e.g., `tests/components/chatUi.test.ts`) while verifying all functional and interaction assertions remain green.
+   - **Full-App Scope Default:** Unless explicitly scoped down, application-wide UI redesigns apply holistically across all surfaces: Main Workspace, Message Viewport, Composer Dock, Auth/Login, E2EE Gates, and all Modals.
+
+10. **Postgres RLS Permissive Combining & Tightening Rule:**
+    - Postgres evaluates multiple permissive RLS policies using `OR`. Adding a restrictive policy while an older `using (true)` policy remains active leaves data exposed.
+    - When tightening security on existing tables (`profiles`, `contacts`), always explicitly drop legacy permissive policies (`DROP POLICY IF EXISTS ...`) before defining scoped rules.
+
+11. **Mutual Friendship & Realtime Contact Profile Resolution:**
+    - Friend relationships are strictly bidirectional, created and removed via atomic `SECURITY DEFINER` RPCs (`add_mutual_friend`, `remove_mutual_friend`).
+    - `public.profiles` RLS restricts reads to self, mutual friends, and shared channel co-members. Peer profile lookups must happen *after* friendship row insertion.
+    - On realtime `contacts` `INSERT` events, if peer profile is missing from memory, asynchronously query Supabase (`fetchProfile`) and merge into `contactsProfiles` store.
+
+12. **Passphrase Workspace Gate Invariant:**
+    - When `e2eeStatus !== 'unlocked'`, the entire chat workspace (`ChatSidebar`, channel views, message lists, composers) must remain unmounted.
+    - Render only `E2eeGate.vue` full-screen until valid passphrase derivation completes to prevent any channel or user metadata exposure in the DOM.
+
+13. **Native Windows & OS Web Notifications Discipline (Service Worker & Action Center):**
+    - **Background & Minimized Tab Delivery:** Modern Chromium on Windows throttles or drops `new window.Notification()` from background or sleeping tabs. Always route desktop notifications through `ServiceWorkerRegistration.showNotification()` via `public/sw.js` when available, falling back to `window.Notification` only in unsupported environments.
+    - **V8 Garbage Collection Retention:** Retain all instantiated `window.Notification` objects in a module-level `activeNotifications: Set<any>` until `onclose` or `onclick` fires to prevent premature V8 garbage collection from dropping Windows Action Center toasts.
+    - **Absolute Asset Paths:** Windows Notification Platform XML parsers reject relative icon paths (`/favicon.ico`). Always resolve absolute URLs using `${window.location.origin}/...`.
+    - **Proactive Permission UX:** Browser `Notification.permission` defaults to `'default'`. Never assume notifications are active without permission; surface a non-intrusive permission banner triggered by explicit user gestures.
 
 ## 5. Testing Standards
 
