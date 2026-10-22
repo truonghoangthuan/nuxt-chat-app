@@ -32,7 +32,7 @@ function run(action: () => void) {
       data-test="open-mobile-actions"
       :aria-label="`Open actions for message from ${message.author?.display_name || 'friend'}`"
       :aria-expanded="isOpen"
-      class="inline-flex size-8 items-center justify-center rounded-lg border border-[var(--fp-border)] bg-[var(--fp-surface-elevated)] text-[var(--fp-text-secondary)] shadow-sm hover:text-[var(--fp-text-primary)] focus-visible:outline-2 focus-visible:outline-indigo-500"
+      class="inline-flex size-8 items-center justify-center rounded-[8px] border border-[var(--om-border)] bg-[var(--om-card)] text-[var(--om-text-secondary)] shadow-sm hover:text-[var(--om-text-primary)] hover:border-[var(--om-border-strong)] focus-visible:outline-2 focus-visible:outline-indigo-500 transition-colors"
       @click="isOpen = !isOpen"
     >
       <MoreHorizontal class="size-4" aria-hidden="true" />
@@ -43,10 +43,10 @@ function run(action: () => void) {
       data-test="mobile-action-menu"
       role="menu"
       aria-label="Message actions"
-      class="absolute top-full mt-1 w-52 max-w-[calc(100vw-1.5rem)] rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface-elevated)] p-2 text-[var(--fp-text-primary)] shadow-xl"
+      class="absolute top-full mt-1.5 w-52 max-w-[calc(100vw-1.5rem)] rounded-[10px] border border-[var(--om-border-strong)] bg-[var(--om-card)] p-2 text-[var(--om-text-primary)] shadow-2xl"
       :class="message.user_id === currentUserId ? 'left-0' : 'right-0'"
     >
-      <div class="grid grid-cols-5 gap-1 border-b border-[var(--fp-border)] pb-2">
+      <div class="grid grid-cols-5 gap-1 border-b border-[var(--om-border)] pb-2">
         <button
           v-for="emoji in REACTION_EMOJIS"
           :key="emoji"
@@ -54,18 +54,18 @@ function run(action: () => void) {
           role="menuitem"
           data-test="mobile-reaction"
           :aria-label="`React with ${emoji}`"
-          class="flex size-8 items-center justify-center rounded-md text-base hover:bg-[var(--fp-hover)] focus-visible:outline-2 focus-visible:outline-indigo-500"
+          class="flex size-8 items-center justify-center rounded-[6px] text-base hover:bg-[var(--om-hover)] focus-visible:outline-2 focus-visible:outline-indigo-500 transition-colors cursor-pointer"
           @click="run(() => emit('toggleReaction', { messageId: message.id, emoji }))"
         >
           {{ emoji }}
         </button>
       </div>
-      <div class="mt-1 grid gap-0.5">
+      <div class="mt-1.5 grid gap-0.5">
         <button
           type="button"
           role="menuitem"
           data-test="mobile-reply"
-          class="rounded-md px-2.5 py-2 text-left text-sm hover:bg-[var(--fp-hover)]"
+          class="rounded-[6px] px-2.5 py-1.5 text-left text-xs font-medium text-[var(--om-text-primary)] hover:bg-[var(--om-hover)] transition-colors cursor-pointer"
           @click="run(() => emit('reply', message))"
         >
           Reply
@@ -75,7 +75,7 @@ function run(action: () => void) {
           type="button"
           role="menuitem"
           data-test="mobile-edit"
-          class="rounded-md px-2.5 py-2 text-left text-sm hover:bg-[var(--fp-hover)]"
+          class="rounded-[6px] px-2.5 py-1.5 text-left text-xs font-medium text-[var(--om-text-primary)] hover:bg-[var(--om-hover)] transition-colors cursor-pointer"
           @click="run(() => emit('edit', message))"
         >
           Edit
@@ -85,7 +85,7 @@ function run(action: () => void) {
           type="button"
           role="menuitem"
           data-test="mobile-delete"
-          class="rounded-md px-2.5 py-2 text-left text-sm text-rose-500 hover:bg-rose-500/10"
+          class="rounded-[6px] px-2.5 py-1.5 text-left text-xs font-medium text-[var(--om-destructive)] hover:bg-rose-500/10 transition-colors cursor-pointer"
           @click="run(() => emit('delete', message.id))"
         >
           Delete
