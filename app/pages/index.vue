@@ -18,7 +18,8 @@ import NotificationToastContainer from '~/components/NotificationToastContainer.
 import NotificationPermissionBanner from '~/components/NotificationPermissionBanner.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
 import MessageSearchBar from '~/components/MessageSearchBar.vue'
-import { Menu, Users, Info, Search } from '@lucide/vue'
+import ChatBackgroundModal from '~/components/ChatBackgroundModal.vue'
+import { Menu, Users, Info, Search, Image as ImageIcon } from '@lucide/vue'
 import E2eeGate from '~/components/E2eeGate.vue'
 import { useE2ee } from '~/composables/useE2ee'
 
@@ -35,6 +36,8 @@ const {
   addMemberToGroup,
   leaveGroup,
   updateGroupTitle,
+  updateChatBackground,
+  removeChatBackground,
   selectConversation,
 
   // Transitional aliases for channels and legacy components
@@ -99,6 +102,7 @@ const isMobileSidebarOpen = ref(false)
 const isContactsModalOpen = ref(false)
 const isCreateGroupModalOpen = ref(false)
 const isGroupInfoModalOpen = ref(false)
+const isChatBackgroundModalOpen = ref(false)
 const isProfileSettingsModalOpen = ref(false)
 const isUserProfileModalOpen = ref(false)
 const selectedUserProfile = ref<Profile | null>(null)
@@ -209,6 +213,39 @@ async function handleUpdateGroupTitle(newTitle: string) {
         body: res.error,
       })
     }
+  }
+}
+
+async function handleSelectBackgroundPreset(presetValue: string) {
+  if (!activeConversationId.value) return
+  const res = await updateChatBackground(activeConversationId.value, presetValue)
+  if (res?.error && addNotificationToast) {
+    addNotificationToast({
+      title: 'Failed to update background',
+      body: res.error,
+    })
+  }
+}
+
+async function handleUploadBackgroundFile(file: File) {
+  if (!activeConversationId.value) return
+  const res = await updateChatBackground(activeConversationId.value, file)
+  if (res?.error && addNotificationToast) {
+    addNotificationToast({
+      title: 'Failed to upload background',
+      body: res.error,
+    })
+  }
+}
+
+async function handleResetBackground() {
+  if (!activeConversationId.value) return
+  const res = await removeChatBackground(activeConversationId.value)
+  if (res?.error && addNotificationToast) {
+    addNotificationToast({
+      title: 'Failed to reset background',
+      body: res.error,
+    })
   }
 }
 
@@ -475,6 +512,19 @@ onUnmounted(() => {
 
           <!-- Header Right: Search, Group Info & Online Friends Avatar Stack -->
           <div class="flex items-center gap-2.5 shrink-0">
+            <!-- Background Customization Trigger -->
+            <button
+              v-if="activeConversation || activeChannel"
+              type="button"
+              data-test="open-chat-background-btn"
+              title="Customize chat wallpaper"
+              class="p-1.5 rounded-full bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition cursor-pointer"
+              aria-label="Customize chat wallpaper"
+              @click="isChatBackgroundModalOpen = true"
+            >
+              <ImageIcon class="w-4 h-4 text-blue-500 dark:text-blue-400" />
+            </button>
+
             <!-- Search Bar or Toggle Button -->
             <MessageSearchBar
               v-if="isSearchOpen"
@@ -529,6 +579,7 @@ onUnmounted(() => {
           ref="messageViewportRef"
           :messages="messages"
           :search-query="searchQuery"
+          :background-url="activeConversation?.background_url || activeChannel?.background_url"
           :conversation-id="activeConversationId"
           :channel-id="activeConversationId || activeChannelId"
           :is-dm="activeConversation?.type === 'direct' || Boolean(activeChannel?.is_dm)"
@@ -599,6 +650,17 @@ onUnmounted(() => {
         @leave="handleLeaveGroup"
         @update-title="handleUpdateGroupTitle"
         @view-profile="handleViewProfile"
+        @open-background="isChatBackgroundModalOpen = true"
+      />
+
+      <!-- Chat Background Modal -->
+      <ChatBackgroundModal
+        :is-open="isChatBackgroundModalOpen"
+        :conversation="activeConversation"
+        @close="isChatBackgroundModalOpen = false"
+        @select-preset="handleSelectBackgroundPreset"
+        @upload-file="handleUploadBackgroundFile"
+        @reset="handleResetBackground"
       />
 
       <!-- Profile Settings Modal -->

@@ -510,4 +510,18 @@ describe('GroupInfoModal.vue', () => {
     expect(wrapper.emitted('viewProfile')).toBeTruthy()
     expect(wrapper.emitted('viewProfile')?.[0][0]).toEqual(mockGroupConversation.members[0].profile)
   })
+
+  it('emits openBackground when clicking change background button', async () => {
+    const wrapper = mount(GroupInfoModal, {
+      props: {
+        isOpen: true,
+        conversation: mockGroupConversation,
+        onlineUserIds: [],
+      },
+    })
+    const btn = wrapper.find('[data-test="group-change-background-btn"]')
+    expect(btn.exists()).toBe(true)
+    await btn.trigger('click')
+    expect(wrapper.emitted('openBackground')).toHaveLength(1)
+  })
 })

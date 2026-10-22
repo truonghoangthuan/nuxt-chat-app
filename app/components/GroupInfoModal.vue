@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
-import { Pencil, Check, X } from '@lucide/vue'
+import { Pencil, Check, X, Image as ImageIcon } from '@lucide/vue'
 import type { Conversation, Profile } from '~/types/chat'
 import { isValidEmail } from '~/utils/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
@@ -25,6 +25,7 @@ const emit = defineEmits<{
   (e: 'leave', conversationId: string): void
   (e: 'updateTitle', newTitle: string): void
   (e: 'viewProfile', profile: Profile): void
+  (e: 'openBackground'): void
 }>()
 
 const newMemberEmail = ref('')
@@ -223,6 +224,20 @@ function handleClose() {
 
       <!-- Body -->
       <div class="p-5 space-y-4 overflow-y-auto flex-1 min-h-0 custom-scroll">
+        <!-- Wallpaper / Background Button -->
+        <button
+          type="button"
+          data-test="group-change-background-btn"
+          class="w-full flex items-center justify-between p-3 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 text-white/90 text-xs font-semibold transition cursor-pointer"
+          @click="emit('openBackground')"
+        >
+          <span class="flex items-center gap-2">
+            <ImageIcon class="w-4 h-4 text-blue-400" />
+            Chat Wallpaper & Aesthetic
+          </span>
+          <span class="text-[11px] text-white/40">Customize →</span>
+        </button>
+
         <!-- Add Member Form -->
         <div>
           <label class="block text-xs font-semibold text-white/70 mb-1.5">
