@@ -579,6 +579,24 @@ onUnmounted(() => {
                             : 'bg-blue-500/15 text-blue-700 dark:text-blue-200 border border-blue-500/30')
                     ]"
                   >{{ seg.text }}</span>
+                  <a
+                    v-else-if="seg.isLink"
+                    :href="seg.href"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-test="link-token"
+                    class="underline underline-offset-2 hover:opacity-85 transition-opacity font-medium break-all"
+                    :class="item.isSender ? 'text-white' : 'text-blue-600 dark:text-blue-400'"
+                    @click.stop
+                  >{{ seg.text }}</a>
+                  <code
+                    v-else-if="seg.isCode"
+                    data-test="code-token"
+                    class="px-1.5 py-0.5 rounded font-mono text-[12px] border"
+                    :class="item.isSender
+                      ? 'bg-white/20 border-white/30 text-white'
+                      : 'bg-black/5 dark:bg-white/10 border-black/10 dark:border-white/10 text-pink-600 dark:text-pink-400'"
+                  >{{ seg.text }}</code>
                   <span v-else>{{ seg.text }}</span>
                 </template>
                 <span

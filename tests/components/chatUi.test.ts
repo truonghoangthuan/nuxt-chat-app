@@ -505,6 +505,61 @@ describe('Chat UI components', () => {
     expect(wrapper.find('[data-test="mention-token"]').text()).toBe('@Alice')
   })
 
+  it('MessageViewport renders clickable links with target=_blank and rel=noopener', () => {
+    const wrapper = mount(MessageViewport, {
+      props: {
+        channelId: 'ch-1',
+        currentUserId: 'u-1',
+        messages: [
+          {
+            id: 'm-link',
+            client_id: 'c-link',
+            channel_id: 'ch-1',
+            user_id: 'u-2',
+            content: 'Visit https://nuxt.com today',
+            created_at: '2026-10-22T10:00:00Z',
+            status: 'sent',
+            author: { id: 'u-2', display_name: 'Bob', avatar_color: '#0284c7' },
+          },
+        ],
+      },
+    })
+
+    const link = wrapper.find('[data-test="link-token"]')
+    expect(link.exists()).toBe(true)
+    expect(link.text()).toBe('https://nuxt.com')
+    expect(link.attributes('href')).toBe('https://nuxt.com')
+    expect(link.attributes('target')).toBe('_blank')
+    expect(link.attributes('rel')).toContain('noopener')
+    expect(link.attributes('rel')).toContain('noreferrer')
+  })
+
+  it('MessageViewport renders inline code with styled badge', () => {
+    const wrapper = mount(MessageViewport, {
+      props: {
+        channelId: 'ch-1',
+        currentUserId: 'u-1',
+        messages: [
+          {
+            id: 'm-code',
+            client_id: 'c-code',
+            channel_id: 'ch-1',
+            user_id: 'u-2',
+            content: 'Check `npm run test` command',
+            created_at: '2026-10-22T10:00:00Z',
+            status: 'sent',
+            author: { id: 'u-2', display_name: 'Bob', avatar_color: '#0284c7' },
+          },
+        ],
+      },
+    })
+
+    const code = wrapper.find('[data-test="code-token"]')
+    expect(code.exists()).toBe(true)
+    expect(code.text()).toBe('npm run test')
+    expect(code.classes()).toContain('font-mono')
+  })
+
   describe('Direct Messages UI in ChatSidebar (Sub-Project 4)', () => {
     it('ChatSidebar renders dmChannels with peer name and emits startDmWithUser when clicking an online friend', async () => {
       const wrapper = mount(ChatSidebar, {
