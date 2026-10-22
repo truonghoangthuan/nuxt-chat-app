@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Linear Minimal — Friends Chat UI Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ln-bg: #090a0f;
+      --ln-sidebar: #0e1017;
+      --ln-stage: #13151f;
+      --ln-card: #181b26;
+      --ln-card-hover: #1e2230;
+      --ln-border: rgba(255, 255, 255, 0.07);
+      --ln-border-strong: rgba(255, 255, 255, 0.14);
+      --ln-border-focus: #5e6ad2;
+      --ln-accent: #5e6ad2;
+      --ln-accent-glow: rgba(94, 106, 210, 0.25);
+      --ln-text-primary: #f0f2f8;
+      --ln-text-secondary: #8b92a5;
+      --ln-text-muted: #565d70;
+      --ln-specular: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--ln-bg);
+      color: var(--ln-text-primary);
+      margin: 0;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    .font-mono-code {
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 9999px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    .key-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1px 5px;
+      font-size: 10px;
+      font-family: 'Geist Mono', monospace;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--ln-text-secondary);
+    }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col antialiased select-none text-[13px]">
+
+  <!-- Top Floating Switcher Bar -->
+  <header class="h-10 px-4 bg-[#090a0f] border-b border-[var(--ln-border)] flex items-center justify-between shrink-0 z-50">
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_8px_#6366f1]"></span>
+        <span class="font-semibold text-xs tracking-tight text-white">Direction 1: Linear Minimal</span>
+        <span class="px-1.5 py-0.2 rounded text-[10px] font-mono bg-indigo-500/15 border border-indigo-500/30 text-indigo-400">Zinc · High-Density · Specular</span>
+      </div>
+    </div>
+
+    <!-- Quick Switcher Controls -->
+    <div class="flex items-center gap-2">
+      <div class="flex items-center rounded-lg bg-[#141620] border border-[var(--ln-border)] p-0.5">
+        <button class="px-2.5 py-1 rounded-md text-xs font-medium bg-indigo-600 text-white shadow-xs">
+          Linear
+        </button>
+        <a href="demo-vercel.html" class="px-2.5 py-1 rounded-md text-xs font-medium text-[var(--ln-text-secondary)] hover:text-white hover:bg-white/5 transition-colors">
+          Vercel
+        </a>
+        <a href="demo-apple.html" class="px-2.5 py-1 rounded-md text-xs font-medium text-[var(--ln-text-secondary)] hover:text-white hover:bg-white/5 transition-colors">
+          Apple
+        </a>
+      </div>
+
+      <div class="h-4 w-px bg-[var(--ln-border)] mx-1"></div>
+
+      <!-- State Toggle Controls -->
+      <button id="btn-toggle-empty" onclick="toggleEmptyState()" class="px-2 py-1 rounded text-xs font-medium text-[var(--ln-text-secondary)] hover:text-white hover:bg-white/5 border border-transparent hover:border-[var(--ln-border)] transition-colors">
+        Toggle Empty State
+      </button>
+      <button id="btn-stream-msg" onclick="simulateStreamingMessage()" class="px-2.5 py-1 rounded text-xs font-medium bg-indigo-500/10 border border-indigo-500/25 text-indigo-400 hover:bg-indigo-500/20 transition-colors flex items-center gap-1.5">
+        <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping"></span>
+        Simulate Stream
+      </button>
+      <a href="index.html" class="px-2 py-1 rounded text-xs font-medium text-[var(--ln-text-secondary)] hover:text-white">
+        ← Hub
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Chat Workspace -->
+  <div class="flex-1 flex overflow-hidden">
+
+    <!-- Linear Left Workspace Rail (Sidebar) -->
+    <aside class="w-64 bg-[var(--ln-sidebar)] border-r border-[var(--ln-border)] flex flex-col shrink-0">
+      <!-- Workspace Brand Header -->
+      <div class="h-12 px-3.5 border-b border-[var(--ln-border)] flex items-center justify-between">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-6 h-6 rounded-md bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-xs font-bold shadow-xs">
+            ⚡
+          </div>
+          <span class="font-semibold text-xs tracking-tight text-white truncate">Precision Studio</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <span class="key-badge">⌘K</span>
+        </div>
+      </div>
+
+      <!-- Quick Action / Search -->
+      <div class="px-3 pt-3 pb-1">
+        <div class="relative flex items-center">
+          <svg class="absolute left-2.5 w-3.5 h-3.5 text-[var(--ln-text-muted)] pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" placeholder="Search or jump to... (⌘F)" class="w-full h-7 pl-8 pr-2 bg-[#12141d] border border-[var(--ln-border)] rounded-md text-xs text-white placeholder-[var(--ln-text-muted)] focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/40 transition-all">
+        </div>
+      </div>
+
+      <!-- Navigation Feed -->
+      <div class="flex-1 overflow-y-auto px-2 py-2 space-y-4 custom-scroll">
+        <!-- Channels Section -->
+        <div>
+          <div class="px-2 mb-1 flex items-center justify-between text-[11px] font-medium text-[var(--ln-text-muted)] tracking-wider uppercase">
+            <span>Channels</span>
+            <button class="hover:text-white transition-colors" title="Create channel">+</button>
+          </div>
+          <div class="space-y-0.5">
+            <button class="w-full h-7 px-2.5 rounded-md flex items-center justify-between text-left bg-indigo-500/12 text-white font-medium border border-indigo-500/20">
+              <span class="flex items-center gap-1.5 truncate">
+                <span class="text-indigo-400 font-mono">#</span>
+                <span class="truncate">general</span>
+              </span>
+              <span class="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-indigo-500/30 text-indigo-300">4</span>
+            </button>
+            <button class="w-full h-7 px-2.5 rounded-md flex items-center justify-between text-left text-[var(--ln-text-secondary)] hover:text-white hover:bg-white/4 transition-colors">
+              <span class="flex items-center gap-1.5 truncate">
+                <span class="text-[var(--ln-text-muted)] font-mono">#</span>
+                <span class="truncate">core-architecture</span>
+              </span>
+            </button>
+            <button class="w-full h-7 px-2.5 rounded-md flex items-center justify-between text-left text-[var(--ln-text-secondary)] hover:text-white hover:bg-white/4 transition-colors">
+              <span class="flex items-center gap-1.5 truncate">
+                <span class="text-[var(--ln-text-muted)] font-mono">#</span>
+                <span class="truncate">design-systems</span>
+              </span>
+            </button>
+            <button class="w-full h-7 px-2.5 rounded-md flex items-center justify-between text-left text-[var(--ln-text-secondary)] hover:text-white hover:bg-white/4 transition-colors">
+              <span class="flex items-center gap-1.5 truncate">
+                <span class="text-[var(--ln-text-muted)] font-mono">#</span>
+                <span class="truncate">announcements</span>
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Direct Messages Section -->
+        <div>
+          <div class="px-2 mb-1 flex items-center justify-between text-[11px] font-medium text-[var(--ln-text-muted)] tracking-wider uppercase">
+            <span>Direct Messages</span>
+            <span class="text-[10px] font-mono text-[var(--ln-text-muted)]">3 online</span>
+          </div>
+          <div class="space-y-0.5">
+            <button class="w-full h-7 px-2.5 rounded-md flex items-center justify-between text-left text-[var(--ln-text-secondary)] hover:text-white hover:bg-white/4 transition-colors">
+              <div class="flex items-center gap-2 truncate">
+                <div class="relative w-4 h-4 rounded-full bg-emerald-600/30 border border-emerald-500/50 flex items-center justify-center text-[9px] font-bold text-emerald-300 shrink-0">
+                  AR
+                  <span class="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                </div>
+                <span class="truncate">Alex Rivera</span>
+              </div>
+              <span class="text-[10px] font-mono text-[var(--ln-text-muted)]">10:44</span>
+            </button>
+            <button class="w-full h-7 px-2.5 rounded-md flex items-center justify-between text-left text-[var(--ln-text-secondary)] hover:text-white hover:bg-white/4 transition-colors">
+              <div class="flex items-center gap-2 truncate">
+                <div class="relative w-4 h-4 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center text-[9px] font-bold text-purple-300 shrink-0">
+                  SC
+                  <span class="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                </div>
+                <span class="truncate">Sophia Chen</span>
+              </div>
+            </button>
+            <button class="w-full h-7 px-2.5 rounded-md flex items-center justify-between text-left text-[var(--ln-text-secondary)] hover:text-white hover:bg-white/4 transition-colors">
+              <div class="flex items-center gap-2 truncate">
+                <div class="relative w-4 h-4 rounded-full bg-amber-600/30 border border-amber-500/50 flex items-center justify-center text-[9px] font-bold text-amber-300 shrink-0">
+                  MV
+                  <span class="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                </div>
+                <span class="truncate">Marcus Vance</span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Current User Footer -->
+      <div class="h-12 px-3 border-t border-[var(--ln-border)] flex items-center justify-between bg-[#0b0c13]">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-7 h-7 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-xs font-semibold text-indigo-300 shrink-0">
+            ER
+          </div>
+          <div class="truncate">
+            <div class="text-xs font-medium text-white truncate">Elena Rostova</div>
+            <div class="text-[10px] font-mono text-emerald-400 flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> active
+            </div>
+          </div>
+        </div>
+        <button class="text-[var(--ln-text-muted)] hover:text-white p-1" title="Settings">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Message Stage -->
+    <main class="flex-1 flex flex-col min-w-0 bg-[var(--ln-stage)] relative">
+
+      <!-- Stage Header -->
+      <div class="h-12 px-5 border-b border-[var(--ln-border)] flex items-center justify-between shrink-0 bg-[var(--ln-stage)]/95 backdrop-blur-md">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="flex items-center gap-1.5">
+            <span class="text-indigo-400 font-mono text-base font-semibold">#</span>
+            <h1 class="text-sm font-semibold text-white tracking-tight">general</h1>
+          </div>
+          <span class="w-px h-3.5 bg-[var(--ln-border)]"></span>
+          <p class="text-xs text-[var(--ln-text-secondary)] truncate hidden md:block">
+            Engineering coordination, architecture decisions, and design reviews
+          </p>
+        </div>
+
+        <div class="flex items-center gap-3 shrink-0">
+          <!-- Member Avatar Stack -->
+          <div class="flex items-center -space-x-1.5">
+            <div class="w-6 h-6 rounded-full bg-emerald-600/40 border border-emerald-400/40 text-[10px] font-bold text-emerald-200 flex items-center justify-center">AR</div>
+            <div class="w-6 h-6 rounded-full bg-purple-600/40 border border-purple-400/40 text-[10px] font-bold text-purple-200 flex items-center justify-center">SC</div>
+            <div class="w-6 h-6 rounded-full bg-amber-600/40 border border-amber-400/40 text-[10px] font-bold text-amber-200 flex items-center justify-center">MV</div>
+          </div>
+          <span class="text-[11px] font-mono text-[var(--ln-text-muted)]">3 online</span>
+        </div>
+      </div>
+
+      <!-- Messages Viewport -->
+      <div id="message-viewport" class="flex-1 overflow-y-auto px-6 py-6 space-y-4 custom-scroll relative">
+
+        <!-- Empty State Container (Hidden by default) -->
+        <div id="empty-state-view" class="hidden h-full flex flex-col items-center justify-center text-center py-16">
+          <div class="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mb-3 shadow-[var(--ln-specular)]">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <h3 class="text-sm font-semibold text-white">Start of #general</h3>
+          <p class="text-xs text-[var(--ln-text-secondary)] max-w-sm mt-1 mb-4 leading-relaxed">
+            This is the very beginning of the <span class="text-indigo-300 font-mono">#general</span> channel. Messages here are encrypted end-to-end and synced in real time.
+          </p>
+          <div class="flex items-center gap-2">
+            <button onclick="presetSend('Hello team! Starting our sync.')" class="px-3 py-1.5 rounded-md text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-xs flex items-center gap-1.5">
+              <span>Send greeting</span>
+              <span class="key-badge">↵</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Normal Populated Message Timeline -->
+        <div id="populated-timeline" class="space-y-4 max-w-[72ch] mx-auto">
+
+          <!-- Date Divider -->
+          <div class="flex items-center gap-3 my-4 before:flex-1 before:h-px before:bg-[var(--ln-border)] after:flex-1 after:h-px after:bg-[var(--ln-border)]">
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono text-[var(--ln-text-muted)] bg-[var(--ln-card)] border border-[var(--ln-border)]">
+              Today · October 22, 2026
+            </span>
+          </div>
+
+          <!-- Message 1: Peer Message (Alex Rivera) -->
+          <div class="group relative flex gap-3 text-[13px] py-1 transition-colors">
+            <!-- Avatar -->
+            <div class="w-7 h-7 rounded-md bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 font-mono text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+              AR
+            </div>
+
+            <!-- Content Area -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-baseline gap-2 mb-1">
+                <span class="font-semibold text-white text-[13px]">Alex Rivera</span>
+                <span class="text-[10px] font-mono text-emerald-400/80 bg-emerald-500/10 px-1 rounded border border-emerald-500/20">staff</span>
+                <span class="text-[11px] font-mono text-[var(--ln-text-muted)]">10:41 AM</span>
+              </div>
+
+              <!-- Text Body (Optimal 68ch line measure) -->
+              <div class="text-[var(--ln-text-primary)] leading-relaxed space-y-2">
+                <p>
+                  Morning team! I completed the audit on the cursor pagination contract. We need to ensure that composite comparisons on <code class="px-1.5 py-0.5 rounded text-[11px] font-mono bg-white/6 border border-white/10 text-indigo-300">(created_at, id)</code> remain strictly deterministic across channel switches.
+                </p>
+                <!-- Blockquote -->
+                <blockquote class="pl-3 border-l-2 border-indigo-500/60 text-[var(--ln-text-secondary)] italic text-xs py-0.5 my-1.5">
+                  "All history queries must preserve scroll offsets without cumulative layout shifts during prepend operations."
+                </blockquote>
+              </div>
+
+              <!-- Reactions Bar -->
+              <div class="flex items-center gap-1.5 mt-2">
+                <button onclick="toggleReaction(this)" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono bg-[var(--ln-card)] hover:bg-[var(--ln-card-hover)] border border-[var(--ln-border)] text-[var(--ln-text-secondary)] transition-all">
+                  <span>👍</span>
+                  <span class="count text-[11px]">3</span>
+                </button>
+                <button onclick="toggleReaction(this)" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono bg-[var(--ln-card)] hover:bg-[var(--ln-card-hover)] border border-[var(--ln-border)] text-[var(--ln-text-secondary)] transition-all">
+                  <span>🔥</span>
+                  <span class="count text-[11px]">2</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Linear Hover Action Dock -->
+            <div class="absolute right-0 top-0 opacity-0 group-hover:opacity-100 transition-all duration-150 transform -translate-y-1 group-hover:translate-y-0 flex items-center bg-[#171a25] border border-[var(--ln-border-strong)] rounded-md px-1 py-0.5 shadow-lg shadow-black/40">
+              <button onclick="addReaction('❤️', this)" class="p-1 text-xs hover:bg-white/10 rounded" title="React Heart">❤️</button>
+              <button onclick="addReaction('👀', this)" class="p-1 text-xs hover:bg-white/10 rounded" title="React Eyes">👀</button>
+              <button onclick="setReplyContext('Alex Rivera', 'Morning team! I completed the audit on the cursor pagination...')" class="px-1.5 py-0.5 text-[11px] text-[var(--ln-text-secondary)] hover:text-white rounded hover:bg-white/10" title="Reply">Reply</button>
+            </div>
+          </div>
+
+          <!-- Message 2: Current User Message (Elena) with Code Block -->
+          <div class="group relative flex gap-3 text-[13px] py-1 transition-colors">
+            <div class="w-7 h-7 rounded-md bg-indigo-950/60 border border-indigo-500/40 text-indigo-300 font-mono text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+              ER
+            </div>
+
+            <div class="flex-1 min-w-0">
+              <div class="flex items-baseline gap-2 mb-1">
+                <span class="font-semibold text-white text-[13px]">Elena Rostova</span>
+                <span class="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 px-1 rounded border border-indigo-500/20">you</span>
+                <span class="text-[11px] font-mono text-[var(--ln-text-muted)]">10:43 AM</span>
+                <span class="text-[11px] text-indigo-400 font-mono ml-auto flex items-center gap-1">
+                  <span>✓✓</span> delivered
+                </span>
+              </div>
+
+              <!-- Message Body -->
+              <div class="text-[var(--ln-text-primary)] leading-relaxed space-y-2">
+                <p>
+                  Agreed. Here is the updated TypeScript interface and query builder structure I deployed in <span class="px-1.5 py-0.5 rounded text-[11px] font-mono bg-white/6 border border-white/10 text-emerald-400">PR #421</span>:
+                </p>
+
+                <!-- Linear Styled Code Block -->
+                <div class="rounded-lg border border-[var(--ln-border-strong)] bg-[#0d0e14] overflow-hidden my-2 shadow-[var(--ln-specular)]">
+                  <!-- Code Header -->
+                  <div class="h-7 px-3 bg-[#13151f] border-b border-[var(--ln-border)] flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                      <span class="text-[11px] font-mono text-[var(--ln-text-secondary)]">composables/useMessagesState.ts</span>
+                    </div>
+                    <button onclick="copyCode(this)" class="text-[10px] font-mono text-[var(--ln-text-muted)] hover:text-white transition-colors flex items-center gap-1">
+                      <span>Copy</span>
+                    </button>
+                  </div>
+
+                  <!-- Code Content -->
+                  <pre class="p-3 text-[12px] font-mono-code leading-relaxed text-[#c6cde0] overflow-x-auto"><span class="text-[#f472b6]">export interface</span> <span class="text-[#38bdf8]">MessageCursor</span> {
+  <span class="text-[#93c5fd]">readonly</span> createdAt: <span class="text-[#f472b6]">string</span>;
+  <span class="text-[#93c5fd]">readonly</span> id: <span class="text-[#f472b6]">string</span>;
+}
+
+<span class="text-[#f472b6]">export function</span> <span class="text-[#60a5fa]">buildCursorComparison</span>(cursor: <span class="text-[#38bdf8]">MessageCursor</span>): <span class="text-[#f472b6]">string</span> {
+  <span class="text-[#64748b]">// Prevents timestamp collisions across concurrent real-time inserts</span>
+  <span class="text-[#f472b6]">return</span> <span class="text-[#4ade80]">`created_at.lt."${cursor.createdAt}",and(created_at.eq."${cursor.createdAt}",id.lt."${cursor.id}")`</span>;
+}</pre>
+                </div>
+
+                <p class="text-xs text-[var(--ln-text-secondary)]">
+                  Tests in <span class="font-mono text-white">tests/composables/useMessagesState.test.ts</span> verified 15/15 assertions without regression.
+                </p>
+              </div>
+
+              <!-- Reactions -->
+              <div class="flex items-center gap-1.5 mt-2">
+                <button onclick="toggleReaction(this)" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-semibold transition-all">
+                  <span>🚀</span>
+                  <span class="count text-[11px]">4</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Hover Action Dock -->
+            <div class="absolute right-0 top-0 opacity-0 group-hover:opacity-100 transition-all duration-150 transform -translate-y-1 group-hover:translate-y-0 flex items-center bg-[#171a25] border border-[var(--ln-border-strong)] rounded-md px-1 py-0.5 shadow-lg shadow-black/40">
+              <button onclick="addReaction('❤️', this)" class="p-1 text-xs hover:bg-white/10 rounded" title="React">❤️</button>
+              <button onclick="setReplyContext('Elena Rostova', 'export interface MessageCursor...')" class="px-1.5 py-0.5 text-[11px] text-[var(--ln-text-secondary)] hover:text-white rounded hover:bg-white/10">Reply</button>
+            </div>
+          </div>
+
+          <!-- Message 3: Peer Message (Sophia Chen) with Quoted Reply -->
+          <div class="group relative flex gap-3 text-[13px] py-1 transition-colors">
+            <div class="w-7 h-7 rounded-md bg-purple-950/60 border border-purple-500/40 text-purple-300 font-mono text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+              SC
+            </div>
+
+            <div class="flex-1 min-w-0">
+              <div class="flex items-baseline gap-2 mb-1">
+                <span class="font-semibold text-white text-[13px]">Sophia Chen</span>
+                <span class="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-1 rounded border border-purple-500/20">ai lead</span>
+                <span class="text-[11px] font-mono text-[var(--ln-text-muted)]">10:45 AM</span>
+              </div>
+
+              <!-- Quoted Reply Pill -->
+              <div class="mb-1.5 px-2.5 py-1 rounded bg-[#181a24] border-l-2 border-indigo-500 text-xs text-[var(--ln-text-secondary)] flex items-center gap-1.5 max-w-fit">
+                <span class="font-semibold text-indigo-400 font-mono">@Elena</span>
+                <span class="truncate italic">"Tests verified 15/15 assertions without regression."</span>
+              </div>
+
+              <div class="text-[var(--ln-text-primary)] leading-relaxed">
+                <p>
+                  Clean implementation! The streaming response hooks can now rely on this deterministic ordering without causing the viewport jump. I'm kicking off the test build now.
+                </p>
+              </div>
+            </div>
+
+            <div class="absolute right-0 top-0 opacity-0 group-hover:opacity-100 transition-all duration-150 transform -translate-y-1 group-hover:translate-y-0 flex items-center bg-[#171a25] border border-[var(--ln-border-strong)] rounded-md px-1 py-0.5 shadow-lg shadow-black/40">
+              <button onclick="addReaction('🙌', this)" class="p-1 text-xs hover:bg-white/10 rounded" title="React">🙌</button>
+              <button onclick="setReplyContext('Sophia Chen', 'Clean implementation! The streaming response hooks...')" class="px-1.5 py-0.5 text-[11px] text-[var(--ln-text-secondary)] hover:text-white rounded hover:bg-white/10">Reply</button>
+            </div>
+          </div>
+
+          <!-- Dynamic Container for Live & Streamed Messages -->
+          <div id="dynamic-messages" class="space-y-4"></div>
+
+        </div>
+
+      </div>
+
+      <!-- Linear Input Composer Deck -->
+      <div class="p-4 bg-[var(--ln-stage)] border-t border-[var(--ln-border)] shrink-0">
+        <div class="max-w-[72ch] mx-auto">
+
+          <!-- Typing indicator bar -->
+          <div id="typing-indicator" class="h-4 mb-1 px-1 flex items-center gap-2 text-[11px] font-mono text-[var(--ln-text-muted)] opacity-0 transition-opacity">
+            <span class="inline-flex gap-1">
+              <span class="w-1 h-1 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+              <span class="w-1 h-1 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+              <span class="w-1 h-1 bg-indigo-400 rounded-full animate-bounce"></span>
+            </span>
+            <span id="typing-text">Alex Rivera is typing...</span>
+          </div>
+
+          <!-- Reply Context Banner (Hidden by default) -->
+          <div id="reply-banner" class="hidden mb-1.5 px-3 py-1.5 bg-[#171924] border border-indigo-500/30 rounded-md flex items-center justify-between text-xs">
+            <div class="truncate text-[var(--ln-text-secondary)]">
+              Replying to <span id="reply-author" class="font-semibold text-indigo-400">@Alex</span>:
+              <span id="reply-snippet" class="italic ml-1">...</span>
+            </div>
+            <button onclick="clearReplyContext()" class="text-[var(--ln-text-muted)] hover:text-white text-xs p-0.5">✕</button>
+          </div>
+
+          <!-- Linear Command Bar Input Deck -->
+          <div class="rounded-lg border border-[var(--ln-border-strong)] bg-[#12141c] shadow-lg shadow-black/30 focus-within:border-indigo-500/70 focus-within:ring-1 focus-within:ring-indigo-500/40 transition-all overflow-hidden">
+            <div class="flex items-end gap-2 p-2.5">
+              <!-- Attach Button -->
+              <button class="p-1.5 rounded text-[var(--ln-text-muted)] hover:text-white hover:bg-white/5 transition-colors shrink-0 mb-0.5" title="Attach code or snippet">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              </button>
+
+              <!-- Textarea -->
+              <textarea
+                id="message-input"
+                rows="1"
+                placeholder="Message #general... (Enter to send, Shift+Enter newline)"
+                class="w-full resize-none bg-transparent border-0 text-[13px] text-white placeholder-[var(--ln-text-muted)] focus:outline-none focus:ring-0 leading-relaxed custom-scroll max-h-36 py-1"
+                onkeydown="handleKeydown(event)"
+                oninput="autoResize(this)"
+              ></textarea>
+
+              <!-- Send & Keycap Actions -->
+              <div class="flex items-center gap-1.5 shrink-0 mb-0.5">
+                <span class="hidden md:inline-flex key-badge">Enter ↵</span>
+                <button
+                  id="send-button"
+                  onclick="sendMessage()"
+                  class="p-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
+                  title="Send message"
+                >
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    let activeReply = null;
+
+    function autoResize(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 140) + 'px';
+    }
+
+    function handleKeydown(event) {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+      }
+    }
+
+    function setReplyContext(author, snippet) {
+      activeReply = { author, snippet };
+      document.getElementById('reply-author').textContent = '@' + author;
+      document.getElementById('reply-snippet').textContent = snippet.slice(0, 50) + '...';
+      document.getElementById('reply-banner').classList.remove('hidden');
+      document.getElementById('message-input').focus();
+    }
+
+    function clearReplyContext() {
+      activeReply = null;
+      document.getElementById('reply-banner').classList.add('hidden');
+    }
+
+    function toggleEmptyState() {
+      const populated = document.getElementById('populated-timeline');
+      const empty = document.getElementById('empty-state-view');
+      const btn = document.getElementById('btn-toggle-empty');
+      if (populated.classList.contains('hidden')) {
+        populated.classList.remove('hidden');
+        empty.classList.add('hidden');
+        btn.textContent = 'Toggle Empty State';
+      } else {
+        populated.classList.add('hidden');
+        empty.classList.remove('hidden');
+        btn.textContent = 'Show Populated Feed';
+      }
+    }
+
+    function presetSend(text) {
+      toggleEmptyState();
+      document.getElementById('message-input').value = text;
+      sendMessage();
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('message-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const container = document.getElementById('dynamic-messages');
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      let replyHtml = '';
+      if (activeReply) {
+        replyHtml = `
+          <div class="mb-1.5 px-2.5 py-1 rounded bg-[#181a24] border-l-2 border-indigo-500 text-xs text-[var(--ln-text-secondary)] flex items-center gap-1.5 max-w-fit">
+            <span class="font-semibold text-indigo-400 font-mono">${activeReply.author}</span>
+            <span class="truncate italic">${activeReply.snippet}</span>
+          </div>
+        `;
+      }
+
+      const msgId = 'msg-' + Date.now();
+      const msgHtml = `
+        <div id="${msgId}" class="group relative flex gap-3 text-[13px] py-1 transition-all">
+          <div class="w-7 h-7 rounded-md bg-indigo-950/60 border border-indigo-500/40 text-indigo-300 font-mono text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+            ER
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-baseline gap-2 mb-1">
+              <span class="font-semibold text-white text-[13px]">Elena Rostova</span>
+              <span class="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 px-1 rounded border border-indigo-500/20">you</span>
+              <span class="text-[11px] font-mono text-[var(--ln-text-muted)]">${timeStr}</span>
+              <span class="status-indicator text-[11px] text-amber-400 font-mono ml-auto flex items-center gap-1">
+                <svg class="animate-spin w-2.5 h-2.5" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> sending...
+              </span>
+            </div>
+            ${replyHtml}
+            <div class="text-[var(--ln-text-primary)] leading-relaxed">
+              <p>${escapeHtml(text)}</p>
+            </div>
+          </div>
+        </div>
+      `;
+
+      container.insertAdjacentHTML('beforeend', msgHtml);
+      input.value = '';
+      autoResize(input);
+      clearReplyContext();
+
+      const viewport = document.getElementById('message-viewport');
+      viewport.scrollTop = viewport.scrollHeight;
+
+      // Simulate network confirmation
+      setTimeout(() => {
+        const el = document.getElementById(msgId);
+        if (el) {
+          const status = el.querySelector('.status-indicator');
+          if (status) {
+            status.className = 'status-indicator text-[11px] text-indigo-400 font-mono ml-auto flex items-center gap-1';
+            status.innerHTML = '<span>✓✓</span> delivered';
+          }
+        }
+      }, 500);
+    }
+
+    function simulateStreamingMessage() {
+      const container = document.getElementById('dynamic-messages');
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const streamId = 'stream-' + Date.now();
+
+      // Show typing indicator
+      const typing = document.getElementById('typing-indicator');
+      document.getElementById('typing-text').textContent = 'Sophia Chen is generating response...';
+      typing.classList.remove('opacity-0');
+
+      setTimeout(() => {
+        typing.classList.add('opacity-0');
+
+        const streamHtml = `
+          <div id="${streamId}" class="group relative flex gap-3 text-[13px] py-1 transition-all">
+            <div class="w-7 h-7 rounded-md bg-purple-950/60 border border-purple-500/40 text-purple-300 font-mono text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+              SC
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-baseline gap-2 mb-1">
+                <span class="font-semibold text-white text-[13px]">Sophia Chen</span>
+                <span class="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-1 rounded border border-purple-500/20">streaming</span>
+                <span class="text-[11px] font-mono text-[var(--ln-text-muted)]">${timeStr}</span>
+              </div>
+              <div class="stream-text text-[var(--ln-text-primary)] leading-relaxed"></div>
+            </div>
+          </div>
+        `;
+        container.insertAdjacentHTML('beforeend', streamHtml);
+
+        const targetEl = document.querySelector(`#${streamId} .stream-text`);
+        const fullTokens = [
+          "I've", " evaluated", " the", " memory", " footprint", " of", " the", " reactive",
+          " stores.", " By", " pruning", " unread", " mention", " dictionaries", " on", " channel",
+          " switch,", " heap", " consumption", " drops", " by", " 34%", " during", " rapid", " navigation.",
+          " Ready", " for", " production", " merge!"
+        ];
+
+        let i = 0;
+        const interval = setInterval(() => {
+          if (i < fullTokens.length) {
+            targetEl.textContent += fullTokens[i];
+            i++;
+            const viewport = document.getElementById('message-viewport');
+            viewport.scrollTop = viewport.scrollHeight;
+          } else {
+            clearInterval(interval);
+            const badge = document.querySelector(`#${streamId} span.bg-purple-500\\/10`);
+            if (badge) badge.textContent = 'ai lead';
+          }
+        }, 55);
+
+      }, 800);
+    }
+
+    function toggleReaction(btn) {
+      const countEl = btn.querySelector('.count');
+      let count = parseInt(countEl.textContent, 10);
+      if (btn.classList.contains('bg-indigo-500/15')) {
+        btn.classList.remove('bg-indigo-500/15', 'border-indigo-500/30', 'text-indigo-300', 'font-semibold');
+        countEl.textContent = count - 1;
+      } else {
+        btn.classList.add('bg-indigo-500/15', 'border-indigo-500/30', 'text-indigo-300', 'font-semibold');
+        countEl.textContent = count + 1;
+      }
+    }
+
+    function addReaction(emoji, btn) {
+      const msgRow = btn.closest('.group');
+      let bar = msgRow.querySelector('.flex.items-center.gap-1.5.mt-2');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.className = 'flex items-center gap-1.5 mt-2';
+        msgRow.querySelector('.flex-1').appendChild(bar);
+      }
+      const newPill = `
+        <button onclick="toggleReaction(this)" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-semibold transition-all">
+          <span>${emoji}</span>
+          <span class="count text-[11px]">1</span>
+        </button>
+      `;
+      bar.insertAdjacentHTML('beforeend', newPill);
+    }
+
+    function copyCode(btn) {
+      navigator.clipboard.writeText(`export interface MessageCursor {\n  readonly createdAt: string;\n  readonly id: string;\n}\n\nexport function buildCursorComparison(cursor: MessageCursor): string {\n  return \`created_at.lt."\${cursor.createdAt}",and(created_at.eq."\${cursor.createdAt}",id.lt."\${cursor.id}")\`;\n}`);
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = 'Copy', 1500);
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>

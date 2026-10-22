@@ -97,30 +97,30 @@ function handleSave() {
 <template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
     @click.self="handleClose"
   >
-    <div class="w-full max-w-md rounded-[14px] border border-[var(--om-border-strong)] bg-[var(--om-card)] shadow-2xl p-6">
+    <div class="w-full max-w-md rounded-2xl border border-white/15 bg-[#161824]/90 backdrop-blur-2xl shadow-2xl p-6">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-[16px] font-semibold text-[var(--om-text-primary)]">
+        <h3 class="text-[16px] font-semibold text-white/95 tracking-tight">
           Profile Settings
         </h3>
         <button
           type="button"
-          class="w-7 h-7 rounded-[6px] text-[var(--om-text-secondary)] hover:text-[var(--om-text-primary)] hover:bg-[var(--om-hover)] text-lg font-bold flex items-center justify-center cursor-pointer"
+          class="w-7 h-7 rounded-full text-white/60 hover:text-white hover:bg-white/10 text-lg font-bold flex items-center justify-center cursor-pointer transition-colors"
           @click="handleClose"
         >
           ×
         </button>
       </div>
 
-      <div v-if="error" class="mb-4 p-3 rounded-[8px] text-xs bg-rose-500/10 border border-rose-500/25 text-rose-500">
+      <div v-if="error" class="mb-4 p-3 rounded-xl text-xs bg-rose-500/10 border border-rose-500/25 text-rose-400 backdrop-blur-md">
         {{ error }}
       </div>
 
       <form class="space-y-4" @submit.prevent="handleSave">
         <!-- Live Preview -->
-        <div class="flex items-center gap-3.5 p-3 rounded-[10px] bg-[var(--om-input-bg)] border border-[var(--om-border)]">
+        <div class="flex items-center gap-3.5 p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
           <UserAvatar
             :display-name="displayName || 'Friend'"
             :avatar-color="avatarColor"
@@ -129,39 +129,39 @@ function handleSave() {
             size="lg"
           />
           <div class="min-w-0">
-            <div class="text-[14px] font-semibold text-[var(--om-text-primary)] truncate">
+            <div class="text-[14px] font-semibold text-white/95 truncate">
               {{ displayName.trim() || 'Friend' }}
             </div>
-            <div class="text-xs text-[var(--om-text-muted)]">
+            <div class="text-xs text-white/40">
               Live preview
             </div>
           </div>
         </div>
 
         <!-- Account Details (Read-only) -->
-        <div class="p-3 rounded-[10px] bg-[var(--om-input-bg)] border border-[var(--om-border)] space-y-2 text-xs">
+        <div class="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2 text-xs backdrop-blur-md">
           <div>
-            <span class="text-[var(--om-text-muted)] font-medium block mb-0.5">Account Email</span>
-            <div data-test="profile-email" class="text-[var(--om-text-primary)] font-semibold flex items-center justify-between">
+            <span class="text-white/40 font-medium block mb-0.5">Account Email</span>
+            <div data-test="profile-email" class="text-white/90 font-semibold flex items-center justify-between">
               <span>{{ profile?.email || 'No email registered' }}</span>
-              <span v-if="profile?.email" class="text-[11px] px-1.5 py-0.5 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 font-medium">Verified</span>
+              <span v-if="profile?.email" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-medium">Verified</span>
             </div>
           </div>
-          <div class="pt-1.5 border-t border-[var(--om-border)] flex items-center justify-between text-[11px]">
+          <div class="pt-1.5 border-t border-white/5 flex items-center justify-between text-[11px]">
             <div class="flex items-center gap-1.5">
-              <span class="text-[var(--om-text-muted)]">User ID: </span>
-              <span data-test="profile-user-id" class="font-mono text-[var(--om-text-secondary)] select-all">{{ profile?.id || '—' }}</span>
+              <span class="text-white/40">User ID: </span>
+              <span data-test="profile-user-id" class="font-mono text-white/70 select-all">{{ profile?.id || '—' }}</span>
               <button
                 v-if="profile?.id"
                 type="button"
                 data-test="copy-user-id-btn"
-                class="px-1.5 py-0.5 rounded-[4px] text-[10px] font-semibold bg-[var(--om-card)] hover:bg-[var(--om-hover)] text-[var(--om-text-secondary)] border border-[var(--om-border)] cursor-pointer transition-colors"
+                class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/8 hover:bg-white/15 text-white/80 border border-white/10 cursor-pointer transition-colors"
                 @click="copyUserId"
               >
                 {{ copiedId ? 'Copied!' : 'Copy' }}
               </button>
             </div>
-            <div v-if="profile?.created_at" data-test="profile-created-at" class="text-[var(--om-text-muted)] font-mono">
+            <div v-if="profile?.created_at" data-test="profile-created-at" class="text-white/40 font-mono">
               Joined {{ new Date(profile.created_at).toLocaleDateString() }}
             </div>
           </div>
@@ -169,7 +169,7 @@ function handleSave() {
 
         <!-- Display Name -->
         <div>
-          <label class="block text-xs font-semibold text-[var(--om-text-secondary)] mb-1.5">
+          <label class="block text-xs font-semibold text-white/70 mb-1.5">
             Display Name
           </label>
           <Input
@@ -179,13 +179,13 @@ function handleSave() {
             required
             maxlength="40"
             placeholder="Your display name"
-            class="h-9 rounded-[8px] border-[var(--om-border)] bg-[var(--om-input-bg)] text-[var(--om-text-primary)] placeholder:text-[var(--om-text-muted)] focus-visible:border-indigo-500"
+            class="h-10 rounded-xl border-white/10 bg-white/8 text-white placeholder:text-white/40 focus-visible:border-blue-500/50"
           />
         </div>
 
         <!-- Avatar image URL -->
         <div>
-          <label for="avatar-url" class="block text-xs font-semibold text-[var(--om-text-secondary)] mb-1.5">Avatar image URL</label>
+          <label for="avatar-url" class="block text-xs font-semibold text-white/70 mb-1.5">Avatar image URL</label>
           <input
             id="avatar-url"
             v-model="avatarUrl"
@@ -193,15 +193,15 @@ function handleSave() {
             type="url"
             maxlength="2048"
             placeholder="https://example.com/avatar.jpg"
-            class="w-full px-3 py-1.5 text-sm rounded-[8px] border border-[var(--om-border)] bg-[var(--om-input-bg)] text-[var(--om-text-primary)] placeholder-[var(--om-text-muted)] focus:outline-none focus:border-indigo-500 transition-colors"
+            class="w-full h-10 px-3.5 text-xs rounded-xl border border-white/10 bg-white/8 text-white placeholder-white/40 focus:outline-none focus:bg-white/12 focus:ring-1 focus:ring-blue-500/50 transition-colors"
           />
-          <p class="mt-1 text-[11px] text-[var(--om-text-muted)]">Optional. Leave blank to use your initials.</p>
-          <p v-if="avatarUrl && !isValidAvatarUrl(avatarUrl)" class="mt-1 text-xs text-rose-500">Enter a valid HTTP or HTTPS URL.</p>
+          <p class="mt-1 text-[11px] text-white/40">Optional. Leave blank to use your initials.</p>
+          <p v-if="avatarUrl && !isValidAvatarUrl(avatarUrl)" class="mt-1 text-xs text-rose-400">Enter a valid HTTP or HTTPS URL.</p>
         </div>
 
         <!-- Avatar Color Swatches -->
         <div>
-          <label class="block text-xs font-semibold text-[var(--om-text-secondary)] mb-2">
+          <label class="block text-xs font-semibold text-white/70 mb-2">
             Avatar Color
           </label>
           <div class="grid grid-cols-4 gap-2">
@@ -210,8 +210,8 @@ function handleSave() {
               :key="color"
               type="button"
               :data-test="`color-swatch-${color}`"
-              class="h-8 rounded-[6px] transition-all flex items-center justify-center text-white text-xs font-bold shadow-xs cursor-pointer"
-              :class="avatarColor === color ? 'ring-2 ring-white dark:ring-indigo-300 scale-[1.04] shadow-md' : 'opacity-85 hover:opacity-100 hover:scale-[1.02]'"
+              class="h-8 rounded-xl transition-all flex items-center justify-center text-white text-xs font-bold shadow-xs cursor-pointer"
+              :class="avatarColor === color ? 'ring-2 ring-white scale-[1.04] shadow-md' : 'opacity-85 hover:opacity-100 hover:scale-[1.02]'"
               :style="{ backgroundColor: color }"
               @click="avatarColor = color"
             >
@@ -221,13 +221,13 @@ function handleSave() {
         </div>
 
         <div class="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="outline" class="rounded-[8px] border-[var(--om-border)] text-[var(--om-text-secondary)]" @click="handleClose">
+          <Button type="button" variant="outline" class="rounded-full border-white/10 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white px-4 py-2" @click="handleClose">
             Cancel
           </Button>
           <Button
             type="submit"
             :disabled="!isValid || isSubmitting"
-            class="rounded-[8px] bg-indigo-600 font-semibold text-white hover:bg-indigo-500 focus-visible:ring-indigo-500 disabled:opacity-40"
+            class="rounded-full bg-blue-500 font-semibold text-white hover:bg-blue-600 focus-visible:ring-blue-500 disabled:opacity-40 px-5 py-2 shadow-md shadow-blue-500/30 transition-all active:scale-95"
           >
             {{ isSubmitting ? 'Saving…' : 'Save changes' }}
           </Button>

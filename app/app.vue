@@ -10,7 +10,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-[var(--fp-void)] text-[var(--fp-text-primary)] antialiased selection:bg-indigo-500/30 selection:text-indigo-200 transition-colors">
+  <div class="min-h-screen bg-[var(--ap-canvas)] text-[var(--ap-text-primary)] antialiased selection:bg-blue-500/30 selection:text-blue-200 transition-colors">
     <NuxtRouteAnnouncer />
     <NuxtPage />
   </div>

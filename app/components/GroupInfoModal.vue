@@ -143,26 +143,26 @@ function handleClose() {
   <div
     v-if="isOpen && conversation"
     data-test="group-info-backdrop"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
     @click.self="handleClose"
   >
     <div
       data-test="group-info-modal"
-      class="w-full max-w-md rounded-[14px] border border-[var(--om-border-strong)] bg-[var(--om-card)] overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
+      class="w-full max-w-md rounded-2xl border border-white/15 bg-[#161824]/90 backdrop-blur-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
     >
       <!-- Header -->
-      <div class="px-5 py-4 border-b border-[var(--om-border)] flex items-center justify-between shrink-0">
+      <div class="px-5 py-4 border-b border-white/5 flex items-center justify-between shrink-0">
         <div class="min-w-0 flex-1 mr-3">
           <!-- Static Title View -->
           <div v-if="!isEditingTitle" class="flex items-center gap-2">
-            <h3 data-test="group-title" class="text-[16px] font-semibold text-[var(--om-text-primary)] truncate">
+            <h3 data-test="group-title" class="text-[15px] font-semibold text-white/95 truncate tracking-tight">
               {{ groupTitle }}
             </h3>
             <button
               type="button"
               data-test="edit-title-btn"
               aria-label="Edit group name"
-              class="w-6 h-6 rounded-[6px] text-[var(--om-text-secondary)] hover:text-[var(--om-text-primary)] hover:bg-[var(--om-hover)] flex items-center justify-center cursor-pointer transition-colors shrink-0"
+              class="w-6 h-6 rounded-full text-white/60 hover:text-white hover:bg-white/10 flex items-center justify-center cursor-pointer transition-colors shrink-0"
               @click="startEditTitle"
             >
               <Pencil class="w-3.5 h-3.5" />
@@ -178,7 +178,7 @@ function handleClose() {
                 data-test="edit-title-input"
                 type="text"
                 maxlength="100"
-                class="flex-1 min-w-0 px-2.5 py-1 text-sm font-semibold rounded-[6px] border border-[var(--om-border)] bg-[var(--om-input-bg)] text-[var(--om-text-primary)] focus:outline-none focus:border-indigo-500"
+                class="flex-1 min-w-0 px-3 py-1 text-xs font-semibold rounded-full border border-white/10 bg-white/8 text-white focus:outline-none focus:bg-white/12 focus:ring-1 focus:ring-blue-500/50"
                 placeholder="Group name"
                 autofocus
                 @keydown.esc.stop="cancelEditTitle"
@@ -187,7 +187,7 @@ function handleClose() {
                 type="submit"
                 data-test="save-title-btn"
                 aria-label="Save group name"
-                class="w-7 h-7 rounded-[6px] bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center cursor-pointer shrink-0 transition-colors"
+                class="w-7 h-7 rounded-full bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center cursor-pointer shrink-0 transition-colors shadow-xs"
               >
                 <Check class="w-3.5 h-3.5" />
               </button>
@@ -195,25 +195,25 @@ function handleClose() {
                 type="button"
                 data-test="cancel-edit-title-btn"
                 aria-label="Cancel editing"
-                class="w-7 h-7 rounded-[6px] border border-[var(--om-border)] text-[var(--om-text-secondary)] hover:text-[var(--om-text-primary)] hover:bg-[var(--om-hover)] flex items-center justify-center cursor-pointer shrink-0 transition-colors"
+                class="w-7 h-7 rounded-full border border-white/10 text-white/60 hover:text-white hover:bg-white/10 flex items-center justify-center cursor-pointer shrink-0 transition-colors"
                 @click="cancelEditTitle"
               >
                 <X class="w-3.5 h-3.5" />
               </button>
             </form>
-            <p v-if="titleError" data-test="title-error" class="text-xs text-rose-500 font-medium mt-1">
+            <p v-if="titleError" data-test="title-error" class="text-xs text-rose-400 font-medium mt-1">
               {{ titleError }}
             </p>
           </div>
 
-          <p data-test="member-count" class="text-xs text-[var(--om-text-muted)] mt-0.5">
+          <p data-test="member-count" class="text-xs text-white/40 mt-0.5">
             {{ memberCountText }}
           </p>
         </div>
         <button
           type="button"
           aria-label="Close"
-          class="w-7 h-7 rounded-[6px] text-[var(--om-text-secondary)] hover:text-[var(--om-text-primary)] hover:bg-[var(--om-hover)] text-lg font-bold flex items-center justify-center cursor-pointer transition-colors shrink-0"
+          class="w-7 h-7 rounded-full text-white/60 hover:text-white hover:bg-white/10 text-lg font-bold flex items-center justify-center cursor-pointer transition-colors shrink-0"
           @click="handleClose"
         >
           ×
@@ -221,10 +221,10 @@ function handleClose() {
       </div>
 
       <!-- Body -->
-      <div class="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
+      <div class="p-5 space-y-4 overflow-y-auto flex-1 min-h-0 custom-scroll">
         <!-- Add Member Form -->
         <div>
-          <label class="block text-xs font-semibold text-[var(--om-text-secondary)] mb-1.5">
+          <label class="block text-xs font-semibold text-white/70 mb-1.5">
             Add Member
           </label>
           <form data-test="add-member-form" class="flex gap-2" @submit.prevent="handleAddMember">
@@ -233,33 +233,33 @@ function handleClose() {
               data-test="add-member-input"
               type="email"
               placeholder="friend@example.com"
-              class="flex-1 px-3.5 py-1.5 rounded-[8px] border border-[var(--om-border)] bg-[var(--om-input-bg)] text-sm text-[var(--om-text-primary)] placeholder-[var(--om-text-muted)] focus:outline-none focus:border-indigo-500 transition-colors"
+              class="flex-1 h-10 px-4 text-xs rounded-full border border-white/10 bg-white/8 text-white placeholder-white/40 focus:outline-none focus:bg-white/12 focus:ring-1 focus:ring-blue-500/50 transition-all"
             />
             <button
               type="submit"
               data-test="add-member-btn"
               :disabled="!newMemberEmail.trim()"
-              class="px-3.5 py-1.5 rounded-[8px] text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shrink-0"
+              class="h-10 px-4 rounded-full text-xs font-semibold bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-md shadow-blue-500/30 shrink-0"
             >
               Add
             </button>
           </form>
-          <p v-if="addMemberError" data-test="add-member-error" class="text-xs text-rose-500 font-medium mt-1">
+          <p v-if="addMemberError" data-test="add-member-error" class="text-xs text-rose-400 font-medium mt-1">
             {{ addMemberError }}
           </p>
         </div>
 
         <!-- Members Roster -->
         <div>
-          <label class="block text-xs font-semibold text-[var(--om-text-secondary)] mb-2">
+          <label class="block text-xs font-semibold text-white/70 mb-2">
             Members Roster
           </label>
-          <div class="space-y-1.5 max-h-60 overflow-y-auto rounded-[8px] border border-[var(--om-border)] p-1.5 bg-[var(--om-input-bg)]">
+          <div class="space-y-1 max-h-60 overflow-y-auto rounded-2xl border border-white/10 p-1.5 bg-white/5 custom-scroll">
             <div
               v-for="member in members"
               :key="member.user_id"
               :data-test="`member-item-${member.user_id}`"
-              class="flex items-center justify-between p-2 rounded-[6px] hover:bg-[var(--om-hover)] transition-colors"
+              class="flex items-center justify-between p-2 rounded-xl hover:bg-white/5 transition-colors"
             >
               <!-- Avatar & Details -->
               <div class="flex items-center gap-2.5 min-w-0">
@@ -272,17 +272,17 @@ function handleClose() {
                 />
                 <div class="min-w-0">
                   <div class="flex items-center gap-1.5">
-                    <p class="text-xs font-medium text-[var(--om-text-primary)] truncate">
+                    <p class="text-xs font-medium text-white/95 truncate">
                       {{ member.profile?.display_name || member.profile?.email || member.user_id }}
                     </p>
                     <span
                       v-if="currentUserId && member.user_id === currentUserId"
-                      class="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-400"
+                      class="text-[10px] font-semibold px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30"
                     >
                       (You)
                     </span>
                   </div>
-                  <p v-if="member.profile?.email" class="text-[11px] text-[var(--om-text-muted)] truncate">
+                  <p v-if="member.profile?.email" class="text-[11px] text-white/40 truncate font-mono">
                     {{ member.profile.email }}
                   </p>
                 </div>
@@ -293,7 +293,7 @@ function handleClose() {
                 <span
                   :data-test="`member-role-${member.user_id}`"
                   class="text-[11px] font-medium px-2 py-0.5 rounded-full"
-                  :class="member.role === 'owner' ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30' : 'bg-[var(--om-hover)] text-[var(--om-text-muted)] border border-[var(--om-border)]'"
+                  :class="member.role === 'owner' ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30' : 'bg-white/5 text-white/50 border border-white/10'"
                 >
                   {{ member.role === 'owner' ? 'Owner' : 'Member' }}
                 </span>
@@ -304,18 +304,18 @@ function handleClose() {
       </div>
 
       <!-- Footer -->
-      <div class="px-5 py-3 border-t border-[var(--om-border)] flex items-center justify-between shrink-0 bg-[var(--om-card)]">
+      <div class="px-5 py-3 border-t border-white/5 flex items-center justify-between shrink-0 bg-white/2">
         <button
           type="button"
           data-test="leave-group-btn"
-          class="px-3 py-1.5 rounded-[8px] text-xs font-medium text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+          class="px-4 py-2 rounded-full text-xs font-medium text-rose-400 hover:bg-rose-500/15 transition-colors cursor-pointer"
           @click="handleLeave"
         >
           Leave Group
         </button>
         <button
           type="button"
-          class="px-4 py-1.5 rounded-[8px] text-xs border border-[var(--om-border)] text-[var(--om-text-secondary)] hover:text-[var(--om-text-primary)] hover:bg-[var(--om-hover)] transition-colors font-medium cursor-pointer"
+          class="px-4 py-2 rounded-full text-xs border border-white/10 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white transition-colors font-medium cursor-pointer"
           @click="handleClose"
         >
           Close

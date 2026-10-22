@@ -195,7 +195,7 @@ onUnmounted(() => {
   <div
     v-if="open"
     data-test="lightbox-modal"
-    class="fixed inset-0 z-50 flex flex-col bg-black/90 backdrop-blur-md select-none"
+    class="fixed inset-0 z-50 flex flex-col bg-black/85 backdrop-blur-2xl select-none"
     role="dialog"
     aria-modal="true"
     @click.self="handleClose"
@@ -204,7 +204,7 @@ onUnmounted(() => {
     <header class="flex items-center justify-between px-4 py-3 sm:px-6 text-white/90 shrink-0 z-10 bg-gradient-to-b from-black/60 to-transparent">
       <div
         data-test="lightbox-counter"
-        class="text-xs font-mono font-medium tracking-wide text-white/80"
+        class="text-xs font-mono font-medium tracking-wide text-white/70 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/10"
       >
         {{ currentIndex + 1 }} / {{ images.length }}
       </div>
@@ -214,11 +214,11 @@ onUnmounted(() => {
           type="button"
           data-test="lightbox-download"
           :disabled="!activeImageUrl"
-          class="p-2 rounded-[8px] text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          class="w-9 h-9 rounded-full text-white/80 hover:text-white bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/10 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           title="Download image"
           @click="handleDownload"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
         </button>
@@ -226,11 +226,11 @@ onUnmounted(() => {
         <button
           type="button"
           data-test="lightbox-close"
-          class="p-2 rounded-[8px] text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          class="w-9 h-9 rounded-full text-white/80 hover:text-white bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/10 flex items-center justify-center transition-colors cursor-pointer"
           title="Close (Escape)"
           @click="handleClose"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
@@ -247,7 +247,7 @@ onUnmounted(() => {
         v-if="images.length > 1"
         type="button"
         data-test="lightbox-prev"
-        class="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/80 text-white/90 hover:text-white transition-all cursor-pointer backdrop-blur-md z-10 focus:outline-none focus:ring-2 focus:ring-white/40"
+        class="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white transition-all cursor-pointer backdrop-blur-xl border border-white/15 z-10 focus:outline-none focus:ring-2 focus:ring-blue-500/40 shadow-xl"
         title="Previous (Left arrow)"
         @click.stop="goToPrev"
       >
@@ -261,7 +261,7 @@ onUnmounted(() => {
         v-if="images.length > 1"
         type="button"
         data-test="lightbox-next"
-        class="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/80 text-white/90 hover:text-white transition-all cursor-pointer backdrop-blur-md z-10 focus:outline-none focus:ring-2 focus:ring-white/40"
+        class="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white transition-all cursor-pointer backdrop-blur-xl border border-white/15 z-10 focus:outline-none focus:ring-2 focus:ring-blue-500/40 shadow-xl"
         title="Next (Right arrow)"
         @click.stop="goToNext"
       >
@@ -274,7 +274,7 @@ onUnmounted(() => {
       <div
         v-if="errorMessage"
         data-test="lightbox-error"
-        class="flex flex-col items-center justify-center gap-3 p-6 rounded-[12px] bg-neutral-900/90 border border-neutral-800 max-w-sm text-center text-rose-300"
+        class="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl bg-neutral-900/90 border border-white/10 max-w-sm text-center text-rose-300 backdrop-blur-2xl shadow-2xl"
       >
         <div class="w-12 h-12 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -290,7 +290,7 @@ onUnmounted(() => {
         data-test="lightbox-loading"
         class="flex flex-col items-center justify-center gap-3 text-white/70"
       >
-        <div class="w-10 h-10 border-3 border-white/20 border-t-white rounded-full animate-spin" />
+        <div class="w-10 h-10 border-3 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
         <span class="text-xs font-mono font-medium tracking-wide">Decrypting image...</span>
       </div>
 
@@ -300,7 +300,7 @@ onUnmounted(() => {
         data-test="lightbox-image"
         :src="activeImageUrl"
         :alt="`Image ${currentIndex + 1} of ${images.length}`"
-        class="max-h-full max-w-full object-contain rounded-[10px] shadow-2xl transition-all select-none"
+        class="max-h-full max-w-full object-contain rounded-2xl shadow-2xl transition-all select-none border border-white/10"
       >
     </div>
   </div>
