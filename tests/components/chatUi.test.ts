@@ -1734,6 +1734,17 @@ describe('Chat UI components', () => {
       expect(item.html()).not.toContain('text-white/95')
       expect(item.html()).toContain('var(--ap-text-primary)')
     })
+
+    it('renders chat background layer and adaptive scrim when backgroundUrl is set in MessageViewport', () => {
+      const wrapper = mount(MessageViewport, {
+        props: {
+          messages: [],
+          backgroundUrl: 'preset:aurora',
+        },
+      })
+      expect(wrapper.find('[data-test="chat-background-layer"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="chat-background-scrim"]').exists()).toBe(true)
+    })
   })
 })
 
