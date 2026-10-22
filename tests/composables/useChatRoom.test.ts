@@ -1149,6 +1149,22 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
     expect(room.messages.value[0].id).toBe('msg-srv-img-1')
   })
 
+  it('sendImages embeds caption into optimistic message and final encrypted payload', async () => {
+    const room = useChatRoom()
+    room.activeChannelId.value = 'ch-general'
+
+    const file = new File(['file-bytes'], 'pic.jpg', { type: 'image/jpeg' })
+    const result = await room.sendImages([file], 'My awesome trip')
+    expect(result).toBe(true)
+
+    // Verify inserted payload envelope decrypts to payload with caption
+    expect(mockInsert).toHaveBeenCalled()
+    const insertedRow = mockInsert.mock.calls[mockInsert.mock.calls.length - 1][0]
+    const decryptedPayload = await decryptContent(testKey, insertedRow.content, 'ch-general')
+    const parsedPayload = JSON.parse(decryptedPayload)
+    expect(parsedPayload.caption).toBe('My awesome trip')
+  })
+
   it('sendImages returns false when active channel, user profile, or e2ee key is missing, or files are invalid', async () => {
     const room = useChatRoom()
     const file = new File(['test'], 'pic.jpg', { type: 'image/jpeg' })
@@ -1213,7 +1229,7 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
     mockUpload.mockResolvedValueOnce({ data: null, error: new Error('Upload glitch') })
 
     const file = new File(['retry-image-bytes'], 'retry.jpg', { type: 'image/jpeg' })
-    const initialSend = await room.sendImages([file])
+    const initialSend = await room.sendImages([file], 'My retry caption')
     expect(initialSend).toBe(false)
 
     const failedMsg = room.messages.value[0]
@@ -1231,6 +1247,8 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
     const decryptedPayload = await decryptContent(testKey, insertedRow.content, 'ch-general')
     expect(decryptedPayload).not.toContain('blob:')
     expect(decryptedPayload).toContain('channels/ch-general/')
+    const parsedDecrypted = JSON.parse(decryptedPayload)
+    expect(parsedDecrypted.caption).toBe('My retry caption')
   })
 
   it('retryMessage safely aborts if pending image files are missing from memory', async () => {

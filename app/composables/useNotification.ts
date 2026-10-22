@@ -216,7 +216,7 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
       snippet = '🔒 Encrypted message'
     } else if (isImagePayload(snippet)) {
       const parsed = parseImagePayload(snippet)
-      snippet = formatImageMessageSummary(parsed?.images.length || 1)
+      snippet = formatImageMessageSummary(parsed?.images.length || 1, parsed?.caption)
     } else if (!snippet) {
       snippet = 'New message'
     } else if (snippet.length > 100) {
