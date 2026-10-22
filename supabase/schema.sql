@@ -335,7 +335,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_msg record;
   v_pinned_at timestamptz;
@@ -373,7 +373,7 @@ begin
     'pinned_by', v_pinned_by
   );
 end;
-$;
+$$;
 
 revoke execute on function public.toggle_pin_message(uuid) from anon;
 grant execute on function public.toggle_pin_message(uuid) to authenticated;
