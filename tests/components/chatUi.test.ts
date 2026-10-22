@@ -1327,6 +1327,33 @@ describe('Chat UI components', () => {
       expect(wrapper.find('[data-test="delivery-indicator-m-sender"]').exists()).toBe(true)
     })
 
+    it('renders reaction toolbar and omits 3-dots mobile menu in MessageViewport', () => {
+      const wrapper = mount(MessageViewport, {
+        props: {
+          conversationId: 'c-1',
+          currentUserId: 'u-alice',
+          messages: [
+            {
+              id: 'm-sent',
+              client_id: 'c-1',
+              channel_id: 'c-1',
+              user_id: 'u-alice',
+              content: 'Sent message',
+              created_at: '2026-10-18T10:00:00Z',
+              status: 'sent',
+              author: { id: 'u-alice', display_name: 'Alice', avatar_color: '#0284c7' },
+            },
+          ],
+        },
+      })
+
+      expect(wrapper.find('[data-test="open-mobile-actions"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="react-m-sent-👍"]').exists()).toBe(true)
+      const toolbar = wrapper.find('[data-test="react-m-sent-👍"]').element.closest('div')
+      expect(toolbar?.className).not.toContain('hidden')
+      expect(toolbar?.className).toContain('group-hover:opacity-100')
+    })
+
     it('renders recipient messages with justify-start, avatar, and sender display name in group chats', () => {
       const wrapper = mount(MessageViewport, {
         props: {

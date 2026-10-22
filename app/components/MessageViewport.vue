@@ -4,7 +4,6 @@ import type { ChatMessage, EncryptedImageMetadata } from '~/types/chat'
 import { buildMessageTimeline, REACTION_EMOJIS, summarizeReactions, tokenizeMessageMentions } from '~/utils/chat'
 import { isImagePayload, parseImagePayload, formatImageMessageSummary } from '~/utils/image'
 import UserAvatar from '~/components/UserAvatar.vue'
-import MessageActionsMenu from '~/components/MessageActionsMenu.vue'
 import MessageImageGrid from '~/components/MessageImageGrid.vue'
 import { Pin, ChevronLeft, ChevronRight, X, ChevronDown } from '@lucide/vue'
 
@@ -478,10 +477,10 @@ onUnmounted(() => {
             <div v-else class="w-9 shrink-0" aria-hidden="true"></div>
           </template>
 
-          <!-- Frosted Hover Action Toolbar (Desktop) -->
+          <!-- Frosted Action Toolbar (Hover on Desktop, Tap/Focus on Touch) -->
           <div
             v-if="item.message.status === 'sent' && !item.message.deleted_at"
-            class="hidden md:flex opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity items-center gap-0.5 bg-white/90 dark:bg-white/10 backdrop-blur-xl border border-black/10 dark:border-white/15 rounded-full px-2 py-0.5 shadow-xl shrink-0 self-center"
+            class="flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 active:opacity-100 focus-within:opacity-100 transition-opacity items-center gap-0.5 bg-white/90 dark:bg-white/10 backdrop-blur-xl border border-black/10 dark:border-white/15 rounded-full px-2 py-0.5 shadow-xl shrink-0 self-center z-10"
             :class="item.isSender ? 'order-first mr-1.5' : 'order-last ml-1.5'"
           >
             <button
@@ -532,19 +531,6 @@ onUnmounted(() => {
               </button>
             </template>
           </div>
-
-          <!-- Mobile Actions Dropdown Menu -->
-          <MessageActionsMenu
-            v-if="item.message.status === 'sent' && !item.message.deleted_at"
-            :message="item.message"
-            :current-user-id="currentUserId"
-            :class="item.isSender ? 'order-first mr-1.5' : 'order-last ml-1.5'"
-            @toggle-reaction="emit('toggleReaction', $event)"
-            @reply="emit('reply', $event)"
-            @edit="startEdit"
-            @delete="emit('delete', $event)"
-            @toggle-pin="emit('togglePin', $event)"
-          />
 
           <!-- Message Column (Header + Bubble + Delivery States + Reactions) -->
           <div
