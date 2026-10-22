@@ -200,10 +200,10 @@ async function handleSendMessage(content: string) {
   await sendMessage(content, replyId)
 }
 
-async function handleSendImages(files: File[]) {
+async function handleSendImages(files: File[], caption?: string) {
   replyingTo.value = null
   isMobileSidebarOpen.value = false
-  await sendImages(files)
+  await sendImages(files, caption)
 }
 
 async function handleSaveProfile(payload: {
@@ -479,6 +479,7 @@ onUnmounted(() => {
 
         <!-- Message Composer -->
         <MessageComposer
+          :conversation-id="activeConversationId || activeChannelId"
           :channel-slug="activeConversation?.type === 'direct' ? (activeConversation.peer?.display_name || 'friend') : (activeConversation?.title || activeChannel?.slug || 'chat')"
           :is-dm="activeConversation?.type === 'direct' || Boolean(activeChannel?.is_dm)"
           :typing-label="typingLabel"

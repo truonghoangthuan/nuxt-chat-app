@@ -980,11 +980,60 @@ describe('Chat UI components', () => {
     })
   })
 
+  describe('MessageComposer conversation draft persistence', () => {
+    it('persists and restores drafts across conversation switches', async () => {
+      const wrapper = mount(MessageComposer, {
+        props: { conversationId: 'conv-1', channelSlug: 'chat-1' },
+      })
+      const textarea = wrapper.find('textarea')
+
+      // Type draft in conv-1
+      await textarea.setValue('Draft for conversation 1')
+      expect(textarea.element.value).toBe('Draft for conversation 1')
+
+      // Switch to conv-2
+      await wrapper.setProps({ conversationId: 'conv-2', channelSlug: 'chat-2' })
+      expect(textarea.element.value).toBe('')
+
+      // Type draft in conv-2
+      await textarea.setValue('Draft for conversation 2')
+      expect(textarea.element.value).toBe('Draft for conversation 2')
+
+      // Switch back to conv-1
+      await wrapper.setProps({ conversationId: 'conv-1', channelSlug: 'chat-1' })
+      expect(textarea.element.value).toBe('Draft for conversation 1')
+
+      // Switch back to conv-2
+      await wrapper.setProps({ conversationId: 'conv-2', channelSlug: 'chat-2' })
+      expect(textarea.element.value).toBe('Draft for conversation 2')
+    })
+
+    it('clears conversation draft when message is sent', async () => {
+      const wrapper = mount(MessageComposer, {
+        props: { conversationId: 'conv-send', channelSlug: 'chat-send' },
+      })
+      const textarea = wrapper.find('textarea')
+      await textarea.setValue('Will send this')
+      await wrapper.find('button[title="Send message"]').trigger('click')
+
+      expect(wrapper.emitted('send')).toBeTruthy()
+      expect(textarea.element.value).toBe('')
+
+      // Switch away and back
+      await wrapper.setProps({ conversationId: 'conv-other', channelSlug: 'other' })
+      await wrapper.setProps({ conversationId: 'conv-send', channelSlug: 'chat-send' })
+      expect(textarea.element.value).toBe('')
+    })
+  })
+
   describe('MessageComposer image attachment UI', () => {
-    it('handles file selection, displays attachment tray, disables text input, and emits sendImages', async () => {
+    it('handles file selection, keeps text input enabled with caption placeholder, and emits sendImages with caption', async () => {
       const wrapper = mount(MessageComposer, {
         props: { channelSlug: 'general' },
       })
+
+      const textarea = wrapper.find('textarea')
+      await textarea.setValue('My photo caption')
 
       const fileInput = wrapper.find('input[type="file"]')
       expect(fileInput.exists()).toBe(true)
@@ -1004,16 +1053,18 @@ describe('Chat UI components', () => {
       expect(wrapper.find('[data-test="attachment-tray"]').exists()).toBe(true)
       expect(wrapper.findAll('[data-test="attachment-preview"]').length).toBe(1)
 
-      const textarea = wrapper.find('textarea')
-      expect(textarea.attributes('disabled')).toBeDefined()
-      expect(textarea.attributes('placeholder')).toBe('Images attached (text disabled)')
+      expect(textarea.element.value).toBe('My photo caption')
+      expect(textarea.attributes('disabled')).toBeUndefined()
+      expect(textarea.attributes('placeholder')).toBe('Add a caption...')
 
       await wrapper.find('button[title="Send message"]').trigger('click')
       expect(wrapper.emitted('sendImages')).toBeTruthy()
       expect(wrapper.emitted('sendImages')?.[0]?.[0]).toHaveLength(1)
       expect(wrapper.emitted('sendImages')?.[0]?.[0]?.[0].name).toBe('photo.png')
+      expect(wrapper.emitted('sendImages')?.[0]?.[1]).toBe('My photo caption')
 
       expect(wrapper.find('[data-test="attachment-tray"]').exists()).toBe(false)
+      expect(textarea.element.value).toBe('')
       expect(textarea.attributes('disabled')).toBeUndefined()
     })
 
@@ -1036,7 +1087,7 @@ describe('Chat UI components', () => {
       const removeButtons = wrapper.findAll('[data-test="remove-attachment"]')
       await removeButtons[0].trigger('click')
       expect(wrapper.findAll('[data-test="attachment-preview"]').length).toBe(1)
-      expect(wrapper.find('textarea').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('textarea').attributes('disabled')).toBeUndefined()
 
       await wrapper.find('[data-test="remove-attachment"]').trigger('click')
       expect(wrapper.find('[data-test="attachment-tray"]').exists()).toBe(false)
@@ -1076,7 +1127,7 @@ describe('Chat UI components', () => {
       })
 
       expect(wrapper.findAll('[data-test="attachment-preview"]').length).toBe(1)
-      expect(wrapper.find('textarea').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('textarea').attributes('disabled')).toBeUndefined()
 
       await wrapper.find('[data-test="remove-attachment"]').trigger('click')
 

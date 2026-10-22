@@ -85,8 +85,12 @@ export function validateImageFiles(files: File[]): { valid: boolean; error?: str
 /**
  * Formats a user-friendly summary string for an image message payload.
  */
-export function formatImageMessageSummary(count: number): string {
-  return count === 1 ? '📷 1 photo' : `📷 ${count} photos`
+export function formatImageMessageSummary(count: number, caption?: string): string {
+  const prefix = count === 1 ? '📷 1 photo' : `📷 ${count} photos`
+  if (caption && caption.trim()) {
+    return `${prefix}: ${caption.trim()}`
+  }
+  return prefix
 }
 
 /**
@@ -123,6 +127,9 @@ export function parseImagePayload(content: unknown): ImageMessagePayload | null 
     )
 
     if (!isValid) return null
+    if (parsed.caption !== undefined && typeof parsed.caption !== 'string') {
+      return null
+    }
     return parsed as ImageMessagePayload
   } catch {
     return null

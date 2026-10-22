@@ -176,7 +176,7 @@ export function computeUnreadSnapshot(params: {
 
     unreadCounts[targetId] = (unreadCounts[targetId] || 0) + 1
     const textToCheck = isImagePayload(msg.content)
-      ? formatImageMessageSummary(parseImagePayload(msg.content)?.images.length || 1)
+      ? (parseImagePayload(msg.content)?.caption || formatImageMessageSummary(parseImagePayload(msg.content)?.images.length || 1))
       : msg.content
     if (doesMessageMentionUser(textToCheck, params.currentDisplayName)) {
       unreadMentions[targetId] = (unreadMentions[targetId] || 0) + 1
@@ -347,7 +347,7 @@ export function handleIncomingRealtimeMessage(params: {
       && (
         doesMessageMentionUser(
           isImagePayload(params.row.content)
-            ? formatImageMessageSummary(parseImagePayload(params.row.content)?.images.length || 1)
+            ? (parseImagePayload(params.row.content)?.caption || formatImageMessageSummary(parseImagePayload(params.row.content)?.images.length || 1))
             : params.row.content,
           params.currentDisplayName,
         )
@@ -538,7 +538,7 @@ export function useChatRoom() {
 
   const allProfiles = ref<Profile[]>([])
   const profilesCache = shallowReactive(new Map<string, Profile>())
-  const pendingImageFiles = new Map<string, { files: File[]; conversationId: string; channelId?: string }>()
+  const pendingImageFiles = new Map<string, { files: File[]; caption?: string; conversationId: string; channelId?: string }>()
   let isDisposed = false
 
   const readDebouncer = createConversationReadDebouncer(async (convId, timestamp) => {
@@ -2076,9 +2076,28 @@ export function useChatRoom() {
     }
   }
 
-  async function sendImages(files: File[], overrideClientId?: string): Promise<boolean> {
-    const conversationId = overrideClientId
-      ? (pendingImageFiles.get(overrideClientId)?.conversationId || pendingImageFiles.get(overrideClientId)?.channelId || activeConversationId.value)
+  async function sendImages(
+    files: File[],
+    captionOrClientId?: string,
+    overrideClientId?: string,
+  ): Promise<boolean> {
+    let caption: string | undefined
+    let clientIdOverride: string | undefined
+
+    if (overrideClientId) {
+      caption = captionOrClientId
+      clientIdOverride = overrideClientId
+    } else if (captionOrClientId) {
+      if (pendingImageFiles.has(captionOrClientId)) {
+        clientIdOverride = captionOrClientId
+        caption = pendingImageFiles.get(captionOrClientId)?.caption
+      } else {
+        caption = captionOrClientId
+      }
+    }
+
+    const conversationId = clientIdOverride
+      ? (pendingImageFiles.get(clientIdOverride)?.conversationId || pendingImageFiles.get(clientIdOverride)?.channelId || activeConversationId.value)
       : activeConversationId.value
 
     if (!conversationId) return false
@@ -2095,15 +2114,15 @@ export function useChatRoom() {
     const key = e2ee.key.value
     if (!key) return false
 
-    const clientId = overrideClientId || (
+    const clientId = clientIdOverride || (
       typeof crypto !== 'undefined' && crypto.randomUUID
         ? crypto.randomUUID()
         : '00000000-0000-4000-8000-' + Math.random().toString(16).slice(2, 14).padEnd(12, '0')
     )
 
-    pendingImageFiles.set(clientId, { files, conversationId, channelId: conversationId })
+    pendingImageFiles.set(clientId, { files, caption, conversationId, channelId: conversationId })
 
-    if (!overrideClientId) {
+    if (!clientIdOverride) {
       const localPreviews: LocalImageAttachment[] = files.map((file) => ({
         file,
         localUrl: typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
@@ -2122,6 +2141,7 @@ export function useChatRoom() {
           height: p.height,
           size: p.file.size,
         })),
+        ...(caption?.trim() ? { caption: caption.trim() } : {}),
       }
 
       const optimisticContent = JSON.stringify(optimisticPayload)
@@ -2182,6 +2202,7 @@ export function useChatRoom() {
     const finalPayload: ImageMessagePayload = {
       type: 'images',
       images: uploadedMetadatas,
+      ...(caption?.trim() ? { caption: caption.trim() } : {}),
     }
     const payloadJson = JSON.stringify(finalPayload)
 
@@ -2266,7 +2287,7 @@ export function useChatRoom() {
         messagesStore.markMessageFailed(clientId)
         return
       }
-      const ok = await sendImages(pending.files, clientId)
+      const ok = await sendImages(pending.files, pending.caption, clientId)
       if (!ok) {
         messagesStore.markMessageFailed(clientId)
       }
