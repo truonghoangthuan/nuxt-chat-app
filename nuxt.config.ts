@@ -9,6 +9,7 @@ export default defineNuxtConfig({
     head: {
       title: 'Friends Chat — Precision Studio',
       link: [
+        { rel: 'icon', type: 'image/svg+xml', href: '/mug-hot-solid-full.svg' },
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
         {
