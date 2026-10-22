@@ -155,6 +155,15 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - **Encrypted Payload & Retry Coupling:** Attachment captions must be serialized inside the encrypted AES-GCM-256 payload envelope (`ImageMessagePayload.caption?: string`) alongside attachment metadata, never sent in plaintext. Attachment retry tracking (`pendingImageFiles`) must retain the caption alongside the file array so retries resend both together.
     - **Viewport Mention & Link Tokenization:** In `MessageViewport.vue`, attachment captions rendered below `MessageImageGrid.vue` must pass through `tokenizeMessageMentions` so that `@mentions`, links, and inline code formatting behave identically to standard text messages.
 
+17. **Client-Side E2EE Search & Decrypted Highlight Discipline:**
+    - Because message content is E2EE encrypted with AES-GCM-256 in Postgres, all content search operations MUST execute strictly in-memory over decrypted `ChatMessage` objects in active store (`filterMessagesByKeyword`). Never attempt server-side `LIKE` / full-text search queries or transmit search query text over the wire.
+    - Search matching must gracefully filter out `deleted_at` tombstones and `undecryptable` envelopes, while extracting plaintext captions from parsed image payloads (`parseImagePayload(content)?.caption`).
+    - Keyword highlighting in viewports must segment text via `highlightTextSegments` and apply non-destructive `<mark>` wrappers around matched substrings, while auto-scrolling with `jumpToMessage` preserves the surrounding conversation timeline context rather than destructively truncating the viewport message array.
+
+18. **Consistent Member Profile Triggers & Avatar Hierarchy:**
+    - Any rendered member avatar or display name across conversations (direct chat headers, message recipient avatars, sender headers, and group members rosters) must support interactive inspection via `UserProfileModal.vue` (`viewProfile`).
+    - `UserAvatar.vue` maintains a unified size scale (`sm`: 28px, `md`: 36px, `lg`: 44px, `xl`: 64px, `2xl`: 80px), where modal profile dialogs anchor on `size="2xl"` (80px) for visual prominence.
+
 ## 5. Testing Standards
 
 - **Path Aliases:** Both `~` and `@` resolve to `./app` in Nuxt and `vitest.config.ts`.
