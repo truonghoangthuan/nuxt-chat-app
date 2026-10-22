@@ -78,6 +78,7 @@ const {
   toggleDesktop,
   requestNotificationPermission,
   dismissNotificationToast,
+  addNotificationToast,
 } = useChatRoom()
 
 const { currentProfile, updateProfile, signOut } = useAuthProfile()
@@ -161,7 +162,13 @@ async function handleLeaveGroup(conversationId: string) {
 
 async function handleUpdateGroupTitle(newTitle: string) {
   if (activeConversationId.value) {
-    await updateGroupTitle(activeConversationId.value, newTitle)
+    const res = await updateGroupTitle(activeConversationId.value, newTitle)
+    if (res?.error && addNotificationToast) {
+      addNotificationToast({
+        title: 'Failed to update group name',
+        body: res.error,
+      })
+    }
   }
 }
 

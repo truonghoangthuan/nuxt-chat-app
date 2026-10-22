@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
 import { Pencil, Check, X } from '@lucide/vue'
 import type { Conversation } from '~/types/chat'
 import { isValidEmail } from '~/utils/chat'
@@ -31,11 +31,15 @@ const addMemberError = ref<string | null>(null)
 const isEditingTitle = ref(false)
 const editedTitle = ref('')
 const titleError = ref<string | null>(null)
+const titleInputRef = ref<HTMLInputElement | null>(null)
 
 function startEditTitle() {
   editedTitle.value = props.conversation?.title || ''
   titleError.value = null
   isEditingTitle.value = true
+  nextTick(() => {
+    titleInputRef.value?.focus()
+  })
 }
 
 function cancelEditTitle() {
@@ -69,8 +73,8 @@ function onKeyDown(e: KeyboardEvent) {
 }
 
 watch(
-  () => props.isOpen,
-  (open) => {
+  () => [props.isOpen, props.conversation?.id],
+  ([open]) => {
     isEditingTitle.value = false
     titleError.value = null
     if (open) {
@@ -169,6 +173,7 @@ function handleClose() {
           <div v-else>
             <form data-test="edit-title-form" class="flex items-center gap-1.5" @submit.prevent="handleSaveTitle">
               <input
+                ref="titleInputRef"
                 v-model="editedTitle"
                 data-test="edit-title-input"
                 type="text"

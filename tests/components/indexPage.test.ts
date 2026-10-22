@@ -60,6 +60,7 @@ const mockChatRoomState = {
   toggleDesktop: vi.fn(),
   requestNotificationPermission: vi.fn(),
   dismissNotificationToast: vi.fn(),
+  addNotificationToast: vi.fn(),
 }
 
 const mockAuthProfileState = {
@@ -302,6 +303,21 @@ describe('IndexPage (app/pages/index.vue)', () => {
     await modal.vm.$emit('updateTitle', 'Renamed Group')
 
     expect(mockChatRoomState.updateGroupTitle).toHaveBeenCalledWith('conv-grp-1', 'Renamed Group')
+  })
+
+  it('calls addNotificationToast when updateGroupTitle fails', async () => {
+    mockChatRoomState.updateGroupTitle.mockResolvedValueOnce({ error: 'Network error' })
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    const modal = wrapper.findComponent({ name: 'GroupInfoModal' })
+    mockChatRoomState.activeConversationId.value = 'conv-grp-1'
+    await modal.vm.$emit('updateTitle', 'Fail Group')
+
+    expect(mockChatRoomState.addNotificationToast).toHaveBeenCalledWith({
+      title: 'Failed to update group name',
+      body: 'Network error',
+    })
   })
 
   it('renders NotificationPermissionBanner when permission is default and triggers request', async () => {

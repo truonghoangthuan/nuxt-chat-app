@@ -1895,6 +1895,7 @@ export function useChatRoom() {
     }
 
     const previousTitle = targetConv.title
+    const previousUpdatedAt = targetConv.updated_at
     const nowIso = new Date().toISOString()
 
     // Optimistic update
@@ -1913,12 +1914,14 @@ export function useChatRoom() {
       if (error) {
         // Rollback
         targetConv.title = previousTitle
+        targetConv.updated_at = previousUpdatedAt
         return { error: error.message || 'Failed to update group title.' }
       }
 
       return { error: null }
     } catch (err: any) {
       targetConv.title = previousTitle
+      targetConv.updated_at = previousUpdatedAt
       return { error: err?.message || 'Failed to update group title.' }
     }
   }
@@ -2604,5 +2607,6 @@ export function useChatRoom() {
     toggleDesktop: notification.toggleDesktop,
     requestNotificationPermission: notification.requestPermission,
     dismissNotificationToast: notification.dismissToast,
+    addNotificationToast: notification.addToast,
   }
 }

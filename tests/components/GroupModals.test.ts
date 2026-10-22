@@ -468,4 +468,29 @@ describe('GroupInfoModal.vue', () => {
     expect(wrapper.emitted('updateTitle')).toBeUndefined()
     expect(wrapper.find('[data-test="edit-title-input"]').exists()).toBe(false)
   })
+
+  it('resets edit state when conversation prop changes', async () => {
+    const wrapper = mount(GroupInfoModal, {
+      props: {
+        isOpen: true,
+        conversation: mockGroupConversation,
+        onlineUserIds: [],
+      },
+    })
+
+    await wrapper.find('[data-test="edit-title-btn"]').trigger('click')
+    expect(wrapper.find('[data-test="edit-title-input"]').exists()).toBe(true)
+
+    // Switch conversation prop
+    await wrapper.setProps({
+      conversation: {
+        ...mockGroupConversation,
+        id: 'conv-group-2',
+        title: 'New Ops',
+      },
+    })
+
+    expect(wrapper.find('[data-test="edit-title-input"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="group-title"]').text()).toBe('New Ops')
+  })
 })

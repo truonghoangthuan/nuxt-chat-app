@@ -1753,9 +1753,10 @@ describe('useChatRoom contacts and conversations', () => {
     expect(updated?.title).toBe('Renamed Team')
   })
 
-  it('rolls back title in state if database update fails', async () => {
+  it('rolls back title and updated_at in state if database update fails', async () => {
     const room = useChatRoom()
     const group = await room.createGroup('Stable Group', ['u-bob'])
+    const originalUpdatedAt = group.updated_at
 
     mockConversationsUpdateError = { message: 'Database update rejected' }
     const res = await room.updateGroupTitle(group.id, 'Failing Rename')
@@ -1763,5 +1764,20 @@ describe('useChatRoom contacts and conversations', () => {
 
     const current = room.conversations.value.find(c => c.id === group.id)
     expect(current?.title).toBe('Stable Group')
+    expect(current?.updated_at).toBe(originalUpdatedAt)
+  })
+
+  it('returns error when updating title for non-group conversation or when unauthenticated', async () => {
+    const room = useChatRoom()
+    const dm = await room.openOrCreateDirectChat('u-bob')
+    const dmRes = await room.updateGroupTitle(dm.id, 'New DM Name')
+    expect(dmRes.error).toBe('Group conversation not found.')
+
+    const auth = useAuthProfile()
+    const origProfile = auth.currentProfile.value
+    auth.currentProfile.value = null
+    const noAuthRes = await room.updateGroupTitle(dm.id, 'New Name')
+    expect(noAuthRes.error).toBe('Not authenticated.')
+    auth.currentProfile.value = origProfile
   })
 })
