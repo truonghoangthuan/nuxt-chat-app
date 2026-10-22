@@ -32,6 +32,7 @@ const {
   createGroup,
   addMemberToGroup,
   leaveGroup,
+  updateGroupTitle,
   selectConversation,
 
   // Transitional aliases for channels and legacy components
@@ -77,6 +78,7 @@ const {
   toggleDesktop,
   requestNotificationPermission,
   dismissNotificationToast,
+  addNotificationToast,
 } = useChatRoom()
 
 const { currentProfile, updateProfile, signOut } = useAuthProfile()
@@ -156,6 +158,18 @@ async function handleAddMember(email: string) {
 async function handleLeaveGroup(conversationId: string) {
   await leaveGroup(conversationId)
   isGroupInfoModalOpen.value = false
+}
+
+async function handleUpdateGroupTitle(newTitle: string) {
+  if (activeConversationId.value) {
+    const res = await updateGroupTitle(activeConversationId.value, newTitle)
+    if (res?.error && addNotificationToast) {
+      addNotificationToast({
+        title: 'Failed to update group name',
+        body: res.error,
+      })
+    }
+  }
 }
 
 async function handleLogout() {
@@ -497,6 +511,7 @@ onUnmounted(() => {
       @close="isGroupInfoModalOpen = false"
       @add-member="handleAddMember"
       @leave="handleLeaveGroup"
+      @update-title="handleUpdateGroupTitle"
     />
 
     <!-- Profile Settings Modal -->

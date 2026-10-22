@@ -370,4 +370,127 @@ describe('GroupInfoModal.vue', () => {
     expect(wrapper.emitted('leave')).toHaveLength(1)
     expect(wrapper.emitted('leave')![0]).toEqual(['conv-group-1'])
   })
+
+  it('renders edit button and toggles inline title input', async () => {
+    const wrapper = mount(GroupInfoModal, {
+      props: {
+        isOpen: true,
+        conversation: mockGroupConversation,
+        onlineUserIds: [],
+      },
+    })
+
+    const editBtn = wrapper.find('[data-test="edit-title-btn"]')
+    expect(editBtn.exists()).toBe(true)
+
+    // Not editing initially
+    expect(wrapper.find('[data-test="edit-title-input"]').exists()).toBe(false)
+
+    // Click edit button -> input appears with current title
+    await editBtn.trigger('click')
+    const input = wrapper.find('[data-test="edit-title-input"]')
+    expect(input.exists()).toBe(true)
+    expect((input.element as HTMLInputElement).value).toBe('Secret Agents')
+
+    // Click cancel button -> returns to static view
+    const cancelBtn = wrapper.find('[data-test="cancel-edit-title-btn"]')
+    await cancelBtn.trigger('click')
+    expect(wrapper.find('[data-test="edit-title-input"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="group-title"]').text()).toBe('Secret Agents')
+  })
+
+  it('validates title and emits updateTitle event when saved', async () => {
+    const wrapper = mount(GroupInfoModal, {
+      props: {
+        isOpen: true,
+        conversation: mockGroupConversation,
+        onlineUserIds: [],
+      },
+    })
+
+    await wrapper.find('[data-test="edit-title-btn"]').trigger('click')
+    const input = wrapper.find('[data-test="edit-title-input"]')
+    const form = wrapper.find('[data-test="edit-title-form"]')
+
+    // Empty title
+    await input.setValue('   ')
+    await form.trigger('submit')
+    expect(wrapper.emitted('updateTitle')).toBeUndefined()
+    expect(wrapper.find('[data-test="title-error"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="title-error"]').text()).toContain('Group name cannot be empty.')
+
+    // Valid title
+    await input.setValue('Delta Squad')
+    await form.trigger('submit')
+    expect(wrapper.emitted('updateTitle')).toHaveLength(1)
+    expect(wrapper.emitted('updateTitle')![0]).toEqual(['Delta Squad'])
+    expect(wrapper.find('[data-test="edit-title-input"]').exists()).toBe(false)
+  })
+
+  it('rejects title longer than 100 characters and cancels on escape', async () => {
+    const wrapper = mount(GroupInfoModal, {
+      props: {
+        isOpen: true,
+        conversation: mockGroupConversation,
+        onlineUserIds: [],
+      },
+    })
+
+    await wrapper.find('[data-test="edit-title-btn"]').trigger('click')
+    const input = wrapper.find('[data-test="edit-title-input"]')
+    const form = wrapper.find('[data-test="edit-title-form"]')
+
+    await input.setValue('a'.repeat(101))
+    await form.trigger('submit')
+    expect(wrapper.emitted('updateTitle')).toBeUndefined()
+    expect(wrapper.find('[data-test="title-error"]').text()).toContain('Group name must be 100 characters or less.')
+
+    // Escape cancels edit
+    await input.trigger('keydown.esc')
+    expect(wrapper.find('[data-test="edit-title-input"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="group-title"]').text()).toBe('Secret Agents')
+  })
+
+  it('does not emit updateTitle when saved with unchanged title', async () => {
+    const wrapper = mount(GroupInfoModal, {
+      props: {
+        isOpen: true,
+        conversation: mockGroupConversation,
+        onlineUserIds: [],
+      },
+    })
+
+    await wrapper.find('[data-test="edit-title-btn"]').trigger('click')
+    const form = wrapper.find('[data-test="edit-title-form"]')
+
+    // Submit with existing title ('Secret Agents')
+    await form.trigger('submit')
+    expect(wrapper.emitted('updateTitle')).toBeUndefined()
+    expect(wrapper.find('[data-test="edit-title-input"]').exists()).toBe(false)
+  })
+
+  it('resets edit state when conversation prop changes', async () => {
+    const wrapper = mount(GroupInfoModal, {
+      props: {
+        isOpen: true,
+        conversation: mockGroupConversation,
+        onlineUserIds: [],
+      },
+    })
+
+    await wrapper.find('[data-test="edit-title-btn"]').trigger('click')
+    expect(wrapper.find('[data-test="edit-title-input"]').exists()).toBe(true)
+
+    // Switch conversation prop
+    await wrapper.setProps({
+      conversation: {
+        ...mockGroupConversation,
+        id: 'conv-group-2',
+        title: 'New Ops',
+      },
+    })
+
+    expect(wrapper.find('[data-test="edit-title-input"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="group-title"]').text()).toBe('New Ops')
+  })
 })

@@ -15,6 +15,7 @@ const mockChatRoomState = {
   createGroup: vi.fn(),
   addMemberToGroup: vi.fn(),
   leaveGroup: vi.fn(),
+  updateGroupTitle: vi.fn().mockResolvedValue({ error: null }),
   selectConversation: vi.fn(),
 
   channels: ref([]),
@@ -59,6 +60,7 @@ const mockChatRoomState = {
   toggleDesktop: vi.fn(),
   requestNotificationPermission: vi.fn(),
   dismissNotificationToast: vi.fn(),
+  addNotificationToast: vi.fn(),
 }
 
 const mockAuthProfileState = {
@@ -288,6 +290,34 @@ describe('IndexPage (app/pages/index.vue)', () => {
 
     expect(mockChatRoomState.leaveGroup).toHaveBeenCalledWith('conv-group-9')
     expect(groupInfoModal.props('isOpen')).toBe(false)
+  })
+
+  it('calls updateGroupTitle when GroupInfoModal emits update-title', async () => {
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    const modal = wrapper.findComponent({ name: 'GroupInfoModal' })
+    expect(modal.exists()).toBe(true)
+
+    mockChatRoomState.activeConversationId.value = 'conv-grp-1'
+    await modal.vm.$emit('updateTitle', 'Renamed Group')
+
+    expect(mockChatRoomState.updateGroupTitle).toHaveBeenCalledWith('conv-grp-1', 'Renamed Group')
+  })
+
+  it('calls addNotificationToast when updateGroupTitle fails', async () => {
+    mockChatRoomState.updateGroupTitle.mockResolvedValueOnce({ error: 'Network error' })
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    const modal = wrapper.findComponent({ name: 'GroupInfoModal' })
+    mockChatRoomState.activeConversationId.value = 'conv-grp-1'
+    await modal.vm.$emit('updateTitle', 'Fail Group')
+
+    expect(mockChatRoomState.addNotificationToast).toHaveBeenCalledWith({
+      title: 'Failed to update group name',
+      body: 'Network error',
+    })
   })
 
   it('renders NotificationPermissionBanner when permission is default and triggers request', async () => {
