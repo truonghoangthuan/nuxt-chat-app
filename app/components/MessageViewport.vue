@@ -640,13 +640,60 @@ onUnmounted(() => {
               </div>
 
               <!-- Image Grid -->
-              <MessageImageGrid
+              <div
                 v-else-if="isImagePayload(item.message.content) && parseImagePayload(item.message.content)"
-                :images="parseImagePayload(item.message.content)!.images"
-                :channel-id="effectiveConversationId"
-                :is-sending="item.message.status === 'sending'"
-                @select-image="emit('selectImage', $event)"
-              />
+                class="flex flex-col gap-2"
+              >
+                <MessageImageGrid
+                  :images="parseImagePayload(item.message.content)!.images"
+                  :channel-id="effectiveConversationId"
+                  :is-sending="item.message.status === 'sending'"
+                  @select-image="emit('selectImage', $event)"
+                />
+                <div
+                  v-if="parseImagePayload(item.message.content)?.caption"
+                  data-test="image-caption"
+                  class="whitespace-pre-wrap break-words text-[14px]"
+                  :class="item.isSender ? 'text-white' : 'text-[var(--ap-text-primary)]'"
+                >
+                  <template
+                    v-for="(seg, sIdx) in tokenizeMessageMentions(parseImagePayload(item.message.content)!.caption!, currentDisplayName)"
+                    :key="sIdx"
+                  >
+                    <span
+                      v-if="seg.isMention"
+                      data-test="mention-token"
+                      class="px-1.5 py-0.5 rounded-md text-[13px] font-semibold"
+                      :class="[
+                        item.isSender
+                          ? 'bg-white/20 text-white border border-white/30'
+                          : (seg.isMe
+                              ? 'bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/35'
+                              : 'bg-blue-500/15 text-blue-700 dark:text-blue-200 border border-blue-500/30')
+                      ]"
+                    >{{ seg.text }}</span>
+                    <a
+                      v-else-if="seg.isLink"
+                      :href="seg.href"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-test="link-token"
+                      class="underline underline-offset-2 hover:opacity-85 transition-opacity font-medium break-all"
+                      :class="item.isSender ? 'text-white' : 'text-blue-600 dark:text-blue-400'"
+                      @click.stop
+                    >{{ seg.text }}</a>
+                    <code
+                      v-else-if="seg.isCode"
+                      data-test="code-token"
+                      class="px-1.5 py-0.5 rounded font-mono text-[12px] border"
+                      :class="item.isSender
+                        ? 'bg-white/20 border-white/30 text-white'
+                        : 'bg-black/5 dark:bg-white/10 border-black/10 dark:border-white/10 text-pink-600 dark:text-pink-400'"
+                    >{{ seg.text }}</code>
+                    <span v-else>{{ seg.text }}</span>
+                  </template>
+                </div>
+              </div>
 
               <!-- Xcode Dark Code Block -->
               <div

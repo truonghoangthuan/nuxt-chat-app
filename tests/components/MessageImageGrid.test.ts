@@ -253,4 +253,61 @@ describe('MessageActionsMenu and MessageViewport immutability for images', () =>
 
     expect(wrapper.find('[data-test="edit-m-img-2"]').exists()).toBe(false)
   })
+
+  it('MessageViewport renders caption with tokenized mentions below MessageImageGrid when caption is present', async () => {
+    const payloadWithCaption = JSON.stringify({
+      type: 'images',
+      images: [makeMockImage(1, false)],
+      caption: 'Look at this photo @Bob check https://example.com',
+    })
+    const message = {
+      id: 'm-img-caption',
+      client_id: 'c-img-caption',
+      channel_id: 'ch-1',
+      user_id: 'u-1',
+      content: payloadWithCaption,
+      created_at: '2026-10-19T12:00:00Z',
+      status: 'sent' as const,
+      author: { id: 'u-1', display_name: 'Alice', avatar_color: '#4f46e5' },
+    }
+
+    const wrapper = mount(MessageViewport, {
+      props: {
+        messages: [message],
+        currentUserId: 'u-1',
+        currentDisplayName: 'Alice',
+        loadOlder: vi.fn().mockResolvedValue(0),
+      },
+    })
+
+    const captionEl = wrapper.find('[data-test="image-caption"]')
+    expect(captionEl.exists()).toBe(true)
+    expect(captionEl.text()).toContain('Look at this photo')
+    expect(captionEl.find('[data-test="mention-token"]').exists()).toBe(true)
+    expect(captionEl.find('[data-test="mention-token"]').text()).toBe('@Bob')
+    expect(captionEl.find('[data-test="link-token"]').exists()).toBe(true)
+  })
+
+  it('MessageViewport does not render caption element when image payload has no caption', async () => {
+    const message = {
+      id: 'm-img-no-caption',
+      client_id: 'c-img-no-caption',
+      channel_id: 'ch-1',
+      user_id: 'u-1',
+      content: imagePayloadJson,
+      created_at: '2026-10-19T12:00:00Z',
+      status: 'sent' as const,
+      author: { id: 'u-1', display_name: 'Alice', avatar_color: '#4f46e5' },
+    }
+
+    const wrapper = mount(MessageViewport, {
+      props: {
+        messages: [message],
+        currentUserId: 'u-1',
+        loadOlder: vi.fn().mockResolvedValue(0),
+      },
+    })
+
+    expect(wrapper.find('[data-test="image-caption"]').exists()).toBe(false)
+  })
 })
