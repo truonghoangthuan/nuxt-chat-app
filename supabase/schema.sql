@@ -533,6 +533,51 @@ create policy "Authenticated users can delete conversation attachments"
     and public.can_access_conversation(public.storage_conversation_id(name))
   );
 
+-- Migration: add background_url column to conversations and channels
+alter table public.conversations
+  add column if not exists background_url text;
+
+alter table public.channels
+  add column if not exists background_url text;
+
+-- Storage Bucket for shared chat backgrounds (publicly readable)
+insert into storage.buckets (id, name, public)
+values ('chat-backgrounds', 'chat-backgrounds', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Authenticated users can upload chat backgrounds" on storage.objects;
+create policy "Authenticated users can upload chat backgrounds"
+  on storage.objects for insert
+  to authenticated
+  with check (
+    bucket_id = 'chat-backgrounds'
+    and public.can_access_conversation(public.storage_conversation_id(name))
+  );
+
+drop policy if exists "Anyone can view chat backgrounds" on storage.objects;
+create policy "Anyone can view chat backgrounds"
+  on storage.objects for select
+  to authenticated, anon
+  using (bucket_id = 'chat-backgrounds');
+
+drop policy if exists "Authenticated users can update chat backgrounds" on storage.objects;
+create policy "Authenticated users can update chat backgrounds"
+  on storage.objects for update
+  to authenticated
+  using (
+    bucket_id = 'chat-backgrounds'
+    and public.can_access_conversation(public.storage_conversation_id(name))
+  );
+
+drop policy if exists "Authenticated users can delete chat backgrounds" on storage.objects;
+create policy "Authenticated users can delete chat backgrounds"
+  on storage.objects for delete
+  to authenticated
+  using (
+    bucket_id = 'chat-backgrounds'
+    and public.can_access_conversation(public.storage_conversation_id(name))
+  );
+
 -- ============================================================================
 -- 9. Realtime Publication
 -- ============================================================================
