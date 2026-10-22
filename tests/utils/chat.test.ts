@@ -254,6 +254,63 @@ describe('chat utils', () => {
     ])
   })
 
+  it("tokenizes URLs with http and https and strips trailing punctuation", () => {
+    const text = "Check out https://nuxt.com/docs and http://example.org/test! Also visit https://site.com."
+    const segments = tokenizeMessageMentions(text)
+
+    expect(segments).toEqual([
+      { text: "Check out ", isMention: false, isMe: false },
+      { text: "https://nuxt.com/docs", isMention: false, isMe: false, isLink: true, href: "https://nuxt.com/docs" },
+      { text: " and ", isMention: false, isMe: false },
+      { text: "http://example.org/test", isMention: false, isMe: false, isLink: true, href: "http://example.org/test" },
+      { text: "! Also visit ", isMention: false, isMe: false },
+      { text: "https://site.com", isMention: false, isMe: false, isLink: true, href: "https://site.com" },
+      { text: ".", isMention: false, isMe: false },
+    ])
+  })
+
+  it("rejects unsafe schemes like javascript: and data: from being linkified", () => {
+    const text = "Run javascript:alert(1) or data:text/html,test"
+    const segments = tokenizeMessageMentions(text)
+
+    expect(segments).toEqual([
+      { text: "Run javascript:alert(1) or data:text/html,test", isMention: false, isMe: false },
+    ])
+  })
+
+  it("tokenizes inline code spans wrapped in backticks", () => {
+    const text = "Use `const x = 1` in code"
+    const segments = tokenizeMessageMentions(text)
+
+    expect(segments).toEqual([
+      { text: "Use ", isMention: false, isMe: false },
+      { text: "const x = 1", isMention: false, isMe: false, isCode: true },
+      { text: " in code", isMention: false, isMe: false },
+    ])
+  })
+
+  it("handles unclosed backticks as normal plain text", () => {
+    const text = "This is `unclosed code"
+    const segments = tokenizeMessageMentions(text)
+
+    expect(segments).toEqual([
+      { text: "This is `unclosed code", isMention: false, isMe: false },
+    ])
+  })
+
+  it("prioritizes inline code over internal @mentions or links", () => {
+    const text = "Do not ping `@Alice` or open `https://evil.com` inside code"
+    const segments = tokenizeMessageMentions(text, "Alice", ["Alice"])
+
+    expect(segments).toEqual([
+      { text: "Do not ping ", isMention: false, isMe: false },
+      { text: "@Alice", isMention: false, isMe: false, isCode: true },
+      { text: " or open ", isMention: false, isMe: false },
+      { text: "https://evil.com", isMention: false, isMe: false, isCode: true },
+      { text: " inside code", isMention: false, isMe: false },
+    ])
+  })
+
   it('places showUnreadDivider on the first unread message from another user and flags isMentioningMe', () => {
     const now = new Date(2026, 9, 18, 15, 0, 0)
     const lastReadAt = new Date(2026, 9, 18, 10, 0, 30).toISOString()

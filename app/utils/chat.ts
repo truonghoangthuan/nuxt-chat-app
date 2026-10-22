@@ -236,50 +236,119 @@ export function tokenizeMessageMentions(
   const sortedNames = Array.from(namesSet).sort((a, b) => b.length - a.length)
   const escapedKnown = sortedNames.map(escapeRegExp)
   const patternParts = [...escapedKnown, '[A-Za-z0-9_.-]+']
-  const mentionRegex = new RegExp(`(@(?:${patternParts.join('|')}))(?=$|\\s|[.,!?:;])`, 'gi')
+  const mentionPattern = '(@(?:' + patternParts.join('|') + '))(?=$|\\s|[.,!?:;])'
+  const urlPattern = '(https?:\\/\\/[^\\s<>"\'`{}|\\\\^]+)'
 
-  const segments: MentionSegment[] = []
-  let lastIndex = 0
-  let match: RegExpExecArray | null
+  // Split by inline code blocks first: `code`
+  const codeRegex = /`([^`\n]+)`/g
+  const rawSegments: { text: string; isCode: boolean }[] = []
+  let lastIdx = 0
+  let codeMatch: RegExpExecArray | null
 
-  while ((match = mentionRegex.exec(content)) !== null) {
-    const matchIndex = match.index
-    const token = match[1]
-    const prevChar = matchIndex > 0 ? content[matchIndex - 1] : ''
-    if (prevChar && !/\s/.test(prevChar)) {
+  while ((codeMatch = codeRegex.exec(content)) !== null) {
+    if (codeMatch.index > lastIdx) {
+      rawSegments.push({ text: content.slice(lastIdx, codeMatch.index), isCode: false })
+    }
+    rawSegments.push({ text: codeMatch[1], isCode: true })
+    lastIdx = codeMatch.index + codeMatch[0].length
+  }
+  if (lastIdx < content.length) {
+    rawSegments.push({ text: content.slice(lastIdx), isCode: false })
+  }
+
+  const result: MentionSegment[] = []
+
+  for (const seg of rawSegments) {
+    if (seg.isCode) {
+      result.push({
+        text: seg.text,
+        isMention: false,
+        isMe: false,
+        isCode: true,
+      })
       continue
     }
 
-    if (matchIndex > lastIndex) {
-      segments.push({
-        text: content.slice(lastIndex, matchIndex),
+    const subText = seg.text
+    const combinedRegex = new RegExp(mentionPattern + '|' + urlPattern, 'gi')
+    let subLastIdx = 0
+    let match: RegExpExecArray | null
+
+    while ((match = combinedRegex.exec(subText)) !== null) {
+      const matchIndex = match.index
+      const mentionToken = match[1]
+      const urlToken = match[2]
+
+      if (mentionToken) {
+        const prevChar = matchIndex > 0 ? subText[matchIndex - 1] : ''
+        if (prevChar && !/\s/.test(prevChar)) {
+          continue
+        }
+
+        if (matchIndex > subLastIdx) {
+          result.push({
+            text: subText.slice(subLastIdx, matchIndex),
+            isMention: false,
+            isMe: false,
+          })
+        }
+
+        const rawName = mentionToken.slice(1)
+        const isMe = Boolean(cleanCurrent && rawName.toLowerCase() === cleanCurrent.toLowerCase())
+        result.push({
+          text: mentionToken,
+          isMention: true,
+          isMe,
+        })
+        subLastIdx = matchIndex + mentionToken.length
+      } else if (urlToken) {
+        let cleanUrl = urlToken
+        while (/[.,!?:;)\]]$/.test(cleanUrl)) {
+          cleanUrl = cleanUrl.slice(0, -1)
+        }
+
+        if (matchIndex > subLastIdx) {
+          result.push({
+            text: subText.slice(subLastIdx, matchIndex),
+            isMention: false,
+            isMe: false,
+          })
+        }
+
+        result.push({
+          text: cleanUrl,
+          isMention: false,
+          isMe: false,
+          isLink: true,
+          href: cleanUrl,
+        })
+
+        subLastIdx = matchIndex + cleanUrl.length
+        combinedRegex.lastIndex = subLastIdx
+      }
+    }
+
+    if (subLastIdx < subText.length) {
+      result.push({
+        text: subText.slice(subLastIdx),
         isMention: false,
         isMe: false,
       })
     }
-
-    const rawName = token.slice(1)
-    const isMe = Boolean(cleanCurrent && rawName.toLowerCase() === cleanCurrent.toLowerCase())
-    segments.push({
-      text: token,
-      isMention: true,
-      isMe,
-    })
-
-    lastIndex = matchIndex + token.length
   }
 
-  if (lastIndex < content.length) {
-    segments.push({
-      text: content.slice(lastIndex),
-      isMention: false,
-      isMe: false,
-    })
+  // Merge consecutive plain text segments if any
+  const merged: MentionSegment[] = []
+  for (const item of result) {
+    const prev = merged[merged.length - 1]
+    if (prev && !prev.isMention && !prev.isLink && !prev.isCode && !item.isMention && !item.isLink && !item.isCode) {
+      prev.text += item.text
+    } else {
+      merged.push({ ...item })
+    }
   }
 
-  return segments.length > 0
-    ? segments
-    : [{ text: content, isMention: false, isMe: false }]
+  return merged.length > 0 ? merged : [{ text: content, isMention: false, isMe: false }]
 }
 
 export function buildMessageTimeline(

@@ -132,6 +132,9 @@ export interface MentionSegment {
   text: string
   isMention: boolean
   isMe: boolean
+  isLink?: boolean
+  isCode?: boolean
+  href?: string
 }
 
 export interface ActiveMentionQuery {
