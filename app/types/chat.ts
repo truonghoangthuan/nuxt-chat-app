@@ -113,6 +113,8 @@ export interface ChatMessage {
   reply_to?: ReplyTarget | null
   edited_at?: string | null
   deleted_at?: string | null
+  pinned_at?: string | null
+  pinned_by?: string | null
   reactions?: MessageReaction[]
   encryption?: MessageEncryptionState
 }
