@@ -1,94 +1,131 @@
-
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
 
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
-/* Direction 2 v2 — Obsidian Precision Studio + Daylight Precision Studio */
+/* Obsidian Monolith Precision Studio (Linear / Raycast Aesthetic) */
 
 :root {
   /* Daylight Precision Studio (Light Mode) */
-  --fp-void: #e8eef5;
-  --fp-rail: #f1f5f9;
-  --fp-drawer: #f8fafc;
-  --fp-stage: #ffffff;
-  --fp-stage-subtle: #f1f5f9;
-  --fp-composer: #f8fafc;
-  --fp-surface-elevated: #ffffff;
-  --fp-hover: rgba(15, 23, 42, 0.045);
-  --fp-active: rgba(79, 70, 229, 0.12);
-  --fp-input-bg: #f8fafc;
-  --fp-border: rgba(15, 23, 42, 0.09);
-  --fp-border-strong: rgba(15, 23, 42, 0.16);
-  --fp-specular: inset 0 1px 0 rgba(255, 255, 255, 0.85);
-  --fp-stage-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 10px 28px rgba(15, 23, 42, 0.07);
-  --fp-composer-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 6px 18px rgba(15, 23, 42, 0.06);
-  --fp-text-primary: #0f172a;
-  --fp-text-secondary: #475569;
-  --fp-text-muted: #64748b;
-  --fp-accent: #4f46e5;
-  --fp-accent-bright: #4338ca;
-  --fp-font-display: 'Schibsted Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
-  --fp-font-sans: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
-  --fp-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --om-canvas: #f4f4f5;
+  --om-sidebar: #ffffff;
+  --om-stage: #ffffff;
+  --om-card: #fafafa;
+  --om-input-bg: rgba(0, 0, 0, 0.035);
+  --om-hover: rgba(15, 23, 42, 0.045);
+  --om-active: rgba(99, 102, 241, 0.08);
+  --om-border: rgba(15, 23, 42, 0.08);
+  --om-border-strong: rgba(15, 23, 42, 0.16);
+  --om-specular: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --om-accent: #4f46e5;
+  --om-accent-bright: #4338ca;
+  --om-text-primary: #09090b;
+  --om-text-secondary: #475569;
+  --om-text-muted: #94a3b8;
+  --om-presence-online: #10b981;
+  --om-destructive: #e11d48;
+
+  /* Backward-compatible aliases for legacy classes */
+  --fp-void: var(--om-canvas);
+  --fp-rail: var(--om-sidebar);
+  --fp-drawer: var(--om-sidebar);
+  --fp-stage: var(--om-stage);
+  --fp-stage-subtle: var(--om-card);
+  --fp-composer: var(--om-card);
+  --fp-surface-elevated: var(--om-card);
+  --fp-hover: var(--om-hover);
+  --fp-active: var(--om-active);
+  --fp-input-bg: var(--om-input-bg);
+  --fp-border: var(--om-border);
+  --fp-border-strong: var(--om-border-strong);
+  --fp-specular: var(--om-specular);
+  --fp-stage-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --fp-composer-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 2px 8px rgba(15, 23, 42, 0.04);
+  --fp-text-primary: var(--om-text-primary);
+  --fp-text-secondary: var(--om-text-secondary);
+  --fp-text-muted: var(--om-text-muted);
+  --fp-accent: var(--om-accent);
+  --fp-accent-bright: var(--om-accent-bright);
+  --fp-font-display: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+  --fp-font-sans: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+  --fp-font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
   --radius: 0.625rem;
-  --background: #e8eef5;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
-  --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #4f46e5;
+  --background: var(--om-canvas);
+  --foreground: var(--om-text-primary);
+  --card: var(--om-card);
+  --card-foreground: var(--om-text-primary);
+  --popover: var(--om-card);
+  --popover-foreground: var(--om-text-primary);
+  --primary: var(--om-accent);
   --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #475569;
+  --secondary: #f4f4f5;
+  --secondary-foreground: var(--om-text-primary);
+  --muted: #f4f4f5;
+  --muted-foreground: var(--om-text-secondary);
   --accent: #eef2ff;
   --accent-foreground: #3730a3;
-  --destructive: #e11d48;
-  --border: #dce4ef;
-  --input: #dce4ef;
-  --ring: #6366f1;
+  --destructive: var(--om-destructive);
+  --border: var(--om-border);
+  --input: var(--om-border-strong);
+  --ring: var(--om-accent);
   --chart-1: #4f46e5;
   --chart-2: #06b6d4;
   --chart-3: #10b981;
   --chart-4: #f59e0b;
   --chart-5: #e11d48;
-  --sidebar: #f1f5f9;
-  --sidebar-foreground: #0f172a;
-  --sidebar-primary: #4f46e5;
+  --sidebar: var(--om-sidebar);
+  --sidebar-foreground: var(--om-text-primary);
+  --sidebar-primary: var(--om-accent);
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #e0e7ff;
   --sidebar-accent-foreground: #3730a3;
-  --sidebar-border: #dce4ef;
-  --sidebar-ring: #6366f1;
+  --sidebar-border: var(--om-border);
+  --sidebar-ring: var(--om-accent);
 }
 
 html.dark {
-  /* Obsidian Precision Studio (Dark Mode - Certified Direction 2 v2) */
-  --fp-void: #080a0f;
-  --fp-rail: #0b0e17;
-  --fp-drawer: #0e121d;
-  --fp-stage: #111624;
-  --fp-stage-subtle: #151c2e;
-  --fp-composer: #131929;
-  --fp-surface-elevated: #182032;
-  --fp-hover: rgba(255, 255, 255, 0.045);
-  --fp-active: rgba(99, 102, 241, 0.16);
-  --fp-input-bg: rgba(0, 0, 0, 0.35);
-  --fp-border: rgba(255, 255, 255, 0.08);
-  --fp-border-strong: rgba(255, 255, 255, 0.15);
-  --fp-specular: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --fp-stage-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 12px 32px rgba(0, 0, 0, 0.45);
-  --fp-composer-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.35);
-  --fp-text-primary: #f1f5f9;
-  --fp-text-secondary: #94a3b8;
-  --fp-text-muted: #64748b;
-  --fp-accent: #6366f1;
-  --fp-accent-bright: #818cf8;
+  /* Obsidian Monolith (Dark Mode) */
+  --om-canvas: #09090b;
+  --om-sidebar: #0c0d11;
+  --om-stage: #0e1015;
+  --om-card: #141720;
+  --om-input-bg: rgba(0, 0, 0, 0.40);
+  --om-hover: rgba(255, 255, 255, 0.045);
+  --om-active: rgba(99, 102, 241, 0.12);
+  --om-border: rgba(255, 255, 255, 0.07);
+  --om-border-strong: rgba(255, 255, 255, 0.14);
+  --om-specular: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --om-accent: #6366f1;
+  --om-accent-bright: #818cf8;
+  --om-text-primary: #f4f4f5;
+  --om-text-secondary: #94a3b8;
+  --om-text-muted: #64748b;
+  --om-presence-online: #10b981;
+  --om-destructive: #f43f5e;
+
+  /* Backward-compatible aliases */
+  --fp-void: var(--om-canvas);
+  --fp-rail: var(--om-sidebar);
+  --fp-drawer: var(--om-sidebar);
+  --fp-stage: var(--om-stage);
+  --fp-stage-subtle: var(--om-card);
+  --fp-composer: var(--om-card);
+  --fp-surface-elevated: var(--om-card);
+  --fp-hover: var(--om-hover);
+  --fp-active: var(--om-active);
+  --fp-input-bg: var(--om-input-bg);
+  --fp-border: var(--om-border);
+  --fp-border-strong: var(--om-border-strong);
+  --fp-specular: var(--om-specular);
+  --fp-stage-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 24px rgba(0, 0, 0, 0.45);
+  --fp-composer-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 4px 16px rgba(0, 0, 0, 0.35);
+  --fp-text-primary: var(--om-text-primary);
+  --fp-text-secondary: var(--om-text-secondary);
+  --fp-text-muted: var(--om-text-muted);
+  --fp-accent: var(--om-accent);
+  --fp-accent-bright: var(--om-accent-bright);
 }
 
 body {
@@ -188,36 +225,36 @@ body {
 }
 
 .dark {
-  --background: #080a0f;
-  --foreground: #f1f5f9;
-  --card: #111624;
-  --card-foreground: #f1f5f9;
-  --popover: #182032;
-  --popover-foreground: #f1f5f9;
+  --background: #09090b;
+  --foreground: #f4f4f5;
+  --card: #141720;
+  --card-foreground: #f4f4f5;
+  --popover: #141720;
+  --popover-foreground: #f4f4f5;
   --primary: #6366f1;
   --primary-foreground: #ffffff;
-  --secondary: #151c2e;
-  --secondary-foreground: #f1f5f9;
-  --muted: #151c2e;
+  --secondary: #0c0d11;
+  --secondary-foreground: #f4f4f5;
+  --muted: #141720;
   --muted-foreground: #94a3b8;
-  --accent: #202946;
-  --accent-foreground: #e0e7ff;
-  --destructive: #fb7185;
-  --border: rgb(255 255 255 / 8%);
-  --input: rgb(255 255 255 / 12%);
+  --accent: rgba(99, 102, 241, 0.15);
+  --accent-foreground: #818cf8;
+  --destructive: #f43f5e;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.14);
   --ring: #818cf8;
   --chart-1: #818cf8;
   --chart-2: #22d3ee;
   --chart-3: #34d399;
   --chart-4: #fbbf24;
-  --chart-5: #fb7185;
-  --sidebar: #0e121d;
-  --sidebar-foreground: #f1f5f9;
+  --chart-5: #f43f5e;
+  --sidebar: #0c0d11;
+  --sidebar-foreground: #f4f4f5;
   --sidebar-primary: #818cf8;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #151c2e;
-  --sidebar-accent-foreground: #e0e7ff;
-  --sidebar-border: rgb(255 255 255 / 8%);
+  --sidebar-accent: #141720;
+  --sidebar-accent-foreground: #818cf8;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: #818cf8;
 }
 

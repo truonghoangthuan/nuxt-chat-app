@@ -143,26 +143,26 @@ function handleClose() {
   <div
     v-if="isOpen && conversation"
     data-test="group-info-backdrop"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
     @click.self="handleClose"
   >
     <div
       data-test="group-info-modal"
-      class="w-full max-w-md fp-stage-surface rounded-[14px] border border-[var(--fp-border)] overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
+      class="w-full max-w-md rounded-[14px] border border-[var(--om-border-strong)] bg-[var(--om-card)] overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
     >
       <!-- Header -->
-      <div class="px-5 py-4 border-b border-[var(--fp-border)] flex items-center justify-between shrink-0">
+      <div class="px-5 py-4 border-b border-[var(--om-border)] flex items-center justify-between shrink-0">
         <div class="min-w-0 flex-1 mr-3">
           <!-- Static Title View -->
           <div v-if="!isEditingTitle" class="flex items-center gap-2">
-            <h3 data-test="group-title" class="fp-font-display text-[16px] font-bold text-[var(--fp-text-primary)] truncate">
+            <h3 data-test="group-title" class="text-[16px] font-semibold text-[var(--om-text-primary)] truncate">
               {{ groupTitle }}
             </h3>
             <button
               type="button"
               data-test="edit-title-btn"
               aria-label="Edit group name"
-              class="w-6 h-6 rounded-md text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] flex items-center justify-center cursor-pointer transition-colors shrink-0"
+              class="w-6 h-6 rounded-[6px] text-[var(--om-text-secondary)] hover:text-[var(--om-text-primary)] hover:bg-[var(--om-hover)] flex items-center justify-center cursor-pointer transition-colors shrink-0"
               @click="startEditTitle"
             >
               <Pencil class="w-3.5 h-3.5" />
@@ -178,7 +178,7 @@ function handleClose() {
                 data-test="edit-title-input"
                 type="text"
                 maxlength="100"
-                class="flex-1 min-w-0 px-2.5 py-1 text-sm font-semibold rounded-[6px] border border-[var(--fp-border)] bg-[var(--fp-input-bg)] text-[var(--fp-text-primary)] focus:outline-none focus:border-indigo-500"
+                class="flex-1 min-w-0 px-2.5 py-1 text-sm font-semibold rounded-[6px] border border-[var(--om-border)] bg-[var(--om-input-bg)] text-[var(--om-text-primary)] focus:outline-none focus:border-indigo-500"
                 placeholder="Group name"
                 autofocus
                 @keydown.esc.stop="cancelEditTitle"
@@ -195,7 +195,7 @@ function handleClose() {
                 type="button"
                 data-test="cancel-edit-title-btn"
                 aria-label="Cancel editing"
-                class="w-7 h-7 rounded-[6px] border border-[var(--fp-border)] text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] flex items-center justify-center cursor-pointer shrink-0 transition-colors"
+                class="w-7 h-7 rounded-[6px] border border-[var(--om-border)] text-[var(--om-text-secondary)] hover:text-[var(--om-text-primary)] hover:bg-[var(--om-hover)] flex items-center justify-center cursor-pointer shrink-0 transition-colors"
                 @click="cancelEditTitle"
               >
                 <X class="w-3.5 h-3.5" />
@@ -206,14 +206,14 @@ function handleClose() {
             </p>
           </div>
 
-          <p data-test="member-count" class="text-xs text-[var(--fp-text-secondary)] mt-0.5">
+          <p data-test="member-count" class="text-xs text-[var(--om-text-muted)] mt-0.5">
             {{ memberCountText }}
           </p>
         </div>
         <button
           type="button"
           aria-label="Close"
-          class="w-7 h-7 rounded-md text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] text-lg font-bold flex items-center justify-center cursor-pointer transition-colors shrink-0"
+          class="w-7 h-7 rounded-[6px] text-[var(--om-text-secondary)] hover:text-[var(--om-text-primary)] hover:bg-[var(--om-hover)] text-lg font-bold flex items-center justify-center cursor-pointer transition-colors shrink-0"
           @click="handleClose"
         >
           ×
@@ -224,7 +224,7 @@ function handleClose() {
       <div class="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
         <!-- Add Member Form -->
         <div>
-          <label class="block text-xs font-semibold text-[var(--fp-text-secondary)] mb-1.5">
+          <label class="block text-xs font-semibold text-[var(--om-text-secondary)] mb-1.5">
             Add Member
           </label>
           <form data-test="add-member-form" class="flex gap-2" @submit.prevent="handleAddMember">
@@ -233,13 +233,13 @@ function handleClose() {
               data-test="add-member-input"
               type="email"
               placeholder="friend@example.com"
-              class="flex-1 px-3.5 py-2 rounded-[8px] border border-[var(--fp-border)] bg-[var(--fp-input-bg)] text-[14px] text-[var(--fp-text-primary)] placeholder-[var(--fp-text-muted)] focus:outline-none focus:border-indigo-500 transition-colors"
+              class="flex-1 px-3.5 py-1.5 rounded-[8px] border border-[var(--om-border)] bg-[var(--om-input-bg)] text-sm text-[var(--om-text-primary)] placeholder-[var(--om-text-muted)] focus:outline-none focus:border-indigo-500 transition-colors"
             />
             <button
               type="submit"
               data-test="add-member-btn"
               :disabled="!newMemberEmail.trim()"
-              class="px-3.5 py-2 rounded-[8px] text-xs font-semibold fp-btn-primary disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shrink-0"
+              class="px-3.5 py-1.5 rounded-[8px] text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shrink-0"
             >
               Add
             </button>
@@ -251,15 +251,15 @@ function handleClose() {
 
         <!-- Members Roster -->
         <div>
-          <label class="block text-xs font-semibold text-[var(--fp-text-secondary)] mb-2">
+          <label class="block text-xs font-semibold text-[var(--om-text-secondary)] mb-2">
             Members Roster
           </label>
-          <div class="space-y-1.5 max-h-60 overflow-y-auto rounded-[8px] border border-[var(--fp-border)] p-1.5 bg-[var(--fp-surface-muted)]">
+          <div class="space-y-1.5 max-h-60 overflow-y-auto rounded-[8px] border border-[var(--om-border)] p-1.5 bg-[var(--om-input-bg)]">
             <div
               v-for="member in members"
               :key="member.user_id"
               :data-test="`member-item-${member.user_id}`"
-              class="flex items-center justify-between p-2 rounded-[6px] hover:bg-[var(--fp-hover)] transition-colors"
+              class="flex items-center justify-between p-2 rounded-[6px] hover:bg-[var(--om-hover)] transition-colors"
             >
               <!-- Avatar & Details -->
               <div class="flex items-center gap-2.5 min-w-0">
@@ -272,17 +272,17 @@ function handleClose() {
                 />
                 <div class="min-w-0">
                   <div class="flex items-center gap-1.5">
-                    <p class="text-xs font-medium text-[var(--fp-text-primary)] truncate">
+                    <p class="text-xs font-medium text-[var(--om-text-primary)] truncate">
                       {{ member.profile?.display_name || member.profile?.email || member.user_id }}
                     </p>
                     <span
                       v-if="currentUserId && member.user_id === currentUserId"
-                      class="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-600 dark:text-indigo-400"
+                      class="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-400"
                     >
                       (You)
                     </span>
                   </div>
-                  <p v-if="member.profile?.email" class="text-[11px] text-[var(--fp-text-secondary)] truncate">
+                  <p v-if="member.profile?.email" class="text-[11px] text-[var(--om-text-muted)] truncate">
                     {{ member.profile.email }}
                   </p>
                 </div>
@@ -293,7 +293,7 @@ function handleClose() {
                 <span
                   :data-test="`member-role-${member.user_id}`"
                   class="text-[11px] font-medium px-2 py-0.5 rounded-full"
-                  :class="member.role === 'owner' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30' : 'bg-[var(--fp-hover)] text-[var(--fp-text-secondary)] border border-[var(--fp-border)]'"
+                  :class="member.role === 'owner' ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30' : 'bg-[var(--om-hover)] text-[var(--om-text-muted)] border border-[var(--om-border)]'"
                 >
                   {{ member.role === 'owner' ? 'Owner' : 'Member' }}
                 </span>
@@ -304,18 +304,18 @@ function handleClose() {
       </div>
 
       <!-- Footer -->
-      <div class="px-5 py-3 border-t border-[var(--fp-border)] flex items-center justify-between shrink-0 bg-[var(--fp-stage-surface)]">
+      <div class="px-5 py-3 border-t border-[var(--om-border)] flex items-center justify-between shrink-0 bg-[var(--om-card)]">
         <button
           type="button"
           data-test="leave-group-btn"
-          class="px-3.5 py-1.5 rounded-[8px] text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+          class="px-3 py-1.5 rounded-[8px] text-xs font-medium text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
           @click="handleLeave"
         >
           Leave Group
         </button>
         <button
           type="button"
-          class="px-4 py-2 rounded-[8px] text-xs border border-[var(--fp-border)] text-[var(--fp-text-secondary)] hover:text-[var(--fp-text-primary)] hover:bg-[var(--fp-hover)] transition-colors font-medium cursor-pointer"
+          class="px-4 py-1.5 rounded-[8px] text-xs border border-[var(--om-border)] text-[var(--om-text-secondary)] hover:text-[var(--om-text-primary)] hover:bg-[var(--om-hover)] transition-colors font-medium cursor-pointer"
           @click="handleClose"
         >
           Close
