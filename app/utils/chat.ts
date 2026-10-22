@@ -9,6 +9,7 @@ import type {
   Conversation,
   Profile,
 } from '~/types/chat'
+import { isImagePayload, parseImagePayload } from '~/utils/image'
 
 export const AVATAR_PALETTE = [
   '#0284c7', // Sky 600
@@ -174,7 +175,7 @@ export function formatDateDivider(isoString: string, now: Date = new Date()): st
   })
 }
 
-function escapeRegExp(str: string): string {
+export function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
@@ -592,6 +593,53 @@ export function formatConversationTime(
   }
 
   return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+export interface HighlightSegment {
+  text: string
+  isMatch: boolean
+}
+
+export function filterMessagesByKeyword(
+  messages: ChatMessage[],
+  query: string,
+): ChatMessage[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
+
+  return messages.filter((msg) => {
+    if (msg.deleted_at || msg.encryption === 'undecryptable') {
+      return false
+    }
+
+    if (isImagePayload(msg.content)) {
+      const payload = parseImagePayload(msg.content)
+      return Boolean(payload?.caption && payload.caption.toLowerCase().includes(q))
+    }
+
+    return msg.content.toLowerCase().includes(q)
+  })
+}
+
+export function highlightTextSegments(
+  text: string,
+  query: string,
+): HighlightSegment[] {
+  const q = query.trim()
+  if (!q || !text) {
+    return [{ text, isMatch: false }]
+  }
+
+  const escaped = escapeRegExp(q)
+  const regex = new RegExp(`(${escaped})`, 'gi')
+  const parts = text.split(regex)
+
+  return parts
+    .filter(Boolean)
+    .map((part) => ({
+      text: part,
+      isMatch: part.toLowerCase() === q.toLowerCase(),
+    }))
 }
 
 

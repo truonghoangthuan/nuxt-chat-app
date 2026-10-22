@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
 import { Pencil, Check, X } from '@lucide/vue'
-import type { Conversation } from '~/types/chat'
+import type { Conversation, Profile } from '~/types/chat'
 import { isValidEmail } from '~/utils/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
 
@@ -24,6 +24,7 @@ const emit = defineEmits<{
   (e: 'addMember', email: string): void
   (e: 'leave', conversationId: string): void
   (e: 'updateTitle', newTitle: string): void
+  (e: 'viewProfile', profile: Profile): void
 }>()
 
 const newMemberEmail = ref('')
@@ -259,7 +260,8 @@ function handleClose() {
               v-for="member in members"
               :key="member.user_id"
               :data-test="`member-item-${member.user_id}`"
-              class="flex items-center justify-between p-2 rounded-xl hover:bg-white/5 transition-colors"
+              class="flex items-center justify-between p-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer"
+              @click="member.profile && emit('viewProfile', member.profile)"
             >
               <!-- Avatar & Details -->
               <div class="flex items-center gap-2.5 min-w-0">

@@ -27,6 +27,9 @@ import {
   formatConversationTitle,
   formatConversationTime,
   getDirectPeer,
+  filterMessagesByKeyword,
+  highlightTextSegments,
+  escapeRegExp,
 } from '~/utils/chat'
 import type { ChatMessage, Conversation, Profile } from '~/types/chat'
 
@@ -679,6 +682,82 @@ describe('Conversation utilities', () => {
         created_by: 'u1',
       }
       expect(formatConversationTime(convEmpty, fixedNow)).toBe('')
+    })
+  })
+
+  describe('filterMessagesByKeyword', () => {
+    const baseMessage: ChatMessage = {
+      id: 'm1',
+      client_id: 'c1',
+      conversation_id: 'conv1',
+      user_id: 'u1',
+      content: 'Hello world from Nuxt chat',
+      created_at: '2026-10-22T10:00:00Z',
+      status: 'sent',
+    }
+
+    it('returns empty array when query is blank or whitespace', () => {
+      expect(filterMessagesByKeyword([baseMessage], '')).toEqual([])
+      expect(filterMessagesByKeyword([baseMessage], '   ')).toEqual([])
+    })
+
+    it('matches messages case-insensitively by content substring', () => {
+      const m2 = { ...baseMessage, id: 'm2', content: 'Another message about cats' }
+      const results = filterMessagesByKeyword([baseMessage, m2], 'WORLD')
+      expect(results).toHaveLength(1)
+      expect(results[0].id).toBe('m1')
+    })
+
+    it('skips deleted messages', () => {
+      const deleted = { ...baseMessage, id: 'm2', deleted_at: '2026-10-22T10:05:00Z' }
+      const results = filterMessagesByKeyword([deleted], 'world')
+      expect(results).toHaveLength(0)
+    })
+
+    it('skips undecryptable messages', () => {
+      const undecryptable = { ...baseMessage, id: 'm2', encryption: 'undecryptable' as const }
+      const results = filterMessagesByKeyword([undecryptable], 'world')
+      expect(results).toHaveLength(0)
+    })
+
+    it('matches image caption if message content is an image payload', () => {
+      const imageMsg: ChatMessage = {
+        ...baseMessage,
+        id: 'm3',
+        content: JSON.stringify({
+          images: [{ path: 'p1', iv: 'iv1' }],
+          caption: 'Sunset at the beach',
+        }),
+      }
+      const results = filterMessagesByKeyword([imageMsg], 'beach')
+      expect(results).toHaveLength(1)
+      expect(results[0].id).toBe('m3')
+    })
+  })
+
+  describe('highlightTextSegments', () => {
+    it('returns entire text with isMatch false if query is blank', () => {
+      expect(highlightTextSegments('Hello world', '')).toEqual([
+        { text: 'Hello world', isMatch: false },
+      ])
+    })
+
+    it('splits text into matching and non-matching segments', () => {
+      expect(highlightTextSegments('Hello world, what a world!', 'world')).toEqual([
+        { text: 'Hello ', isMatch: false },
+        { text: 'world', isMatch: true },
+        { text: ', what a ', isMatch: false },
+        { text: 'world', isMatch: true },
+        { text: '!', isMatch: false },
+      ])
+    })
+
+    it('safely handles regex special characters in query', () => {
+      expect(highlightTextSegments('Price is $100.00 today', '$100.00')).toEqual([
+        { text: 'Price is ', isMatch: false },
+        { text: '$100.00', isMatch: true },
+        { text: ' today', isMatch: false },
+      ])
     })
   })
 })

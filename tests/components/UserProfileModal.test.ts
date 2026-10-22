@@ -32,6 +32,9 @@ describe('UserProfileModal', () => {
     })
 
     expect(wrapper.find('[data-test="user-profile-modal"]').exists()).toBe(true)
+    const avatar = wrapper.findComponent({ name: 'UserAvatar' })
+    expect(avatar.exists()).toBe(true)
+    expect(avatar.props('size')).toBe('2xl')
     expect(wrapper.text()).toContain('Bob Ross')
     expect(wrapper.text()).toContain('bob@example.com')
     expect(wrapper.text()).toContain('u-bob-123')

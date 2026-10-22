@@ -17,7 +17,8 @@ import UserProfileModal from '~/components/UserProfileModal.vue'
 import NotificationToastContainer from '~/components/NotificationToastContainer.vue'
 import NotificationPermissionBanner from '~/components/NotificationPermissionBanner.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
-import { Menu, Users, Info } from '@lucide/vue'
+import MessageSearchBar from '~/components/MessageSearchBar.vue'
+import { Menu, Users, Info, Search } from '@lucide/vue'
 import E2eeGate from '~/components/E2eeGate.vue'
 import { useE2ee } from '~/composables/useE2ee'
 
@@ -120,7 +121,37 @@ function handleOpenLightbox(payload: { images: EncryptedImageMetadata[]; initial
 async function handleSelectConversation(conversationId: string) {
   replyingTo.value = null
   isMobileSidebarOpen.value = false
+  handleCloseSearch()
   await selectConversation(conversationId)
+}
+
+const isSearchOpen = ref(false)
+const searchQuery = ref('')
+const messageViewportRef = ref<{ jumpToMessage: (id: string) => void } | null>(null)
+
+function handleToggleSearch() {
+  isSearchOpen.value = !isSearchOpen.value
+  if (!isSearchOpen.value) {
+    searchQuery.value = ''
+  }
+}
+
+function handleCloseSearch() {
+  isSearchOpen.value = false
+  searchQuery.value = ''
+}
+
+function handleJumpSearchResult(messageId: string) {
+  messageViewportRef.value?.jumpToMessage(messageId)
+}
+
+function handleGlobalKeydown(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+    e.preventDefault()
+    isSearchOpen.value = true
+  } else if (e.key === 'Escape' && isSearchOpen.value) {
+    handleCloseSearch()
+  }
 }
 
 async function handleStartDirectChat(userId: string) {
@@ -232,6 +263,10 @@ async function handleSaveProfile(payload: {
 }
 
 onMounted(async () => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', handleGlobalKeydown)
+  }
+
   if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
       if (event.data?.type === 'NAVIGATE_CONVERSATION' && event.data.conversationId) {
@@ -247,6 +282,9 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('keydown', handleGlobalKeydown)
+  }
   cleanupChat()
 })
 </script>
@@ -334,28 +372,34 @@ onUnmounted(() => {
             <div class="min-w-0 flex items-center gap-2.5">
               <!-- Direct Conversation -->
               <template v-if="activeConversation?.type === 'direct'">
-                <UserAvatar
-                  :display-name="activeConversation.peer?.display_name || 'Friend'"
-                  :avatar-color="activeConversation.peer?.avatar_color"
-                  :avatar-url="activeConversation.peer?.avatar_url"
-                  :show-online="onlineFriends.some(f => f.id === activeConversation?.peer?.id)"
-                  size="sm"
-                />
-                <div class="min-w-0 flex items-center gap-2">
-                  <h2 class="text-[14px] font-semibold text-[var(--ap-text-primary)] flex items-center gap-1 truncate">
-                    <span class="text-blue-500 dark:text-blue-400 font-mono">@</span>
-                    <span class="truncate">{{ activeConversation.peer?.display_name || 'Direct Message' }}</span>
-                  </h2>
-                  <span
-                    class="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition-colors"
-                    :class="onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-muted)]'"
-                  >
+                <div
+                  data-test="direct-header-profile-trigger"
+                  class="min-w-0 flex items-center gap-2.5 cursor-pointer hover:opacity-85 transition-opacity"
+                  @click="activeConversation?.peer && handleViewProfile(activeConversation.peer)"
+                >
+                  <UserAvatar
+                    :display-name="activeConversation.peer?.display_name || 'Friend'"
+                    :avatar-color="activeConversation.peer?.avatar_color"
+                    :avatar-url="activeConversation.peer?.avatar_url"
+                    :show-online="onlineFriends.some(f => f.id === activeConversation?.peer?.id)"
+                    size="sm"
+                  />
+                  <div class="min-w-0 flex items-center gap-2">
+                    <h2 class="text-[14px] font-semibold text-[var(--ap-text-primary)] flex items-center gap-1 truncate">
+                      <span class="text-blue-500 dark:text-blue-400 font-mono">@</span>
+                      <span class="truncate">{{ activeConversation.peer?.display_name || 'Direct Message' }}</span>
+                    </h2>
                     <span
-                      class="w-1.5 h-1.5 rounded-full inline-block"
-                      :class="onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'bg-emerald-500 shadow-[0_0_6px_#34c759]' : 'bg-black/30 dark:bg-white/30'"
-                    ></span>
-                    {{ onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'Active now' : 'Offline' }}
-                  </span>
+                      class="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition-colors"
+                      :class="onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-muted)]'"
+                    >
+                      <span
+                        class="w-1.5 h-1.5 rounded-full inline-block"
+                        :class="onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'bg-emerald-500 shadow-[0_0_6px_#34c759]' : 'bg-black/30 dark:bg-white/30'"
+                      ></span>
+                      {{ onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'Active now' : 'Offline' }}
+                    </span>
+                  </div>
                 </div>
               </template>
 
@@ -429,8 +473,27 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Header Right: Group Info & Online Friends Avatar Stack -->
+          <!-- Header Right: Search, Group Info & Online Friends Avatar Stack -->
           <div class="flex items-center gap-2.5 shrink-0">
+            <!-- Search Bar or Toggle Button -->
+            <MessageSearchBar
+              v-if="isSearchOpen"
+              :messages="messages"
+              v-model="searchQuery"
+              @jump="handleJumpSearchResult"
+              @close="handleCloseSearch"
+            />
+            <button
+              v-else
+              type="button"
+              data-test="open-search-btn"
+              title="Search messages (Cmd+F)"
+              class="p-1.5 rounded-full bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition cursor-pointer"
+              @click="handleToggleSearch"
+            >
+              <Search class="w-4 h-4" />
+            </button>
+
             <button
               v-if="activeConversation?.type === 'group'"
               type="button"
@@ -463,7 +526,9 @@ onUnmounted(() => {
 
         <!-- Message Viewport -->
         <MessageViewport
+          ref="messageViewportRef"
           :messages="messages"
+          :search-query="searchQuery"
           :conversation-id="activeConversationId"
           :channel-id="activeConversationId || activeChannelId"
           :is-dm="activeConversation?.type === 'direct' || Boolean(activeChannel?.is_dm)"
@@ -533,6 +598,7 @@ onUnmounted(() => {
         @add-member="handleAddMember"
         @leave="handleLeaveGroup"
         @update-title="handleUpdateGroupTitle"
+        @view-profile="handleViewProfile"
       />
 
       <!-- Profile Settings Modal -->
