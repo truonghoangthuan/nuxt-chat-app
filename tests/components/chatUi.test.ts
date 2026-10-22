@@ -394,6 +394,58 @@ describe('Chat UI components', () => {
     wrapper.unmount()
   })
 
+  it('renders scroll-to-bottom button when scrolled up even with 0 unread messages', async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(MessageViewport, {
+      attachTo: document.body,
+      props: {
+        conversationId: 'c-1',
+        currentUserId: 'u-1',
+        messages: [
+          {
+            id: 'm-1',
+            client_id: 'c-1',
+            channel_id: 'c-1',
+            user_id: 'u-2',
+            content: 'Hello world',
+            created_at: '2026-10-18T10:00:00Z',
+            status: 'sent',
+          },
+        ],
+      },
+    })
+
+    // Flush initial open timers
+    vi.runAllTimers()
+    await wrapper.vm.$nextTick()
+
+    const scrollContainer = wrapper.find('.custom-scroll')
+    let currentScrollTop = 100
+    Object.defineProperty(scrollContainer.element, 'scrollHeight', { value: 1000, configurable: true })
+    Object.defineProperty(scrollContainer.element, 'clientHeight', { value: 400, configurable: true })
+    Object.defineProperty(scrollContainer.element, 'scrollTop', {
+      get() { return currentScrollTop },
+      set(v) { currentScrollTop = v },
+      configurable: true,
+    })
+
+    currentScrollTop = 100
+    await scrollContainer.trigger('scroll')
+    await wrapper.vm.$nextTick()
+
+    const btn = wrapper.find('[data-test="scroll-to-bottom"]')
+    expect(btn.exists()).toBe(true)
+
+    // Trigger scroll back to near bottom
+    currentScrollTop = 550
+    await scrollContainer.trigger('scroll')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-test="scroll-to-bottom"]').exists()).toBe(false)
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
+
   it('ChatSidebar renders @ mention badge alongside unread count when unreadMentions > 0', () => {
     const wrapper = mount(ChatSidebar, {
       props: {

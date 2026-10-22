@@ -6,7 +6,7 @@ import { isImagePayload, parseImagePayload, formatImageMessageSummary } from '~/
 import UserAvatar from '~/components/UserAvatar.vue'
 import MessageActionsMenu from '~/components/MessageActionsMenu.vue'
 import MessageImageGrid from '~/components/MessageImageGrid.vue'
-import { Pin, ChevronLeft, ChevronRight, X } from '@lucide/vue'
+import { Pin, ChevronLeft, ChevronRight, X, ChevronDown } from '@lucide/vue'
 
 const props = withDefaults(
   defineProps<{
@@ -855,15 +855,20 @@ onUnmounted(() => {
       </template>
     </div>
 
-    <!-- Floating "New Messages" Pill -->
+    <!-- Floating "Scroll to Bottom" Button / Pill -->
     <button
-      v-if="unreadNewCount > 0"
+      v-if="!isNearBottom"
       type="button"
       data-test="scroll-to-bottom"
-      class="absolute bottom-3 right-6 z-10 px-3.5 py-1.5 rounded-full bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium shadow-lg shadow-blue-500/30 transition-transform animate-bounce flex items-center gap-1.5 cursor-pointer backdrop-blur-md"
+      class="absolute bottom-3 right-6 z-10 transition-all cursor-pointer backdrop-blur-md shadow-lg"
+      :class="unreadNewCount > 0
+        ? 'px-3.5 py-1.5 rounded-full bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium shadow-blue-500/30 animate-bounce flex items-center gap-1.5'
+        : 'w-9 h-9 rounded-full bg-white/80 dark:bg-[#1a1d28]/90 hover:bg-white dark:hover:bg-[#1a1d28] border border-black/10 dark:border-white/10 text-[var(--ap-text-primary)] flex items-center justify-center shadow-black/10 hover:scale-105 active:scale-95'"
+      :aria-label="unreadNewCount > 0 ? `${unreadNewCount} new messages` : 'Scroll to bottom'"
       @click="scrollToBottom(true)"
     >
-      <span>↓ {{ unreadNewCount }} new message{{ unreadNewCount > 1 ? 's' : '' }}</span>
+      <span v-if="unreadNewCount > 0">↓ {{ unreadNewCount }} new message{{ unreadNewCount > 1 ? 's' : '' }}</span>
+      <ChevronDown v-else class="w-4 h-4 text-[var(--ap-text-secondary)]" />
     </button>
   </div>
 </template>
