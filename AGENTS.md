@@ -23,7 +23,7 @@ A lightweight, resilient Slack-style real-time chat web app for friends across p
 
 - **Environment Variables:** Copy `.env.example` to `.env` and set `SUPABASE_URL` and `SUPABASE_KEY`.
 - **Database Schema:** `supabase/schema.sql` defines `public.profiles`, `public.channels`, `public.messages`, `public.e2ee_config`, the `on_auth_user_created` profile-creation trigger, the `enforce_message_e2ee_envelope` trigger, RLS policies, the composite cursor index `messages_channel_cursor_idx`, and the `supabase_realtime` publication.
-- **Windows CLI Tooling:** GitHub CLI (`gh`) is often at `C:\Program Files\GitHub CLI\gh.exe` if not present in default `$env:PATH`.
+- **Windows CLI Tooling:** GitHub CLI (`gh`) is often at `C:\Program Files\GitHub CLI\gh.exe` if not present in default `$env:PATH`. When invoking `gh pr create` or `gh issue create` with multiline Markdown in PowerShell, never pass multiline string literals in `--body "..."` (PowerShell argument parsing splits and corrupts unescaped newlines/quotes); always write the text to a temporary file and use `--body-file <path>` (cleaning up the temp file after).
 - **Windows Line Endings:** Git with `core.autocrlf = true` checks out CRLF. Normalize or match exact CRLF when applying targeted file edits.
 
 ## 3. Architecture & Directory Layout
@@ -148,6 +148,12 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
 15. **Schema Column Projection Discipline (`42703`) & PL/pgSQL Delimiters:**
     - **Projection Discipline:** Never project unmigrated, renamed, or obsolete columns (e.g., `channel_id` on `public.messages`) in Supabase `.select()` projections; PostgREST translates them to SQL queries that immediately fail with HTTP 400 (`code: 42703`). Always project actual schema columns (`conversation_id`).
     - **PL/pgSQL Body Delimiters:** Always enclose PostgreSQL function bodies in `as $$ ... $$;`. Single `$` is a syntax error in PostgreSQL. In JS scripts or string replacement helpers, never use `str.replace(target, '...$$...')` directly because JS treats `$$` as an unescape pattern for a literal `$`; always use `str.replace(target, () => '...$$...')` or `split/join`.
+
+16. **Composer Drafts & Attachment Captions Discipline:**
+    - **Per-Conversation Draft Persistence:** Composer draft text must be keyed in memory by `conversationKey = props.conversationId || props.channelSlug`. Switching conversations must save the outgoing conversation draft, restore the incoming draft, and clear any uncommitted local file attachments to prevent cross-channel leaks. Sending a message (text or attachment) must clear the draft for that conversation.
+    - **Non-Destructive Attachment Queuing:** Queueing file attachments must never wipe typed composer text (`content.value = ''`) or disable the textarea. Keep the input enabled with an attachment-specific placeholder (e.g., `'Add a caption...'`) so users can add or edit captions.
+    - **Encrypted Payload & Retry Coupling:** Attachment captions must be serialized inside the encrypted AES-GCM-256 payload envelope (`ImageMessagePayload.caption?: string`) alongside attachment metadata, never sent in plaintext. Attachment retry tracking (`pendingImageFiles`) must retain the caption alongside the file array so retries resend both together.
+    - **Viewport Mention & Link Tokenization:** In `MessageViewport.vue`, attachment captions rendered below `MessageImageGrid.vue` must pass through `tokenizeMessageMentions` so that `@mentions`, links, and inline code formatting behave identically to standard text messages.
 
 ## 5. Testing Standards
 
