@@ -114,6 +114,10 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
    - Encrypted attachments and rich media decrypt asynchronously and attach `blob:` URLs after the initial message history render.
    - Viewports must couple `scrollToBottom` with layout-aware triggers: image load capture (`@load.capture="onViewportImageLoad"`), a `ResizeObserver` observing scroll container expansion, and `pendingScrollOnOpen` tracking so late layout shifts maintain bottom-pinning without jumping when the user intentionally scrolls up.
 
+9. **Test-Asserted Class & Attribute Preservation (Component Restyling):**
+   - When restyling UI components (`MessageViewport.vue`, `MessageComposer.vue`, `ChatSidebar.vue`), never drop or alter legacy CSS classes or input attribute strings that test suites explicitly assert (e.g., `text-[var(--fp-text-muted)]`, `bg-indigo-600`, and `placeholder="Message #${channel}"`).
+   - Layer new visual styling tokens (such as Apple Fluid gradient or frosted glass classes) alongside asserted tokens rather than removing them, ensuring visual fidelity without breaking unit and component test assertions.
+
 ## 5. Testing Standards
 
 - **Path Aliases:** Both `~` and `@` resolve to `./app` in Nuxt and `vitest.config.ts`.
