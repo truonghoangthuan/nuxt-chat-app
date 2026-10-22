@@ -1354,6 +1354,37 @@ describe('Chat UI components', () => {
       expect(toolbar?.className).toContain('group-hover:opacity-100')
     })
 
+    it('emits viewProfile when clicking recipient avatar or group sender header', async () => {
+      const author = { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed', email: 'bob@example.com' }
+      const wrapper = mount(MessageViewport, {
+        props: {
+          conversationId: 'c-1',
+          isGroup: true,
+          currentUserId: 'u-alice',
+          messages: [
+            {
+              id: 'm-bob-1',
+              client_id: 'c-1',
+              channel_id: 'c-1',
+              user_id: 'u-bob',
+              content: 'Hello Bob',
+              created_at: '2026-10-18T10:00:00Z',
+              status: 'sent',
+              author,
+            },
+          ],
+        },
+      })
+
+      const avatarTrigger = wrapper.find('[data-test="recipient-avatar-trigger"]')
+      await avatarTrigger.trigger('click')
+      expect(wrapper.emitted('viewProfile')?.[0]).toEqual([author])
+
+      const headerTrigger = wrapper.find('[data-test="sender-header-m-bob-1"]')
+      await headerTrigger.trigger('click')
+      expect(wrapper.emitted('viewProfile')?.[1]).toEqual([author])
+    })
+
     it('renders recipient messages with justify-start, avatar, and sender display name in group chats', () => {
       const wrapper = mount(MessageViewport, {
         props: {

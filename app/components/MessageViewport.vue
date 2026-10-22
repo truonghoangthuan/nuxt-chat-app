@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import type { ChatMessage, EncryptedImageMetadata } from '~/types/chat'
+import type { ChatMessage, EncryptedImageMetadata, Profile } from '~/types/chat'
 import { buildMessageTimeline, REACTION_EMOJIS, summarizeReactions, tokenizeMessageMentions } from '~/utils/chat'
 import { isImagePayload, parseImagePayload, formatImageMessageSummary } from '~/utils/image'
 import UserAvatar from '~/components/UserAvatar.vue'
@@ -46,6 +46,7 @@ const emit = defineEmits<{
   (e: 'toggleReaction', payload: { messageId: string; emoji: string }): void
   (e: 'selectImage', payload: { images: EncryptedImageMetadata[]; initialIndex: number }): void
   (e: 'togglePin', messageId: string): void
+  (e: 'viewProfile', profile: Profile): void
 }>()
 
 const viewportRef = ref<HTMLDivElement | null>(null)
@@ -466,7 +467,12 @@ onUnmounted(() => {
         >
           <!-- Recipient Avatar (rendered at the bottom of the cluster) -->
           <template v-if="!item.isSender">
-            <div v-if="item.isLastInGroup" class="shrink-0 mb-0.5">
+            <div
+              v-if="item.isLastInGroup"
+              data-test="recipient-avatar-trigger"
+              class="shrink-0 mb-0.5 cursor-pointer hover:opacity-80 transition-opacity"
+              @click="item.message.author && emit('viewProfile', item.message.author)"
+            >
               <UserAvatar
                 :display-name="item.message.author?.display_name || 'Friend'"
                 :avatar-color="item.message.author?.avatar_color"
@@ -541,8 +547,9 @@ onUnmounted(() => {
             <div
               v-if="item.showSenderHeader"
               :data-test="`sender-header-${item.message.id}`"
-              class="text-[12px] font-semibold mb-1 ml-1 truncate max-w-full"
+              class="text-[12px] font-semibold mb-1 ml-1 truncate max-w-full cursor-pointer hover:underline transition"
               :style="{ color: item.message.author?.avatar_color || '#0284c7' }"
+              @click="item.message.author && emit('viewProfile', item.message.author)"
             >
               {{ item.message.author?.display_name || 'Friend' }}
             </div>
