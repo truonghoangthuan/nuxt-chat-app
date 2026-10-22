@@ -1291,6 +1291,42 @@ describe('Chat UI components', () => {
       expect(wrapper.text()).toContain('Sending...')
     })
 
+    it('renders timestamp outside message bubble', () => {
+      const wrapper = mount(MessageViewport, {
+        props: {
+          conversationId: 'c-1',
+          currentUserId: 'u-alice',
+          messages: [
+            {
+              id: 'm-sender',
+              client_id: 'c-1',
+              channel_id: 'c-1',
+              user_id: 'u-alice',
+              content: 'Sender msg',
+              created_at: '2026-10-18T10:00:00Z',
+              status: 'sent',
+              author: { id: 'u-alice', display_name: 'Alice', avatar_color: '#0284c7' },
+            },
+            {
+              id: 'm-recipient',
+              client_id: 'c-2',
+              channel_id: 'c-1',
+              user_id: 'u-bob',
+              content: 'Recipient msg',
+              created_at: '2026-10-18T10:01:00Z',
+              status: 'sent',
+              author: { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+            },
+          ],
+        },
+      })
+
+      const senderBubble = wrapper.find('[data-test="message-bubble-m-sender"]')
+      // Delivery indicator and time should NOT be inside the sender bubble
+      expect(senderBubble.find('[data-test="delivery-indicator-m-sender"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="delivery-indicator-m-sender"]').exists()).toBe(true)
+    })
+
     it('renders recipient messages with justify-start, avatar, and sender display name in group chats', () => {
       const wrapper = mount(MessageViewport, {
         props: {

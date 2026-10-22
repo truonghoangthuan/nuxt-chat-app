@@ -561,9 +561,41 @@ onUnmounted(() => {
               {{ item.message.author?.display_name || 'Friend' }}
             </div>
 
-            <!-- Apple iMessage Bubble Container -->
+            <!-- Bubble & External Timestamp Row -->
             <div
-              :data-test="`message-bubble-${item.message.id}`"
+              class="flex items-end gap-1.5 max-w-full"
+              :class="item.isSender ? 'flex-row justify-end' : 'flex-row justify-start'"
+            >
+              <!-- Time & Delivery Indicator for Sender (Outside, Left of bubble) -->
+              <div
+                v-if="item.isSender"
+                class="flex items-center gap-1 text-[10.5px] font-mono text-[var(--ap-text-muted)] select-none shrink-0 mb-1"
+              >
+                <span>{{ formatTime(item.message.created_at) }}</span>
+                <span
+                  v-if="item.message.status === 'sending'"
+                  :data-test="`delivery-indicator-${item.message.id}`"
+                  class="inline-flex items-center gap-1 italic text-blue-500 dark:text-blue-400"
+                >
+                  <svg class="animate-spin h-2.5 w-2.5" viewBox="0 0 24 24" fill="none">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                  </svg>
+                  <span>Sending...</span>
+                </span>
+                <span
+                  v-else-if="item.message.status === 'sent'"
+                  :data-test="`delivery-indicator-${item.message.id}`"
+                  class="font-bold text-blue-500 dark:text-blue-400 tracking-tighter"
+                  title="Sent"
+                >
+                  ✓✓
+                </span>
+              </div>
+
+              <!-- Apple iMessage Bubble Container -->
+              <div
+                :data-test="`message-bubble-${item.message.id}`"
               class="relative px-4 py-2.5 text-[13.5px] leading-relaxed shadow-xs break-words transition-all"
               :class="[
                 item.isSender
@@ -774,35 +806,14 @@ onUnmounted(() => {
                 </span>
               </div>
 
-              <!-- Time & Delivery Status inside Bubble -->
-              <div
-                class="mt-1 flex items-center justify-end gap-1.5 text-[11px] font-mono select-none"
-                :class="item.isSender ? 'text-white/75' : 'text-[var(--ap-text-muted)]'"
-              >
-                <span>{{ formatTime(item.message.created_at) }}</span>
+            </div>
 
-                <!-- Delivery indicator for sender -->
-                <template v-if="item.isSender">
-                  <span
-                    v-if="item.message.status === 'sending'"
-                    :data-test="`delivery-indicator-${item.message.id}`"
-                    class="inline-flex items-center gap-1 italic text-white/85"
-                  >
-                    <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-                    </svg>
-                    <span>Sending...</span>
-                  </span>
-                  <span
-                    v-else-if="item.message.status === 'sent'"
-                    :data-test="`delivery-indicator-${item.message.id}`"
-                    class="font-bold text-white tracking-tighter"
-                    title="Sent"
-                  >
-                    ✓✓
-                  </span>
-                </template>
+              <!-- Time for Recipient (Outside, Right of bubble) -->
+              <div
+                v-if="!item.isSender"
+                class="text-[10.5px] font-mono text-[var(--ap-text-muted)] select-none shrink-0 mb-1"
+              >
+                {{ formatTime(item.message.created_at) }}
               </div>
             </div>
 
