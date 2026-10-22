@@ -84,18 +84,18 @@ function handleStartDm() {
       </button>
 
       <!-- Profile Header (Avatar + Name + Status) -->
-      <div class="flex flex-col items-center text-center gap-3 mt-1">
+      <div class="flex flex-col items-center text-center gap-3.5 mt-2">
         <UserAvatar
           :display-name="profile.display_name"
           :avatar-color="profile.avatar_color"
           :avatar-url="profile.avatar_url"
           :show-online="isOnline"
-          size="lg"
-          class="ring-4 ring-black/5 dark:ring-white/10 shadow-lg"
+          size="2xl"
+          class="ring-4 ring-black/5 dark:ring-white/10 shadow-xl"
         />
 
         <div class="flex flex-col items-center gap-1">
-          <h3 class="text-base font-bold text-[var(--ap-text-primary)] tracking-tight">
+          <h3 class="text-lg font-bold text-[var(--ap-text-primary)] tracking-tight">
             {{ profile.display_name }}
           </h3>
           <span

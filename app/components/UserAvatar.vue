@@ -8,7 +8,7 @@ const props = withDefaults(
     avatarColor?: string
     avatarUrl?: string | null
     showOnline?: boolean
-    size?: 'sm' | 'md' | 'lg'
+    size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
   }>(),
   {
     avatarColor: '',
@@ -24,12 +24,16 @@ const bgColor = computed(() => props.avatarColor || getAvatarColor(props.display
 const sizeClasses = computed(() => {
   if (props.size === 'sm') return 'w-7 h-7 rounded-[7px] text-[11px]'
   if (props.size === 'lg') return 'w-11 h-11 rounded-[11px] text-sm'
+  if (props.size === 'xl') return 'w-16 h-16 rounded-[16px] text-xl'
+  if (props.size === '2xl') return 'w-20 h-20 rounded-[20px] text-2xl'
   return 'w-9 h-9 rounded-[9px] text-[13px]'
 })
 
 const dotClasses = computed(() => {
   if (props.size === 'sm') return 'w-2 h-2 -bottom-0.5 -right-0.5'
   if (props.size === 'lg') return 'w-3 h-3 -bottom-0.5 -right-0.5'
+  if (props.size === 'xl') return 'w-3.5 h-3.5 -bottom-0.5 -right-0.5'
+  if (props.size === '2xl') return 'w-4 h-4 -bottom-0.5 -right-0.5 ring-[3px]'
   return 'w-2.5 h-2.5 -bottom-0.5 -right-0.5'
 })
 </script>

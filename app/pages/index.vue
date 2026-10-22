@@ -372,28 +372,34 @@ onUnmounted(() => {
             <div class="min-w-0 flex items-center gap-2.5">
               <!-- Direct Conversation -->
               <template v-if="activeConversation?.type === 'direct'">
-                <UserAvatar
-                  :display-name="activeConversation.peer?.display_name || 'Friend'"
-                  :avatar-color="activeConversation.peer?.avatar_color"
-                  :avatar-url="activeConversation.peer?.avatar_url"
-                  :show-online="onlineFriends.some(f => f.id === activeConversation?.peer?.id)"
-                  size="sm"
-                />
-                <div class="min-w-0 flex items-center gap-2">
-                  <h2 class="text-[14px] font-semibold text-[var(--ap-text-primary)] flex items-center gap-1 truncate">
-                    <span class="text-blue-500 dark:text-blue-400 font-mono">@</span>
-                    <span class="truncate">{{ activeConversation.peer?.display_name || 'Direct Message' }}</span>
-                  </h2>
-                  <span
-                    class="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition-colors"
-                    :class="onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-muted)]'"
-                  >
+                <div
+                  data-test="direct-header-profile-trigger"
+                  class="min-w-0 flex items-center gap-2.5 cursor-pointer hover:opacity-85 transition-opacity"
+                  @click="activeConversation?.peer && handleViewProfile(activeConversation.peer)"
+                >
+                  <UserAvatar
+                    :display-name="activeConversation.peer?.display_name || 'Friend'"
+                    :avatar-color="activeConversation.peer?.avatar_color"
+                    :avatar-url="activeConversation.peer?.avatar_url"
+                    :show-online="onlineFriends.some(f => f.id === activeConversation?.peer?.id)"
+                    size="sm"
+                  />
+                  <div class="min-w-0 flex items-center gap-2">
+                    <h2 class="text-[14px] font-semibold text-[var(--ap-text-primary)] flex items-center gap-1 truncate">
+                      <span class="text-blue-500 dark:text-blue-400 font-mono">@</span>
+                      <span class="truncate">{{ activeConversation.peer?.display_name || 'Direct Message' }}</span>
+                    </h2>
                     <span
-                      class="w-1.5 h-1.5 rounded-full inline-block"
-                      :class="onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'bg-emerald-500 shadow-[0_0_6px_#34c759]' : 'bg-black/30 dark:bg-white/30'"
-                    ></span>
-                    {{ onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'Active now' : 'Offline' }}
-                  </span>
+                      class="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition-colors"
+                      :class="onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-muted)]'"
+                    >
+                      <span
+                        class="w-1.5 h-1.5 rounded-full inline-block"
+                        :class="onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'bg-emerald-500 shadow-[0_0_6px_#34c759]' : 'bg-black/30 dark:bg-white/30'"
+                      ></span>
+                      {{ onlineFriends.some(f => f.id === activeConversation?.peer?.id) ? 'Active now' : 'Offline' }}
+                    </span>
+                  </div>
                 </div>
               </template>
 
@@ -592,6 +598,7 @@ onUnmounted(() => {
         @add-member="handleAddMember"
         @leave="handleLeaveGroup"
         @update-title="handleUpdateGroupTitle"
+        @view-profile="handleViewProfile"
       />
 
       <!-- Profile Settings Modal -->

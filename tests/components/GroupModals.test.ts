@@ -493,4 +493,21 @@ describe('GroupInfoModal.vue', () => {
     expect(wrapper.find('[data-test="edit-title-input"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="group-title"]').text()).toBe('New Ops')
   })
+
+  it('emits viewProfile when clicking a member item in the roster', async () => {
+    const wrapper = mount(GroupInfoModal, {
+      props: {
+        isOpen: true,
+        conversation: mockGroupConversation,
+        onlineUserIds: [],
+      },
+    })
+
+    const memberItem = wrapper.find('[data-test="member-item-u-1"]')
+    expect(memberItem.exists()).toBe(true)
+
+    await memberItem.trigger('click')
+    expect(wrapper.emitted('viewProfile')).toBeTruthy()
+    expect(wrapper.emitted('viewProfile')?.[0][0]).toEqual(mockGroupConversation.members[0].profile)
+  })
 })
