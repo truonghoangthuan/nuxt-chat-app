@@ -105,6 +105,15 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
      ```
      Execute the resulting SQL query in the Supabase SQL Editor. If the secret phrase is rotated or reset, re-run this script and update `public.e2ee_config`. Existing messages encrypted under previous keys will gracefully display as `🔒 Unable to decrypt this message` (`encryption: 'undecryptable'`).
 
+7. **Theme Token Discipline (No Hardcoded Dark Assumptions in Light Mode):**
+   - Never hardcode `text-white/*` or opaque dark mode assumptions on elements nested inside containers styled with adaptive CSS variables (`--ap-sidebar`, `--ap-stage`, `--ap-canvas`).
+   - Always bind semantic text variables (`--ap-text-primary`, `--ap-text-secondary`, `--ap-text-muted`) or paired Tailwind variants (`bg-black/5 dark:bg-white/8`, `text-slate-900 dark:text-white`) so unselected conversations, input text, timestamps, and incoming bubbles remain accessible and high-contrast in both Light and Dark modes.
+
+8. **Asynchronous Layout-Aware Viewport Pinning (Images & Channel Open):**
+   - Opening or switching to a chat must reliably anchor the scroll position at the latest message.
+   - Encrypted attachments and rich media decrypt asynchronously and attach `blob:` URLs after the initial message history render.
+   - Viewports must couple `scrollToBottom` with layout-aware triggers: image load capture (`@load.capture="onViewportImageLoad"`), a `ResizeObserver` observing scroll container expansion, and `pendingScrollOnOpen` tracking so late layout shifts maintain bottom-pinning without jumping when the user intentionally scrolls up.
+
 ## 5. Testing Standards
 
 - **Path Aliases:** Both `~` and `@` resolve to `./app` in Nuxt and `vitest.config.ts`.
