@@ -1070,6 +1070,9 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
       },
       rpc: vi.fn((fnName: string, params: any) => {
         if (fnName === 'toggle_pin_message') {
+          if (mockTogglePinError) {
+            return Promise.resolve({ data: { error: mockTogglePinError }, error: null })
+          }
           return Promise.resolve({ data: { success: true }, error: null })
         }
         if (fnName === 'lookup_profile_by_email') {
@@ -1092,6 +1095,9 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
           return Promise.resolve({ data: null, error: null })
         }
         if (fnName === 'toggle_pin_message') {
+          if (mockTogglePinError) {
+            return Promise.resolve({ data: { error: mockTogglePinError }, error: null })
+          }
           return Promise.resolve({ data: { success: true }, error: null })
         }
         if (fnName === 'remove_mutual_friend') {
@@ -1302,6 +1308,7 @@ describe('useChatRoom contacts and conversations', () => {
   let mockMembersInsertError: any
   let mockMembersDeleteError: any
   let mockConversationsUpdateError: { message: string } | null = null
+let mockTogglePinError: string | null = null
 
   beforeEach(async () => {
     mockConversationsUpdateError = null
@@ -1522,6 +1529,9 @@ describe('useChatRoom contacts and conversations', () => {
           return Promise.resolve({ data: match ? [match] : [], error: null })
         }
         if (fnName === 'toggle_pin_message') {
+          if (mockTogglePinError) {
+            return Promise.resolve({ data: { error: mockTogglePinError }, error: null })
+          }
           return Promise.resolve({ data: { success: true }, error: null })
         }
         if (fnName === 'add_mutual_friend') {
@@ -1807,5 +1817,21 @@ describe('useChatRoom contacts and conversations', () => {
     expect(res2.error).toBeNull()
     const unpinned = room.messages.value.find(m => m.id === msg.id)
     expect(unpinned?.pinned_at).toBeNull()
+  })
+
+  it('togglePinMessage reverts optimistic pin state when RPC returns error in data payload', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Denied Pin Team', ['u-bob'])
+    await room.sendMessage('Confidential note')
+    const msg = room.messages.value[0]
+    expect(msg).toBeDefined()
+
+    mockTogglePinError = 'Access denied'
+    const res = await room.togglePinMessage(msg.id)
+    expect(res.error).toBe('Access denied')
+
+    const after = room.messages.value.find(m => m.id === msg.id)
+    expect(after?.pinned_at).toBeNull()
+    mockTogglePinError = null
   })
 })

@@ -2397,6 +2397,8 @@ export function useChatRoom() {
       return { error: 'Message not found.' }
     }
 
+    const originalPinnedAt = targetMsg.pinned_at ?? null
+    const originalPinnedBy = targetMsg.pinned_by ?? null
     const wasPinned = Boolean(targetMsg.pinned_at)
     const newPinnedAt = wasPinned ? null : new Date().toISOString()
     const newPinnedBy = wasPinned ? null : current.id
@@ -2408,18 +2410,20 @@ export function useChatRoom() {
       pinned_by: newPinnedBy,
     })
 
-    const { error } = await supabase.rpc('toggle_pin_message', {
+    const { data, error } = await supabase.rpc('toggle_pin_message', {
       p_message_id: messageId,
     })
 
-    if (error) {
+    const rpcError = error ? error.message : ((data as any)?.error || null)
+
+    if (rpcError) {
       // Revert optimistic update
       messagesStore.reconcileUpdatedMessage({
         id: messageId,
-        pinned_at: targetMsg.pinned_at,
-        pinned_by: targetMsg.pinned_by,
+        pinned_at: originalPinnedAt,
+        pinned_by: originalPinnedBy,
       })
-      return { error: error.message }
+      return { error: rpcError }
     }
 
     return { error: null }

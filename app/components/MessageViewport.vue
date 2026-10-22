@@ -70,10 +70,15 @@ const pinnedMessages = computed(() =>
     }),
 )
 
+const currentPinnedIndex = computed(() =>
+  pinnedMessages.value.length > 0
+    ? ((activePinnedIndex.value % pinnedMessages.value.length) + pinnedMessages.value.length) % pinnedMessages.value.length
+    : 0,
+)
+
 const currentPinnedMessage = computed(() => {
   if (pinnedMessages.value.length === 0) return null
-  const idx = activePinnedIndex.value % pinnedMessages.value.length
-  return pinnedMessages.value[idx] || pinnedMessages.value[0] || null
+  return pinnedMessages.value[currentPinnedIndex.value] || null
 })
 
 function jumpToPinnedMessage(messageId: string) {
@@ -291,6 +296,7 @@ watch(
     isNearBottom.value = true
     pendingScrollOnOpen.value = true
     prevNewestId.value = null
+    activePinnedIndex.value = 0
     scheduleScrollToBottom()
   },
 )
@@ -337,7 +343,7 @@ onUnmounted(() => {
           <div class="flex items-center gap-1.5 font-semibold text-[var(--ap-text-primary)]">
             <span>Pinned Message</span>
             <span v-if="pinnedMessages.length > 1" class="text-[10px] text-[var(--ap-text-muted)] font-normal">
-              ({{ activePinnedIndex + 1 }} of {{ pinnedMessages.length }})
+              ({{ currentPinnedIndex + 1 }} of {{ pinnedMessages.length }})
             </span>
           </div>
           <p class="truncate text-[var(--ap-text-secondary)] text-[11.5px]">

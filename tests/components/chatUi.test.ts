@@ -648,6 +648,68 @@ describe('Chat UI components', () => {
     expect(wrapper.find('[data-test="pinned-messages-banner"]').exists()).toBe(false)
   })
 
+  it('MessageViewport normalizes pinned banner counter when switching active pin and unpinning', async () => {
+    const wrapper = mount(MessageViewport, {
+      props: {
+        channelId: 'ch-1',
+        currentUserId: 'u-1',
+        messages: [
+          {
+            id: 'm-pin-1',
+            client_id: 'c-1',
+            channel_id: 'ch-1',
+            user_id: 'u-1',
+            content: 'Pin one',
+            created_at: '2026-10-22T10:00:00Z',
+            pinned_at: '2026-10-22T10:01:00Z',
+            status: 'sent',
+            author: { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' },
+          },
+          {
+            id: 'm-pin-2',
+            client_id: 'c-2',
+            channel_id: 'ch-1',
+            user_id: 'u-1',
+            content: 'Pin two',
+            created_at: '2026-10-22T10:02:00Z',
+            pinned_at: '2026-10-22T10:03:00Z',
+            status: 'sent',
+            author: { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' },
+          },
+        ],
+      },
+    })
+
+    const banner = wrapper.find('[data-test="pinned-messages-banner"]')
+    expect(banner.text()).toContain('(1 of 2)')
+
+    // Click next pinned
+    await banner.find('button[aria-label="Next pinned message"]').trigger('click')
+    expect(banner.text()).toContain('(2 of 2)')
+
+    // Now props messages updates: pin-2 was unpinned
+    await wrapper.setProps({
+      messages: [
+        {
+          id: 'm-pin-1',
+          client_id: 'c-1',
+          channel_id: 'ch-1',
+          user_id: 'u-1',
+          content: 'Pin one',
+          created_at: '2026-10-22T10:00:00Z',
+          pinned_at: '2026-10-22T10:01:00Z',
+          status: 'sent',
+          author: { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' },
+        },
+      ],
+    })
+
+    // Banner counter must not show (2 of 1) or out of bounds
+    expect(banner.text()).not.toContain('(2 of 1)')
+    // Since only 1 pinned remains, counter badge is hidden
+    expect(banner.find('span.text-[10px]').exists()).toBe(false)
+  })
+
   describe('Direct Messages UI in ChatSidebar (Sub-Project 4)', () => {
     it('ChatSidebar renders dmChannels with peer name and emits startDmWithUser when clicking an online friend', async () => {
       const wrapper = mount(ChatSidebar, {
