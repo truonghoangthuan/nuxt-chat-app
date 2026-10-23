@@ -8,6 +8,7 @@ import type {
   Channel,
   Conversation,
   Profile,
+  ChatBackgroundPreset,
 } from '~/types/chat'
 import { isImagePayload, parseImagePayload } from '~/utils/image'
 
@@ -641,5 +642,90 @@ export function highlightTextSegments(
       isMatch: part.toLowerCase() === q.toLowerCase(),
     }))
 }
+
+export const MAX_BACKGROUND_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+
+export const CHAT_BACKGROUND_PRESETS: ChatBackgroundPreset[] = [
+  {
+    id: 'aurora',
+    value: 'preset:aurora',
+    label: 'Aurora Borealis',
+    cssBackground: 'linear-gradient(135deg, #09203f 0%, #537895 100%)',
+  },
+  {
+    id: 'sunset',
+    value: 'preset:sunset',
+    label: 'Sunset Glow',
+    cssBackground: 'linear-gradient(135deg, #2b1055 0%, #7597de 100%)',
+  },
+  {
+    id: 'midnight',
+    value: 'preset:midnight',
+    label: 'Midnight Sky',
+    cssBackground: 'radial-gradient(ellipse at top, #1e293b 0%, #090d16 100%)',
+  },
+  {
+    id: 'ocean',
+    value: 'preset:ocean',
+    label: 'Deep Ocean',
+    cssBackground: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
+  },
+  {
+    id: 'cyberpunk',
+    value: 'preset:cyberpunk',
+    label: 'Neon Dream',
+    cssBackground: 'linear-gradient(135deg, #240b36 0%, #c31432 100%)',
+  },
+  {
+    id: 'forest',
+    value: 'preset:forest',
+    label: 'Misty Forest',
+    cssBackground: 'linear-gradient(135deg, #134e5e 0%, #71b280 100%)',
+  },
+]
+
+export function validateBackgroundFile(file: { type: string; size: number }): { valid: boolean; error?: string } {
+  if (!file) {
+    return { valid: false, error: 'File is required.' }
+  }
+  const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+  if (!allowed.includes(file.type)) {
+    return { valid: false, error: 'Only JPEG, PNG, WebP, or GIF images are allowed.' }
+  }
+  if (file.size > MAX_BACKGROUND_FILE_SIZE) {
+    return { valid: false, error: 'Image size must be 5MB or less.' }
+  }
+  return { valid: true }
+}
+
+export function resolveChatBackgroundStyle(backgroundUrl?: string | null): Record<string, string> | null {
+  if (!backgroundUrl || typeof backgroundUrl !== 'string') return null
+  const trimmed = backgroundUrl.trim()
+  if (!trimmed) return null
+
+  if (trimmed.startsWith('preset:')) {
+    const preset = CHAT_BACKGROUND_PRESETS.find(p => p.value === trimmed)
+    if (preset) {
+      return {
+        backgroundImage: preset.cssBackground,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }
+    }
+    return null
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    const escaped = trimmed.replace(/"/g, '\\"')
+    return {
+      backgroundImage: `url("${escaped}")`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+    }
+  }
+
+  return null
+}
+
 
 

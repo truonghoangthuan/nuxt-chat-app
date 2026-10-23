@@ -20,6 +20,13 @@ export interface ConversationMember {
   profile?: Profile | null
 }
 
+export interface ChatBackgroundPreset {
+  id: string
+  value: string
+  label: string
+  cssBackground: string
+}
+
 export interface Conversation {
   id: string
   type: ConversationType
@@ -31,6 +38,7 @@ export interface Conversation {
   peer?: Profile | null            // For direct conversations
   lastMessage?: ChatMessage | null  // For sidebar snippet
   unreadCount?: number
+  background_url?: string | null
 }
 
 export interface Contact {
@@ -55,6 +63,7 @@ export interface Channel {
   peer?: Profile | null
   type?: ConversationType
   title?: string | null
+  background_url?: string | null
 }
 
 export interface MessageReaction {

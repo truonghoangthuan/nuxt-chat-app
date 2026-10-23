@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import type { ChatMessage, EncryptedImageMetadata, Profile } from '~/types/chat'
-import { buildMessageTimeline, REACTION_EMOJIS, summarizeReactions, tokenizeMessageMentions, highlightTextSegments } from '~/utils/chat'
+import {
+  buildMessageTimeline,
+  REACTION_EMOJIS,
+  summarizeReactions,
+  tokenizeMessageMentions,
+  highlightTextSegments,
+  resolveChatBackgroundStyle,
+} from '~/utils/chat'
 import { isImagePayload, parseImagePayload, formatImageMessageSummary } from '~/utils/image'
 import UserAvatar from '~/components/UserAvatar.vue'
 import MessageImageGrid from '~/components/MessageImageGrid.vue'
@@ -22,6 +29,7 @@ const props = withDefaults(
     lastReadAt?: string | null
     loadOlder?: () => Promise<number>
     searchQuery?: string
+    backgroundUrl?: string | null
   }>(),
   {
     conversationId: null,
@@ -36,6 +44,7 @@ const props = withDefaults(
     lastReadAt: null,
     loadOlder: () => Promise.resolve(0),
     searchQuery: '',
+    backgroundUrl: null,
   },
 )
 
@@ -151,6 +160,7 @@ async function copyCode(code: string, messageId: string) {
 }
 
 const effectiveConversationId = computed(() => props.conversationId ?? props.channelId ?? null)
+const backgroundStyle = computed(() => resolveChatBackgroundStyle(props.backgroundUrl))
 
 const isGroupComputed = computed(() => {
   if (typeof props.isGroup === 'boolean') return props.isGroup
@@ -334,7 +344,20 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative flex-1 flex flex-col min-h-0 bg-transparent">
+  <div class="relative flex-1 flex flex-col min-h-0 bg-transparent overflow-hidden">
+    <!-- Chat Background Layer & Adaptive Contrast Scrim -->
+    <div
+      v-if="backgroundStyle"
+      data-test="chat-background-layer"
+      class="absolute inset-0 pointer-events-none transition-all duration-300 z-0"
+      :style="backgroundStyle"
+    >
+      <div
+        data-test="chat-background-scrim"
+        class="absolute inset-0 bg-white/70 dark:bg-[#0d0f17]/75 backdrop-blur-[1px]"
+      />
+    </div>
+
     <!-- Pinned Messages Banner -->
     <div
       v-if="pinnedMessages.length > 0 && currentPinnedMessage"

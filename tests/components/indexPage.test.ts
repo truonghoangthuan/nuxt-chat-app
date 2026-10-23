@@ -16,6 +16,8 @@ const mockChatRoomState = {
   addMemberToGroup: vi.fn(),
   leaveGroup: vi.fn(),
   updateGroupTitle: vi.fn().mockResolvedValue({ error: null }),
+  updateChatBackground: vi.fn().mockResolvedValue({ error: null }),
+  removeChatBackground: vi.fn().mockResolvedValue({ error: null }),
   selectConversation: vi.fn(),
 
   channels: ref([]),
@@ -332,5 +334,22 @@ describe('IndexPage (app/pages/index.vue)', () => {
     await enableBtn.trigger('click')
 
     expect(mockChatRoomState.requestNotificationPermission).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders chat background button in stage header and opens ChatBackgroundModal', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    mockChatRoomState.activeConversation.value = {
+      id: 'conv-1',
+      type: 'group',
+      title: 'General',
+    }
+    const wrapper = mount(IndexPage)
+    const btn = wrapper.find('[data-test="open-chat-background-btn"]')
+    expect(btn.exists()).toBe(true)
+
+    await btn.trigger('click')
+    const bgModal = wrapper.findComponent({ name: 'ChatBackgroundModal' })
+    expect(bgModal.exists()).toBe(true)
+    expect(bgModal.props('isOpen')).toBe(true)
   })
 })
