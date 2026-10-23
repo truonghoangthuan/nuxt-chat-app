@@ -145,8 +145,9 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - When a table has multiple foreign keys referencing the same target table (e.g., `messages.user_id` and `messages.pinned_by` -> `profiles.id`, or `contacts.user_id` and `contacts.contact_user_id` -> `profiles.id`), PostgREST cannot infer relationship embedding without explicit disambiguation.
     - Every join query MUST explicitly name the foreign key constraint: e.g., `author:profiles!messages_user_id_fkey(...)` or `profile:profiles!contacts_contact_user_id_fkey(*)`. Bare `author:profiles(...)` will fail in production with HTTP 300 / `PGRST201`.
 
-15. **Schema Column Projection Discipline (`42703`) & PL/pgSQL Delimiters:**
+15. **Schema Column Projection Discipline (`42703`), DDL Table Existence (`42P01`) & PL/pgSQL Delimiters:**
     - **Projection Discipline:** Never project unmigrated, renamed, or obsolete columns (e.g., `channel_id` on `public.messages`) in Supabase `.select()` projections; PostgREST translates them to SQL queries that immediately fail with HTTP 400 (`code: 42703`). Always project actual schema columns (`conversation_id`).
+    - **DDL Table Existence Discipline:** Never write `ALTER TABLE` DDL migrations for deprecated, transitional, or uncreated tables (e.g., `public.channels` which was replaced by `public.conversations`). Always inspect `supabase/schema.sql` to confirm a table actually exists in the active schema before modifying it, avoiding Postgres `42P01` ("relation does not exist") execution failures.
     - **PL/pgSQL Body Delimiters:** Always enclose PostgreSQL function bodies in `as $$ ... $$;`. Single `$` is a syntax error in PostgreSQL. In JS scripts or string replacement helpers, never use `str.replace(target, '...$$...')` directly because JS treats `$$` as an unescape pattern for a literal `$`; always use `str.replace(target, () => '...$$...')` or `split/join`.
 
 16. **Composer Drafts & Attachment Captions Discipline:**
