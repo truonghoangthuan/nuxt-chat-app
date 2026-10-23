@@ -1,53 +1,109 @@
 # Nuxt 4 Real-Time Friends Chat App
 
-A lightweight, responsive, real-time web chat application built with **Nuxt 4**, **Supabase**, and **Tailwind CSS**. Designed for friends to hang out across topic-based public channels with a fast, resilient Slack-style interface.
+A modern, resilient, end-to-end encrypted real-time web chat application built with **Nuxt 4**, **Supabase**, **Tailwind CSS v4**, and **shadcn-nuxt**. Designed for friends and small teams with direct messages, group chats, encrypted media attachments, and a Slack/Discord-inspired precision interface.
+
+---
 
 ## Features
 
-- **Frictionless Onboarding**: Email and password authentication with display names and deterministic auto-generated initials/color avatars.
-- **Public Channels**: Seeded default channels (`#general`, `#random`) plus real-time channel creation synced across all connected clients with unread message counters.
-- **Real-Time Messaging & Ephemeral Signals**:
-  - Instant message broadcasting via Supabase Realtime (`postgres_changes`).
-  - Global online presence (`presence:global`) showing friends currently online across the app.
-  - Per-channel typing indicators via Supabase Realtime Broadcast with automatic timeout expiry.
-- **Optimistic UI & Delivery Guarantees**:
-  - Immediate `"Sending..."` state with client-generated UUIDs (`client_id`) for idempotent deduplication.
-  - `"Failed — Retry / Dismiss"` controls when messages fail to send.
-- **Connection Resiliency & History Pagination**:
-  - Automatic reconnection with exponential backoff (`1s` to `30s` max) and manual `"Retry now"` recovery banner.
-  - Automatic gap recovery on reconnect to fetch missed messages.
-  - Cursor-based infinite upward scroll (40 messages per page) with scroll-position locking and a floating `"↓ X new messages"` pill when scrolled up.
-- **Responsive Themeable UI**: Unified sidebar (with mobile drawer on `< 768px`) and persistent Dark/Light theme toggle.
+### End-to-End Encryption (E2EE)
+- **Client-Side AES-GCM-256**: All message bodies and image attachments are encrypted in the browser before transmission.
+- **PBKDF2 Key Derivation**: Master key derived from a shared workspace secret phrase (600,000 iterations of PBKDF2-HMAC-SHA256).
+- **Authenticated Additional Data (AAD)**: Ciphertext bound to conversation UUIDs to prevent cross-channel tampering.
+- **Database Trigger Enforcement**: Postgres trigger `enforce_message_e2ee_envelope()` rejects any non-encrypted message inserts (`e2ee:v1:...`).
+- **Zero-Exposure Passphrase Gate**: Workspace UI remains unmounted (`E2eeGate.vue`) until passphrase derivation succeeds; derived keys persist only in session storage and volatile memory.
+
+### Direct Messages & Group Conversations
+- **Direct Messages**: 1-on-1 private messaging between mutual contacts.
+- **Group Chats**: Multi-member conversations with ownership roles (`owner`, `member`), group info modal, member management, and leave controls.
+- **Persistent Unread Tracking**: Per-user `conversation_reads` tracking unread message badges across sessions.
+
+### Contacts & Privacy
+- **Mutual Friendships**: Bidirectional friend requests and removals executed through atomic Postgres security-definer RPCs (`add_mutual_friend`, `remove_mutual_friend`).
+- **Scoped Profile Visibility**: Row-Level Security (RLS) ensures user profiles are visible only to self, mutual friends, and co-members of shared conversations.
+- **Email Lookup**: Privacy-safe email search modal (`lookup_profile_by_email`).
+
+### Real-Time Messaging & Ephemeral Signals
+- **Supabase Realtime**: Instant message broadcasting and reaction updates via `postgres_changes`.
+- **Global Presence**: `presence:global` channel tracking online contacts with multi-tab deduplication.
+- **Typing Indicators**: Real-time per-conversation typing broadcasts with automatic idle expiry.
+- **Optimistic UI**: Messages render immediately with UUID `client_id` for idempotent deduplication and retry/dismiss handling on failure.
+
+### Rich Interactions & Search
+- **Emoji Reactions**: Live reaction counter pills with optimistic local toggling.
+- **Pinned Messages**: Pin important messages per conversation via atomic `toggle_pin_message` RPC.
+- **Replies & Mentions**: Quoted message previews with click-to-scroll navigation and `@mention` highlighting.
+- **Message Editing & Soft Deletes**: Inline edit tracking (`(edited)` badge) and soft-deletion tombstones (`deleted_at`).
+- **In-Memory Decrypted Search**: Real-time client-side keyword search over decrypted chat history with match highlighting (`<mark>`) without leaking plaintext over the network.
+
+### Encrypted Attachments & Customization
+- **Encrypted Media Grid**: Upload and view encrypted images stored in a private Supabase storage bucket (`message-attachments`) with automatic client-side blob caching.
+- **Lightbox Viewer**: Full-screen image preview modal with zoom and pan support (`ImageViewerModal.vue`).
+- **Custom Backgrounds**: Conversation-specific wallpaper customization stored in `chat-backgrounds` bucket.
+- **Service Worker Desktop Notifications**: Native Action Center notifications via `public/sw.js` with audio chimes.
+- **Adaptive Dark / Light Theme**: Obsidian Precision Studio dark theme paired with high-contrast light mode tokens.
+
+---
 
 ## Tech Stack
 
-- **Framework**: [Nuxt 4](https://nuxt.com/) (`app/` directory structure) & Vue 3
-- **Backend / Auth / Realtime**: [Supabase](https://supabase.com/) (`@nuxtjs/supabase`)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/) (`@nuxtjs/tailwindcss`)
-- **Testing**: [Vitest](https://vitest.dev/) & `@vue/test-utils` (`happy-dom`)
+| Layer | Technology |
+| --- | --- |
+| **Framework** | [Nuxt 4](https://nuxt.com/) (Vue 3 Composition API, `<script setup lang="ts">`) |
+| **Backend & Auth** | [Supabase](https://supabase.com/) (`@nuxtjs/supabase`) — PostgreSQL 15+, Auth, Realtime, Storage |
+| **Cryptography** | Web Crypto API (`AES-GCM-256`, `PBKDF2-HMAC-SHA256`) |
+| **Styling & UI** | [Tailwind CSS v4](https://tailwindcss.com/) (`@tailwindcss/vite`), [shadcn-nuxt](https://shadcn-vue.com/), Lucide Icons |
+| **Testing** | [Vitest](https://vitest.dev/), `@vue/test-utils`, `happy-dom` |
+
+---
 
 ## Prerequisites & Supabase Setup
 
-1. Create a project on [Supabase](https://supabase.com/).
-2. Open the **SQL Editor** in your Supabase dashboard and run the contents of [`supabase/schema.sql`](./supabase/schema.sql). This sets up:
-   - `public.profiles`, `public.channels`, and `public.messages` tables with Row-Level Security (RLS) policies.
-   - Automatic profile creation trigger (`on_auth_user_created`) upon user sign-up.
-   - Default `#general` and `#random` channels.
-   - Composite cursor index and `supabase_realtime` publication for `messages` and `channels`.
-3. *(Optional for quick onboarding)* In **Authentication → Providers → Email**, disable **Confirm email** so users can sign in immediately without email verification. (If left enabled, the `/confirm` page handles confirmation redirects.)
+### 1. Database Schema & RLS
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. Navigate to the **SQL Editor** in your Supabase dashboard.
+3. Paste and run the entire contents of [`supabase/schema.sql`](./supabase/schema.sql). This configures:
+   - Tables: `profiles`, `contacts`, `conversations`, `conversation_members`, `messages`, `message_reactions`, `conversation_reads`, `e2ee_config`.
+   - Security: Row-Level Security (RLS) policies and security-definer helper functions.
+   - Storage Buckets: Private `message-attachments` and public `chat-backgrounds` with RLS policies.
+   - Realtime Publication: `supabase_realtime` publication for all relevant tables.
+   - Envelopes: Database trigger enforcing `e2ee:v1:` ciphertexts on `messages`.
+
+### 2. Generate E2EE Master Key
+
+Generate the PBKDF2 salt, verifier, and SQL seed for your workspace secret phrase:
+
+```bash
+node scripts/generate-e2ee-config.mjs "<your-secret-passphrase-at-least-12-chars>"
+```
+
+Copy the generated `INSERT INTO public.e2ee_config ...` query and execute it in your Supabase SQL Editor.
+
+### 3. Authentication Settings
+
+In **Authentication → Providers → Email** in your Supabase dashboard:
+- For rapid local development: Disable **Confirm email** so accounts can log in immediately upon registration.
+- For production: Keep **Confirm email** enabled; confirmation links automatically route through `/confirm`.
+
+---
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` in the project root and fill in your Supabase project credentials:
+Copy `.env.example` to `.env` in the root directory:
 
 ```bash
 cp .env.example .env
 ```
 
+Populate with your Supabase project credentials:
+
 ```dotenv
-SUPABASE_URL=https://your-project-id.supabase.co
-SUPABASE_KEY=your-anon-public-key
+SUPABASE_URL=https://<your-project-id>.supabase.co
+SUPABASE_KEY=<your-anon-public-key>
 ```
+
+---
 
 ## Getting Started
 
@@ -57,33 +113,86 @@ Install dependencies:
 npm install
 ```
 
-Start the development server at `http://localhost:3000`:
+Start local development server:
 
 ```bash
 npm run dev
 ```
 
-## Scripts
+The application runs at `http://localhost:3000`.
+
+---
+
+## Available Scripts
 
 | Command | Description |
 | --- | --- |
-| `npm run dev` | Start Nuxt development server on `http://localhost:3000` |
-| `npm test` | Run unit and component tests with Vitest |
-| `npm run build` | Build application for production |
-| `npm run preview` | Locally preview production build |
-| `npm run generate` | Generate static site |
+| `npm run dev` | Launch Nuxt 4 development server on `http://localhost:3000` |
+| `npm test` | Run unit and component test suites with Vitest (`vitest run`) |
+| `npm run build` | Build optimized production bundle |
+| `npm run preview` | Preview production build locally |
+| `npm run generate` | Pre-render static pages |
+| `node scripts/generate-e2ee-config.mjs "<phrase>"` | Derive salt/verifier and output SQL seed for workspace E2EE |
+
+---
 
 ## Project Structure
 
 ```text
 ├── app/
-│   ├── components/       # Chat UI components (Sidebar, Viewport, Composer, Modal, Banner, Avatar)
-│   ├── composables/      # State & realtime orchestration (useChatRoom, useConnectionManager, etc.)
-│   ├── middleware/       # Global auth route guard (auth.global.ts)
-│   ├── pages/            # Application routes (index.vue, login.vue, confirm.vue)
-│   ├── types/            # TypeScript interfaces for channels, messages, profiles, presence
-│   └── utils/            # Pure helpers (slug normalization, backoff math, deterministic avatars)
+│   ├── assets/
+│   │   └── css/main.css            # Tailwind CSS v4 design tokens and theme variables
+│   ├── components/
+│   │   ├── ui/                     # shadcn-nuxt accessible UI primitives (dialog, button, etc.)
+│   │   ├── ChatSidebar.vue         # Conversations list, friends roster, unread counters, user status
+│   │   ├── ConnectionBanner.vue    # Network reconnection state banner with retry action
+│   │   ├── ContactsModal.vue       # Friends address book, email lookup, and mutual connection actions
+│   │   ├── CreateGroupModal.vue    # Group creation dialog with multi-contact picker
+│   │   ├── GroupInfoModal.vue      # Group settings, member roster, role management, leave group
+│   │   ├── E2eeGate.vue            # Passphrase unlock gate before mounting workspace
+│   │   ├── MessageComposer.vue     # Textarea composer with draft persistence, attachments, and shortcuts
+│   │   ├── MessageImageGrid.vue    # Encrypted multi-image attachment grid
+│   │   ├── MessageSearchBar.vue    # In-memory keyword search bar over decrypted history
+│   │   ├── MessageViewport.vue     # Upward infinite scroll, scroll anchors, reactions, pins
+│   │   ├── ImageViewerModal.vue    # Full-screen image lightbox modal
+│   │   └── UserProfileModal.vue    # Interactive user profile modal with avatar display
+│   ├── composables/
+│   │   ├── useChatRoom.ts          # Supabase realtime and query orchestrator across channels
+│   │   ├── useE2ee.ts              # Session key cache, phrase derivation, verifier validation
+│   │   ├── useMessagesState.ts     # Pure message store: optimistic UI, dedup, cursors, ordering
+│   │   ├── useNotification.ts      # Service worker notifications and toast alerts
+│   │   ├── usePresenceState.ts     # Multi-tab presence deduplication
+│   │   ├── useTypingState.ts       # Realtime typing activity tracker with expiry
+│   │   └── useConnectionManager.ts # Exponential backoff state machine for network reconnections
+│   ├── pages/
+│   │   ├── index.vue               # Main chat workspace shell
+│   │   ├── login.vue               # Sign-in and account registration view
+│   │   └── confirm.vue             # Supabase email confirmation callback handler
+│   ├── types/
+│   │   ├── chat.ts                 # Domain interfaces (Profile, Conversation, ChatMessage, etc.)
+│   │   └── notification.ts         # Notification toast and event types
+│   └── utils/
+│       ├── crypto.ts               # WebCrypto AES-GCM-256 + PBKDF2 encryption/decryption utilities
+│       ├── chat.ts                 # Pure helpers (initials, avatar palette, date formatters)
+│       └── sound.ts                # Audio chime generator
+├── public/
+│   └── sw.js                       # Service worker for background desktop notifications
+├── scripts/
+│   └── generate-e2ee-config.mjs    # CLI helper generating public.e2ee_config SQL insert
 ├── supabase/
-│   └── schema.sql        # Database tables, triggers, RLS policies, and realtime publication
-└── tests/                # Vitest unit and component test suites
+│   └── schema.sql                  # Complete database schema, RLS policies, triggers, and realtime setup
+└── tests/
+    ├── components/                 # Component integration tests
+    ├── composables/                # State factory and composable unit tests
+    └── utils/                      # Pure helper unit tests
 ```
+
+---
+
+## Security & Architectural Guarantees
+
+1. **Zero Plaintext on Wire/Disk**: All message text and media payloads are encrypted client-side using `AES-GCM-256`. Supabase Postgres stores only ciphertext envelopes (`e2ee:v1:<iv>:<ciphertext>`).
+2. **Deterministic Message Ordering**: Messages sorted by `(created_at ASC, id ASC)`. History pagination uses composite cursors (`created_at.lt, id.lt`) to prevent message skipping or duplication.
+3. **Idempotent Delivery**: Client-generated UUIDs (`client_id`) protect against duplicate sends during network retries.
+4. **Relational Disambiguation**: PostgREST joins specify explicit foreign key constraints (`author:profiles!messages_user_id_fkey(...)`) to prevent HTTP 300 relationship ambiguity.
+5. **In-Memory Search**: Search runs strictly client-side on decrypted messages in local memory; no search terms or decrypted bodies are ever sent to the server.
