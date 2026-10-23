@@ -533,11 +533,8 @@ create policy "Authenticated users can delete conversation attachments"
     and public.can_access_conversation(public.storage_conversation_id(name))
   );
 
--- Migration: add background_url column to conversations and channels
+-- Migration: add background_url column to conversations
 alter table public.conversations
-  add column if not exists background_url text;
-
-alter table public.channels
   add column if not exists background_url text;
 
 -- Storage Bucket for shared chat backgrounds (publicly readable)
