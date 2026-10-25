@@ -330,7 +330,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="p-4 bg-transparent shrink-0">
+  <div class="relative z-10 p-4 bg-transparent shrink-0">
     <!-- Hidden file input for images -->
     <input
       ref="fileInputRef"
