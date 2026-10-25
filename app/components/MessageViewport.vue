@@ -520,8 +520,8 @@ onUnmounted(() => {
           <!-- Frosted Action Toolbar (Hover on Desktop, Tap/Focus on Touch) -->
           <div
             v-if="item.message.status === 'sent' && !item.message.deleted_at"
-            class="flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 active:opacity-100 focus-within:opacity-100 transition-opacity items-center gap-0.5 bg-white/90 dark:bg-white/10 backdrop-blur-xl border border-black/10 dark:border-white/15 rounded-full px-2 py-0.5 shadow-xl shrink-0 self-center z-10"
-            :class="item.isSender ? 'order-first mr-1.5' : 'order-last ml-1.5'"
+            class="absolute -top-3 z-20 flex opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto active:opacity-100 active:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity items-center gap-0.5 bg-white/95 dark:bg-[#1a1d28]/95 backdrop-blur-xl border border-black/10 dark:border-white/15 rounded-full px-2 py-0.5 shadow-xl max-w-[calc(100%-0.5rem)] overflow-x-auto"
+            :class="item.isSender ? 'right-0' : 'left-11 max-w-[calc(100%-2.75rem)]'"
           >
             <button
               v-for="emoji in REACTION_EMOJIS"
