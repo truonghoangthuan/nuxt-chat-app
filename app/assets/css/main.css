@@ -1,7 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
 
 @import "tailwindcss";
-@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -21,51 +20,10 @@
   --ap-text-primary: #1d1d1f;
   --ap-text-secondary: rgba(0, 0, 0, 0.65);
   --ap-text-muted: rgba(0, 0, 0, 0.40);
+  --fp-text-muted: var(--ap-text-muted);
   --ap-presence-online: #34c759;
   --ap-destructive: #ff3b30;
 
-  /* Backward-compatible aliases for legacy classes */
-  --om-canvas: var(--ap-canvas);
-  --om-sidebar: var(--ap-sidebar);
-  --om-stage: var(--ap-stage);
-  --om-card: #ffffff;
-  --om-input-bg: rgba(0, 0, 0, 0.035);
-  --om-hover: rgba(15, 23, 42, 0.045);
-  --om-active: rgba(0, 122, 255, 0.08);
-  --om-border: var(--ap-glass-border);
-  --om-border-strong: rgba(15, 23, 42, 0.16);
-  --om-specular: inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  --om-accent: var(--ap-blue);
-  --om-accent-bright: #0a84ff;
-  --om-text-primary: var(--ap-text-primary);
-  --om-text-secondary: var(--ap-text-secondary);
-  --om-text-muted: var(--ap-text-muted);
-  --om-presence-online: var(--ap-presence-online);
-  --om-destructive: var(--ap-destructive);
-
-  --fp-void: var(--ap-canvas);
-  --fp-rail: var(--ap-sidebar);
-  --fp-drawer: var(--ap-sidebar);
-  --fp-stage: var(--ap-stage);
-  --fp-stage-subtle: #fafafa;
-  --fp-composer: #ffffff;
-  --fp-surface-elevated: #ffffff;
-  --fp-hover: var(--ap-glass-hover);
-  --fp-active: var(--om-active);
-  --fp-input-bg: var(--om-input-bg);
-  --fp-border: var(--ap-glass-border);
-  --fp-border-strong: var(--om-border-strong);
-  --fp-specular: var(--om-specular);
-  --fp-stage-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 3px rgba(15, 23, 42, 0.04);
-  --fp-composer-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 2px 8px rgba(15, 23, 42, 0.04);
-  --fp-text-primary: var(--ap-text-primary);
-  --fp-text-secondary: var(--ap-text-secondary);
-  --fp-text-muted: var(--ap-text-muted);
-  --fp-accent: var(--ap-blue);
-  --fp-accent-bright: #0a84ff;
-  --fp-font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif;
-  --fp-font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", sans-serif;
-  --fp-font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
   --radius: 0.75rem;
   --background: var(--ap-canvas);
   --foreground: var(--ap-text-primary);
@@ -83,7 +41,7 @@
   --accent-foreground: #007aff;
   --destructive: var(--ap-destructive);
   --border: var(--ap-glass-border);
-  --input: var(--om-border-strong);
+  --input: var(--ap-glass-border);
   --ring: var(--ap-blue);
   --chart-1: #007aff;
   --chart-2: #06b6d4;
@@ -114,48 +72,9 @@ html.dark {
   --ap-text-primary: #ffffff;
   --ap-text-secondary: rgba(255, 255, 255, 0.70);
   --ap-text-muted: rgba(255, 255, 255, 0.40);
+  --fp-text-muted: var(--ap-text-muted);
   --ap-presence-online: #30d158;
   --ap-destructive: #ff453a;
-
-  /* Backward-compatible aliases */
-  --om-canvas: var(--ap-canvas);
-  --om-sidebar: var(--ap-sidebar);
-  --om-stage: var(--ap-stage);
-  --om-card: #141720;
-  --om-input-bg: rgba(0, 0, 0, 0.40);
-  --om-hover: var(--ap-glass-hover);
-  --om-active: rgba(0, 122, 255, 0.16);
-  --om-border: var(--ap-glass-border);
-  --om-border-strong: rgba(255, 255, 255, 0.14);
-  --om-specular: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  --om-accent: var(--ap-blue);
-  --om-accent-bright: #0a84ff;
-  --om-text-primary: var(--ap-text-primary);
-  --om-text-secondary: var(--ap-text-secondary);
-  --om-text-muted: var(--ap-text-muted);
-  --om-presence-online: var(--ap-presence-online);
-  --om-destructive: var(--ap-destructive);
-
-  --fp-void: var(--ap-canvas);
-  --fp-rail: var(--ap-sidebar);
-  --fp-drawer: var(--ap-sidebar);
-  --fp-stage: var(--ap-stage);
-  --fp-stage-subtle: #141720;
-  --fp-composer: #141720;
-  --fp-surface-elevated: #141720;
-  --fp-hover: var(--ap-glass-hover);
-  --fp-active: var(--om-active);
-  --fp-input-bg: var(--om-input-bg);
-  --fp-border: var(--ap-glass-border);
-  --fp-border-strong: var(--om-border-strong);
-  --fp-specular: var(--om-specular);
-  --fp-stage-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 24px rgba(0, 0, 0, 0.45);
-  --fp-composer-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 4px 16px rgba(0, 0, 0, 0.35);
-  --fp-text-primary: var(--ap-text-primary);
-  --fp-text-secondary: var(--ap-text-secondary);
-  --fp-text-muted: var(--ap-text-muted);
-  --fp-accent: var(--ap-blue);
-  --fp-accent-bright: #0a84ff;
 
   --background: #09090b;
   --foreground: #f4f4f5;
@@ -191,7 +110,7 @@ html.dark {
 }
 
 body {
-  font-family: var(--fp-font-sans);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", sans-serif;
   font-variant-numeric: tabular-nums;
   background-color: var(--ap-canvas);
   background-image: radial-gradient(circle at 15% 20%, rgba(94, 106, 210, 0.10) 0%, transparent 40%),
@@ -200,34 +119,6 @@ body {
   color: var(--ap-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-.fp-font-display {
-  font-family: var(--fp-font-display);
-}
-
-.fp-font-mono {
-  font-family: var(--fp-font-mono);
-}
-
-.fp-stage-surface {
-  background-color: var(--ap-stage);
-  box-shadow: var(--fp-stage-shadow);
-}
-
-.fp-composer-surface {
-  background-color: var(--fp-composer);
-  box-shadow: var(--fp-composer-shadow);
-}
-
-.fp-btn-primary {
-  background: var(--ap-blue-gradient);
-  color: #ffffff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 8px rgba(0, 122, 255, 0.32);
-}
-
-.fp-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #0071e3 0%, #0056b3 100%);
 }
 
 /* Precision & Apple Fluid thin scrollbars */

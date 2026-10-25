@@ -5,8 +5,7 @@ export function deduplicatePresenceState(
 ): Profile[] {
   const profileMap = new Map<string, Profile>()
 
-  for (const key of Object.keys(rawState)) {
-    const presences = rawState[key]
+  for (const presences of Object.values(rawState)) {
     if (!Array.isArray(presences)) continue
 
     for (const presence of presences) {

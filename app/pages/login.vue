@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { MessageCircle, Radio, UsersRound } from '@lucide/vue'
-import { Button } from '~/components/ui/button'
-import { Input } from '~/components/ui/input'
+import Button from '~/components/ui/Button.vue'
+import Input from '~/components/ui/Input.vue'
 import { useAuthProfile } from '~/composables/useAuthProfile'
 
 const { signInWithPassword, signUpWithProfile } = useAuthProfile()

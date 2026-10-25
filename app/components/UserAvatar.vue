@@ -41,7 +41,7 @@ const dotClasses = computed(() => {
 <template>
   <div class="relative inline-flex items-center justify-center shrink-0">
     <div
-      class="fp-font-display flex items-center justify-center font-bold tracking-tight text-white select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_1px_2px_rgba(0,0,0,0.2)]"
+      class="flex items-center justify-center font-bold tracking-tight text-white select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_1px_2px_rgba(0,0,0,0.2)]"
       :class="sizeClasses"
       :style="{ backgroundColor: bgColor }"
       :title="displayName"
@@ -59,7 +59,7 @@ const dotClasses = computed(() => {
     </div>
     <span
       v-if="showOnline"
-      class="absolute block rounded-full ring-2 ring-[var(--fp-stage)] bg-emerald-500"
+      class="absolute block rounded-full ring-2 ring-[var(--ap-stage)] bg-emerald-500"
       :class="dotClasses"
     ></span>
   </div>

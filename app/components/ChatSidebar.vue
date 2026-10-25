@@ -20,7 +20,7 @@ import {
   formatConversationTime,
 } from '~/utils/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
-import { Button } from '~/components/ui/button'
+import Button from '~/components/ui/Button.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -391,7 +391,7 @@ function onContactsClick() {
                     <span
                       v-if="formatConversationTime(conv)"
                       :data-test="`conversation-time-${conv.id}`"
-                      class="text-[11px] text-[var(--fp-text-muted)] shrink-0 font-normal font-mono"
+                      class="text-[11px] text-[var(--fp-text-muted)] text-[var(--ap-text-muted)] shrink-0 font-normal font-mono"
                     >
                       {{ formatConversationTime(conv) }}
                     </span>

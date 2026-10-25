@@ -3,8 +3,8 @@ import { ref, computed, watch } from 'vue'
 import type { Profile } from '~/types/chat'
 import { AVATAR_PALETTE, isValidDisplayName, isValidAvatarColor, isValidAvatarUrl } from '~/utils/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
-import { Input } from '~/components/ui/input'
-import { Button } from '~/components/ui/button'
+import Input from '~/components/ui/Input.vue'
+import Button from '~/components/ui/Button.vue'
 
 const props = defineProps<{
   isOpen: boolean

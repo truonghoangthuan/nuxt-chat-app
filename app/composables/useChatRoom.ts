@@ -1032,39 +1032,9 @@ export function useChatRoom() {
         if (!activeConversationId.value && convs.length > 0) {
           await selectConversation(convs[0].id)
         }
-        return
       }
     } catch {
-      // Fallback to legacy channels
-    }
-
-    await loadChannels()
-  }
-
-  async function loadChannels(): Promise<void> {
-    try {
-      const { data, error } = await supabase
-        .from('channels')
-        .select('*')
-        .order('created_at', { ascending: true })
-
-      if (data && !error) {
-        conversations.value = (data as any[]).map((ch) => ({
-          ...ch,
-          type: ch.is_dm ? ('direct' as ConversationType) : ('group' as ConversationType),
-          title: ch.slug || ch.title || null,
-        }))
-        if (!activeConversationId.value && data.length > 0) {
-          const general = (data as Channel[]).find(c => !c.is_dm && c.slug === 'general')
-          const firstPublic = (data as Channel[]).find(c => !c.is_dm)
-          const initial = general || firstPublic || (data as Channel[])[0]
-          if (initial) {
-            await selectConversation(initial.id)
-          }
-        }
-      }
-    } catch {
-      // Failed loading channels
+      // Failed loading conversations
     }
   }
 
@@ -2048,25 +2018,8 @@ export function useChatRoom() {
     }
   }
 
-  // Transitional wrapper for legacy createChannel
-  async function createChannel(name: string, description?: string): Promise<{ channel: Conversation | Channel | null; error: string | null }> {
-    try {
-      const group = await createGroup(name, [])
-      return { channel: group, error: null }
-    } catch (err: any) {
-      return { channel: null, error: err?.message || 'Failed to create channel.' }
-    }
-  }
-
-  // Transitional wrapper for legacy openOrCreateDm
-  async function openOrCreateDm(peerUserId: string): Promise<{ channel: Conversation | Channel | null; error: string | null }> {
-    try {
-      const conv = await openOrCreateDirectChat(peerUserId)
-      return { channel: conv, error: null }
-    } catch (err: any) {
-      return { channel: null, error: err?.message || 'Failed to open direct message.' }
-    }
-  }
+  const createChannel = async (name: string) => createGroup(name, []).then(channel => ({ channel, error: null })).catch((err: any) => ({ channel: null, error: err?.message || 'Failed to create channel.' }))
+  const openOrCreateDm = async (peerUserId: string) => openOrCreateDirectChat(peerUserId).then(channel => ({ channel, error: null })).catch((err: any) => ({ channel: null, error: err?.message || 'Failed to open direct message.' }))
 
   async function sendMessage(content: string, replyToId?: string | null): Promise<void> {
     const conversationId = activeConversationId.value

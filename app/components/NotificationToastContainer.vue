@@ -37,7 +37,7 @@ function handleClick(toast: NotificationToastItem) {
       data-test="notification-toast"
       role="button"
       tabindex="0"
-      class="pointer-events-auto flex items-start gap-3 p-3 rounded-[14px] border border-[var(--fp-border)] bg-[var(--fp-surface-strong)]/95 backdrop-blur-md shadow-xl hover:border-[var(--fp-accent-bright)] transition-all cursor-pointer group animate-in fade-in slide-in-from-top-2 duration-200"
+      class="pointer-events-auto flex items-start gap-3 p-3 rounded-[14px] border border-[var(--ap-glass-border)] bg-[var(--ap-stage)]/95 backdrop-blur-md shadow-xl hover:border-blue-500/50 transition-all cursor-pointer group duration-200"
       @click="handleClick(toast)"
       @keydown.enter="handleClick(toast)"
     >
@@ -51,20 +51,20 @@ function handleClick(toast: NotificationToastItem) {
 
       <div class="flex-1 min-w-0">
         <div class="flex items-center justify-between gap-1">
-          <div class="text-xs font-semibold text-[var(--fp-text-primary)] truncate">
+          <div class="text-xs font-semibold text-[var(--ap-text-primary)] truncate">
             {{ toast.title }}
           </div>
           <button
             type="button"
             data-test="toast-close-btn"
-            class="text-[var(--fp-text-muted)] hover:text-[var(--fp-text-primary)] p-0.5 rounded hover:bg-[var(--fp-hover)] transition-colors cursor-pointer"
+            class="text-[var(--ap-text-muted)] hover:text-[var(--ap-text-primary)] p-0.5 rounded hover:bg-[var(--ap-glass-hover)] transition-colors cursor-pointer"
             aria-label="Dismiss notification"
             @click.stop="emit('dismiss', toast.id)"
           >
             <X class="size-3.5" aria-hidden="true" />
           </button>
         </div>
-        <p class="text-xs text-[var(--fp-text-secondary)] line-clamp-2 mt-0.5 break-words">
+        <p class="text-xs text-[var(--ap-text-secondary)] line-clamp-2 mt-0.5 break-words">
           {{ toast.snippet }}
         </p>
       </div>
