@@ -1352,6 +1352,9 @@ describe('Chat UI components', () => {
       const toolbar = wrapper.find('[data-test="react-m-sent-👍"]').element.closest('div')
       expect(toolbar?.className).not.toContain('hidden')
       expect(toolbar?.className).toContain('group-hover:opacity-100')
+      expect(toolbar?.className).toContain('absolute')
+      expect(toolbar?.className).toContain('pointer-events-none')
+      expect(toolbar?.className).toContain('group-hover:pointer-events-auto')
     })
 
     it('emits viewProfile when clicking recipient avatar or group sender header', async () => {
