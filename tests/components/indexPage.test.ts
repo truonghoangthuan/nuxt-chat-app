@@ -352,4 +352,21 @@ describe('IndexPage (app/pages/index.vue)', () => {
     expect(bgModal.exists()).toBe(true)
     expect(bgModal.props('isOpen')).toBe(true)
   })
+
+  it('mounts MessageComposer inside MessageViewport so conversation background covers the composer dock', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    mockChatRoomState.activeConversation.value = {
+      id: 'conv-1',
+      type: 'group',
+      title: 'General',
+      background_url: 'preset:aurora',
+    }
+    const wrapper = mount(IndexPage)
+    const viewport = wrapper.findComponent({ name: 'MessageViewport' })
+    const bgLayer = viewport.find('[data-test="chat-background-layer"]')
+    const composerDeck = viewport.find('[data-test="composer-deck"]')
+
+    expect(bgLayer.exists()).toBe(true)
+    expect(composerDeck.exists()).toBe(true)
+  })
 })

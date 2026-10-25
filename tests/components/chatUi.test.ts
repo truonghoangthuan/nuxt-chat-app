@@ -1735,15 +1735,22 @@ describe('Chat UI components', () => {
       expect(item.html()).toContain('var(--ap-text-primary)')
     })
 
-    it('renders chat background layer and adaptive scrim when backgroundUrl is set in MessageViewport', () => {
+    it('renders chat background layer covering both message scroll area and default composer slot', () => {
       const wrapper = mount(MessageViewport, {
         props: {
           messages: [],
           backgroundUrl: 'preset:aurora',
         },
+        slots: {
+          default: '<div data-test="slotted-composer">Composer Dock</div>',
+        },
       })
-      expect(wrapper.find('[data-test="chat-background-layer"]').exists()).toBe(true)
+      const bgLayer = wrapper.find('[data-test="chat-background-layer"]')
+      expect(bgLayer.exists()).toBe(true)
       expect(wrapper.find('[data-test="chat-background-scrim"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="slotted-composer"]').exists()).toBe(true)
+      expect(bgLayer.element.parentElement).toBe(wrapper.element)
+      expect(wrapper.element.contains(wrapper.find('[data-test="slotted-composer"]').element)).toBe(true)
     })
   })
 })

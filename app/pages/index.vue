@@ -600,22 +600,22 @@ onUnmounted(() => {
           @select-image="handleOpenLightbox"
           @toggle-pin="togglePinMessage"
           @view-profile="handleViewProfile"
-        />
-
-        <!-- Message Composer -->
-        <MessageComposer
-          :conversation-id="activeConversationId || activeChannelId"
-          :channel-slug="activeConversation?.type === 'direct' ? (activeConversation.peer?.display_name || 'friend') : (activeConversation?.title || activeChannel?.slug || 'chat')"
-          :is-dm="activeConversation?.type === 'direct' || Boolean(activeChannel?.is_dm)"
-          :typing-label="typingLabel"
-          :disabled="connectionStatus !== 'connected'"
-          :replying-to="replyingTo"
-          :mention-candidates="knownProfiles"
-          @send="handleSendMessage"
-          @typing="notifyTyping"
-          @cancel-reply="replyingTo = null"
-          @send-images="handleSendImages"
-        />
+        >
+          <!-- Message Composer -->
+          <MessageComposer
+            :conversation-id="activeConversationId || activeChannelId"
+            :channel-slug="activeConversation?.type === 'direct' ? (activeConversation.peer?.display_name || 'friend') : (activeConversation?.title || activeChannel?.slug || 'chat')"
+            :is-dm="activeConversation?.type === 'direct' || Boolean(activeChannel?.is_dm)"
+            :typing-label="typingLabel"
+            :disabled="connectionStatus !== 'connected'"
+            :replying-to="replyingTo"
+            :mention-candidates="knownProfiles"
+            @send="handleSendMessage"
+            @typing="notifyTyping"
+            @cancel-reply="replyingTo = null"
+            @send-images="handleSendImages"
+          />
+        </MessageViewport>
       </main>
 
       <!-- Contacts Modal -->
