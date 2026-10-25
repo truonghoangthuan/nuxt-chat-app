@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import type { ChatMessage, EncryptedImageMetadata, Profile } from '~/types/chat'
 import { useChatRoom } from '~/composables/useChatRoom'
 import { useAuthProfile } from '~/composables/useAuthProfile'
@@ -8,6 +8,8 @@ import ChatSidebar from '~/components/ChatSidebar.vue'
 import ConnectionBanner from '~/components/ConnectionBanner.vue'
 import MessageViewport from '~/components/MessageViewport.vue'
 import MessageComposer from '~/components/MessageComposer.vue'
+import ChatMediaGallery from '~/components/ChatMediaGallery.vue'
+import ChatLinksList from '~/components/ChatLinksList.vue'
 import ContactsModal from '~/components/ContactsModal.vue'
 import CreateGroupModal from '~/components/CreateGroupModal.vue'
 import GroupInfoModal from '~/components/GroupInfoModal.vue'
@@ -19,9 +21,10 @@ import NotificationPermissionBanner from '~/components/NotificationPermissionBan
 import UserAvatar from '~/components/UserAvatar.vue'
 import MessageSearchBar from '~/components/MessageSearchBar.vue'
 import ChatBackgroundModal from '~/components/ChatBackgroundModal.vue'
-import { Menu, Users, Info, Search, Image as ImageIcon } from '@lucide/vue'
+import { Menu, Users, Info, Search, Image as ImageIcon, MessageSquare, Link2 } from '@lucide/vue'
 import E2eeGate from '~/components/E2eeGate.vue'
 import { useE2ee } from '~/composables/useE2ee'
+import { extractMediaFromMessages, extractLinksFromMessages, shouldTriggerConfetti } from '~/utils/chat'
 
 const {
   conversations,
@@ -116,6 +119,23 @@ const isLightboxOpen = ref(false)
 const lightboxImages = ref<EncryptedImageMetadata[]>([])
 const lightboxInitialIndex = ref(0)
 
+const activeStageTab = ref<'messages' | 'media' | 'links'>('messages')
+const mediaCount = computed(() => extractMediaFromMessages(messages.value).length)
+const linksCount = computed(() => extractLinksFromMessages(messages.value).length)
+
+const isConfettiActive = ref(false)
+let confettiTimer: any = null
+
+function triggerConfetti() {
+  isConfettiActive.value = true
+  if (confettiTimer) {
+    clearTimeout(confettiTimer)
+  }
+  confettiTimer = setTimeout(() => {
+    isConfettiActive.value = false
+  }, 2500)
+}
+
 function handleOpenLightbox(payload: { images: EncryptedImageMetadata[]; initialIndex: number }) {
   lightboxImages.value = payload.images
   lightboxInitialIndex.value = payload.initialIndex
@@ -124,9 +144,16 @@ function handleOpenLightbox(payload: { images: EncryptedImageMetadata[]; initial
 
 async function handleSelectConversation(conversationId: string) {
   replyingTo.value = null
+  activeStageTab.value = 'messages'
   isMobileSidebarOpen.value = false
   handleCloseSearch()
   await selectConversation(conversationId)
+}
+
+async function handleJumpToMessageFromTab(messageId: string) {
+  activeStageTab.value = 'messages'
+  await nextTick()
+  messageViewportRef.value?.jumpToMessage(messageId)
 }
 
 const isSearchOpen = ref(false)
@@ -273,14 +300,47 @@ async function handleSendMessage(content: string) {
   const replyId = replyingTo.value?.id || null
   replyingTo.value = null
   isMobileSidebarOpen.value = false
+  if (shouldTriggerConfetti(content)) {
+    triggerConfetti()
+  }
   await sendMessage(content, replyId)
 }
 
 async function handleSendImages(files: File[], caption?: string) {
   replyingTo.value = null
   isMobileSidebarOpen.value = false
+  if (caption && shouldTriggerConfetti(caption)) {
+    triggerConfetti()
+  }
   await sendImages(files, caption)
 }
+
+let prevConfettiMessageId: string | null = null
+watch(
+  () => messages.value,
+  (newMessages) => {
+    if (!newMessages || newMessages.length === 0) {
+      prevConfettiMessageId = null
+      return
+    }
+    const newest = newMessages[newMessages.length - 1]
+    const newestId = newest.client_id || newest.id
+    if (!prevConfettiMessageId) {
+      prevConfettiMessageId = newestId
+      if (!newest.deleted_at && shouldTriggerConfetti(newest.content)) {
+        triggerConfetti()
+      }
+      return
+    }
+    if (newestId !== prevConfettiMessageId) {
+      prevConfettiMessageId = newestId
+      if (!newest.deleted_at && shouldTriggerConfetti(newest.content)) {
+        triggerConfetti()
+      }
+    }
+  },
+  { deep: true },
+)
 
 async function handleSaveProfile(payload: {
   displayName: string
@@ -574,8 +634,61 @@ onUnmounted(() => {
           </div>
         </header>
 
+        <!-- Stage Subtabs Navigation (Messages | Media | Links) -->
+        <div
+          v-if="activeConversation || activeChannel"
+          data-test="stage-subtabs"
+          class="h-10 px-4 md:px-6 border-b border-[var(--ap-glass-border)] flex items-center gap-1 shrink-0 bg-black/[0.02] dark:bg-white/[0.02]"
+        >
+          <button
+            type="button"
+            data-test="subtab-messages"
+            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition cursor-pointer"
+            :class="activeStageTab === 'messages' ? 'bg-black/10 dark:bg-white/12 text-[var(--ap-text-primary)] shadow-sm' : 'text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/5'"
+            @click="activeStageTab = 'messages'"
+          >
+            <MessageSquare class="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+            <span>Messages</span>
+          </button>
+
+          <button
+            type="button"
+            data-test="subtab-media"
+            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition cursor-pointer"
+            :class="activeStageTab === 'media' ? 'bg-black/10 dark:bg-white/12 text-[var(--ap-text-primary)] shadow-sm' : 'text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/5'"
+            @click="activeStageTab = 'media'"
+          >
+            <ImageIcon class="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+            <span>Media</span>
+            <span
+              v-if="mediaCount > 0"
+              class="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-black/10 dark:bg-white/10 text-[var(--ap-text-secondary)]"
+            >
+              {{ mediaCount }}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            data-test="subtab-links"
+            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition cursor-pointer"
+            :class="activeStageTab === 'links' ? 'bg-black/10 dark:bg-white/12 text-[var(--ap-text-primary)] shadow-sm' : 'text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/5'"
+            @click="activeStageTab = 'links'"
+          >
+            <Link2 class="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+            <span>Links</span>
+            <span
+              v-if="linksCount > 0"
+              class="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-black/10 dark:bg-white/10 text-[var(--ap-text-secondary)]"
+            >
+              {{ linksCount }}
+            </span>
+          </button>
+        </div>
+
         <!-- Message Viewport -->
         <MessageViewport
+          v-if="activeStageTab === 'messages'"
           ref="messageViewportRef"
           :messages="messages"
           :search-query="searchQuery"
@@ -616,6 +729,29 @@ onUnmounted(() => {
             @send-images="handleSendImages"
           />
         </MessageViewport>
+
+        <!-- Media Subtab Gallery -->
+        <ChatMediaGallery
+          v-else-if="activeStageTab === 'media'"
+          :messages="messages"
+          :channel-id="activeConversationId || activeChannelId"
+          :has-more-history="hasMoreHistory"
+          :is-loading-history="isLoadingHistory"
+          :load-older="loadOlderMessages"
+          @select-image="handleOpenLightbox"
+          @view-profile="handleViewProfile"
+        />
+
+        <!-- Shared Links Subtab -->
+        <ChatLinksList
+          v-else-if="activeStageTab === 'links'"
+          :messages="messages"
+          :has-more-history="hasMoreHistory"
+          :is-loading-history="isLoadingHistory"
+          :load-older="loadOlderMessages"
+          @jump-to-message="handleJumpToMessageFromTab"
+          @view-profile="handleViewProfile"
+        />
       </main>
 
       <!-- Contacts Modal -->
@@ -689,6 +825,29 @@ onUnmounted(() => {
         :channel-id="activeConversationId || activeChannelId || ''"
         @update:open="isLightboxOpen = $event"
       />
+
+      <!-- Confetti Burst Overlay -->
+      <div
+        v-if="isConfettiActive"
+        data-test="confetti-overlay"
+        class="pointer-events-none fixed inset-0 z-50 overflow-hidden flex items-center justify-center select-none"
+        aria-hidden="true"
+      >
+        <div class="absolute inset-0 flex items-center justify-center">
+          <span
+            v-for="i in 36"
+            :key="i"
+            class="absolute block w-2.5 h-2.5 rounded-sm animate-ping"
+            :style="{
+              backgroundColor: ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][i % 6],
+              top: `${20 + (i * 17) % 60}%`,
+              left: `${15 + (i * 23) % 70}%`,
+              transform: `rotate(${i * 25}deg) scale(${0.7 + (i % 4) * 0.3})`,
+              animationDuration: `${1.2 + (i % 3) * 0.4}s`,
+            }"
+          />
+        </div>
+      </div>
     </template>
   </div>
 </template>
