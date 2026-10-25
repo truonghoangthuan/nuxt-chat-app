@@ -369,4 +369,98 @@ describe('IndexPage (app/pages/index.vue)', () => {
     expect(bgLayer.exists()).toBe(true)
     expect(composerDeck.exists()).toBe(true)
   })
+
+  it('renders stage subtabs (Messages | Media | Links), switches views, and handles jumpToMessage from Links', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    mockChatRoomState.activeConversation.value = {
+      id: 'conv-1',
+      type: 'group',
+      title: 'General',
+    }
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    // Subtabs bar exists
+    const subtabs = wrapper.find('[data-test="stage-subtabs"]')
+    expect(subtabs.exists()).toBe(true)
+
+    const tabMessages = wrapper.find('[data-test="subtab-messages"]')
+    const tabMedia = wrapper.find('[data-test="subtab-media"]')
+    const tabLinks = wrapper.find('[data-test="subtab-links"]')
+
+    expect(tabMessages.exists()).toBe(true)
+    expect(tabMedia.exists()).toBe(true)
+    expect(tabLinks.exists()).toBe(true)
+
+    // Initially Messages view is active
+    expect(wrapper.findComponent({ name: 'MessageViewport' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'ChatMediaGallery' }).exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'ChatLinksList' }).exists()).toBe(false)
+
+    // Switch to Media tab
+    await tabMedia.trigger('click')
+    expect(wrapper.findComponent({ name: 'MessageViewport' }).exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'ChatMediaGallery' }).exists()).toBe(true)
+
+    // Switch to Links tab
+    await tabLinks.trigger('click')
+    expect(wrapper.findComponent({ name: 'ChatMediaGallery' }).exists()).toBe(false)
+    const linksComp = wrapper.findComponent({ name: 'ChatLinksList' })
+    expect(linksComp.exists()).toBe(true)
+
+    // Emitting jumpToMessage from ChatLinksList switches back to Messages tab
+    linksComp.vm.$emit('jumpToMessage', 'm-target-1')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.findComponent({ name: 'MessageViewport' }).exists()).toBe(true)
+  })
+
+  it('triggers confetti overlay when sending message with congratulation, ok, or cool', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    mockChatRoomState.activeConversation.value = {
+      id: 'conv-1',
+      type: 'group',
+      title: 'General',
+    }
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="confetti-overlay"]').exists()).toBe(false)
+
+    // Trigger handleSendMessage with matching content
+    const composer = wrapper.findComponent({ name: 'MessageComposer' })
+    composer.vm.$emit('send', 'congratulation on your launch!')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-test="confetti-overlay"]').exists()).toBe(true)
+  })
+
+  it('triggers confetti overlay when a new realtime message with rõ ràng arrives in active chat', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    mockChatRoomState.activeConversation.value = {
+      id: 'conv-1',
+      type: 'group',
+      title: 'General',
+    }
+    mockChatRoomState.messages.value = []
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="confetti-overlay"]').exists()).toBe(false)
+
+    // Simulate new incoming message row arriving
+    mockChatRoomState.messages.value = [
+      {
+        id: 'm-new-1',
+        client_id: 'c-new-1',
+        conversation_id: 'conv-1',
+        user_id: 'u-other',
+        content: 'Rõ ràng là rất tuyệt vời!',
+        created_at: new Date().toISOString(),
+        status: 'sent',
+      } as any,
+    ]
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-test="confetti-overlay"]').exists()).toBe(true)
+  })
 })

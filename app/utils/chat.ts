@@ -9,6 +9,8 @@ import type {
   Conversation,
   Profile,
   ChatBackgroundPreset,
+  ExtractedMediaItem,
+  ExtractedLinkItem,
 } from '~/types/chat'
 import { isImagePayload, parseImagePayload } from '~/utils/image'
 
@@ -725,6 +727,87 @@ export function resolveChatBackgroundStyle(backgroundUrl?: string | null): Recor
   }
 
   return null
+}
+
+export function extractMediaFromMessages(messages: ChatMessage[]): ExtractedMediaItem[] {
+  if (!Array.isArray(messages) || messages.length === 0) return []
+  const items: ExtractedMediaItem[] = []
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]
+    if (!msg || msg.deleted_at || msg.encryption === 'undecryptable') continue
+    if (!isImagePayload(msg.content)) continue
+
+    const payload = parseImagePayload(msg.content)
+    if (!payload || !Array.isArray(payload.images)) continue
+
+    payload.images.forEach((img, idx) => {
+      items.push({
+        id: `${msg.id || msg.client_id}-img-${idx}`,
+        messageId: msg.id || msg.client_id,
+        image: img,
+        caption: payload.caption,
+        createdAt: msg.created_at,
+        author: msg.author,
+        userId: msg.user_id,
+      })
+    })
+  }
+
+  return items
+}
+
+export function extractDomainFromUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return parsed.hostname.replace(/^www\./i, '') || url
+  } catch {
+    return url
+  }
+}
+
+export function extractLinksFromMessages(messages: ChatMessage[]): ExtractedLinkItem[] {
+  if (!Array.isArray(messages) || messages.length === 0) return []
+  const items: ExtractedLinkItem[] = []
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]
+    if (!msg || msg.deleted_at || msg.encryption === 'undecryptable') continue
+
+    const text = isImagePayload(msg.content)
+      ? (parseImagePayload(msg.content)?.caption || '')
+      : msg.content
+    if (!text) continue
+
+    const segments = tokenizeMessageMentions(text)
+    let linkIdx = 0
+    for (const seg of segments) {
+      if (seg.isLink && seg.href) {
+        items.push({
+          id: `${msg.id || msg.client_id}-link-${linkIdx++}`,
+          messageId: msg.id || msg.client_id,
+          url: seg.href,
+          domain: extractDomainFromUrl(seg.href),
+          createdAt: msg.created_at,
+          author: msg.author,
+          userId: msg.user_id,
+        })
+      }
+    }
+  }
+
+  return items
+}
+
+const CONFETTI_KEYWORD_REGEX = /(?<=^|[^\p{L}\p{N}_])(congratulations?|rõ\s+ràng|ok|cool)(?=$|[^\p{L}\p{N}_])/iu
+
+export function shouldTriggerConfetti(content: string): boolean {
+  if (!content || typeof content !== 'string') return false
+  const text = isImagePayload(content)
+    ? (parseImagePayload(content)?.caption || '')
+    : content
+  if (!text.trim()) return false
+  return CONFETTI_KEYWORD_REGEX.test(text)
 }
 
 
