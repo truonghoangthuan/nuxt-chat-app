@@ -181,6 +181,17 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - `MessageViewport.vue` isolates the scrollable timeline and `[data-test="scroll-to-bottom"]` button inside an inner `relative z-10 flex-1 flex flex-col min-h-0 overflow-hidden` container and renders `<slot />` directly beneath it.
     - In `app/pages/index.vue`, `MessageComposer.vue` must be slotted inside `MessageViewport` so one continuous wallpaper and scrim layer spans the full height of the chat stage, while `relative z-10` on `MessageComposer.vue` ensures composer controls and autocomplete dropdowns cleanly stack above `z-0`.
 
+22. **Lightweight Native UI Primitives & Nuxt Component Collision Guard (`NUXT_B3011`):**
+    - **Nuxt Component Discovery Collision:** In Nuxt 4 (`app/components/`), never create nested subdirectories containing both `Component.vue` and `index.ts` re-exports for the same component. Nuxt auto-registers both files under the same component name, generating `WARN [NUXT_B3011] Two component files resolving to the same name`.
+    - **Flat UI Hierarchy:** Store primitive UI components directly in `app/components/ui/` (e.g. `app/components/ui/Button.vue`, `app/components/ui/Input.vue`) with standard default exports and direct imports (`import Button from '~/components/ui/Button.vue'`).
+    - **Native Vue 3 Primitives:** Prefer standard Vue 3 `defineModel()` and native HTML elements styled with Tailwind over heavy external headless wrappers (`reka-ui`, `class-variance-authority`, `@vueuse/core`, `cn`).
+
+23. **Legacy CSS Token Deprecation & Test Assertion Coexistence:**
+    - When replacing legacy CSS tokens (`--om-*`, `--fp-*`) with semantic Apple Fluid tokens (`--ap-*`), verify if any test suites assert specific legacy class strings (e.g. `text-[var(--fp-text-muted)]`).
+    - To safely modernize without breaking invariant test suites:
+      1. Define a backward-compatible alias in `app/assets/css/main.css` mapped to the semantic token (e.g. `--fp-text-muted: var(--ap-text-muted);`).
+      2. Keep the asserted legacy class alongside the semantic class on the target element (`text-[var(--fp-text-muted)] text-[var(--ap-text-muted)]`).
+
 ## 5. Testing Standards
 
 - **Path Aliases:** Both `~` and `@` resolve to `./app` in Nuxt and `vitest.config.ts`.
