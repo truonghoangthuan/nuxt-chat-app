@@ -6,6 +6,8 @@ import MessageViewport from '~/components/MessageViewport.vue'
 import ChatSidebar from '~/components/ChatSidebar.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
 import E2eeGate from '~/components/E2eeGate.vue'
+import ChatMediaGallery from '~/components/ChatMediaGallery.vue'
+import ChatLinksList from '~/components/ChatLinksList.vue'
 import { isValidAvatarUrl } from '~/utils/chat'
 import type { Conversation, Profile } from '~/types/chat'
 
@@ -1754,6 +1756,155 @@ describe('Chat UI components', () => {
       expect(wrapper.find('[data-test="slotted-composer"]').exists()).toBe(true)
       expect(bgLayer.element.parentElement).toBe(wrapper.element)
       expect(wrapper.element.contains(wrapper.find('[data-test="slotted-composer"]').element)).toBe(true)
+    })
+  })
+
+  describe('ChatMediaGallery (#33)', () => {
+    it('renders empty state when no media items exist and wires loadOlder', async () => {
+      const loadOlder = vi.fn().mockResolvedValue(0)
+      const wrapper = mount(ChatMediaGallery, {
+        props: {
+          messages: [],
+          hasMoreHistory: true,
+          isLoadingHistory: false,
+          loadOlder,
+        },
+      })
+
+      expect(wrapper.find('[data-test="media-empty-state"]').exists()).toBe(true)
+      expect(wrapper.text()).toContain('No media shared yet')
+
+      const loadOlderBtn = wrapper.find('[data-test="load-older-media-btn"]')
+      expect(loadOlderBtn.exists()).toBe(true)
+      await loadOlderBtn.trigger('click')
+      expect(loadOlder).toHaveBeenCalledTimes(1)
+    })
+
+    it('renders media tiles, emits selectImage with all images and clicked index, and emits viewProfile on author click', async () => {
+      const mockAuthor: Profile = {
+        id: 'u-alice',
+        email: 'alice@example.com',
+        display_name: 'Alice',
+        avatar_color: '#0284c7',
+      }
+      const messages = [
+        {
+          id: 'm1',
+          client_id: 'c1',
+          conversation_id: 'conv1',
+          user_id: 'u-alice',
+          content: JSON.stringify({
+            type: 'images',
+            images: [
+              { path: 'blob:img-1', mimeType: 'image/png', width: 400, height: 300, size: 100 },
+              { path: 'blob:img-2', mimeType: 'image/jpeg', width: 500, height: 500, size: 200 },
+            ],
+            caption: 'Photos from vacation',
+          }),
+          created_at: '2026-10-22T10:00:00Z',
+          status: 'sent' as const,
+          author: mockAuthor,
+        },
+      ]
+
+      const wrapper = mount(ChatMediaGallery, {
+        props: {
+          messages,
+          hasMoreHistory: false,
+        },
+      })
+
+      const tiles = wrapper.findAll('[data-test="media-gallery-tile"]')
+      expect(tiles).toHaveLength(2)
+
+      // Click second tile: emits selectImage with initialIndex 1
+      await tiles[1].trigger('click')
+      expect(wrapper.emitted('selectImage')?.[0]).toEqual([
+        {
+          images: [
+            { path: 'blob:img-1', mimeType: 'image/png', width: 400, height: 300, size: 100 },
+            { path: 'blob:img-2', mimeType: 'image/jpeg', width: 500, height: 500, size: 200 },
+          ],
+          initialIndex: 1,
+        },
+      ])
+
+      // Click author overlay: emits viewProfile
+      const authorBtn = wrapper.find('[data-test="media-tile-author"]')
+      expect(authorBtn.exists()).toBe(true)
+      await authorBtn.trigger('click')
+      expect(wrapper.emitted('viewProfile')?.[0]).toEqual([mockAuthor])
+    })
+  })
+
+  describe('ChatLinksList (#34)', () => {
+    it('renders empty state when no links exist and wires loadOlder', async () => {
+      const loadOlder = vi.fn().mockResolvedValue(0)
+      const wrapper = mount(ChatLinksList, {
+        props: {
+          messages: [],
+          hasMoreHistory: true,
+          isLoadingHistory: false,
+          loadOlder,
+        },
+      })
+
+      expect(wrapper.find('[data-test="links-empty-state"]').exists()).toBe(true)
+      expect(wrapper.text()).toContain('No links shared yet')
+
+      const loadOlderBtn = wrapper.find('[data-test="load-older-links-btn"]')
+      expect(loadOlderBtn.exists()).toBe(true)
+      await loadOlderBtn.trigger('click')
+      expect(loadOlder).toHaveBeenCalledTimes(1)
+    })
+
+    it('renders links list with domain badge, external link, author viewProfile, and emits jumpToMessage', async () => {
+      const mockAuthor: Profile = {
+        id: 'u-bob',
+        email: 'bob@example.com',
+        display_name: 'Bob',
+        avatar_color: '#7c3aed',
+      }
+      const messages = [
+        {
+          id: 'm-link-1',
+          client_id: 'c-link-1',
+          conversation_id: 'conv1',
+          user_id: 'u-bob',
+          content: 'Here is the repository https://github.com/nuxt/nuxt for your review.',
+          created_at: '2026-10-22T10:00:00Z',
+          status: 'sent' as const,
+          author: mockAuthor,
+        },
+      ]
+
+      const wrapper = mount(ChatLinksList, {
+        props: {
+          messages,
+          hasMoreHistory: false,
+        },
+      })
+
+      const items = wrapper.findAll('[data-test="link-list-item"]')
+      expect(items).toHaveLength(1)
+
+      const badge = wrapper.find('[data-test="link-domain-badge"]')
+      expect(badge.text()).toContain('github.com')
+
+      const anchor = wrapper.find('[data-test="link-external-anchor"]')
+      expect(anchor.attributes('href')).toBe('https://github.com/nuxt/nuxt')
+      expect(anchor.attributes('target')).toBe('_blank')
+      expect(anchor.attributes('rel')).toContain('noopener')
+
+      // Click author
+      const authorBtn = wrapper.find('[data-test="link-item-author"]')
+      await authorBtn.trigger('click')
+      expect(wrapper.emitted('viewProfile')?.[0]).toEqual([mockAuthor])
+
+      // Click jump to message
+      const jumpBtn = wrapper.find('[data-test="jump-to-link-message"]')
+      await jumpBtn.trigger('click')
+      expect(wrapper.emitted('jumpToMessage')?.[0]).toEqual(['m-link-1'])
     })
   })
 })
