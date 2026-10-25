@@ -170,6 +170,11 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - Any feature that aggregates or indexes messages across conversation history (such as `extractMediaFromMessages` for media galleries, `extractLinksFromMessages` for link indexes, or in-memory keyword search) must execute strictly client-side on decrypted in-memory `ChatMessage` rows.
     - Aggregation routines must filter out soft-deleted tombstones (`deleted_at`) and undecryptable rows (`encryption === 'undecryptable'`), while inspecting both direct message content and parsed image captions (`parseImagePayload(msg.content)?.caption`).
 
+20. **Message Row Floating Action Bar Out-of-Flow Discipline:**
+    - Action toolbars (reactions, pin, reply, edit, delete) rendered inside message rows must NEVER exist as in-flow flex siblings (`flex shrink-0` or `opacity-0` in flow) alongside message bubble columns.
+    - `opacity-0` preserves intrinsic layout dimensions (~240px–310px), starving `min-w-0` message columns and crushing chat bubbles into narrow vertical 1-word columns on mobile/small viewports while truncating sender headers.
+    - Action toolbars MUST be taken out of layout flow (`absolute -top-3 z-20`, aligned `right-0` for sender, `left-11` for recipient) and coupled with `pointer-events-none` (restoring `pointer-events-auto` on `:hover`, `:focus-within`, and `:active`) so hidden toolbars neither steal clicks nor consume horizontal flex space.
+
 ## 5. Testing Standards
 
 - **Path Aliases:** Both `~` and `@` resolve to `./app` in Nuxt and `vitest.config.ts`.
