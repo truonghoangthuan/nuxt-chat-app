@@ -8,22 +8,14 @@ export function useTheme() {
     : testDarkRef
   function applyClass(): void {
     if (typeof document !== 'undefined') {
-      if (isDark.value) {
-        document.documentElement.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
-      }
+      document.documentElement.classList.toggle('dark', isDark.value)
     }
   }
 
   function initTheme(): void {
     if (typeof localStorage !== 'undefined') {
       const stored = localStorage.getItem('nuxt-chat-theme')
-      if (stored === 'light') {
-        isDark.value = false
-      } else {
-        isDark.value = true
-      }
+      isDark.value = stored !== 'light'
     }
     applyClass()
   }

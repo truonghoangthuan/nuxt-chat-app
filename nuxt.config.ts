@@ -21,11 +21,7 @@ export default defineNuxtConfig({
   },
   modules: [
     '@nuxtjs/supabase',
-    'shadcn-nuxt',
   ],
-  shadcn: {
-    componentDir: './app/components/ui',
-  },
   vite: {
     plugins: [tailwindcss()],
   },

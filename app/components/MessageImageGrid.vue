@@ -133,7 +133,7 @@ function getTileClass(idx: number): string {
     <div
       v-if="images.length === 1"
       data-test="single-image-container"
-      class="relative max-h-96 max-w-md rounded-[10px] border border-[var(--om-border)] overflow-hidden cursor-pointer group bg-[var(--om-card)]"
+      class="relative max-h-96 max-w-md rounded-[10px] border border-[var(--ap-glass-border)] overflow-hidden cursor-pointer group bg-[var(--ap-stage)]"
       :class="{ 'opacity-70': isSending }"
     >
       <div
@@ -151,7 +151,7 @@ function getTileClass(idx: number): string {
         <div
           v-else
           data-test="image-skeleton"
-          class="animate-pulse bg-[var(--om-input-bg)] w-64 h-48 rounded-[10px] flex items-center justify-center text-[var(--om-text-muted)]"
+          class="animate-pulse bg-[var(--ap-glass)] w-64 h-48 rounded-[10px] flex items-center justify-center text-[var(--ap-text-muted)]"
         >
           <svg class="size-8 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -164,14 +164,14 @@ function getTileClass(idx: number): string {
     <div
       v-else
       data-test="multi-image-grid"
-      class="grid gap-1.5 max-w-md w-full rounded-[10px] border border-[var(--om-border)] overflow-hidden bg-[var(--om-card)] p-0.5"
+      class="grid gap-1.5 max-w-md w-full rounded-[10px] border border-[var(--ap-glass-border)] overflow-hidden bg-[var(--ap-stage)] p-0.5"
       :class="[gridContainerClass, { 'opacity-70': isSending }]"
     >
       <div
         v-for="(img, idx) in displayedImages"
         :key="img.path || idx"
         data-test="image-grid-tile"
-        class="relative overflow-hidden cursor-pointer group bg-[var(--om-input-bg)] rounded-[8px]"
+        class="relative overflow-hidden cursor-pointer group bg-[var(--ap-glass)] rounded-[8px]"
         :class="getTileClass(idx)"
         @click="emit('selectImage', { images, initialIndex: idx })"
       >
@@ -185,7 +185,7 @@ function getTileClass(idx: number): string {
         <div
           v-else
           data-test="image-skeleton"
-          class="animate-pulse bg-[var(--om-input-bg)] w-full h-full min-h-[96px] flex items-center justify-center text-[var(--om-text-muted)]"
+          class="animate-pulse bg-[var(--ap-glass)] w-full h-full min-h-[96px] flex items-center justify-center text-[var(--ap-text-muted)]"
         >
           <svg class="size-6 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />

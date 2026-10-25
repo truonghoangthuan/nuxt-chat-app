@@ -522,46 +522,6 @@ onUnmounted(() => {
                 </div>
               </template>
 
-              <!-- Fallback: Active Channel (legacy) or Select conversation -->
-              <template v-else-if="activeChannel?.is_dm">
-                <UserAvatar
-                  :display-name="activeChannel.peer?.display_name || 'Friend'"
-                  :avatar-color="activeChannel.peer?.avatar_color"
-                  :avatar-url="activeChannel.peer?.avatar_url"
-                  :show-online="onlineFriends.some(f => f.id === activeChannel?.peer?.id)"
-                  size="sm"
-                />
-                <div class="min-w-0 flex items-center gap-2">
-                  <h2 class="text-[14px] font-semibold text-[var(--ap-text-primary)] flex items-center gap-1 truncate">
-                    <span class="text-blue-500 dark:text-blue-400 font-mono">@</span>
-                    <span class="truncate">{{ activeChannel.peer?.display_name || 'Direct Message' }}</span>
-                  </h2>
-                  <span
-                    class="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition-colors"
-                    :class="onlineFriends.some(f => f.id === activeChannel?.peer?.id) ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-muted)]'"
-                  >
-                    <span
-                      class="w-1.5 h-1.5 rounded-full inline-block"
-                      :class="onlineFriends.some(f => f.id === activeChannel?.peer?.id) ? 'bg-emerald-500 shadow-[0_0_6px_#34c759]' : 'bg-black/30 dark:bg-white/30'"
-                    ></span>
-                    {{ onlineFriends.some(f => f.id === activeChannel?.peer?.id) ? 'Active now' : 'Offline' }}
-                  </span>
-                </div>
-              </template>
-              <template v-else-if="activeChannel">
-                <div class="min-w-0 flex items-center gap-2.5">
-                  <h2 class="text-[14px] font-semibold text-[var(--ap-text-primary)] flex items-center gap-1 shrink-0">
-                    <span class="text-blue-500 dark:text-blue-400 font-mono">#</span>
-                    <span>{{ activeChannel?.slug || 'general' }}</span>
-                  </h2>
-                  <template v-if="activeChannel?.description">
-                    <span class="hidden sm:inline-block w-px h-3.5 bg-black/10 dark:bg-white/10 shrink-0"></span>
-                    <p class="hidden sm:block text-[13px] text-[var(--ap-text-secondary)] truncate">
-                      {{ activeChannel.description }}
-                    </p>
-                  </template>
-                </div>
-              </template>
               <template v-else>
                 <h2 class="text-[14px] font-semibold text-[var(--ap-text-muted)]">
                   Select a conversation
