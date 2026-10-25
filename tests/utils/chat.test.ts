@@ -33,6 +33,10 @@ import {
   validateBackgroundFile,
   resolveChatBackgroundStyle,
   CHAT_BACKGROUND_PRESETS,
+  extractMediaFromMessages,
+  extractDomainFromUrl,
+  extractLinksFromMessages,
+  shouldTriggerConfetti,
 } from '~/utils/chat'
 import type { ChatMessage, Conversation, Profile } from '~/types/chat'
 
@@ -781,6 +785,153 @@ describe('Conversation utilities', () => {
 
       const urlStyle = resolveChatBackgroundStyle('https://example.com/bg.jpg')
       expect(urlStyle?.backgroundImage).toBe('url("https://example.com/bg.jpg")')
+    })
+  })
+
+  describe('extractMediaFromMessages (#33)', () => {
+    it('extracts images from decrypted image payloads in reverse chronological order and skips deleted or undecryptable messages', () => {
+      const messages: ChatMessage[] = [
+        {
+          id: 'm1',
+          client_id: 'c1',
+          conversation_id: 'conv1',
+          user_id: 'u1',
+          content: JSON.stringify({
+            type: 'images',
+            images: [
+              { path: 'conv1/img1.enc', mimeType: 'image/png', width: 800, height: 600, size: 1024 },
+              { path: 'conv1/img2.enc', mimeType: 'image/jpeg', width: 400, height: 400, size: 512 },
+            ],
+            caption: 'First batch',
+          }),
+          created_at: '2026-10-22T10:00:00Z',
+          status: 'sent',
+          author: { id: 'u1', email: 'a@b.c', display_name: 'Alice', avatar_color: '#0284c7' },
+        },
+        {
+          id: 'm2-deleted',
+          client_id: 'c2',
+          conversation_id: 'conv1',
+          user_id: 'u1',
+          content: JSON.stringify({
+            type: 'images',
+            images: [{ path: 'conv1/del.enc', mimeType: 'image/png', width: 100, height: 100, size: 100 }],
+          }),
+          created_at: '2026-10-22T10:01:00Z',
+          deleted_at: '2026-10-22T10:02:00Z',
+          status: 'sent',
+        },
+        {
+          id: 'm3',
+          client_id: 'c3',
+          conversation_id: 'conv1',
+          user_id: 'u2',
+          content: JSON.stringify({
+            type: 'images',
+            images: [{ path: 'conv1/img3.enc', mimeType: 'image/webp', width: 1200, height: 900, size: 2048 }],
+          }),
+          created_at: '2026-10-22T10:05:00Z',
+          status: 'sent',
+          author: { id: 'u2', email: 'b@b.c', display_name: 'Bob', avatar_color: '#7c3aed' },
+        },
+      ]
+
+      const media = extractMediaFromMessages(messages)
+      expect(media).toHaveLength(3)
+      expect(media.map(item => item.image.path)).toEqual([
+        'conv1/img3.enc',
+        'conv1/img1.enc',
+        'conv1/img2.enc',
+      ])
+      expect(media[0].messageId).toBe('m3')
+      expect(media[1].caption).toBe('First batch')
+    })
+  })
+
+  describe('extractDomainFromUrl & extractLinksFromMessages (#34)', () => {
+    it('extracts clean hostname from URLs and falls back safely', () => {
+      expect(extractDomainFromUrl('https://www.github.com/nuxt/nuxt')).toBe('github.com')
+      expect(extractDomainFromUrl('https://docs.astro.build/en/getting-started/')).toBe('docs.astro.build')
+      expect(extractDomainFromUrl('not-a-valid-url')).toBe('not-a-valid-url')
+    })
+
+    it('extracts links from text messages and image captions in newest-first order, skipping inline code, deleted, and undecryptable messages', () => {
+      const messages: ChatMessage[] = [
+        {
+          id: 'm1',
+          client_id: 'c1',
+          conversation_id: 'conv1',
+          user_id: 'u1',
+          content: 'Check https://github.com/truonghoangthuan/nuxt-chat-app and `https://ignored-in-code.com`!',
+          created_at: '2026-10-22T10:00:00Z',
+          status: 'sent',
+          author: { id: 'u1', email: 'a@b.c', display_name: 'Alice', avatar_color: '#0284c7' },
+        },
+        {
+          id: 'm2',
+          client_id: 'c2',
+          conversation_id: 'conv1',
+          user_id: 'u2',
+          content: JSON.stringify({
+            type: 'images',
+            images: [{ path: 'conv1/img1.enc', mimeType: 'image/png', width: 100, height: 100, size: 100 }],
+            caption: 'Design ref: https://www.figma.com/file/123',
+          }),
+          created_at: '2026-10-22T10:05:00Z',
+          status: 'sent',
+          author: { id: 'u2', email: 'b@b.c', display_name: 'Bob', avatar_color: '#7c3aed' },
+        },
+        {
+          id: 'm3-deleted',
+          client_id: 'c3',
+          conversation_id: 'conv1',
+          user_id: 'u2',
+          content: 'https://deleted.example.com',
+          created_at: '2026-10-22T10:06:00Z',
+          deleted_at: '2026-10-22T10:07:00Z',
+          status: 'sent',
+        },
+      ]
+
+      const links = extractLinksFromMessages(messages)
+      expect(links).toHaveLength(2)
+      expect(links[0]).toMatchObject({
+        messageId: 'm2',
+        url: 'https://www.figma.com/file/123',
+        domain: 'figma.com',
+      })
+      expect(links[1]).toMatchObject({
+        messageId: 'm1',
+        url: 'https://github.com/truonghoangthuan/nuxt-chat-app',
+        domain: 'github.com',
+      })
+    })
+  })
+
+  describe('shouldTriggerConfetti', () => {
+    it('returns true when message contains congratulation, rõ ràng, ok, or cool as whole word/phrase case-insensitively', () => {
+      expect(shouldTriggerConfetti('congratulation!')).toBe(true)
+      expect(shouldTriggerConfetti('Big CONGRATULATIONS team')).toBe(true)
+      expect(shouldTriggerConfetti('Quá rõ ràng luôn bạn ơi')).toBe(true)
+      expect(shouldTriggerConfetti('ok bro')).toBe(true)
+      expect(shouldTriggerConfetti('OK!')).toBe(true)
+      expect(shouldTriggerConfetti('That sounds cool.')).toBe(true)
+      expect(
+        shouldTriggerConfetti(
+          JSON.stringify({
+            type: 'images',
+            images: [{ path: 'a', mimeType: 'image/png', width: 10, height: 10, size: 10 }],
+            caption: 'Rõ ràng nhé!',
+          }),
+        ),
+      ).toBe(true)
+    })
+
+    it('returns false for partial word matches or unrelated text', () => {
+      expect(shouldTriggerConfetti('I read a book and ate a cookie')).toBe(false)
+      expect(shouldTriggerConfetti('Look at the cooler')).toBe(false)
+      expect(shouldTriggerConfetti('Hello world')).toBe(false)
+      expect(shouldTriggerConfetti('')).toBe(false)
     })
   })
 })

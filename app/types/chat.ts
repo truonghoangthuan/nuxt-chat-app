@@ -193,3 +193,24 @@ export interface LocalImageAttachment {
   width: number
   height: number
 }
+
+export interface ExtractedMediaItem {
+  id: string
+  messageId: string
+  image: EncryptedImageMetadata
+  caption?: string
+  createdAt: string
+  author?: Profile
+  userId: string
+}
+
+export interface ExtractedLinkItem {
+  id: string
+  messageId: string
+  url: string
+  domain: string
+  createdAt: string
+  author?: Profile
+  userId: string
+}
+
