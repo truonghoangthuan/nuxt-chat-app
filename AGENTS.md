@@ -175,6 +175,12 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - `opacity-0` preserves intrinsic layout dimensions (~240px–310px), starving `min-w-0` message columns and crushing chat bubbles into narrow vertical 1-word columns on mobile/small viewports while truncating sender headers.
     - Action toolbars MUST be taken out of layout flow (`absolute -top-3 z-20`, aligned `right-0` for sender, `left-11` for recipient) and coupled with `pointer-events-none` (restoring `pointer-events-auto` on `:hover`, `:focus-within`, and `:active`) so hidden toolbars neither steal clicks nor consume horizontal flex space.
 
+21. **Chat Stage Background Continuity & Slotted Composer Dock Discipline:**
+    - `MessageViewport.vue` renders `[data-test="chat-background-layer"]` (`absolute inset-0 z-0`) and the adaptive contrast scrim (`[data-test="chat-background-scrim"]`) when `background_url` is configured.
+    - To avoid disjoint wallpaper cuts or duplicated `background-size: cover` seams above the message composer, `MessageComposer.vue` must NEVER be mounted as a sibling container outside `MessageViewport.vue`.
+    - `MessageViewport.vue` isolates the scrollable timeline and `[data-test="scroll-to-bottom"]` button inside an inner `relative z-10 flex-1 flex flex-col min-h-0 overflow-hidden` container and renders `<slot />` directly beneath it.
+    - In `app/pages/index.vue`, `MessageComposer.vue` must be slotted inside `MessageViewport` so one continuous wallpaper and scrim layer spans the full height of the chat stage, while `relative z-10` on `MessageComposer.vue` ensures composer controls and autocomplete dropdowns cleanly stack above `z-0`.
+
 ## 5. Testing Standards
 
 - **Path Aliases:** Both `~` and `@` resolve to `./app` in Nuxt and `vitest.config.ts`.
