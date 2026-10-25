@@ -25,6 +25,7 @@ A lightweight, resilient Slack-style real-time chat web app for friends across p
 - **Database Schema:** `supabase/schema.sql` defines `public.profiles`, `public.channels`, `public.messages`, `public.e2ee_config`, the `on_auth_user_created` profile-creation trigger, the `enforce_message_e2ee_envelope` trigger, RLS policies, the composite cursor index `messages_channel_cursor_idx`, and the `supabase_realtime` publication.
 - **Windows CLI Tooling:** GitHub CLI (`gh`) is often at `C:\Program Files\GitHub CLI\gh.exe` if not present in default `$env:PATH`. When invoking `gh pr create` or `gh issue create` with multiline Markdown in PowerShell, never pass multiline string literals in `--body "..."` (PowerShell argument parsing splits and corrupts unescaped newlines/quotes); always write the text to a temporary file and use `--body-file <path>` (cleaning up the temp file after).
 - **Windows Line Endings:** Git with `core.autocrlf = true` checks out CRLF. Normalize or match exact CRLF when applying targeted file edits.
+- **Primary Git Branch (`master`):** The repository's default and production base branch is `master` (not `main`). Always specify `--base master` when creating PRs (`gh pr create --base master`) or merging development branches.
 
 ## 3. Architecture & Directory Layout
 
@@ -164,6 +165,10 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
 18. **Consistent Member Profile Triggers & Avatar Hierarchy:**
     - Any rendered member avatar or display name across conversations (direct chat headers, message recipient avatars, sender headers, and group members rosters) must support interactive inspection via `UserProfileModal.vue` (`viewProfile`).
     - `UserAvatar.vue` maintains a unified size scale (`sm`: 28px, `md`: 36px, `lg`: 44px, `xl`: 64px, `2xl`: 80px), where modal profile dialogs anchor on `size="2xl"` (80px) for visual prominence.
+
+19. **Client-Side E2EE Media, Link, and Content Aggregations:**
+    - Any feature that aggregates or indexes messages across conversation history (such as `extractMediaFromMessages` for media galleries, `extractLinksFromMessages` for link indexes, or in-memory keyword search) must execute strictly client-side on decrypted in-memory `ChatMessage` rows.
+    - Aggregation routines must filter out soft-deleted tombstones (`deleted_at`) and undecryptable rows (`encryption === 'undecryptable'`), while inspecting both direct message content and parsed image captions (`parseImagePayload(msg.content)?.caption`).
 
 ## 5. Testing Standards
 
