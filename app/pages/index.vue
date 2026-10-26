@@ -25,6 +25,7 @@ import ConfettiOverlay from '~/components/ConfettiOverlay.vue'
 import { Menu, Users, Info, Search, Image as ImageIcon, MessageSquare, Link2 } from '@lucide/vue'
 import E2eeGate from '~/components/E2eeGate.vue'
 import { useE2ee } from '~/composables/useE2ee'
+import { usePwaInstall } from '~/composables/usePwaInstall'
 import { extractMediaFromMessages, extractLinksFromMessages, shouldTriggerConfetti } from '~/utils/chat'
 
 const {
@@ -93,6 +94,12 @@ const {
 
 const { currentProfile, updateProfile, signOut } = useAuthProfile()
 const { isDark, toggleTheme } = useTheme()
+const {
+  canInstall: canInstallPwa,
+  init: initPwaInstall,
+  cleanup: cleanupPwaInstall,
+  promptInstall: promptInstallPwa,
+} = usePwaInstall()
 const {
   status: e2eeStatus,
   error: e2eeError,
@@ -406,6 +413,8 @@ function handleSwMessage(event: MessageEvent) {
 }
 
 onMounted(async () => {
+  initPwaInstall()
+
   if (typeof window !== 'undefined') {
     window.addEventListener('keydown', handleGlobalKeydown)
   }
@@ -421,6 +430,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  cleanupPwaInstall()
   if (typeof window !== 'undefined') {
     window.removeEventListener('keydown', handleGlobalKeydown)
   }
@@ -469,6 +479,8 @@ onUnmounted(() => {
         :is-open-mobile="isMobileSidebarOpen"
         :notifications-enabled="soundEnabled || desktopEnabled"
         :notification-permission="notificationPermission"
+        :can-install-pwa="canInstallPwa"
+        @install-pwa="promptInstallPwa"
         @toggle-notifications="handleToggleNotifications"
         @select-conversation="handleSelectConversation"
         @select-channel="handleSelectConversation"

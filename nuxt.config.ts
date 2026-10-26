@@ -8,8 +8,14 @@ export default defineNuxtConfig({
   app: {
     head: {
       title: 'Friends Chat — Precision Studio',
+      meta: [
+        { name: 'theme-color', content: '#0b0f17' },
+        { name: 'application-name', content: 'Friends Chat' },
+      ],
       link: [
         { rel: 'icon', type: 'image/svg+xml', href: '/mug-hot-solid-full.svg' },
+        { rel: 'manifest', href: '/manifest.webmanifest' },
+        { rel: 'apple-touch-icon', href: '/pwa-192x192.png' },
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
         {

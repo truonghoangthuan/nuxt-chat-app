@@ -1993,6 +1993,35 @@ describe('Chat UI components', () => {
       expect(wrapper.emitted('jumpToMessage')?.[0]).toEqual(['m-link-1'])
     })
   })
+
+  it('ChatSidebar renders the Windows Install App button only when canInstallPwa is true and emits installPwa', async () => {
+    const baseProps = {
+      conversations: [],
+      activeConversationId: null,
+      unreadCounts: {},
+      onlineFriends: [],
+      currentUser: { id: 'u-1', display_name: 'Alice', avatar_color: '#10b981' },
+      isDark: true,
+      connectionStatus: 'connected' as const,
+      isOpenMobile: false,
+    }
+
+    const hiddenWrapper = mount(ChatSidebar, {
+      props: { ...baseProps, canInstallPwa: false },
+    })
+    expect(hiddenWrapper.find('[data-test="install-pwa-btn"]').exists()).toBe(false)
+
+    const installableWrapper = mount(ChatSidebar, {
+      props: { ...baseProps, canInstallPwa: true },
+    })
+    const installBtn = installableWrapper.find('[data-test="install-pwa-btn"]')
+    expect(installBtn.exists()).toBe(true)
+    expect(installBtn.attributes('title')).toBe('Install Windows App')
+
+    await installBtn.trigger('click')
+    expect(installableWrapper.emitted('installPwa')).toHaveLength(1)
+  })
 })
+
 
 
