@@ -207,6 +207,13 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
 27. **SPA Service Worker & Global Event Listener Teardown:**
     - Global browser event listeners registered in page components—including `navigator.serviceWorker.addEventListener('message', handler)` and `window.addEventListener('keydown', handler)`—must always reference named function handlers and be explicitly unregistered in `onUnmounted`. Anonymous inline listener closures cause listener accumulation, memory leaks, and zombie navigation calls across route transitions.
 
+28. **Zero-Dependency Canvas Micro-Interactions, Stacking Triggers & Accessibility Discipline:**
+    - **Zero External Dependencies:** Celebration and particle effects (such as Raycast-style confetti) must use native HTML5 2D Canvas and pure mathematical physics helpers rather than external npm packages (`canvas-confetti`).
+    - **Pure State & Physics Testability:** Decouple particle state calculation (`createBurst`, `stepParticles`) from canvas rasterization (`drawParticles`). This ensures physics (drag, gravity, 3D tilt, culling) can be verified deterministically in headless test runners (Happy-DOM / Vitest) where `getContext('2d')` is unavailable.
+    - **Dual-Prop Trigger Deduplication:** When components support both visibility (`active: boolean`) and stacking increments (`burstKey: number`), deduplicate triggers using internal tracking (`lastSpawnedBurstKey`) so initial activation does not double-spawn particles.
+    - **Accessibility (`prefers-reduced-motion`):** Always query `window.matchMedia('(prefers-reduced-motion: reduce)')`. When active, immediately emit completion or scale particles down to a gentle transition.
+    - **Timer & Frame Teardown:** Canvas animation loops (`requestAnimationFrame`) must couple with a safety timeout fallback and cleanly cancel all frame handles and timers on unmount or deactivation.
+
 ## 5. Testing Standards
 
 - **Path Aliases:** Both `~` and `@` resolve to `./app` in Nuxt and `vitest.config.ts`.
