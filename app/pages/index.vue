@@ -28,7 +28,6 @@ import { usePwaInstall } from '~/composables/usePwaInstall'
 import {
   extractMediaFromMessages,
   extractLinksFromMessages,
-  shouldTriggerConfetti,
   isSystemPayload,
   parseSystemPayload,
 } from '~/utils/chat'
@@ -114,7 +113,6 @@ const {
   error: e2eeError,
   isUnlocking: e2eeIsUnlocking,
   initializeE2ee,
-  unlockWithPhrase,
   clearE2eeSession,
 } = useE2ee()
 
@@ -272,8 +270,9 @@ async function handleAddMember(email: string) {
     } catch (err: any) {
       if (addNotificationToast) {
         addNotificationToast({
+          conversationId: activeConversationId.value || '',
           title: 'Failed to add member',
-          body: err?.message || 'Could not add member to group.',
+          snippet: err?.message || 'Could not add member to group.',
         })
       }
     }
@@ -287,8 +286,9 @@ async function handleLeaveGroup(conversationId: string) {
   } catch (err: any) {
     if (addNotificationToast) {
       addNotificationToast({
+        conversationId,
         title: 'Failed to leave group',
-        body: err?.message || 'Could not leave group.',
+        snippet: err?.message || 'Could not leave group.',
       })
     }
   }
@@ -299,8 +299,9 @@ async function handleUpdateGroupTitle(newTitle: string) {
     const res = await updateGroupTitle(activeConversationId.value, newTitle)
     if (res?.error && addNotificationToast) {
       addNotificationToast({
+        conversationId: activeConversationId.value,
         title: 'Failed to update group name',
-        body: res.error,
+        snippet: res.error,
       })
     }
   }
@@ -311,8 +312,9 @@ async function handleSelectBackgroundPreset(presetValue: string) {
   const res = await updateChatBackground(activeConversationId.value, presetValue)
   if (res?.error && addNotificationToast) {
     addNotificationToast({
+      conversationId: activeConversationId.value,
       title: 'Failed to update background',
-      body: res.error,
+      snippet: res.error,
     })
   }
 }
@@ -322,8 +324,9 @@ async function handleUploadBackgroundFile(file: File) {
   const res = await updateChatBackground(activeConversationId.value, file)
   if (res?.error && addNotificationToast) {
     addNotificationToast({
+      conversationId: activeConversationId.value,
       title: 'Failed to upload background',
-      body: res.error,
+      snippet: res.error,
     })
   }
 }
@@ -333,8 +336,9 @@ async function handleResetBackground() {
   const res = await removeChatBackground(activeConversationId.value)
   if (res?.error && addNotificationToast) {
     addNotificationToast({
+      conversationId: activeConversationId.value,
       title: 'Failed to reset background',
-      body: res.error,
+      snippet: res.error,
     })
   }
 }
@@ -343,18 +347,6 @@ async function handleLogout() {
   clearE2eeSession()
   await signOut()
   await navigateTo('/login')
-}
-
-async function handleUnlock(phrase: string) {
-  const success = await unlockWithPhrase(phrase)
-  if (success) {
-    await initializeChat()
-  }
-}
-
-async function handleRetryConfig() {
-  await initializeE2ee()
-  await initializeChat()
 }
 
 async function handleSendMessage(content: string) {

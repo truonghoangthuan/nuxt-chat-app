@@ -2121,7 +2121,7 @@ export function useChatRoom() {
       }
 
       const actorName = current.display_name || 'Someone'
-      const preset = CHAT_BACKGROUND_PRESETS.find(p => p.url === finalUrl)
+      const preset = CHAT_BACKGROUND_PRESETS.find(p => p.value === finalUrl)
       const presetLabel = preset ? preset.label : 'a custom image'
       const sysPayload = serializeSystemMessage({
         type: 'system',

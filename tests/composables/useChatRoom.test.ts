@@ -2115,6 +2115,12 @@ describe('useChatRoom contacts and conversations', () => {
 
     const updated = room.conversations.value.find(c => c.id === group.id)
     expect(updated?.background_url).toBe('preset:aurora')
+
+    const lastInsertCall = mockMessagesInsert.mock.calls[mockMessagesInsert.mock.calls.length - 1][0]
+    const decrypted = await decryptContent(testKey, lastInsertCall.content, group.id)
+    const parsed = JSON.parse(decrypted)
+    expect(parsed.event).toBe('background_change')
+    expect(parsed.detail).toBe('Aurora Borealis')
   })
 
   it('removes chat background and resets to null', async () => {
