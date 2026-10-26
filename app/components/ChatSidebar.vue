@@ -12,6 +12,7 @@ import {
   Users,
   MessageSquarePlus,
   Search,
+  Download,
 } from '@lucide/vue'
 import type { Conversation, Channel, Profile, ConnectionStatus } from '~/types/chat'
 import {
@@ -43,6 +44,7 @@ const props = withDefaults(
     isOpenMobile: boolean
     notificationsEnabled?: boolean
     notificationPermission?: NotificationPermission
+    canInstallPwa?: boolean
   }>(),
   {
     conversations: undefined,
@@ -53,6 +55,7 @@ const props = withDefaults(
     unreadMentions: () => ({}),
     notificationsEnabled: true,
     notificationPermission: 'default',
+    canInstallPwa: false,
   },
 )
 
@@ -68,6 +71,7 @@ const emit = defineEmits<{
   (e: 'openProfileSettings'): void
   (e: 'toggleNotifications'): void
   (e: 'toggleTheme'): void
+  (e: 'installPwa'): void
   (e: 'logout'): void
   (e: 'closeMobile'): void
 }>()
@@ -511,6 +515,21 @@ function onContactsClick() {
         </div>
 
         <div class="flex items-center gap-0.5 shrink-0">
+          <!-- Install Windows PWA App -->
+          <Button
+            v-if="canInstallPwa"
+            type="button"
+            variant="ghost"
+            size="icon"
+            data-test="install-pwa-btn"
+            class="size-7.5 rounded-full text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15"
+            aria-label="Install Windows App"
+            title="Install Windows App"
+            @click="emit('installPwa')"
+          >
+            <Download class="size-3.5" aria-hidden="true" />
+          </Button>
+
           <!-- Profile Settings -->
           <Button
             type="button"
