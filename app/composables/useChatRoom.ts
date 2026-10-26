@@ -1973,7 +1973,12 @@ export function useChatRoom() {
       messagesStore.applyReactionAdded(optimisticReaction)
       const { error } = await supabase
         .from('message_reactions')
-        .insert(optimisticReaction)
+        .insert({
+          message_id: messageId,
+          conversation_id: conversationId,
+          user_id: current.id,
+          emoji,
+        })
       if (error) {
         messagesStore.applyReactionRemoved({
           message_id: messageId,

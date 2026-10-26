@@ -998,15 +998,17 @@ onUnmounted(() => {
           <div
             v-for="peer in seenByMap[item.message.id]"
             :key="peer.id"
-            class="transition-transform hover:scale-110"
+            class="transition-transform hover:scale-110 cursor-pointer"
             :title="`Seen by ${peer.display_name}`"
+            @click="emit('viewProfile', peer)"
           >
             <UserAvatar
               :display-name="peer.display_name"
               :avatar-color="peer.avatar_color"
               :avatar-url="peer.avatar_url"
-              size="sm"
-              class="w-4 h-4 text-[9px] border border-white/20 shadow-xs"
+              size="xs"
+              shape="circle"
+              class="ring-1 ring-black/10 dark:ring-white/20 shadow-xs"
             />
           </div>
         </div>

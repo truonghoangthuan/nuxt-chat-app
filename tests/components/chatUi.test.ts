@@ -26,6 +26,20 @@ describe('Chat UI components', () => {
     expect(wrapper.text()).toContain('AL')
   })
 
+  it('UserAvatar renders circular shape with xs size', () => {
+    const wrapper = mount(UserAvatar, {
+      props: {
+        displayName: 'Alice',
+        size: 'xs' as any,
+        shape: 'circle' as any,
+      },
+    })
+    const inner = wrapper.find('.select-none')
+    expect(inner.classes()).toContain('w-4')
+    expect(inner.classes()).toContain('h-4')
+    expect(inner.classes()).toContain('rounded-full')
+  })
+
   it('MessageComposer emits send on Enter, newline on Shift+Enter, and renders typingLabel', async () => {
     const wrapper = mount(MessageComposer, {
       props: { channelSlug: 'general', typingLabel: 'Alice is typing...' },
