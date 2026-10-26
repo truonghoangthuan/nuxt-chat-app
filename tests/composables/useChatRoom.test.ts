@@ -2031,4 +2031,89 @@ let capturedMessagesSelect = ''
     expect(prependedCount).toBe(0)
     expect(room.messages.value).toHaveLength(0)
   })
+
+  it('loadConversationReadsAndUnreads scopes query to conversation IDs and clamps default read timestamp to 30-day window instead of 1970', async () => {
+    let capturedGt = ''
+    let capturedInKey = ''
+    let capturedInValues: any[] = []
+    let capturedLimit: number | null = null
+
+    const origFrom = mockSupabase.from
+    mockSupabase.from = vi.fn((table: string) => {
+      if (table === 'conversation_reads') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        }
+      }
+      if (table === 'messages') {
+        return {
+          select: vi.fn().mockReturnValue({
+            gt: vi.fn().mockImplementation((col: string, val: string) => {
+              capturedGt = val
+              const chain: any = {
+                in: vi.fn().mockImplementation((inCol: string, inVals: any[]) => {
+                  capturedInKey = inCol
+                  capturedInValues = inVals
+                  return chain
+                }),
+                order: vi.fn().mockImplementation(() => chain),
+                limit: vi.fn().mockImplementation((lim: number) => {
+                  capturedLimit = lim
+                  return Promise.resolve({ data: [], error: null })
+                }),
+              }
+              chain.then = (fn: any) => Promise.resolve({ data: [], error: null }).then(fn)
+              return chain
+            }),
+          }),
+        }
+      }
+      return origFrom(table)
+    })
+
+    mockSupabase.auth.getUser = vi.fn().mockResolvedValue({
+      data: { user: { id: 'u-alice', email: 'alice@example.com' } },
+      error: null,
+    })
+    mockProfilesDb.set('u-alice', {
+      id: 'u-alice',
+      email: 'alice@example.com',
+      display_name: 'Alice',
+      avatar_color: '#0284c7',
+    })
+    mockConversationsDb.push({
+      id: 'conv-101',
+      type: 'group',
+      title: 'Scoped Channel',
+      created_at: '2026-10-18T10:00:00Z',
+      updated_at: '2026-10-18T10:00:00Z',
+    })
+    mockMembersDb.push({
+      conversation_id: 'conv-101',
+      user_id: 'u-alice',
+      role: 'member',
+      joined_at: '2026-10-18T10:00:00Z',
+      conversation: {
+        id: 'conv-101',
+        type: 'group',
+        title: 'Scoped Channel',
+        created_at: '2026-10-18T10:00:00Z',
+        updated_at: '2026-10-18T10:00:00Z',
+      },
+    })
+
+    const room = useChatRoom()
+    await room.initializeChat()
+
+    expect(capturedGt).not.toContain('1970-01-01')
+    const parsedGt = Date.parse(capturedGt)
+    expect(Number.isNaN(parsedGt)).toBe(false)
+    const thirtyDaysAgo = Date.now() - 31 * 24 * 60 * 60 * 1000
+    expect(parsedGt).toBeGreaterThan(thirtyDaysAgo)
+    expect(capturedInKey).toBe('conversation_id')
+    expect(capturedInValues).toEqual(['conv-101'])
+    expect(capturedLimit).toBe(1000)
+  })
 })

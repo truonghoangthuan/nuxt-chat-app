@@ -664,7 +664,8 @@ export function useChatRoom() {
         readRows = chReadRows
       }
 
-      const defaultRead = current.created_at || '1970-01-01T00:00:00.000Z'
+      const UNREAD_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000
+      const defaultRead = current.created_at || new Date(Date.now() - UNREAD_LOOKBACK_MS).toISOString()
       const map = computeConversationReadMap({
         conversations: conversations.value,
         readRows,
@@ -676,18 +677,35 @@ export function useChatRoom() {
       const oldestRead = computeOldestReadTimestamp(Object.values(map))
       if (!oldestRead) return
 
-      let { data: recentMessages, error: msgErr } = await supabase
+      const convIds = conversations.value.map(c => c.id).filter(Boolean)
+      let query: any = supabase
         .from('messages')
         .select('id, conversation_id, user_id, content, created_at, deleted_at, reply_to_id')
         .gt('created_at', oldestRead)
-        .order('created_at', { ascending: true })
+
+      if (convIds.length > 0 && typeof query.in === 'function') {
+        query = query.in('conversation_id', convIds)
+      }
+      query = query.order('created_at', { ascending: true })
+      if (typeof query.limit === 'function') {
+        query = query.limit(1000)
+      }
+
+      let { data: recentMessages, error: msgErr } = await query
 
       if (msgErr && (msgErr.code === '42703' || msgErr.message?.includes('conversation_id'))) {
-        const { data: fallbackMessages } = await supabase
+        let fallbackQuery: any = supabase
           .from('messages')
           .select('id, channel_id, user_id, content, created_at, deleted_at, reply_to_id')
           .gt('created_at', oldestRead)
-          .order('created_at', { ascending: true })
+        if (convIds.length > 0 && typeof fallbackQuery.in === 'function') {
+          fallbackQuery = fallbackQuery.in('channel_id', convIds)
+        }
+        fallbackQuery = fallbackQuery.order('created_at', { ascending: true })
+        if (typeof fallbackQuery.limit === 'function') {
+          fallbackQuery = fallbackQuery.limit(1000)
+        }
+        const { data: fallbackMessages } = await fallbackQuery
         recentMessages = fallbackMessages
       }
 
