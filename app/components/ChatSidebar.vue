@@ -30,6 +30,9 @@ import {
 } from '~/utils/image'
 import UserAvatar from '~/components/UserAvatar.vue'
 import Button from '~/components/ui/Button.vue'
+import { useTheme } from '~/composables/useTheme'
+
+const { uiTheme } = useTheme()
 
 const props = withDefaults(
   defineProps<{
@@ -257,8 +260,121 @@ function onContactsClick() {
       class="fixed inset-y-0 left-0 z-40 w-64 md:w-64 flex flex-col bg-[var(--ap-sidebar)] backdrop-blur-2xl md:rounded-2xl border-r md:border border-[var(--ap-glass-border)] shadow-xl shrink-0 overflow-hidden transition-transform duration-200 ease-in-out md:static md:translate-x-0"
       :class="isOpenMobile ? 'translate-x-0' : '-translate-x-full'"
     >
+      <!-- Header Bar with Quick Actions -->
+      <div
+        v-if="uiTheme === 'vscode'"
+        data-test="vscode-explorer-header"
+        class="h-9 px-3 flex items-center justify-between border-b border-[var(--ap-glass-border)] shrink-0 bg-[#252526] text-[#cccccc] font-mono text-[11px] uppercase tracking-wider font-semibold"
+      >
+        <span>Explorer</span>
+        <div class="flex items-center gap-1">
+          <!-- Realtime status indicator -->
+          <div
+            class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border transition-colors mr-0.5"
+            :class="connectionStatus === 'connected' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'"
+            :title="`Status: ${connectionStatus}`"
+          >
+            <span
+              class="w-1.5 h-1.5 rounded-full inline-block"
+              :class="connectionStatus === 'connected' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'"
+            ></span>
+            <span class="hidden sm:inline">{{ connectionStatus === 'connected' ? 'Live' : 'Sync' }}</span>
+          </div>
+
+          <button
+            type="button"
+            data-test="open-contacts"
+            class="p-1 hover:bg-white/10 rounded text-[var(--ap-text-secondary)] hover:text-white transition-colors cursor-pointer"
+            title="Contacts"
+            @click="onContactsClick"
+          >
+            <Users class="size-3.5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            data-test="open-start-dm"
+            class="p-1 hover:bg-white/10 rounded text-[var(--ap-text-secondary)] hover:text-white transition-colors cursor-pointer"
+            title="New Direct Chat"
+            @click="onNewDirectChatClick"
+          >
+            <MessageSquarePlus class="size-3.5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            data-test="open-create-group"
+            class="p-1 hover:bg-white/10 rounded text-[var(--ap-text-secondary)] hover:text-white transition-colors cursor-pointer"
+            title="New Group"
+            @click="onNewGroupClick"
+          >
+            <Plus class="size-3.5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            class="md:hidden text-[var(--ap-text-secondary)] hover:text-white p-1 text-sm font-bold leading-none cursor-pointer"
+            @click="emit('closeMobile')"
+          >
+            <X class="size-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      <div
+        v-else-if="uiTheme === 'yahoo'"
+        data-test="yahoo-messenger-header"
+        class="shrink-0 border-b border-[var(--ap-glass-border)]"
+      >
+        <div class="h-8 px-3 bg-gradient-to-r from-[#500095] to-[#7b0099] flex items-center justify-between text-white font-sans text-xs font-bold shadow-xs">
+          <div class="flex items-center gap-1.5">
+            <span class="text-[#ffcc00] font-black text-sm">Y!</span>
+            <span>Messenger</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button
+              type="button"
+              data-test="open-contacts"
+              class="w-5 h-5 rounded hover:bg-white/20 flex items-center justify-center text-white/90 hover:text-white transition-colors cursor-pointer"
+              title="Contacts"
+              @click="onContactsClick"
+            >
+              <Users class="size-3" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              data-test="open-start-dm"
+              class="w-5 h-5 rounded hover:bg-white/20 flex items-center justify-center text-white/90 hover:text-white transition-colors cursor-pointer"
+              title="New Direct Chat"
+              @click="onNewDirectChatClick"
+            >
+              <MessageSquarePlus class="size-3" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              data-test="open-create-group"
+              class="w-5 h-5 rounded hover:bg-white/20 flex items-center justify-center text-white/90 hover:text-white transition-colors cursor-pointer"
+              title="New Group"
+              @click="onNewGroupClick"
+            >
+              <Plus class="size-3" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              class="md:hidden text-white/80 hover:text-white p-1 text-xs font-bold leading-none cursor-pointer"
+              @click="emit('closeMobile')"
+            >
+              <X class="size-3" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+        <div class="h-6 px-2.5 bg-[#ece7f2] dark:bg-[#1f122e] flex items-center gap-3 text-[11px] text-[#4a3b5c] dark:text-[#d8b4fe] select-none font-sans">
+          <span class="hover:underline cursor-pointer">Messenger</span>
+          <span class="hover:underline cursor-pointer" @click="onContactsClick">Contacts</span>
+          <span class="hover:underline cursor-pointer" @click="onNewGroupClick">Actions</span>
+          <span class="hover:underline cursor-pointer">Help</span>
+        </div>
+      </div>
+
       <!-- Header Bar with Quick Actions (Traffic lights removed) -->
-      <div class="h-12 px-3.5 flex items-center justify-between border-b border-[var(--ap-glass-border)] shrink-0">
+      <div v-else class="h-12 px-3.5 flex items-center justify-between border-b border-[var(--ap-glass-border)] shrink-0">
         <!-- Title -->
         <span class="text-xs font-semibold text-[var(--ap-text-primary)] tracking-tight">Messages</span>
 

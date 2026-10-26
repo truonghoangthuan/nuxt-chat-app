@@ -281,6 +281,34 @@ describe('Chat UI components', () => {
     expect(document.documentElement.dataset.theme).toBe('yahoo')
   })
 
+  it('ChatSidebar switches structural chrome for vscode and yahoo themes while keeping conversation hooks', async () => {
+    const { useTheme } = await import('~/composables/useTheme')
+    const { setUiTheme } = useTheme()
+
+    setUiTheme('vscode')
+    const wrapper = mount(ChatSidebar, {
+      props: {
+        conversations: [{ id: 'c-1', type: 'group', title: 'dev-team', created_by: 'u-1', created_at: '2026-10-20T00:00:00Z' }],
+        activeConversationId: 'c-1',
+        unreadCounts: {},
+        onlineFriends: [],
+        currentUser: { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' },
+        isDark: true,
+        connectionStatus: 'connected',
+        isOpenMobile: false,
+      },
+    })
+
+    expect(wrapper.find('[data-test="vscode-explorer-header"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="conversation-item-c-1"]').exists()).toBe(true)
+
+    setUiTheme('yahoo')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-test="yahoo-messenger-header"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="conversation-item-c-1"]').exists()).toBe(true)
+    setUiTheme('default')
+  })
+
   it('MessageViewport supports inline editing, soft-delete tombstones, quote-reply headers, and reaction pills', async () => {
     const wrapper = mount(MessageViewport, {
       props: {

@@ -22,7 +22,7 @@ import UserAvatar from '~/components/UserAvatar.vue'
 import MessageSearchBar from '~/components/MessageSearchBar.vue'
 import ChatBackgroundModal from '~/components/ChatBackgroundModal.vue'
 import ConfettiOverlay from '~/components/ConfettiOverlay.vue'
-import { Menu, Users, Info, Search, Image as ImageIcon, MessageSquare, Link2 } from '@lucide/vue'
+import { Menu, Users, Info, Search, Image as ImageIcon, MessageSquare, Link2, Settings, Sun, Moon, Plus } from '@lucide/vue'
 import { useE2ee } from '~/composables/useE2ee'
 import { usePwaInstall } from '~/composables/usePwaInstall'
 import {
@@ -102,7 +102,7 @@ const {
 } = useChatRoom()
 
 const { currentProfile, updateProfile, signOut } = useAuthProfile()
-const { isDark, toggleTheme } = useTheme()
+const { isDark, toggleTheme, uiTheme, initTheme } = useTheme()
 const {
   canInstall: canInstallPwa,
   init: initPwaInstall,
@@ -463,6 +463,7 @@ function handleSwMessage(event: MessageEvent) {
 }
 
 onMounted(async () => {
+  initTheme()
   initPwaInstall()
 
   if (typeof window !== 'undefined') {
@@ -490,13 +491,76 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="h-dvh flex overflow-hidden bg-[var(--ap-canvas)] p-2 md:p-3 md:gap-3 transition-colors">
+  <div
+    class="h-dvh flex overflow-hidden bg-[var(--ap-canvas)] transition-colors"
+    :class="uiTheme === 'vscode' ? 'p-0 pb-6 gap-0' : (uiTheme === 'yahoo' ? 'p-2 md:p-2.5 md:gap-2.5' : 'p-2 md:p-3 md:gap-3')"
+  >
     <!-- In-App Notification Toasts -->
     <NotificationToastContainer
       :toasts="notificationToasts || []"
       @navigate="handleSelectConversation"
       @dismiss="dismissNotificationToast || (() => {})"
     />
+
+    <!-- VSCode Activity Bar (48px) -->
+    <div
+      v-if="uiTheme === 'vscode'"
+      data-test="vscode-activity-bar"
+      class="w-12 shrink-0 bg-[#333333] hidden md:flex flex-col items-center py-2 justify-between border-r border-[#252526] z-30 select-none"
+    >
+      <div class="flex flex-col items-center gap-4 w-full text-[#858585]">
+        <button
+          type="button"
+          class="w-full h-10 flex items-center justify-center text-white border-l-2 border-white hover:text-white transition-colors cursor-pointer"
+          title="Explorer"
+        >
+          <MessageSquare class="size-5" />
+        </button>
+        <button
+          type="button"
+          class="w-full h-10 flex items-center justify-center hover:text-white transition-colors cursor-pointer"
+          title="Search (Cmd+F)"
+          @click="handleToggleSearch"
+        >
+          <Search class="size-5" />
+        </button>
+        <button
+          type="button"
+          class="w-full h-10 flex items-center justify-center hover:text-white transition-colors cursor-pointer"
+          title="Contacts"
+          @click="isContactsModalOpen = true"
+        >
+          <Users class="size-5" />
+        </button>
+        <button
+          type="button"
+          class="w-full h-10 flex items-center justify-center hover:text-white transition-colors cursor-pointer"
+          title="New Group"
+          @click="isCreateGroupModalOpen = true"
+        >
+          <Plus class="size-5" />
+        </button>
+      </div>
+      <div class="flex flex-col items-center gap-3 w-full text-[#858585]">
+        <button
+          type="button"
+          class="w-full h-10 flex items-center justify-center hover:text-white transition-colors cursor-pointer"
+          title="Toggle Theme"
+          @click="toggleTheme"
+        >
+          <Sun v-if="isDark" class="size-5" />
+          <Moon v-else class="size-5" />
+        </button>
+        <button
+          type="button"
+          class="w-full h-10 flex items-center justify-center hover:text-white transition-colors cursor-pointer"
+          title="Settings"
+          @click="isProfileSettingsModalOpen = true"
+        >
+          <Settings class="size-5" />
+        </button>
+      </div>
+    </div>
 
     <!-- Sidebar (Unified 260px Apple Messages Sidebar) -->
     <ChatSidebar
@@ -547,6 +611,43 @@ onUnmounted(() => {
           :permission="notificationPermission"
           @request-permission="requestNotificationPermission"
         />
+
+        <!-- VSCode Editor Tab Bar & Breadcrumbs -->
+        <div
+          v-if="uiTheme === 'vscode'"
+          data-test="vscode-tab-bar"
+          class="h-9 bg-[#ececec] dark:bg-[#252526] border-b border-[#e5e5e5] dark:border-[#1e1e1e] flex items-center justify-between px-2 text-xs font-mono select-none shrink-0"
+        >
+          <div class="flex items-center h-full">
+            <div class="h-full px-3 flex items-center gap-2 bg-white dark:bg-[#1e1e1e] border-t-2 border-[#007acc] text-[#333333] dark:text-white font-medium">
+              <span class="text-blue-500 font-bold text-[11px]">{{ activeConversation?.type === 'direct' ? 'TS' : 'MD' }}</span>
+              <span>{{ activeConversation?.type === 'direct' ? `${activeConversation.peer?.display_name || 'chat'}.ts` : `${activeConversation?.title || 'general'}.md` }}</span>
+              <span class="text-[10px] opacity-40 ml-1">×</span>
+            </div>
+          </div>
+          <div class="text-[11px] text-[#858585] hidden sm:flex items-center gap-1 font-mono">
+            <span>workspace</span>
+            <span>&gt;</span>
+            <span>chats</span>
+            <span>&gt;</span>
+            <span class="text-white/80">{{ activeConversation?.title || activeConversation?.peer?.display_name || 'chat' }}</span>
+          </div>
+        </div>
+
+        <!-- Yahoo Stage Titlebar -->
+        <div
+          v-else-if="uiTheme === 'yahoo'"
+          data-test="yahoo-stage-titlebar"
+          class="h-7 px-3 bg-gradient-to-r from-[#500095] to-[#7b0099] flex items-center justify-between text-white font-sans text-xs font-bold shrink-0 shadow-xs"
+        >
+          <div class="flex items-center gap-2">
+            <span class="text-[#ffcc00] font-black">Y!</span>
+            <span>Instant Message - {{ activeConversation?.peer?.display_name || activeConversation?.title || 'Chat' }}</span>
+          </div>
+          <div class="flex items-center gap-2 text-[10px] text-white/80 font-normal">
+            <span>{{ connectionStatus === 'connected' ? 'Connected' : 'Offline' }}</span>
+          </div>
+        </div>
 
         <!-- Frosted Stage Header (56px) -->
         <header class="h-14 px-4 md:px-6 border-b border-[var(--ap-glass-border)] flex items-center justify-between gap-4 shrink-0 bg-[var(--ap-stage)] backdrop-blur-md">
@@ -889,5 +990,25 @@ onUnmounted(() => {
         :burst-key="confettiBurstKey"
         @complete="isConfettiActive = false"
       />
+
+    <!-- VSCode Status Bar -->
+    <footer
+      v-if="uiTheme === 'vscode'"
+      data-test="vscode-status-bar"
+      class="fixed bottom-0 inset-x-0 h-6 bg-[#007acc] text-white text-[11px] font-mono flex items-center justify-between px-3 z-30 select-none"
+    >
+      <div class="flex items-center gap-3">
+        <span class="flex items-center gap-1">
+          <span class="font-bold">main*</span>
+          <span>·</span>
+          <span>{{ connectionStatus === 'connected' ? 'Live' : 'Sync' }}</span>
+        </span>
+        <span class="hidden sm:inline">🔒 E2EE AES-GCM-256</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="hidden sm:inline">UTF-8</span>
+        <span>TypeScript Vue</span>
+      </div>
+    </footer>
   </div>
 </template>
