@@ -5,6 +5,7 @@ import {
   serializeSystemMessage,
   CHAT_BACKGROUND_PRESETS,
 } from '~/utils/chat'
+import { sanitizeConfettiWords, normalizeConfettiWord } from '~/utils/confetti'
 
 export interface ConversationsActionsDeps {
   supabase: any
@@ -550,6 +551,78 @@ export function createConversationsActions(deps: ConversationsActionsDeps) {
     }
   }
 
+  async function updateConfettiWords(
+    conversationId: string,
+    words: string[],
+  ): Promise<{ error: string | null }> {
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    if (!current?.id) {
+      return { error: 'Not authenticated.' }
+    }
+
+    const targetConv = conversations.value.find(c => c.id === conversationId)
+    if (!targetConv) {
+      return { error: 'Conversation not found.' }
+    }
+
+    const sanitized = sanitizeConfettiWords(words)
+    const prevWords = [...(targetConv.confetti_words || [])]
+    const prevUpdated = targetConv.updated_at
+    const nowIso = new Date().toISOString()
+
+    targetConv.confetti_words = sanitized
+    targetConv.updated_at = nowIso
+
+    try {
+      const { error: dbError } = await supabase
+        .from('conversations')
+        .update({ confetti_words: sanitized, updated_at: nowIso })
+        .eq('id', conversationId)
+
+      if (dbError) {
+        targetConv.confetti_words = prevWords
+        targetConv.updated_at = prevUpdated
+        return { error: dbError.message || 'Failed to update confetti dictionary.' }
+      }
+
+      return { error: null }
+    } catch (err: any) {
+      targetConv.confetti_words = prevWords
+      targetConv.updated_at = prevUpdated
+      return { error: err?.message || 'Failed to update confetti dictionary.' }
+    }
+  }
+
+  async function addConfettiWord(
+    conversationId: string,
+    wordInput: string,
+  ): Promise<{ error: string | null }> {
+    const targetConv = conversations.value.find(c => c.id === conversationId)
+    if (!targetConv) {
+      return { error: 'Conversation not found.' }
+    }
+    const existing = targetConv.confetti_words || []
+    const next = sanitizeConfettiWords([...existing, wordInput])
+    if (next.length === existing.length && next.every((w, i) => w === existing[i])) {
+      return { error: null }
+    }
+    return updateConfettiWords(conversationId, next)
+  }
+
+  async function removeConfettiWord(
+    conversationId: string,
+    wordToRemove: string,
+  ): Promise<{ error: string | null }> {
+    const targetConv = conversations.value.find(c => c.id === conversationId)
+    if (!targetConv) {
+      return { error: 'Conversation not found.' }
+    }
+    const normalizedTarget = normalizeConfettiWord(wordToRemove)
+    const existing = targetConv.confetti_words || []
+    const next = existing.filter(w => normalizeConfettiWord(w) !== normalizedTarget)
+    return updateConfettiWords(conversationId, next)
+  }
+
   return {
     openOrCreateDirectChat,
     createGroup,
@@ -562,5 +635,8 @@ export function createConversationsActions(deps: ConversationsActionsDeps) {
     updateGroupName,
     updateChatBackground,
     removeChatBackground,
+    updateConfettiWords,
+    addConfettiWord,
+    removeConfettiWord,
   }
 }
