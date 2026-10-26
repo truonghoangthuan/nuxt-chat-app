@@ -1959,4 +1959,76 @@ let capturedMessagesSelect = ''
     const updated = room.conversations.value.find(c => c.id === group.id)
     expect(updated?.background_url).toBeNull()
   })
+
+  it('discards stale loadOlderMessages and fetchGapMessages results when activeConversationId changes in flight', async () => {
+    let resolveQuery: (val: any) => void = () => {}
+    const delayedPromise = new Promise((resolve) => {
+      resolveQuery = resolve
+    })
+
+    mockSupabase.from = vi.fn((table: string) => {
+      if (table === 'messages') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              or: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockReturnValue(delayedPromise),
+                  }),
+                }),
+              }),
+            }),
+          }),
+        }
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      }
+    })
+
+    const room = useChatRoom()
+    room.activeConversationId.value = 'conv-1'
+    room.hasMoreHistory.value = true
+    room.messages.value = [
+      {
+        id: 'm-current-1',
+        client_id: 'c-1',
+        conversation_id: 'conv-1',
+        user_id: 'u-alice',
+        content: 'current message',
+        created_at: '2026-10-20T10:00:00Z',
+        status: 'sent',
+      } as any,
+    ]
+
+    const loadPromise = room.loadOlderMessages()
+    // User switches conversations while query is in flight
+    room.activeConversationId.value = 'conv-2'
+    room.messages.value = []
+
+    // Now resolve query with old conversation messages
+    resolveQuery({
+      data: [
+        {
+          id: 'm-old-1',
+          client_id: 'c-old-1',
+          conversation_id: 'conv-1',
+          user_id: 'u-bob',
+          content: 'old message from conv-1',
+          created_at: '2026-10-19T10:00:00Z',
+          status: 'sent',
+        },
+      ],
+      error: null,
+    })
+
+    const prependedCount = await loadPromise
+    expect(prependedCount).toBe(0)
+    expect(room.messages.value).toHaveLength(0)
+  })
 })

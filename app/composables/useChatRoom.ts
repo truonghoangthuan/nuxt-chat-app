@@ -1072,9 +1072,12 @@ export function useChatRoom() {
         error = res.error
       }
 
+      if (activeConversationId.value !== convId) return
+
       if (data && !error && data.length > 0) {
         cacheProfilesFromMessages(data)
         const hydrated = await hydrateMessagesWithReactionsAndReplies(data)
+        if (activeConversationId.value !== convId) return
         messagesStore.mergeGapMessages(hydrated)
       }
     } catch {
@@ -1589,6 +1592,10 @@ export function useChatRoom() {
         error = fallback.error
       }
 
+      if (activeConversationId.value !== convId) {
+        return 0
+      }
+
       if (data && !error) {
         if (data.length < PAGE_SIZE) {
           hasMoreHistory.value = false
@@ -1596,6 +1603,9 @@ export function useChatRoom() {
         const chronological = [...data].reverse()
         cacheProfilesFromMessages(chronological)
         const hydrated = await hydrateMessagesWithReactionsAndReplies(chronological)
+        if (activeConversationId.value !== convId) {
+          return 0
+        }
         return messagesStore.prependHistoryPage(hydrated)
       }
     } finally {
