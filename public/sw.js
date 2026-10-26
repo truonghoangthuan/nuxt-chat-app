@@ -34,3 +34,6 @@ self.addEventListener('notificationclick', (event) => {
     }),
   )
 })
+
+// Pass-through fetch handler for Windows PWA installability (never cache E2EE or Supabase payloads)
+self.addEventListener('fetch', () => {})
