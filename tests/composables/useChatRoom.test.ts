@@ -1861,6 +1861,32 @@ describe('useChatRoom contacts and conversations', () => {
     expect(after?.reactions?.some(r => r.emoji === '👍')).toBe(true)
   })
 
+  it('toggleReaction inserts into message_reactions with conversation_id and without channel_id', async () => {
+    const room = useChatRoom()
+    await room.createGroup('Reaction Test Team', ['u-bob'])
+    await room.sendMessage('Target msg')
+    const msg = room.messages.value[0]
+
+    let insertedPayload: any = null
+    const origFrom = mockSupabase.from
+    mockSupabase.from = vi.fn((table: string) => {
+      const res = origFrom(table)
+      if (table === 'message_reactions') {
+        res.insert = vi.fn().mockImplementation((payload: any) => {
+          insertedPayload = payload
+          return Promise.resolve({ error: null })
+        })
+      }
+      return res
+    })
+
+    const res = await room.toggleReaction(msg.id, '👍')
+    expect(res.error).toBeNull()
+    expect(insertedPayload).toBeDefined()
+    expect(insertedPayload.conversation_id).toBeDefined()
+    expect(insertedPayload.channel_id).toBeUndefined()
+  })
+
   it('initializeChat queries recent unread messages using conversation_id without channel_id', async () => {
     mockConversationsDb.push({
       id: 'conv-test-1',
