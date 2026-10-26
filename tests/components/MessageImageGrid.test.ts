@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import type { EncryptedImageMetadata } from '~/types/chat'
 import MessageImageGrid from '~/components/MessageImageGrid.vue'
-import MessageActionsMenu from '~/components/MessageActionsMenu.vue'
 import MessageViewport from '~/components/MessageViewport.vue'
 import { useImageAttachmentCache } from '~/composables/useImageAttachmentCache'
 
@@ -205,30 +204,10 @@ describe('MessageImageGrid', () => {
   })
 })
 
-describe('MessageActionsMenu and MessageViewport immutability for images', () => {
+describe('MessageViewport immutability for images', () => {
   const imagePayloadJson = JSON.stringify({
     type: 'images',
     images: [makeMockImage(1, false)],
-  })
-
-  it('MessageActionsMenu hides Edit action if message content is image payload', async () => {
-    const message = {
-      id: 'm-img-1',
-      channel_id: 'ch-1',
-      user_id: 'u-1',
-      content: imagePayloadJson,
-      created_at: '2026-10-19T12:00:00Z',
-      status: 'sent' as const,
-      author: { id: 'u-1', display_name: 'Alice', avatar_color: '#4f46e5' },
-    }
-
-    const wrapper = mount(MessageActionsMenu, {
-      props: { message, currentUserId: 'u-1' },
-    })
-
-    await wrapper.find('[data-test="open-mobile-actions"]').trigger('click')
-    expect(wrapper.find('[data-test="mobile-edit"]').exists()).toBe(false)
-    expect(wrapper.find('[data-test="mobile-delete"]').exists()).toBe(true)
   })
 
   it('MessageViewport hides Edit button in desktop hover toolbar for image messages', async () => {

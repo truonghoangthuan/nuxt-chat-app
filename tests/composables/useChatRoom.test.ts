@@ -13,8 +13,6 @@ import {
   computeChannelReadMap,
   createChannelReadDebouncer,
   subscribeWithPromise,
-  hydrateDmChannelPeers,
-  shouldProcessChannelMessage,
   decryptMessageRow,
   decryptMessageRows,
   useChatRoom,
@@ -434,147 +432,7 @@ describe('useChatRoom realtime message routing & profile caching', () => {
     expect(isDuplicateKeyError(undefined)).toBe(false)
   })
 
-  describe('hydrateDmChannelPeers (Sub-Project 4)', () => {
-    it('filters DM channels accessible to currentUserId and attaches the peer Profile', () => {
-      const profilesCache = new Map<string, Profile>([
-        ['user-1', { id: 'user-1', display_name: 'Alice', avatar_color: '#0284c7' }],
-        ['user-2', { id: 'user-2', display_name: 'Bob', avatar_color: '#7c3aed' }],
-        ['user-3', { id: 'user-3', display_name: 'Charlie', avatar_color: '#059669' }],
-      ])
-
-      const channels = [
-        {
-          id: 'ch-general',
-          slug: 'general',
-          description: 'General',
-          created_by: null,
-          created_at: '2026-10-19T00:00:00Z',
-          is_dm: false,
-        },
-        {
-          id: 'dm-1-2',
-          slug: 'dm:user-1:user-2',
-          description: null,
-          created_by: 'user-1',
-          created_at: '2026-10-19T00:01:00Z',
-          is_dm: true,
-          dm_user_a: 'user-1',
-          dm_user_b: 'user-2',
-        },
-        {
-          id: 'dm-2-3',
-          slug: 'dm:user-2:user-3',
-          description: null,
-          created_by: 'user-2',
-          created_at: '2026-10-19T00:02:00Z',
-          is_dm: true,
-          dm_user_a: 'user-2',
-          dm_user_b: 'user-3',
-        },
-      ]
-
-      const hydratedForAlice = hydrateDmChannelPeers({
-        channels,
-        currentUserId: 'user-1',
-        profilesCache,
-      })
-
-      expect(hydratedForAlice).toHaveLength(1)
-      expect(hydratedForAlice[0]!.id).toBe('dm-1-2')
-      expect(hydratedForAlice[0]!.peer?.display_name).toBe('Bob')
-    })
-
-    it('hydrates peer correctly when current user is dm_user_b or falls back to fallbackProfiles', () => {
-      const emptyCache = new Map<string, Profile>()
-      const fallbackProfiles: Profile[] = [
-        { id: 'user-1', display_name: 'Alice', avatar_color: '#0284c7' },
-      ]
-
-      const channels = [
-        {
-          id: 'dm-1-2',
-          slug: 'dm:user-1:user-2',
-          description: null,
-          created_by: 'user-1',
-          created_at: '2026-10-19T00:01:00Z',
-          is_dm: true,
-          dm_user_a: 'user-1',
-          dm_user_b: 'user-2',
-        },
-      ]
-
-      const hydratedForBob = hydrateDmChannelPeers({
-        channels,
-        currentUserId: 'user-2',
-        profilesCache: emptyCache,
-        fallbackProfiles,
-      })
-
-      expect(hydratedForBob).toHaveLength(1)
-      expect(hydratedForBob[0]!.peer?.display_name).toBe('Alice')
-    })
-
-    it('returns empty array when currentUserId is missing and sets peer to null when unresolvable', () => {
-      const channels = [
-        {
-          id: 'dm-1-2',
-          slug: 'dm:user-1:user-2',
-          description: null,
-          created_by: 'user-1',
-          created_at: '2026-10-19T00:01:00Z',
-          is_dm: true,
-          dm_user_a: 'user-1',
-          dm_user_b: 'user-2',
-        },
-      ]
-
-      expect(hydrateDmChannelPeers({ channels, currentUserId: null, profilesCache: new Map() })).toEqual([])
-
-      const unresolvable = hydrateDmChannelPeers({
-        channels,
-        currentUserId: 'user-1',
-        profilesCache: new Map(),
-      })
-      expect(unresolvable).toHaveLength(1)
-      expect(unresolvable[0]!.peer).toBeNull()
-    })
-
-    it('shouldProcessChannelMessage returns false for null/undefined channel or unauthorized DM', () => {
-      expect(shouldProcessChannelMessage(undefined, 'u-1')).toBe(false)
-      expect(shouldProcessChannelMessage(null, 'u-1')).toBe(false)
-
-      const unauthorizedDm = {
-        id: 'dm-1',
-        is_dm: true,
-        dm_user_a: 'u-2',
-        dm_user_b: 'u-3',
-      } as any
-      expect(shouldProcessChannelMessage(unauthorizedDm, 'u-1')).toBe(false)
-
-      const authorizedDmA = {
-        id: 'dm-2',
-        is_dm: true,
-        dm_user_a: 'u-1',
-        dm_user_b: 'u-2',
-      } as any
-      expect(shouldProcessChannelMessage(authorizedDmA, 'u-1')).toBe(true)
-
-      const authorizedDmB = {
-        id: 'dm-3',
-        is_dm: true,
-        dm_user_a: 'u-2',
-        dm_user_b: 'u-1',
-      } as any
-      expect(shouldProcessChannelMessage(authorizedDmB, 'u-1')).toBe(true)
-
-      const publicChannel = {
-        id: 'c-1',
-        is_dm: false,
-      } as any
-      expect(shouldProcessChannelMessage(publicChannel, 'u-1')).toBe(true)
-    })
-
-    it('decrements unreadCounts and unreadMentions when an unread message in an inactive channel is soft-deleted', () => {
+  it('decrements unreadCounts and unreadMentions when an unread message in an inactive channel is soft-deleted', () => {
       const store = createMessagesStore()
       const unreadCounts: Record<string, number> = { 'ch-inactive': 2 }
       const unreadMentions: Record<string, number> = { 'ch-inactive': 1 }
@@ -787,40 +645,6 @@ describe('useChatRoom realtime message routing & profile caching', () => {
       })
       expect(unreadCounts['ch-inactive']).toBe(1)
     })
-
-    it('profilesCache is reactive and updates hydrateDmChannelPeers when peer profile is cached', () => {
-      const cache = shallowReactive(new Map<string, Profile>())
-      const channels = [
-        {
-          id: 'dm-1',
-          name: 'dm-u1-u2',
-          slug: 'dm-u1-u2',
-          is_dm: true,
-          dm_user_a: 'u-alice',
-          dm_user_b: 'u-bob',
-        },
-      ]
-
-      const dmChannels = computed(() => {
-        return hydrateDmChannelPeers({
-          channels,
-          currentUserId: 'u-alice',
-          profilesCache: cache,
-          fallbackProfiles: [],
-        })
-      })
-
-      expect(dmChannels.value[0].peer).toBe(null)
-
-      cache.set('u-bob', {
-        id: 'u-bob',
-        display_name: 'Bob Ross',
-        avatar_color: '#10b981',
-      })
-
-      expect(dmChannels.value[0].peer?.display_name).toBe('Bob Ross')
-    })
-  })
 
   describe('E2EE message row decryption and mention handling', () => {
     it('decryptMessageRow classifies e2ee, legacy, and undecryptable rows (including AAD mismatch and reply_to)', async () => {
@@ -2133,6 +1957,26 @@ describe('useChatRoom contacts and conversations', () => {
 
     const updated = room.conversations.value.find(c => c.id === group.id)
     expect(updated?.background_url).toBeNull()
+  })
+
+  it('selectConversation does not fire a redundant second messages query when the primary query fails', async () => {
+    const selectSpy = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        order: vi.fn().mockReturnValue({
+          order: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue({ data: null, error: { message: 'Network timeout' } }),
+          }),
+        }),
+      }),
+    })
+    mockSupabase.from = vi.fn((table: string) => {
+      if (table === 'messages') return { select: selectSpy }
+      return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) }
+    })
+
+    const room = useChatRoom()
+    await room.selectConversation('conv-1')
+    expect(selectSpy).toHaveBeenCalledTimes(1)
   })
 
   it('discards stale loadOlderMessages and fetchGapMessages results when activeConversationId changes in flight', async () => {

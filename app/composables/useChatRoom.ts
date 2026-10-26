@@ -19,14 +19,9 @@ import type {
   LocalImageAttachment,
 } from '~/types/chat'
 import {
-  normalizeChannelSlug,
-  isValidChannelSlug,
   isValidMessageContent,
   isValidReactionEmoji,
   doesMessageMentionUser,
-  normalizeDmPair,
-  getDmPeerId,
-  canUserAccessChannel,
   isValidEmail,
   getDirectPeer,
   formatConversationTitle,
@@ -495,38 +490,6 @@ export function filterOnlineFriends(
   return onlineUsers.filter(u => friendIds.has(u.id))
 }
 
-export function hydrateDmChannelPeers(params: {
-  channels: Channel[]
-  currentUserId?: string | null
-  profilesCache: Map<string, Profile>
-  fallbackProfiles?: Profile[]
-}): Channel[] {
-  if (!params.currentUserId) return []
-  return params.channels
-    .filter(ch => Boolean(ch.is_dm) && canUserAccessChannel(ch, params.currentUserId))
-    .map((ch) => {
-      const peerId = getDmPeerId(ch, params.currentUserId)
-      const peer = peerId
-        ? params.profilesCache.get(peerId)
-          || params.fallbackProfiles?.find(p => p.id === peerId)
-          || ch.peer
-          || null
-        : null
-      return {
-        ...ch,
-        peer,
-      }
-    })
-}
-
-export function shouldProcessChannelMessage(
-  channel: Channel | undefined | null,
-  currentUserId?: string | null,
-): boolean {
-  if (!channel) return false
-  return canUserAccessChannel(channel, currentUserId)
-}
-
 export function useChatRoom() {
   const supabase = useSupabaseClient()
   const authProfile = useAuthProfile()
@@ -550,22 +513,13 @@ export function useChatRoom() {
     const current = authProfile.currentProfile.value
     if (!current?.id) return
     try {
-      const { error } = await supabase
+      await supabase
         .from('conversation_reads')
         .upsert({
           user_id: current.id,
           conversation_id: convId,
           last_read_at: timestamp,
         })
-      if (error) {
-        await supabase
-          .from('channel_reads')
-          .upsert({
-            user_id: current.id,
-            channel_id: convId,
-            last_read_at: timestamp,
-          })
-      }
     } catch {
       // Ignore read upsert error
     }
@@ -684,12 +638,6 @@ export function useChatRoom() {
           }
         }
         conversationReadsByConv.value = readsMap
-      } else {
-        const { data: chReadRows } = await supabase
-          .from('channel_reads')
-          .select('*')
-          .eq('user_id', current.id)
-        readRows = chReadRows
       }
 
       const UNREAD_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000
@@ -719,23 +667,7 @@ export function useChatRoom() {
         query = query.limit(1000)
       }
 
-      let { data: recentMessages, error: msgErr } = await query
-
-      if (msgErr && (msgErr.code === '42703' || msgErr.message?.includes('conversation_id'))) {
-        let fallbackQuery: any = supabase
-          .from('messages')
-          .select('id, channel_id, user_id, content, created_at, deleted_at, reply_to_id')
-          .gt('created_at', oldestRead)
-        if (convIds.length > 0 && typeof fallbackQuery.in === 'function') {
-          fallbackQuery = fallbackQuery.in('channel_id', convIds)
-        }
-        fallbackQuery = fallbackQuery.order('created_at', { ascending: true })
-        if (typeof fallbackQuery.limit === 'function') {
-          fallbackQuery = fallbackQuery.limit(1000)
-        }
-        const { data: fallbackMessages } = await fallbackQuery
-        recentMessages = fallbackMessages
-      }
+      let { data: recentMessages } = await query
 
       if (recentMessages) {
         const decryptedRecent = await decryptMessageRows(recentMessages as any, e2ee.key.value)
@@ -1102,21 +1034,6 @@ export function useChatRoom() {
       }
 
       let { data, error } = await query
-      if (error) {
-        let fallbackQuery = supabase
-          .from('messages')
-          .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
-          .eq('channel_id', convId)
-
-        if (lastTimestamp) {
-          fallbackQuery = fallbackQuery.gt('created_at', lastTimestamp).order('created_at', { ascending: true })
-        } else {
-          fallbackQuery = fallbackQuery.order('created_at', { ascending: true }).limit(PAGE_SIZE)
-        }
-        const res = await fallbackQuery
-        data = res.data
-        error = res.error
-      }
 
       if (activeConversationId.value !== convId) return
 
@@ -1580,18 +1497,6 @@ export function useChatRoom() {
         .order('id', { ascending: false })
         .limit(PAGE_SIZE)
 
-      if (error) {
-        const fallback = await supabase
-          .from('messages')
-          .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
-          .eq('channel_id', conversationId)
-          .order('created_at', { ascending: false })
-          .order('id', { ascending: false })
-          .limit(PAGE_SIZE)
-        data = fallback.data
-        error = fallback.error
-      }
-
       // Guard against race condition if user switched conversations while query was in flight
       if (activeConversationId.value !== conversationId) {
         return
@@ -1645,18 +1550,6 @@ export function useChatRoom() {
         .limit(PAGE_SIZE)
 
       let { data, error } = await query
-      if (error) {
-        const fallback = await supabase
-          .from('messages')
-          .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
-          .eq('channel_id', convId)
-          .or(`created_at.lt."${cursor.created_at}",and(created_at.eq."${cursor.created_at}",id.lt."${cursor.id}")`)
-          .order('created_at', { ascending: false })
-          .order('id', { ascending: false })
-          .limit(PAGE_SIZE)
-        data = fallback.data
-        error = fallback.error
-      }
 
       if (activeConversationId.value !== convId) {
         return 0
@@ -2268,23 +2161,6 @@ export function useChatRoom() {
         .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
         .single()
 
-      if (error && (error.message?.includes('conversation_id') || error.code === '42703')) {
-        // Fallback for legacy schema with channel_id
-        const fallbackRes = await supabase
-          .from('messages')
-          .insert({
-            client_id: clientId,
-            channel_id: conversationId,
-            user_id: current.id,
-            content: encryptedContent,
-            reply_to_id: replyToId || null,
-          })
-          .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
-          .single()
-        data = fallbackRes.data
-        error = fallbackRes.error
-      }
-
       if (error) {
         if (isDuplicateKeyError(error)) {
           const { data: existing } = await supabase
@@ -2483,21 +2359,6 @@ export function useChatRoom() {
         .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
         .single()
 
-      if (error && (error.message?.includes('conversation_id') || error.code === '42703')) {
-        const fallbackRes = await supabase
-          .from('messages')
-          .insert({
-            client_id: clientId,
-            channel_id: conversationId,
-            user_id: current.id,
-            content: encryptedEnvelope,
-          })
-          .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
-          .single()
-        data = fallbackRes.data
-        error = fallbackRes.error
-      }
-
       if (error) {
         if (isDuplicateKeyError(error)) {
           const { data: existing } = await supabase
@@ -2575,22 +2436,6 @@ export function useChatRoom() {
         })
         .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
         .single()
-
-      if (error && (error.message?.includes('conversation_id') || error.code === '42703')) {
-        const fallbackRes = await supabase
-          .from('messages')
-          .insert({
-            client_id: clientId,
-            channel_id: conversationId,
-            user_id: retrying.user_id,
-            content: encryptedContent,
-            reply_to_id: retrying.reply_to_id || null,
-          })
-          .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
-          .single()
-        data = fallbackRes.data
-        error = fallbackRes.error
-      }
 
       if (error) {
         if (isDuplicateKeyError(error)) {
