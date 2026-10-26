@@ -260,7 +260,8 @@ export function stepConfettiParticles(
 ): ConfettiParticle[] {
   const safeW = width > 0 ? width : 1280
   const safeH = height > 0 ? height : 800
-  const active: ConfettiParticle[] = []
+  let writeIdx = 0
+  const isDtOne = Math.abs(dtScale - 1) < 0.001
 
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i]
@@ -285,13 +286,13 @@ export function stepConfettiParticles(
         p.ticks < p.maxTicks &&
         ((p.vx > 0 && p.x <= safeW + 80) || (p.vx < 0 && p.x >= -80))
       ) {
-        active.push(p)
+        particles[writeIdx++] = p
       }
       continue
     }
 
     // Drag damping & gravity
-    const dragFactor = Math.pow(p.drag, dtScale)
+    const dragFactor = isDtOne ? p.drag : Math.pow(p.drag, dtScale)
     p.vx *= dragFactor
     p.vy = p.vy * dragFactor + p.gravity * dtScale
 
@@ -313,67 +314,138 @@ export function stepConfettiParticles(
 
     // Cull dead particles
     if (p.opacity > 0.01 && p.y <= safeH + 40 && p.x >= -120 && p.x <= safeW + 120) {
-      active.push(p)
+      particles[writeIdx++] = p
     }
   }
 
-  return active
+  particles.length = writeIdx
+  return particles
 }
 
 const BASE_EMOJI_FONT_SIZE = 32
 const EMOJI_FONT = "32px 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif"
 
+const emojiSpriteCache = new Map<string, HTMLCanvasElement | null>()
+
+function getEmojiSprite(emoji: string): HTMLCanvasElement | null {
+  if (typeof document === 'undefined') return null
+  const cached = emojiSpriteCache.get(emoji)
+  if (cached !== undefined) return cached
+
+  try {
+    const spriteCanvas = document.createElement('canvas')
+    spriteCanvas.width = 64
+    spriteCanvas.height = 64
+    const sCtx = spriteCanvas.getContext('2d')
+    if (!sCtx) {
+      emojiSpriteCache.set(emoji, null)
+      return null
+    }
+    sCtx.font = EMOJI_FONT
+    sCtx.textAlign = 'center'
+    sCtx.textBaseline = 'middle'
+    sCtx.fillText(emoji, 32, 32)
+    emojiSpriteCache.set(emoji, spriteCanvas)
+    return spriteCanvas
+  } catch {
+    emojiSpriteCache.set(emoji, null)
+    return null
+  }
+}
+
 export function drawConfettiParticles(
   ctx: CanvasRenderingContext2D,
   particles: ConfettiParticle[],
+  dpr = 1,
 ): void {
-  let fontConfigured = false
+  if (particles.length === 0) return
+
+  const hasSetTransform = typeof ctx.setTransform === 'function'
+
+  // Pre-configure font & baseline once to avoid font-parser thrashing
+  ctx.font = EMOJI_FONT
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+
+  if (hasSetTransform) {
+    ctx.save()
+  }
+
+  let lastFillStyle = ''
+  let lastAlpha = -1
 
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i]
-    ctx.save()
-    ctx.translate(p.x, p.y)
-    ctx.rotate(p.rotation)
-    ctx.globalAlpha = p.opacity
+    let scaleX = 1
+    let scaleY = 1
 
     if (p.shape === 'emoji') {
-      if (!fontConfigured) {
-        ctx.font = EMOJI_FONT
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        fontConfigured = true
-      }
       const scale = p.size / BASE_EMOJI_FONT_SIZE
-      const scaleX = (p.effect === 'pets' && p.vx > 0) ? -scale : scale
-      ctx.scale(scaleX, scale)
-      ctx.fillText(p.emoji || '🎉', 0, 0)
-      ctx.restore()
+      scaleX = (p.effect === 'pets' && p.vx > 0) ? -scale : scale
+      scaleY = scale
+    } else if (p.shape === 'confetti' || p.shape === 'rect' || p.shape === 'circle' || p.shape === 'strip') {
+      scaleX = Math.cos(p.tiltAngle)
+      scaleY = Math.abs(Math.sin(p.tiltAngle * 0.8)) || 0.35
+    }
+
+    if (hasSetTransform) {
+      const cos = Math.cos(p.rotation)
+      const sin = Math.sin(p.rotation)
+      ctx.setTransform(
+        cos * scaleX * dpr,
+        sin * scaleX * dpr,
+        -sin * scaleY * dpr,
+        cos * scaleY * dpr,
+        p.x * dpr,
+        p.y * dpr,
+      )
+    } else {
+      ctx.save()
+      ctx.translate(p.x, p.y)
+      ctx.rotate(p.rotation)
+      ctx.scale(scaleX, scaleY)
+    }
+
+    if (lastAlpha !== p.opacity) {
+      ctx.globalAlpha = p.opacity
+      lastAlpha = p.opacity
+    }
+
+    if (p.shape === 'emoji') {
+      const sprite = getEmojiSprite(p.emoji || '🎉')
+      if (sprite && typeof ctx.drawImage === 'function') {
+        const half = BASE_EMOJI_FONT_SIZE / 2
+        ctx.drawImage(sprite, -half, -half, BASE_EMOJI_FONT_SIZE, BASE_EMOJI_FONT_SIZE)
+      } else {
+        ctx.fillText(p.emoji || '🎉', 0, 0)
+      }
+      if (!hasSetTransform) ctx.restore()
       continue
     }
 
     if (p.shape === 'droplet') {
-      // Fast circular water droplet with specular highlight
       const r = p.size / 2
-      ctx.fillStyle = p.color
+      if (lastFillStyle !== p.color) {
+        ctx.fillStyle = p.color
+        lastFillStyle = p.color
+      }
       ctx.beginPath()
       ctx.arc(0, 0, r * 0.7, 0, Math.PI * 2)
       ctx.fill()
 
-      // Specular highlight
       ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
+      lastFillStyle = 'rgba(255, 255, 255, 0.7)'
       ctx.beginPath()
       ctx.arc(-r * 0.22, -r * 0.22, r * 0.25, 0, Math.PI * 2)
       ctx.fill()
-      ctx.restore()
+      if (!hasSetTransform) ctx.restore()
       continue
     }
 
-    // 3D paper flip transformation for confetti
-    const scaleX = Math.cos(p.tiltAngle)
-    const scaleY = Math.abs(Math.sin(p.tiltAngle * 0.8)) || 0.35
-    ctx.scale(scaleX, scaleY)
-
-    ctx.fillStyle = p.color
+    if (lastFillStyle !== p.color) {
+      ctx.fillStyle = p.color
+      lastFillStyle = p.color
+    }
 
     if (p.shape === 'circle') {
       ctx.beginPath()
@@ -385,6 +457,12 @@ export function drawConfettiParticles(
       ctx.fillRect(-w / 2, -h / 2, w, h)
     }
 
+    if (!hasSetTransform) {
+      ctx.restore()
+    }
+  }
+
+  if (hasSetTransform) {
     ctx.restore()
   }
 }

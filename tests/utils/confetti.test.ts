@@ -132,4 +132,33 @@ describe('Raycast confetti physics (app/utils/confetti.ts)', () => {
     expect(mockCtx.save).toHaveBeenCalled()
     expect(mockCtx.restore).toHaveBeenCalled()
   })
+
+  it('batches canvas state into a single save/restore pair per frame when setTransform is supported', () => {
+    const mockCtx = {
+      save: vi.fn(),
+      restore: vi.fn(),
+      setTransform: vi.fn(),
+      translate: vi.fn(),
+      rotate: vi.fn(),
+      scale: vi.fn(),
+      beginPath: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn(),
+      fillRect: vi.fn(),
+      fillText: vi.fn(),
+      drawImage: vi.fn(),
+      globalAlpha: 1,
+      fillStyle: '',
+      font: '',
+      textAlign: '',
+      textBaseline: '',
+    } as unknown as CanvasRenderingContext2D
+
+    const sampleParticles = createRaycastConfettiBurst(1200, 800, 10, 'confetti')
+    drawConfettiParticles(mockCtx, sampleParticles)
+
+    expect(mockCtx.save).toHaveBeenCalledTimes(1)
+    expect(mockCtx.restore).toHaveBeenCalledTimes(1)
+    expect(mockCtx.setTransform).toHaveBeenCalledTimes(sampleParticles.length)
+  })
 })

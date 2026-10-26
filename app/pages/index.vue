@@ -351,8 +351,14 @@ watch(
 )
 
 watch(
-  () => messages.value,
-  (newMessages) => {
+  () => {
+    const len = messages.value.length
+    if (len === 0) return ''
+    const newest = messages.value[len - 1]
+    return `${len}:${newest.client_id || newest.id}`
+  },
+  () => {
+    const newMessages = messages.value
     if (!newMessages || newMessages.length === 0) {
       prevConfettiMessageId = null
       return
@@ -373,7 +379,7 @@ watch(
       }
     }
   },
-  { deep: true, flush: 'sync' },
+  { flush: 'sync' },
 )
 
 async function handleSaveProfile(payload: {
