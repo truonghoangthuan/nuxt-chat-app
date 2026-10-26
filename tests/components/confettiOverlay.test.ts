@@ -131,4 +131,29 @@ describe('ConfettiOverlay (app/components/ConfettiOverlay.vue)', () => {
       'pets',
     )
   })
+
+  it('caps canvas devicePixelRatio at 1.25 on HiDPI displays to prevent fill-rate lag', async () => {
+    const origDpr = window.devicePixelRatio
+    const origInnerW = window.innerWidth
+    const origInnerH = window.innerHeight
+    Object.defineProperty(window, 'devicePixelRatio', { value: 3, configurable: true })
+    Object.defineProperty(window, 'innerWidth', { value: 1000, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true })
+
+    const wrapper = mount(ConfettiOverlay, {
+      props: {
+        active: true,
+        burstKey: 1,
+      },
+    })
+    await wrapper.vm.$nextTick()
+
+    const canvas = wrapper.find('[data-test="confetti-canvas"]').element as HTMLCanvasElement
+    expect(canvas.width).toBeLessThanOrEqual(1250)
+    expect(canvas.height).toBeLessThanOrEqual(1000)
+
+    Object.defineProperty(window, 'devicePixelRatio', { value: origDpr, configurable: true })
+    Object.defineProperty(window, 'innerWidth', { value: origInnerW, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: origInnerH, configurable: true })
+  })
 })

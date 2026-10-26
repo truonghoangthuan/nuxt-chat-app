@@ -55,10 +55,20 @@ let cachedHeight = 800
 let cachedDpr = 1
 
 function updateCanvasSize(canvas: HTMLCanvasElement): { width: number; height: number; dpr: number } {
-  const rect = canvas.getBoundingClientRect()
-  cachedWidth = rect.width || window?.innerWidth || 1280
-  cachedHeight = rect.height || window?.innerHeight || 800
-  cachedDpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+  const winW = typeof window !== 'undefined' ? window.innerWidth : 0
+  const winH = typeof window !== 'undefined' ? window.innerHeight : 0
+
+  if (winW > 0 && winH > 0) {
+    cachedWidth = winW
+    cachedHeight = winH
+  } else {
+    const rect = canvas.getBoundingClientRect()
+    cachedWidth = rect.width || 1280
+    cachedHeight = rect.height || 800
+  }
+
+  // Cap DPR at 1.25 to prevent fill-rate saturation on HiDPI displays
+  cachedDpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 1.25) : 1
 
   const targetW = Math.round(cachedWidth * cachedDpr)
   const targetH = Math.round(cachedHeight * cachedDpr)
@@ -96,12 +106,16 @@ function spawnBurst() {
   }
 
   const chosenEffect = props.effect || pickRandomCelebrationEffect()
-  const newWave = createRaycastConfettiBurst(width, height, undefined, chosenEffect)
+  const rawWave = createRaycastConfettiBurst(width, height, undefined, chosenEffect)
+  // Downsample waves with > 80 particles symmetrically to balance left and right cannons
+  const newWave = rawWave.length > 80
+    ? rawWave.filter((_, idx) => idx % 2 === 0)
+    : rawWave
   particles.push(...newWave)
 
-  // Cap particles to prevent frame drops on rapid typing
-  if (particles.length > 140) {
-    particles = particles.slice(-140)
+  // Cap particles to prevent frame drops on rapid bursts
+  if (particles.length > 80) {
+    particles = particles.slice(-80)
   }
 
   // Reset safety timer on every burst wave
@@ -139,12 +153,16 @@ function startLoop() {
     const dtScale = dtMs / (1000 / 60)
 
     // Render using cached dimensions - zero forced layout reflow during animation loop
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    if (typeof ctx.setTransform === 'function') {
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+    }
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.scale(cachedDpr, cachedDpr)
+    if (typeof ctx.setTransform !== 'function') {
+      ctx.scale(cachedDpr, cachedDpr)
+    }
 
     particles = stepConfettiParticles(particles, cachedWidth, cachedHeight, dtScale)
-    drawConfettiParticles(ctx, particles)
+    drawConfettiParticles(ctx, particles, cachedDpr)
 
     if (particles.length > 0) {
       animationFrameId = window.requestAnimationFrame(frame)
@@ -200,7 +218,7 @@ onBeforeUnmount(() => {
   <div
     v-if="active"
     data-test="confetti-overlay"
-    class="pointer-events-none fixed inset-0 z-50 overflow-hidden select-none"
+    class="pointer-events-none fixed inset-0 z-50 overflow-hidden select-none will-change-transform"
     aria-hidden="true"
   >
     <canvas
