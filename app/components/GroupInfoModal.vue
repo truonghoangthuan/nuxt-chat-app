@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
-import { Pencil, Check, X, Image as ImageIcon } from '@lucide/vue'
+import { Pencil, Check, X, Image as ImageIcon, Sparkles } from '@lucide/vue'
 import type { Conversation, Profile } from '~/types/chat'
 import { isValidEmail } from '~/utils/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
@@ -26,6 +26,7 @@ const emit = defineEmits<{
   (e: 'updateTitle', newTitle: string): void
   (e: 'viewProfile', profile: Profile): void
   (e: 'openBackground'): void
+  (e: 'openConfettiDictionary'): void
 }>()
 
 const newMemberEmail = ref('')
@@ -236,6 +237,22 @@ function handleClose() {
             Chat Wallpaper & Aesthetic
           </span>
           <span class="text-[11px] text-white/40">Customize →</span>
+        </button>
+
+        <!-- Confetti Dictionary Button -->
+        <button
+          type="button"
+          data-test="group-confetti-dictionary-btn"
+          class="w-full flex items-center justify-between p-3 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 text-white/90 text-xs font-semibold transition cursor-pointer"
+          @click="emit('openConfettiDictionary')"
+        >
+          <span class="flex items-center gap-2">
+            <Sparkles class="w-4 h-4 text-amber-400" />
+            Confetti Dictionary
+          </span>
+          <span class="text-[11px] text-white/40">
+            {{ (conversation.confetti_words?.length || 0) }} words →
+          </span>
         </button>
 
         <!-- Add Member Form -->

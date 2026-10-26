@@ -21,8 +21,9 @@ import NotificationPermissionBanner from '~/components/NotificationPermissionBan
 import UserAvatar from '~/components/UserAvatar.vue'
 import MessageSearchBar from '~/components/MessageSearchBar.vue'
 import ChatBackgroundModal from '~/components/ChatBackgroundModal.vue'
+import ConfettiDictionaryModal from '~/components/ConfettiDictionaryModal.vue'
 import ConfettiOverlay from '~/components/ConfettiOverlay.vue'
-import { Menu, Users, Info, Search, Image as ImageIcon, MessageSquare, Link2, Settings, Sun, Moon, Plus } from '@lucide/vue'
+import { Menu, Users, Info, Search, Image as ImageIcon, MessageSquare, Link2, Settings, Sun, Moon, Plus, Sparkles } from '@lucide/vue'
 import { useE2ee } from '~/composables/useE2ee'
 import { usePwaInstall } from '~/composables/usePwaInstall'
 import {
@@ -31,7 +32,8 @@ import {
   isSystemPayload,
   parseSystemPayload,
 } from '~/utils/chat'
-import { getConfettiEnabled, setConfettiEnabled } from '~/utils/confetti'
+import { getConfettiEnabled, setConfettiEnabled, matchesConfettiDictionary } from '~/utils/confetti'
+import { isImagePayload, parseImagePayload } from '~/utils/image'
 import { playBuzzSound } from '~/utils/sound'
 
 const {
@@ -49,6 +51,9 @@ const {
   updateGroupTitle,
   updateChatBackground,
   removeChatBackground,
+  updateConfettiWords,
+  addConfettiWord,
+  removeConfettiWord,
   selectConversation,
 
   // Transitional aliases for channels and legacy components
@@ -121,6 +126,7 @@ const isContactsModalOpen = ref(false)
 const isCreateGroupModalOpen = ref(false)
 const isGroupInfoModalOpen = ref(false)
 const isChatBackgroundModalOpen = ref(false)
+const isConfettiDictionaryModalOpen = ref(false)
 const isProfileSettingsModalOpen = ref(false)
 const isUserProfileModalOpen = ref(false)
 const selectedUserProfile = ref<Profile | null>(null)
@@ -343,6 +349,30 @@ async function handleResetBackground() {
   }
 }
 
+async function handleAddConfettiWord(word: string) {
+  if (!activeConversationId.value) return
+  const res = await addConfettiWord(activeConversationId.value, word)
+  if (res?.error && addNotificationToast) {
+    addNotificationToast({
+      conversationId: activeConversationId.value,
+      title: 'Failed to update confetti dictionary',
+      snippet: res.error,
+    })
+  }
+}
+
+async function handleRemoveConfettiWord(word: string) {
+  if (!activeConversationId.value) return
+  const res = await removeConfettiWord(activeConversationId.value, word)
+  if (res?.error && addNotificationToast) {
+    addNotificationToast({
+      conversationId: activeConversationId.value,
+      title: 'Failed to update confetti dictionary',
+      snippet: res.error,
+    })
+  }
+}
+
 async function handleLogout() {
   clearE2eeSession()
   await signOut()
@@ -353,14 +383,18 @@ async function handleSendMessage(content: string) {
   const replyId = replyingTo.value?.id || null
   replyingTo.value = null
   isMobileSidebarOpen.value = false
-  triggerConfetti()
+  if (matchesConfettiDictionary(content, activeConversation.value?.confetti_words)) {
+    triggerConfetti()
+  }
   await sendMessage(content, replyId)
 }
 
 async function handleSendImages(files: File[], caption?: string) {
   replyingTo.value = null
   isMobileSidebarOpen.value = false
-  triggerConfetti()
+  if (matchesConfettiDictionary(caption, activeConversation.value?.confetti_words)) {
+    triggerConfetti()
+  }
   await sendImages(files, caption)
 }
 
@@ -418,8 +452,12 @@ watch(
           triggerBuzzShake()
         }
       } else if (newest.user_id !== currentProfile.value?.id && !newest.deleted_at && newest.encryption !== 'undecryptable') {
-        // Outgoing messages already celebrate in the send handlers.
-        triggerConfetti()
+        const msgText = isImagePayload(newest.content)
+          ? parseImagePayload(newest.content)?.caption
+          : newest.content
+        if (matchesConfettiDictionary(msgText, activeConversation.value?.confetti_words)) {
+          triggerConfetti()
+        }
       }
     }
   },
@@ -732,6 +770,19 @@ onUnmounted(() => {
               <ImageIcon class="w-4 h-4 text-blue-500 dark:text-blue-400" />
             </button>
 
+            <!-- Confetti Dictionary Trigger -->
+            <button
+              v-if="activeConversation || activeChannel"
+              type="button"
+              data-test="open-confetti-dictionary-btn"
+              title="Confetti trigger dictionary"
+              class="p-1.5 rounded-full bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition cursor-pointer"
+              aria-label="Confetti trigger dictionary"
+              @click="isConfettiDictionaryModalOpen = true"
+            >
+              <Sparkles class="w-4 h-4 text-amber-500 dark:text-amber-400" />
+            </button>
+
             <!-- Search Bar or Toggle Button -->
             <MessageSearchBar
               v-if="isSearchOpen"
@@ -937,6 +988,7 @@ onUnmounted(() => {
         @update-title="handleUpdateGroupTitle"
         @view-profile="handleViewProfile"
         @open-background="isChatBackgroundModalOpen = true"
+        @open-confetti-dictionary="isConfettiDictionaryModalOpen = true"
       />
 
       <!-- Chat Background Modal -->
@@ -947,6 +999,15 @@ onUnmounted(() => {
         @select-preset="handleSelectBackgroundPreset"
         @upload-file="handleUploadBackgroundFile"
         @reset="handleResetBackground"
+      />
+
+      <!-- Confetti Dictionary Modal -->
+      <ConfettiDictionaryModal
+        :is-open="isConfettiDictionaryModalOpen"
+        :conversation="activeConversation"
+        @close="isConfettiDictionaryModalOpen = false"
+        @add-word="handleAddConfettiWord"
+        @remove-word="handleRemoveConfettiWord"
       />
 
       <!-- Profile Settings Modal -->

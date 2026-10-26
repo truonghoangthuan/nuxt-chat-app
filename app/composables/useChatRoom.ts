@@ -744,6 +744,7 @@ export function useChatRoom() {
             lastMessage: lastMsg,
             unreadCount: unreadCounts.value[c.id] || 0,
             background_url: c.background_url || null,
+            confetti_words: Array.isArray(c.confetti_words) ? c.confetti_words : (existingConv?.confetti_words || []),
           }
         })
         conversations.value = convs
@@ -1344,6 +1345,9 @@ export function useChatRoom() {
     updateGroupName,
     updateChatBackground,
     removeChatBackground,
+    updateConfettiWords,
+    addConfettiWord,
+    removeConfettiWord,
   } = conversationsActions
 
   const createChannel = async (name: string) => createGroup(name, []).then(channel => ({ channel, error: null })).catch((err: any) => ({ channel: null, error: err?.message || 'Failed to create channel.' }))
@@ -2071,6 +2075,9 @@ export function useChatRoom() {
     updateGroupTitle,
     updateChatBackground,
     removeChatBackground,
+    updateConfettiWords,
+    addConfettiWord,
+    removeConfettiWord,
     loadConversations,
 
     // Transitional aliases for channels and legacy components

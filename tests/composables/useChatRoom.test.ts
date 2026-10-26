@@ -1959,6 +1959,41 @@ describe('useChatRoom contacts and conversations', () => {
     expect(updated?.background_url).toBeNull()
   })
 
+  it('updates, adds, and removes confetti dictionary words for a conversation', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Confetti Group', ['u-bob'])
+
+    const addRes = await room.addConfettiWord(group.id, '  hooray, congrats  ')
+    expect(addRes.error).toBeNull()
+
+    let updated = room.conversations.value.find(c => c.id === group.id)
+    expect(updated?.confetti_words).toEqual(['hooray', 'congrats'])
+
+    // Adding duplicate word is a no-op
+    await room.addConfettiWord(group.id, 'CONGRATS')
+    updated = room.conversations.value.find(c => c.id === group.id)
+    expect(updated?.confetti_words).toEqual(['hooray', 'congrats'])
+
+    // Remove single word
+    const remRes = await room.removeConfettiWord(group.id, 'hooray')
+    expect(remRes.error).toBeNull()
+    updated = room.conversations.value.find(c => c.id === group.id)
+    expect(updated?.confetti_words).toEqual(['congrats'])
+  })
+
+  it('rolls back confetti dictionary on update error', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Error Group', ['u-bob'])
+    await room.addConfettiWord(group.id, 'stable')
+
+    mockConversationsUpdateError = { message: 'Database failure' }
+    const res = await room.addConfettiWord(group.id, 'new-word')
+    expect(res.error).toBe('Database failure')
+
+    const updated = room.conversations.value.find(c => c.id === group.id)
+    expect(updated?.confetti_words).toEqual(['stable'])
+  })
+
   it('selectConversation does not fire a redundant second messages query when the primary query fails', async () => {
     const selectSpy = vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
