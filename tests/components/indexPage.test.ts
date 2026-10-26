@@ -331,8 +331,9 @@ describe('IndexPage (app/pages/index.vue)', () => {
     await modal.vm.$emit('updateTitle', 'Fail Group')
 
     expect(mockChatRoomState.addNotificationToast).toHaveBeenCalledWith({
+      conversationId: 'conv-grp-1',
       title: 'Failed to update group name',
-      body: 'Network error',
+      snippet: 'Network error',
     })
   })
 
@@ -703,8 +704,9 @@ describe('IndexPage (app/pages/index.vue)', () => {
 
     expect(mockChatRoomState.addNotificationToast).toHaveBeenCalledWith(
       expect.objectContaining({
+        conversationId: 'conv-group-9',
         title: 'Failed to add member',
-        body: 'User not found',
+        snippet: 'User not found',
       }),
     )
 
@@ -713,8 +715,9 @@ describe('IndexPage (app/pages/index.vue)', () => {
 
     expect(mockChatRoomState.addNotificationToast).toHaveBeenCalledWith(
       expect.objectContaining({
+        conversationId: 'conv-group-9',
         title: 'Failed to leave group',
-        body: 'Cannot leave group',
+        snippet: 'Cannot leave group',
       }),
     )
   })

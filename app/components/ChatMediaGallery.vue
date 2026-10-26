@@ -3,7 +3,6 @@ import { ref, computed, watch } from 'vue'
 import type { ChatMessage, EncryptedImageMetadata, Profile } from '~/types/chat'
 import { extractMediaFromMessages, formatDateDivider } from '~/utils/chat'
 import { useImageAttachmentCache } from '~/composables/useImageAttachmentCache'
-import { useE2ee } from '~/composables/useE2ee'
 import UserAvatar from '~/components/UserAvatar.vue'
 import { Image as ImageIcon } from '@lucide/vue'
 
@@ -38,25 +37,6 @@ const cache = useImageAttachmentCache()
 const mediaItems = computed(() => extractMediaFromMessages(props.messages))
 const allGalleryImages = computed(() => mediaItems.value.map(item => item.image))
 
-function resolveKey(): CryptoKey | null {
-  if (props.e2eeKey !== undefined) return props.e2eeKey
-  try {
-    return useE2ee().key.value
-  } catch {
-    return null
-  }
-}
-
-function resolveSupabase(): any {
-  if (props.supabaseClient !== undefined) return props.supabaseClient
-  try {
-    if (typeof useSupabaseClient !== 'undefined') return useSupabaseClient()
-  } catch {
-    return undefined
-  }
-  return undefined
-}
-
 async function loadImage(image: EncryptedImageMetadata) {
   if (!image?.path) return
   if (image.path.startsWith('blob:')) {
@@ -68,15 +48,13 @@ async function loadImage(image: EncryptedImageMetadata) {
     resolvedUrls.value = { ...resolvedUrls.value, [image.path]: cached }
     return
   }
-  const key = resolveKey()
-  if (!key) return
   try {
     const url = await cache.getOrFetchImage(
       image.path,
       image.mimeType,
       props.channelId || '',
-      key,
-      resolveSupabase(),
+      props.e2eeKey,
+      props.supabaseClient,
     )
     resolvedUrls.value = { ...resolvedUrls.value, [image.path]: url }
   } catch {

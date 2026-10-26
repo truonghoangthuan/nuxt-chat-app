@@ -182,6 +182,10 @@ async function copyCode(code: string, messageId: string) {
 const effectiveConversationId = computed(() => props.conversationId ?? props.channelId ?? null)
 const backgroundStyle = computed(() => resolveChatBackgroundStyle(props.backgroundUrl))
 
+const memberDisplayNames = computed(() =>
+  (props.members || []).map(m => m.display_name).filter(Boolean),
+)
+
 const isGroupComputed = computed(() => {
   if (typeof props.isGroup === 'boolean') return props.isGroup
   return !props.isDm
@@ -509,7 +513,7 @@ onUnmounted(() => {
 
         <!-- System Activity Pill (e.g. buzz, rename, background change) -->
         <div
-          v-if="isSystemPayload(item.message.content)"
+          v-if="item.systemPayload"
           :id="`message-${item.message.id}`"
           :data-message-id="item.message.id"
           :data-test="`system-message-${item.message.id}`"
@@ -518,13 +522,13 @@ onUnmounted(() => {
           <div
             class="px-3.5 py-1 rounded-full text-xs font-medium backdrop-blur-md border shadow-xs inline-flex items-center gap-1.5"
             :class="[
-              parseSystemPayload(item.message.content)?.event === 'buzz'
+              item.systemPayload.event === 'buzz'
                 ? 'bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300 font-semibold'
                 : 'bg-black/5 dark:bg-white/8 border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)]'
             ]"
           >
             <span>
-              {{ formatSystemMessageText(parseSystemPayload(item.message.content)!) }}
+              {{ formatSystemMessageText(item.systemPayload) }}
             </span>
           </div>
         </div>
@@ -613,7 +617,7 @@ onUnmounted(() => {
             </button>
             <template v-if="item.message.user_id === currentUserId">
               <button
-                v-if="item.message.encryption !== 'undecryptable' && !isImagePayload(item.message.content)"
+                v-if="item.message.encryption !== 'undecryptable' && !item.imagePayload"
                 type="button"
                 :data-test="`edit-${item.message.id}`"
                 class="px-2 py-0.5 text-[11px] font-medium text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] rounded-full hover:bg-black/5 dark:hover:bg-white/15 cursor-pointer"
@@ -764,23 +768,23 @@ onUnmounted(() => {
 
               <!-- Image Grid -->
               <div
-                v-else-if="isImagePayload(item.message.content) && parseImagePayload(item.message.content)"
+                v-else-if="item.imagePayload"
                 class="flex flex-col gap-2"
               >
                 <MessageImageGrid
-                  :images="parseImagePayload(item.message.content)!.images"
+                  :images="item.imagePayload.images"
                   :channel-id="effectiveConversationId"
                   :is-sending="item.message.status === 'sending'"
                   @select-image="emit('selectImage', $event)"
                 />
                 <div
-                  v-if="parseImagePayload(item.message.content)?.caption"
+                  v-if="item.imagePayload.caption"
                   data-test="image-caption"
                   class="whitespace-pre-wrap break-words text-[14px]"
                   :class="item.isSender ? 'text-white' : 'text-[var(--ap-text-primary)]'"
                 >
                   <template
-                    v-for="(seg, sIdx) in tokenizeMessageMentions(parseImagePayload(item.message.content)!.caption!, currentDisplayName)"
+                    v-for="(seg, sIdx) in tokenizeMessageMentions(item.imagePayload.caption, currentDisplayName, memberDisplayNames)"
                     :key="sIdx"
                   >
                     <span
@@ -794,7 +798,10 @@ onUnmounted(() => {
                               ? 'bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/35'
                               : 'bg-blue-500/15 text-blue-700 dark:text-blue-200 border border-blue-500/30')
                       ]"
-                    >{{ seg.text }}</span>
+                    >
+                      <span v-if="seg.isMe" data-test="mention-self">{{ seg.text }}</span>
+                      <template v-else>{{ seg.text }}</template>
+                    </span>
                     <a
                       v-else-if="seg.isLink"
                       :href="seg.href"
@@ -855,7 +862,7 @@ onUnmounted(() => {
               <!-- Standard Text Message Content -->
               <div v-else class="whitespace-pre-wrap break-words">
                 <template
-                  v-for="(seg, sIdx) in tokenizeMessageMentions(item.message.content, currentDisplayName)"
+                  v-for="(seg, sIdx) in tokenizeMessageMentions(item.message.content, currentDisplayName, memberDisplayNames)"
                   :key="sIdx"
                 >
                   <span
@@ -869,7 +876,10 @@ onUnmounted(() => {
                             ? 'bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/35'
                             : 'bg-blue-500/15 text-blue-700 dark:text-blue-200 border border-blue-500/30')
                     ]"
-                  >{{ seg.text }}</span>
+                  >
+                    <span v-if="seg.isMe" data-test="mention-self">{{ seg.text }}</span>
+                    <template v-else>{{ seg.text }}</template>
+                  </span>
                   <a
                     v-else-if="seg.isLink"
                     :href="seg.href"

@@ -5,7 +5,6 @@ import ConnectionBanner from '~/components/ConnectionBanner.vue'
 import MessageViewport from '~/components/MessageViewport.vue'
 import ChatSidebar from '~/components/ChatSidebar.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
-import E2eeGate from '~/components/E2eeGate.vue'
 import ChatMediaGallery from '~/components/ChatMediaGallery.vue'
 import ChatLinksList from '~/components/ChatLinksList.vue'
 import { isValidAvatarUrl } from '~/utils/chat'
@@ -1083,38 +1082,6 @@ describe('Chat UI components', () => {
 
       await wrapper.setProps({ notificationsEnabled: false })
       expect(wrapper.find('[data-test="toggle-notifications-btn"]').attributes('title')).toBe('Enable notifications')
-    })
-
-    it('E2eeGate renders locked passphrase form, emits unlock, and shows unconfigured state', async () => {
-      const wrapper = mount(E2eeGate, {
-        props: {
-          status: 'locked',
-          error: 'Incorrect secret phrase.',
-          isUnlocking: false,
-        },
-      })
-
-      expect(wrapper.text()).toContain('Incorrect secret phrase.')
-      const input = wrapper.find('[data-test="e2ee-phrase-input"]')
-      await input.setValue('my shared secret phrase')
-      await wrapper.find('form').trigger('submit')
-      expect(wrapper.emitted('unlock')?.[0]).toEqual(['my shared secret phrase'])
-
-      await wrapper.setProps({ status: 'unconfigured', error: null })
-      expect(wrapper.text()).toContain('Encryption not configured')
-      await wrapper.find('[data-test="e2ee-retry-config"]').trigger('click')
-      expect(wrapper.emitted('retryConfig')).toBeTruthy()
-    })
-
-    it('E2eeGate uses semantic tokens for text, inputs, and card backgrounds', () => {
-      const wrapper = mount(E2eeGate, {
-        props: { status: 'locked', error: null, isUnlocking: false },
-      })
-      const input = wrapper.find('[data-test="e2ee-phrase-input"]')
-      expect(input.classes()).not.toContain('text-white')
-      expect(input.classes()).not.toContain('placeholder-white/40')
-      const heading = wrapper.find('h1')
-      expect(heading.classes().some(c => c.includes('text-[var(--ap-text-primary)]'))).toBe(true)
     })
 
     it('MessageViewport renders legacy badge, undecryptable placeholder, and hides Edit on undecryptable messages', () => {
@@ -2260,6 +2227,35 @@ describe('Chat UI components', () => {
     })
 
     expect(wrapper.text()).toContain('Bob buzzed the chat!')
+  })
+
+  it('MessageViewport highlights multi-word @Display Name mentions using conversation members list', () => {
+    const wrapper = mount(MessageViewport, {
+      props: {
+        messages: [
+          {
+            id: 'm-multi-mention',
+            client_id: 'c-multi',
+            conversation_id: 'conv-1',
+            channel_id: 'conv-1',
+            user_id: 'u-bob',
+            content: 'Hey @Alice Wonderland check this out',
+            created_at: '2026-10-20T10:00:00Z',
+            status: 'sent',
+          },
+        ],
+        members: [
+          { id: 'u-alice', display_name: 'Alice Wonderland', avatar_color: '#0284c7' },
+          { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+        ],
+        currentUserId: 'u-alice',
+        currentDisplayName: 'Alice Wonderland',
+      },
+    })
+    expect(wrapper.text()).toContain('@Alice Wonderland')
+    const mentionSpan = wrapper.find('[data-test="mention-self"]')
+    expect(mentionSpan.exists()).toBe(true)
+    expect(mentionSpan.text()).toBe('@Alice Wonderland')
   })
 })
 

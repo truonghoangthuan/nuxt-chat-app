@@ -10,6 +10,21 @@ import {
 export const E2EE_SESSION_STORAGE_KEY = 'nuxt-chat-e2ee-key'
 export const DEFAULT_E2EE_PHRASE = 'your-secret-passphrase-here'
 
+export function resolveDefaultE2eePhrase(): string {
+  try {
+    if (typeof useRuntimeConfig === 'function') {
+      const runtimeCfg = useRuntimeConfig()
+      const configured = runtimeCfg?.public?.e2eeDefaultPhrase
+      if (typeof configured === 'string' && configured.trim().length > 0) {
+        return configured.trim()
+      }
+    }
+  } catch {
+    // Runtime config unavailable (e.g. pure unit test environment)
+  }
+  return DEFAULT_E2EE_PHRASE
+}
+
 export const DEFAULT_E2EE_CONFIG: E2eeConfig = {
   id: 1,
   salt: 'wDNmW-nuKO13SfRopF4rJw',
@@ -101,8 +116,9 @@ export function useE2ee(): {
       }
 
       try {
+        const defaultPhrase = resolveDefaultE2eePhrase()
         const defaultKey = await deriveKey(
-          DEFAULT_E2EE_PHRASE,
+          defaultPhrase,
           activeConfig.salt,
           activeConfig.iterations
         )

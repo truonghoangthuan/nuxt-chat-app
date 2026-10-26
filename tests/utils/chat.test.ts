@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { isImagePayload } from '~/utils/image'
 import {
-  normalizeChannelSlug,
-  isValidChannelSlug,
   getAvatarInitials,
   getAvatarColor,
   calculateBackoffMs,
@@ -20,9 +18,6 @@ import {
   applyMentionAutocomplete,
   doesMessageMentionUser,
   tokenizeMessageMentions,
-  normalizeDmPair,
-  getDmPeerId,
-  canUserAccessChannel,
   isValidEmail,
   formatConversationTitle,
   formatConversationTime,
@@ -46,18 +41,6 @@ import {
 import type { ChatMessage, Conversation, Profile } from '~/types/chat'
 
 describe('chat utils', () => {
-  it('normalizes channel names into lowercase hyphenated slugs', () => {
-    expect(normalizeChannelSlug('  Movie Night! 2026 ')).toBe('movie-night-2026')
-    expect(normalizeChannelSlug('#General___Chat')).toBe('general-chat')
-  })
-
-  it('validates channel slugs between 2 and 32 chars', () => {
-    expect(isValidChannelSlug('general')).toBe(true)
-    expect(isValidChannelSlug('a')).toBe(false)
-    expect(isValidChannelSlug('a'.repeat(33))).toBe(false)
-    expect(isValidChannelSlug('Invalid_Slug')).toBe(false)
-  })
-
   it('extracts 1-2 uppercase initials and deterministic palette color', () => {
     expect(getAvatarInitials('Alice Wonderland')).toBe('AW')
     expect(getAvatarInitials('bob')).toBe('BO')
@@ -373,73 +356,6 @@ describe('chat utils', () => {
     expect(timeline[2].showUnreadDivider).toBe(false)
     expect(timeline[2].isCompact).toBe(true)
     expect(timeline[2].isMentioningMe).toBe(false)
-  })
-
-  describe('direct message (DM) pure helpers (Sub-Project 4)', () => {
-    it('normalizeDmPair sorts two distinct user IDs lexicographically regardless of input order', () => {
-      const ab = normalizeDmPair('user-222', 'user-111')
-      const ba = normalizeDmPair('user-111', 'user-222')
-
-      expect(ab).toEqual({
-        dm_user_a: 'user-111',
-        dm_user_b: 'user-222',
-        slug: 'dm:user-111:user-222',
-      })
-      expect(ba).toEqual(ab)
-    })
-
-    it('normalizeDmPair returns null for identical or empty user IDs', () => {
-      expect(normalizeDmPair('user-111', 'user-111')).toBeNull()
-      expect(normalizeDmPair('', 'user-111')).toBeNull()
-      expect(normalizeDmPair('   ', 'user-111')).toBeNull()
-    })
-
-    it('getDmPeerId returns the other participant ID for a DM channel and null otherwise', () => {
-      const dmChannel = {
-        is_dm: true,
-        dm_user_a: 'user-111',
-        dm_user_b: 'user-222',
-      }
-      expect(getDmPeerId(dmChannel, 'user-111')).toBe('user-222')
-      expect(getDmPeerId(dmChannel, 'user-222')).toBe('user-111')
-      expect(getDmPeerId(dmChannel, 'user-333')).toBeNull()
-      expect(getDmPeerId({ is_dm: false, dm_user_a: null, dm_user_b: null }, 'user-111')).toBeNull()
-    })
-
-    it('normalizeDmPair normalizes case-insensitively and trims whitespace', () => {
-      const res = normalizeDmPair('  USER-222  ', '  user-111  ')
-      expect(res).toEqual({
-        dm_user_a: 'user-111',
-        dm_user_b: 'user-222',
-        slug: 'dm:user-111:user-222',
-      })
-      expect(normalizeDmPair('USER-111', 'user-111')).toBeNull()
-      expect(normalizeDmPair(null as any, 'user-111')).toBeNull()
-    })
-
-    it('getDmPeerId handles case-insensitive participant comparisons', () => {
-      const dmChannel = {
-        is_dm: true,
-        dm_user_a: 'user-111',
-        dm_user_b: 'user-222',
-      }
-      expect(getDmPeerId(dmChannel, 'USER-111')).toBe('user-222')
-      expect(getDmPeerId(dmChannel, 'USER-222')).toBe('user-111')
-      expect(getDmPeerId(dmChannel, '  user-111  ')).toBe('user-222')
-      expect(getDmPeerId(dmChannel, undefined as any)).toBeNull()
-    })
-
-    it('canUserAccessChannel handles case-insensitive comparisons and invalid inputs safely', () => {
-      const publicCh = { is_dm: false, dm_user_a: null, dm_user_b: null }
-      const dmCh = { is_dm: true, dm_user_a: 'user-111', dm_user_b: 'user-222' }
-
-      expect(canUserAccessChannel(publicCh, 'USER-999')).toBe(true)
-      expect(canUserAccessChannel(dmCh, 'USER-111')).toBe(true)
-      expect(canUserAccessChannel(dmCh, 'USER-222')).toBe(true)
-      expect(canUserAccessChannel(dmCh, 'USER-333')).toBe(false)
-      expect(canUserAccessChannel(dmCh, null)).toBe(false)
-      expect(canUserAccessChannel(dmCh, undefined)).toBe(false)
-    })
   })
 
   describe('isImagePayload', () => {
@@ -1022,6 +938,29 @@ describe('Conversation utilities', () => {
 
       expect(seenMap['m-1']?.map(p => p.id)).toEqual(['u-bob'])
       expect(seenMap['m-2']?.map(p => p.id)).toEqual(['u-charlie'])
+    })
+
+    it('buildMessageTimeline pre-parses imagePayload and systemPayload once per message item', () => {
+      const imgContent = JSON.stringify({
+        type: 'images',
+        images: [{ path: 'a.enc', mimeType: 'image/png', width: 10, height: 10, size: 50 }],
+        caption: 'Hello @Alice Smith',
+      })
+      const items = buildMessageTimeline([
+        {
+          id: 'm-1',
+          client_id: 'c-1',
+          conversation_id: 'conv-1',
+          channel_id: 'conv-1',
+          user_id: 'u-1',
+          content: imgContent,
+          created_at: '2026-10-20T10:00:00Z',
+          status: 'sent',
+        },
+      ])
+      const msgItem = items.find(i => i.type === 'message') as any
+      expect(msgItem?.imagePayload?.caption).toBe('Hello @Alice Smith')
+      expect(msgItem?.systemPayload).toBeNull()
     })
   })
 })

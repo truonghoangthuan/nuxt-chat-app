@@ -19,6 +19,8 @@ describe('generate-e2ee-config script helper', () => {
     expect(result.sql).toContain('INSERT INTO public.e2ee_config')
     expect(result.sql).toContain(result.salt)
     expect(result.sql).toContain(result.verifier)
+    expect(result.sql.toLowerCase()).toContain('on conflict (id) do nothing;')
+    expect(result.sql.toLowerCase()).not.toContain('do update set')
 
     // Verify key derived with same phrase unlocks the generated config
     const key = await deriveKey(phrase, result.salt, result.iterations)

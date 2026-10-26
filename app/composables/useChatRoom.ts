@@ -19,14 +19,9 @@ import type {
   LocalImageAttachment,
 } from '~/types/chat'
 import {
-  normalizeChannelSlug,
-  isValidChannelSlug,
   isValidMessageContent,
   isValidReactionEmoji,
   doesMessageMentionUser,
-  normalizeDmPair,
-  getDmPeerId,
-  canUserAccessChannel,
   isValidEmail,
   getDirectPeer,
   formatConversationTitle,
@@ -45,6 +40,37 @@ import { useAuthProfile } from '~/composables/useAuthProfile'
 import { useE2ee } from '~/composables/useE2ee'
 import { useNotification, createNotificationManager } from '~/composables/useNotification'
 import { useImageAttachmentCache } from '~/composables/useImageAttachmentCache'
+import {
+  computeUnreadSnapshot,
+  computeInitialUnreadSnapshot,
+  computeOldestReadTimestamp,
+  computeConversationReadMap,
+  computeChannelReadMap,
+  createConversationReadDebouncer,
+  createChannelReadDebouncer,
+  createReadReceiptDebouncer,
+  applyIncomingUnreadIncrement,
+  applyActiveChannelReadReset,
+  applyCrossTabReadTimestamp,
+} from '~/composables/useUnreadReads'
+import { createContactsActions } from '~/composables/useContacts'
+import { createConversationsActions } from '~/composables/useConversations'
+
+export {
+  computeUnreadSnapshot,
+  computeInitialUnreadSnapshot,
+  computeOldestReadTimestamp,
+  computeConversationReadMap,
+  computeChannelReadMap,
+  createConversationReadDebouncer,
+  createChannelReadDebouncer,
+  createReadReceiptDebouncer,
+  applyIncomingUnreadIncrement,
+  applyActiveChannelReadReset,
+  applyCrossTabReadTimestamp,
+}
+export { createContactsActions }
+export { createConversationsActions }
 import {
   isImagePayload,
   parseImagePayload,
@@ -150,132 +176,6 @@ export async function decryptMessageRows<
 ): Promise<T[]> {
   return Promise.all(rows.map(row => decryptMessageRow(row, key, fallbackConversationId)))
 }
-
-export function computeUnreadSnapshot(params: {
-  messages: Array<Pick<ChatMessage, 'id' | 'conversation_id' | 'channel_id' | 'user_id' | 'content' | 'created_at' | 'deleted_at' | 'reply_to_id'>>
-  lastReadByConversation?: Record<string, string>
-  lastReadByChannel?: Record<string, string>
-  activeConversationId?: string | null
-  activeChannelId?: string | null
-  currentUserId: string
-  currentDisplayName?: string | null
-}): {
-  unreadCounts: Record<string, number>
-  unreadMentions: Record<string, number>
-} {
-  const unreadCounts: Record<string, number> = {}
-  const unreadMentions: Record<string, number> = {}
-  const activeId = params.activeConversationId !== undefined ? params.activeConversationId : (params.activeChannelId || null)
-  const lastReadMap = params.lastReadByConversation || params.lastReadByChannel || {}
-
-  for (const msg of params.messages) {
-    if (!msg || msg.deleted_at) continue
-    const targetId = msg.conversation_id || msg.channel_id || ''
-    if (!targetId || targetId === activeId) continue
-    if (params.currentUserId && msg.user_id === params.currentUserId) continue
-
-    const lastReadIso = lastReadMap[targetId]
-    if (lastReadIso && Date.parse(msg.created_at) <= Date.parse(lastReadIso)) {
-      continue
-    }
-
-    unreadCounts[targetId] = (unreadCounts[targetId] || 0) + 1
-    const textToCheck = isImagePayload(msg.content)
-      ? (parseImagePayload(msg.content)?.caption || formatImageMessageSummary(parseImagePayload(msg.content)?.images.length || 1))
-      : msg.content
-    if (doesMessageMentionUser(textToCheck, params.currentDisplayName)) {
-      unreadMentions[targetId] = (unreadMentions[targetId] || 0) + 1
-    }
-  }
-
-  return { unreadCounts, unreadMentions }
-}
-
-export function computeOldestReadTimestamp(timestamps: string[]): string | null {
-  if (timestamps.length === 0) return null
-  return timestamps.reduce((a, b) => {
-    const tA = Date.parse(a)
-    const tB = Date.parse(b)
-    if (!Number.isNaN(tA) && !Number.isNaN(tB)) {
-      return tA < tB ? a : b
-    }
-    return a < b ? a : b
-  })
-}
-
-export function computeConversationReadMap(params: {
-  conversations?: Array<{ id: string }>
-  channels?: Array<{ id: string }>
-  readRows?: Array<{ conversation_id?: string; channel_id?: string; last_read_at: string }> | null
-  existingMap?: Record<string, string>
-  defaultReadTimestamp: string
-}): Record<string, string> {
-  const map: Record<string, string> = {}
-  if (params.readRows) {
-    for (const r of params.readRows) {
-      const id = r.conversation_id || r.channel_id
-      if (id) {
-        map[id] = r.last_read_at
-      }
-    }
-  }
-  const list = params.conversations || params.channels || []
-  for (const item of list) {
-    if (!map[item.id]) {
-      map[item.id] = params.existingMap?.[item.id] || params.defaultReadTimestamp
-    }
-  }
-  return map
-}
-
-export const computeChannelReadMap = computeConversationReadMap
-
-export function createConversationReadDebouncer(
-  upsertFn: (conversationId: string, timestamp: string) => Promise<any>,
-  delayMs = 2000,
-) {
-  const timers = new Map<string, any>()
-  const pendingTimestamps = new Map<string, string>()
-
-  function schedule(conversationId: string, timestamp: string, immediate = false): Promise<void> | void {
-    pendingTimestamps.set(conversationId, timestamp)
-    const existing = timers.get(conversationId)
-    if (existing) {
-      clearTimeout(existing)
-      timers.delete(conversationId)
-    }
-
-    const flush = async () => {
-      timers.delete(conversationId)
-      const ts = pendingTimestamps.get(conversationId) || timestamp
-      pendingTimestamps.delete(conversationId)
-      try {
-        await upsertFn(conversationId, ts)
-      } catch {
-        // Ignored
-      }
-    }
-
-    if (immediate) {
-      return flush()
-    }
-
-    const timer = setTimeout(flush, delayMs)
-    timers.set(conversationId, timer)
-  }
-
-  function cancelAll() {
-    for (const t of timers.values()) {
-      clearTimeout(t)
-    }
-    timers.clear()
-    pendingTimestamps.clear()
-  }
-
-  return { schedule, cancelAll, timers }
-}
-
-export const createChannelReadDebouncer = createConversationReadDebouncer
 
 export function subscribeWithPromise(
   channel: { subscribe: (callback: (status: string) => void) => any } | null,
@@ -495,38 +395,6 @@ export function filterOnlineFriends(
   return onlineUsers.filter(u => friendIds.has(u.id))
 }
 
-export function hydrateDmChannelPeers(params: {
-  channels: Channel[]
-  currentUserId?: string | null
-  profilesCache: Map<string, Profile>
-  fallbackProfiles?: Profile[]
-}): Channel[] {
-  if (!params.currentUserId) return []
-  return params.channels
-    .filter(ch => Boolean(ch.is_dm) && canUserAccessChannel(ch, params.currentUserId))
-    .map((ch) => {
-      const peerId = getDmPeerId(ch, params.currentUserId)
-      const peer = peerId
-        ? params.profilesCache.get(peerId)
-          || params.fallbackProfiles?.find(p => p.id === peerId)
-          || ch.peer
-          || null
-        : null
-      return {
-        ...ch,
-        peer,
-      }
-    })
-}
-
-export function shouldProcessChannelMessage(
-  channel: Channel | undefined | null,
-  currentUserId?: string | null,
-): boolean {
-  if (!channel) return false
-  return canUserAccessChannel(channel, currentUserId)
-}
-
 export function useChatRoom() {
   const supabase = useSupabaseClient()
   const authProfile = useAuthProfile()
@@ -550,22 +418,13 @@ export function useChatRoom() {
     const current = authProfile.currentProfile.value
     if (!current?.id) return
     try {
-      const { error } = await supabase
+      await supabase
         .from('conversation_reads')
         .upsert({
           user_id: current.id,
           conversation_id: convId,
           last_read_at: timestamp,
         })
-      if (error) {
-        await supabase
-          .from('channel_reads')
-          .upsert({
-            user_id: current.id,
-            channel_id: convId,
-            last_read_at: timestamp,
-          })
-      }
     } catch {
       // Ignore read upsert error
     }
@@ -667,10 +526,17 @@ export function useChatRoom() {
     if (!current?.id || conversations.value.length === 0) return
 
     try {
-      let readRows: any[] | null = null
-      const { data: convReadRows, error: convReadErr } = await supabase
+      const convIds = conversations.value.map(c => c.id).filter(Boolean)
+      let readsQuery: any = supabase
         .from('conversation_reads')
         .select('*')
+
+      if (convIds.length > 0 && typeof readsQuery.in === 'function') {
+        readsQuery = readsQuery.in('conversation_id', convIds)
+      }
+
+      let readRows: any[] | null = null
+      const { data: convReadRows, error: convReadErr } = await readsQuery
 
       if (!convReadErr && convReadRows) {
         readRows = convReadRows.filter((r: any) => r.user_id === current.id)
@@ -684,12 +550,6 @@ export function useChatRoom() {
           }
         }
         conversationReadsByConv.value = readsMap
-      } else {
-        const { data: chReadRows } = await supabase
-          .from('channel_reads')
-          .select('*')
-          .eq('user_id', current.id)
-        readRows = chReadRows
       }
 
       const UNREAD_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000
@@ -705,7 +565,6 @@ export function useChatRoom() {
       const oldestRead = computeOldestReadTimestamp(Object.values(map))
       if (!oldestRead) return
 
-      const convIds = conversations.value.map(c => c.id).filter(Boolean)
       let query: any = supabase
         .from('messages')
         .select('id, conversation_id, user_id, content, created_at, deleted_at, reply_to_id')
@@ -719,23 +578,7 @@ export function useChatRoom() {
         query = query.limit(1000)
       }
 
-      let { data: recentMessages, error: msgErr } = await query
-
-      if (msgErr && (msgErr.code === '42703' || msgErr.message?.includes('conversation_id'))) {
-        let fallbackQuery: any = supabase
-          .from('messages')
-          .select('id, channel_id, user_id, content, created_at, deleted_at, reply_to_id')
-          .gt('created_at', oldestRead)
-        if (convIds.length > 0 && typeof fallbackQuery.in === 'function') {
-          fallbackQuery = fallbackQuery.in('channel_id', convIds)
-        }
-        fallbackQuery = fallbackQuery.order('created_at', { ascending: true })
-        if (typeof fallbackQuery.limit === 'function') {
-          fallbackQuery = fallbackQuery.limit(1000)
-        }
-        const { data: fallbackMessages } = await fallbackQuery
-        recentMessages = fallbackMessages
-      }
+      let { data: recentMessages } = await query
 
       if (recentMessages) {
         const decryptedRecent = await decryptMessageRows(recentMessages as any, e2ee.key.value)
@@ -827,10 +670,16 @@ export function useChatRoom() {
 
   async function loadAllProfiles(): Promise<void> {
     try {
-      const { data, error } = await supabase
+      let query: any = supabase
         .from('profiles')
         .select('id, email, display_name, avatar_color, avatar_url')
         .order('display_name', { ascending: true })
+
+      if (typeof query.limit === 'function') {
+        query = query.limit(200)
+      }
+
+      const { data, error } = await query
 
       if (data && !error) {
         allProfiles.value = data as Profile[]
@@ -843,198 +692,21 @@ export function useChatRoom() {
     }
   }
 
-  async function findUserByEmail(email: string): Promise<Profile | null> {
-    if (!email || !isValidEmail(email)) {
-      return null
-    }
-    const cleanEmail = email.trim().toLowerCase()
-
-    try {
-      if (typeof supabase.rpc === 'function') {
-        const { data, error } = await supabase.rpc('lookup_profile_by_email', { search_email: cleanEmail })
-        if (!error && data) {
-          const profile = (Array.isArray(data) ? data[0] : data) as Profile
-          if (profile && profile.id) {
-            profilesCache.set(profile.id, profile)
-            if (!allProfiles.value.some(p => p.id === profile.id)) {
-              allProfiles.value = [...allProfiles.value, profile].sort((a, b) =>
-                a.display_name.localeCompare(b.display_name),
-              )
-            }
-            return profile
-          }
-        }
-      }
-    } catch {
-      // Fallback to direct query below
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .ilike('email', cleanEmail)
-        .single()
-
-      if (error || !data) {
-        return null
-      }
-      const profile = data as Profile
-      profilesCache.set(profile.id, profile)
-      if (!allProfiles.value.some(p => p.id === profile.id)) {
-        allProfiles.value = [...allProfiles.value, profile].sort((a, b) =>
-          a.display_name.localeCompare(b.display_name),
-        )
-      }
-      return profile
-    } catch {
-      return null
-    }
-  }
-
-  async function loadContacts(): Promise<void> {
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) return
-
-    try {
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('user_id, contact_user_id, created_at, profile:profiles!contacts_contact_user_id_fkey(*)')
-        .eq('user_id', current.id)
-        .order('created_at', { ascending: true })
-
-      if (data && !error) {
-        contacts.value = (data as any[]).map((row) => {
-          let profile = row.profile
-          if (profile) {
-            profilesCache.set(profile.id, profile)
-          } else {
-            profile = profilesCache.get(row.contact_user_id) || allProfiles.value.find(p => p.id === row.contact_user_id) || null
-          }
-          return {
-            user_id: row.user_id,
-            contact_user_id: row.contact_user_id,
-            created_at: row.created_at,
-            profile,
-          }
-        })
-        syncOnlineFriends()
-      }
-    } catch {
-      // Ignore contacts load failure
-    }
-  }
-
-  async function addContact(contactUserId: string): Promise<{ contact: Contact | null; error: string | null }> {
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) {
-      return { contact: null, error: 'Not authenticated.' }
-    }
-    if (current.id === contactUserId) {
-      return { contact: null, error: 'Cannot add yourself as a contact.' }
-    }
-
-    const existing = contacts.value.find(c => c.contact_user_id === contactUserId)
-    if (existing) {
-      return { contact: existing, error: null }
-    }
-
-    let peerProfile = profilesCache.get(contactUserId) || allProfiles.value.find(p => p.id === contactUserId)
-    if (!peerProfile) {
-      try {
-        const { data } = await supabase.from('profiles').select('*').eq('id', contactUserId).single()
-        if (data) {
-          peerProfile = data as Profile
-          profilesCache.set(data.id, data as Profile)
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    try {
-      let data: any = null
-      let addError: any = null
-
-      if (typeof supabase.rpc === 'function') {
-        const { error: rpcError } = await supabase.rpc('add_mutual_friend', { target_user_id: contactUserId })
-        addError = rpcError
-      }
-
-      if (addError || typeof supabase.rpc !== 'function') {
-        const res = await supabase
-          .from('contacts')
-          .insert({
-            user_id: current.id,
-            contact_user_id: contactUserId,
-          })
-          .select('*')
-          .single()
-
-        if (res.error && !isDuplicateKeyError(res.error)) {
-          return { contact: null, error: res.error.message }
-        }
-        data = res.data
-      }
-
-      if (!peerProfile) {
-        try {
-          const { data: fetchedProfile } = await supabase.from('profiles').select('*').eq('id', contactUserId).maybeSingle()
-          if (fetchedProfile) {
-            peerProfile = fetchedProfile as Profile
-            profilesCache.set(fetchedProfile.id, fetchedProfile as Profile)
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      const newContact: Contact = {
-        user_id: current.id,
-        contact_user_id: contactUserId,
-        created_at: data?.created_at || new Date().toISOString(),
-        profile: (data as any)?.profile || peerProfile || null,
-      }
-
-      if (!contacts.value.some(c => c.contact_user_id === contactUserId)) {
-        contacts.value = [...contacts.value, newContact]
-        syncOnlineFriends()
-      }
-
-      return { contact: newContact, error: null }
-    } catch (err: any) {
-      return { contact: null, error: err?.message || 'Failed to add contact.' }
-    }
-  }
-
-  async function removeContact(contactUserId: string): Promise<{ error: string | null }> {
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) {
-      return { error: 'Not authenticated.' }
-    }
-
-    contacts.value = contacts.value.filter(c => c.contact_user_id !== contactUserId)
-    syncOnlineFriends()
-
-    try {
-      if (typeof supabase.rpc === 'function') {
-        const { error: rpcError } = await supabase.rpc('remove_mutual_friend', { target_user_id: contactUserId })
-        if (!rpcError) {
-          return { error: null }
-        }
-      }
-
-      const { error } = await supabase
-        .from('contacts')
-        .delete()
-        .eq('user_id', current.id)
-        .eq('contact_user_id', contactUserId)
-
-      return { error: error ? error.message : null }
-    } catch (err: any) {
-      return { error: err?.message || 'Failed to remove contact.' }
-    }
-  }
+  const contactsActions = createContactsActions({
+    supabase,
+    authProfile,
+    contacts,
+    profilesCache,
+    allProfiles,
+    syncOnlineFriends,
+  })
+  const {
+    findUserByEmail,
+    lookupUserByEmail,
+    loadContacts,
+    addContact,
+    removeContact,
+  } = contactsActions
 
   async function loadConversations(): Promise<void> {
     const current = authProfile.currentProfile.value
@@ -1102,21 +774,6 @@ export function useChatRoom() {
       }
 
       let { data, error } = await query
-      if (error) {
-        let fallbackQuery = supabase
-          .from('messages')
-          .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
-          .eq('channel_id', convId)
-
-        if (lastTimestamp) {
-          fallbackQuery = fallbackQuery.gt('created_at', lastTimestamp).order('created_at', { ascending: true })
-        } else {
-          fallbackQuery = fallbackQuery.order('created_at', { ascending: true }).limit(PAGE_SIZE)
-        }
-        const res = await fallbackQuery
-        data = res.data
-        error = res.error
-      }
 
       if (activeConversationId.value !== convId) return
 
@@ -1561,6 +1218,10 @@ export function useChatRoom() {
   }
 
   async function selectConversation(conversationId: string): Promise<void> {
+    if (activeConversationId.value === conversationId && messagesStore.messages.value.length > 0) {
+      markConversationRead(conversationId)
+      return
+    }
     useImageAttachmentCache().revokeAllUrls()
     const priorLastRead = lastReadByConversation.value[conversationId] || null
     const hadUnreads = (unreadCounts.value[conversationId] || 0) > 0
@@ -1579,18 +1240,6 @@ export function useChatRoom() {
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
         .limit(PAGE_SIZE)
-
-      if (error) {
-        const fallback = await supabase
-          .from('messages')
-          .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
-          .eq('channel_id', conversationId)
-          .order('created_at', { ascending: false })
-          .order('id', { ascending: false })
-          .limit(PAGE_SIZE)
-        data = fallback.data
-        error = fallback.error
-      }
 
       // Guard against race condition if user switched conversations while query was in flight
       if (activeConversationId.value !== conversationId) {
@@ -1645,18 +1294,6 @@ export function useChatRoom() {
         .limit(PAGE_SIZE)
 
       let { data, error } = await query
-      if (error) {
-        const fallback = await supabase
-          .from('messages')
-          .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
-          .eq('channel_id', convId)
-          .or(`created_at.lt."${cursor.created_at}",and(created_at.eq."${cursor.created_at}",id.lt."${cursor.id}")`)
-          .order('created_at', { ascending: false })
-          .order('id', { ascending: false })
-          .limit(PAGE_SIZE)
-        data = fallback.data
-        error = fallback.error
-      }
 
       if (activeConversationId.value !== convId) {
         return 0
@@ -1680,465 +1317,34 @@ export function useChatRoom() {
     return 0
   }
 
-  const inFlightDirectChats = new Map<string, Promise<Conversation>>()
+  const conversationsActions = createConversationsActions({
+    supabase,
+    authProfile,
+    conversations,
+    activeConversationId,
+    unreadCounts,
+    profilesCache,
+    allProfiles,
+    selectConversation,
+    loadConversations,
+    messagesStore,
+    sendMessage: (content: string, replyTo?: any, conversationId?: string) => sendMessage(content, replyTo, conversationId),
+    findUserByEmail,
+  })
 
-  async function openOrCreateDirectChat(peerUserId: string): Promise<Conversation> {
-    const inFlight = inFlightDirectChats.get(peerUserId)
-    if (inFlight) {
-      return inFlight
-    }
-
-    const task = (async () => {
-      const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-      if (!current?.id) {
-        throw new Error('Not authenticated.')
-      }
-      if (current.id === peerUserId) {
-        throw new Error('Cannot start a direct message with yourself.')
-      }
-
-      let peerProfile = profilesCache.get(peerUserId) || allProfiles.value.find(p => p.id === peerUserId)
-      if (!peerProfile) {
-        try {
-          const { data } = await supabase.from('profiles').select('*').eq('id', peerUserId).single()
-          if (data) {
-            peerProfile = data as Profile
-            profilesCache.set(data.id, data as Profile)
-            if (!allProfiles.value.some(p => p.id === data.id)) {
-              allProfiles.value = [...allProfiles.value, data as Profile]
-            }
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      const existingInMemory = conversations.value.find(c => {
-        if (c.type !== 'direct') return false
-        if (c.peer?.id === peerUserId) return true
-        if (c.members?.some(m => m.user_id === peerUserId)) return true
-        return false
-      })
-
-      if (existingInMemory) {
-        await selectConversation(existingInMemory.id)
-        return existingInMemory
-      }
-
-      try {
-        const { data: existingMemberships } = await supabase
-          .from('conversation_members')
-          .select('conversation_id, conversation:conversations(*)')
-          .eq('user_id', peerUserId)
-
-        if (existingMemberships && existingMemberships.length > 0) {
-          const matched = (existingMemberships as any[]).find(
-            m => m.conversation && m.conversation.type === 'direct',
-          )
-          if (matched?.conversation) {
-            const c = matched.conversation
-            const conv: Conversation = {
-              id: c.id,
-              type: 'direct',
-              title: null,
-              created_by: c.created_by,
-              created_at: c.created_at,
-              updated_at: c.updated_at,
-              peer: peerProfile || null,
-              members: [
-                { conversation_id: c.id, user_id: current.id, role: 'owner', joined_at: c.created_at, profile: current },
-                { conversation_id: c.id, user_id: peerUserId, role: 'member', joined_at: c.created_at, profile: peerProfile || null },
-              ],
-              unreadCount: unreadCounts.value[c.id] || 0,
-            }
-            if (!conversations.value.some(item => item.id === conv.id)) {
-              conversations.value = [conv, ...conversations.value]
-            }
-            await selectConversation(conv.id)
-            return conv
-          }
-        }
-      } catch {
-        // ignore
-      }
-
-      const { data: convData, error: convError } = await supabase
-        .from('conversations')
-        .insert({
-          type: 'direct',
-          created_by: current.id,
-        })
-        .select('*')
-        .single()
-
-      if (convError || !convData) {
-        throw new Error(convError?.message || 'Failed to create direct conversation.')
-      }
-
-      const membersToInsert = [
-        { conversation_id: convData.id, user_id: current.id, role: 'owner' },
-        { conversation_id: convData.id, user_id: peerUserId, role: 'member' },
-      ]
-      const { error: memberError } = await supabase.from('conversation_members').insert(membersToInsert)
-      if (memberError) {
-        throw new Error(memberError.message || 'Failed to add conversation members.')
-      }
-
-      const newConv: Conversation = {
-        id: convData.id,
-        type: 'direct',
-        title: null,
-        created_by: current.id,
-        created_at: convData.created_at || new Date().toISOString(),
-        updated_at: convData.updated_at || new Date().toISOString(),
-        peer: peerProfile || null,
-        members: [
-          { conversation_id: convData.id, user_id: current.id, role: 'owner', joined_at: new Date().toISOString(), profile: current },
-          { conversation_id: convData.id, user_id: peerUserId, role: 'member', joined_at: new Date().toISOString(), profile: peerProfile || null },
-        ],
-        unreadCount: 0,
-        background_url: convData.background_url || null,
-      }
-
-      if (!conversations.value.some(c => c.id === newConv.id)) {
-        conversations.value = [newConv, ...conversations.value]
-      }
-      await selectConversation(newConv.id)
-      return newConv
-    })()
-
-    inFlightDirectChats.set(peerUserId, task)
-    try {
-      return await task
-    } finally {
-      inFlightDirectChats.delete(peerUserId)
-    }
-  }
-
-  async function createGroup(title: string, memberUserIds: string[]): Promise<Conversation> {
-    const cleanTitle = title?.trim()
-    if (!cleanTitle) {
-      throw new Error('Group title is required.')
-    }
-
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) {
-      throw new Error('Not authenticated.')
-    }
-
-    const { data: convData, error: convError } = await supabase
-      .from('conversations')
-      .insert({
-        type: 'group',
-        title: cleanTitle,
-        created_by: current.id,
-      })
-      .select('*')
-      .single()
-
-    if (convError || !convData) {
-      throw new Error(convError?.message || 'Failed to create group conversation.')
-    }
-
-    const uniqueOtherIds = Array.from(new Set(memberUserIds.filter(id => id && id !== current.id)))
-    const membersToInsert = [
-      { conversation_id: convData.id, user_id: current.id, role: 'owner' },
-      ...uniqueOtherIds.map(uid => ({
-        conversation_id: convData.id,
-        user_id: uid,
-        role: 'member',
-      })),
-    ]
-
-    const { error: memberError } = await supabase.from('conversation_members').insert(membersToInsert)
-    if (memberError) {
-      throw new Error(memberError.message || 'Failed to add group members.')
-    }
-
-    const memberList: ConversationMember[] = membersToInsert.map(m => ({
-      conversation_id: convData.id,
-      user_id: m.user_id,
-      role: m.role as 'owner' | 'member',
-      joined_at: new Date().toISOString(),
-      profile: m.user_id === current.id ? current : (profilesCache.get(m.user_id) || allProfiles.value.find(p => p.id === m.user_id) || null),
-    }))
-
-    const newGroup: Conversation = {
-      id: convData.id,
-      type: 'group',
-      title: cleanTitle,
-      created_by: current.id,
-      created_at: convData.created_at || new Date().toISOString(),
-      updated_at: convData.updated_at || new Date().toISOString(),
-      members: memberList,
-      unreadCount: 0,
-      background_url: convData.background_url || null,
-    }
-
-    if (!conversations.value.some(c => c.id === newGroup.id)) {
-      conversations.value = [newGroup, ...conversations.value]
-    }
-    await selectConversation(newGroup.id)
-    return newGroup
-  }
-
-  async function addMemberToGroup(conversationId: string, email: string): Promise<void> {
-    const conv = conversations.value.find(c => c.id === conversationId)
-    if (conv && conv.type !== 'group') {
-      throw new Error('Cannot add members to a direct message.')
-    }
-
-    const user = await findUserByEmail(email)
-    if (!user) {
-      throw new Error(`User not found with email: ${email}`)
-    }
-
-    if (conv?.members?.some(m => m.user_id === user.id)) {
-      return
-    }
-
-    const { error } = await supabase
-      .from('conversation_members')
-      .insert({
-        conversation_id: conversationId,
-        user_id: user.id,
-        role: 'member',
-      })
-
-    if (error) {
-      throw new Error(error.message)
-    }
-
-    if (conv) {
-      const newMember: ConversationMember = {
-        conversation_id: conversationId,
-        user_id: user.id,
-        role: 'member',
-        joined_at: new Date().toISOString(),
-        profile: user,
-      }
-      conv.members = [...(conv.members || []), newMember]
-    }
-  }
-
-  async function leaveGroup(conversationId: string): Promise<void> {
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) {
-      throw new Error('Not authenticated.')
-    }
-
-    const { error: leaveError } = await supabase
-      .from('conversation_members')
-      .delete()
-      .eq('conversation_id', conversationId)
-      .eq('user_id', current.id)
-
-    if (leaveError) {
-      throw new Error(leaveError.message || 'Failed to leave group.')
-    }
-
-    conversations.value = conversations.value.filter(c => c.id !== conversationId)
-
-    if (activeConversationId.value === conversationId) {
-      const next = conversations.value[0]?.id || null
-      if (next) {
-        await selectConversation(next)
-      } else {
-        activeConversationId.value = null
-        messagesStore.setInitialHistory([], '')
-      }
-    }
-  }
-
-  async function updateGroupTitle(
-    conversationId: string,
-    title: string,
-  ): Promise<{ error: string | null }> {
-    const cleanTitle = title?.trim()
-    if (!cleanTitle || cleanTitle.length > 100) {
-      return { error: 'Group title must be 1–100 characters.' }
-    }
-
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) {
-      return { error: 'Not authenticated.' }
-    }
-
-    const targetConv = conversations.value.find(c => c.id === conversationId)
-    if (!targetConv || targetConv.type !== 'group') {
-      return { error: 'Group conversation not found.' }
-    }
-
-    const previousTitle = targetConv.title
-    const previousUpdatedAt = targetConv.updated_at
-    const nowIso = new Date().toISOString()
-
-    // Optimistic update
-    targetConv.title = cleanTitle
-    targetConv.updated_at = nowIso
-
-    try {
-      const { error } = await supabase
-        .from('conversations')
-        .update({
-          title: cleanTitle,
-          updated_at: nowIso,
-        })
-        .eq('id', conversationId)
-
-      if (error) {
-        // Rollback
-        targetConv.title = previousTitle
-        targetConv.updated_at = previousUpdatedAt
-        return { error: error.message || 'Failed to update group title.' }
-      }
-
-      const actorName = current.display_name || 'Someone'
-      const sysPayload = serializeSystemMessage({
-        type: 'system',
-        event: 'group_rename',
-        actorName,
-        detail: cleanTitle,
-      })
-      await sendMessage(sysPayload, undefined, conversationId).catch(() => {})
-
-      return { error: null }
-    } catch (err: any) {
-      targetConv.title = previousTitle
-      targetConv.updated_at = previousUpdatedAt
-      return { error: err?.message || 'Failed to update group title.' }
-    }
-  }
-
-  async function updateChatBackground(
-    conversationId: string,
-    backgroundOrFile: string | File,
-  ): Promise<{ error: string | null }> {
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) {
-      return { error: 'Not authenticated.' }
-    }
-
-    const targetConv = conversations.value.find(c => c.id === conversationId)
-    if (!targetConv) {
-      return { error: 'Conversation not found.' }
-    }
-
-    let finalUrl: string
-    if (typeof backgroundOrFile !== 'string') {
-      const file = backgroundOrFile
-      const validation = validateBackgroundFile(file)
-      if (!validation.valid) {
-        return { error: validation.error || 'Invalid background file.' }
-      }
-
-      try {
-        const ext = file.name ? file.name.split('.').pop() || 'jpg' : 'jpg'
-        const filePath = `conversations/${conversationId}/bg-${Date.now()}.${ext}`
-        const { error: uploadError } = await supabase.storage
-          .from('chat-backgrounds')
-          .upload(filePath, file, { contentType: file.type, upsert: true })
-
-        if (uploadError) {
-          return { error: uploadError.message || 'Failed to upload background image.' }
-        }
-
-        const { data: publicUrlData } = supabase.storage
-          .from('chat-backgrounds')
-          .getPublicUrl(filePath)
-
-        finalUrl = publicUrlData.publicUrl
-      } catch (err: any) {
-        return { error: err?.message || 'Failed to upload background image.' }
-      }
-    } else {
-      finalUrl = backgroundOrFile.trim()
-    }
-
-    const prevBg = targetConv.background_url
-    const prevUpdated = targetConv.updated_at
-    const nowIso = new Date().toISOString()
-
-    // Optimistic update
-    targetConv.background_url = finalUrl
-    targetConv.updated_at = nowIso
-
-    try {
-      const { error: dbError } = await supabase
-        .from('conversations')
-        .update({ background_url: finalUrl, updated_at: nowIso })
-        .eq('id', conversationId)
-
-      if (dbError) {
-        targetConv.background_url = prevBg
-        targetConv.updated_at = prevUpdated
-        return { error: dbError.message || 'Failed to update background.' }
-      }
-
-      const actorName = current.display_name || 'Someone'
-      const preset = CHAT_BACKGROUND_PRESETS.find(p => p.url === finalUrl)
-      const presetLabel = preset ? preset.label : 'a custom image'
-      const sysPayload = serializeSystemMessage({
-        type: 'system',
-        event: 'background_change',
-        actorName,
-        detail: presetLabel,
-      })
-      await sendMessage(sysPayload, undefined, conversationId).catch(() => {})
-
-      return { error: null }
-    } catch (err: any) {
-      targetConv.background_url = prevBg
-      targetConv.updated_at = prevUpdated
-      return { error: err?.message || 'Failed to update background.' }
-    }
-  }
-
-  async function removeChatBackground(conversationId: string): Promise<{ error: string | null }> {
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) {
-      return { error: 'Not authenticated.' }
-    }
-
-    const targetConv = conversations.value.find(c => c.id === conversationId)
-    if (!targetConv) {
-      return { error: 'Conversation not found.' }
-    }
-
-    const prevBg = targetConv.background_url
-    const prevUpdated = targetConv.updated_at
-    const nowIso = new Date().toISOString()
-
-    targetConv.background_url = null
-    targetConv.updated_at = nowIso
-
-    try {
-      const { error: dbError } = await supabase
-        .from('conversations')
-        .update({ background_url: null, updated_at: nowIso })
-        .eq('id', conversationId)
-
-      if (dbError) {
-        targetConv.background_url = prevBg
-        targetConv.updated_at = prevUpdated
-        return { error: dbError.message || 'Failed to reset background.' }
-      }
-
-      const actorName = current.display_name || 'Someone'
-      const sysPayload = serializeSystemMessage({
-        type: 'system',
-        event: 'background_reset',
-        actorName,
-      })
-      await sendMessage(sysPayload, undefined, conversationId).catch(() => {})
-
-      return { error: null }
-    } catch (err: any) {
-      targetConv.background_url = prevBg
-      targetConv.updated_at = prevUpdated
-      return { error: err?.message || 'Failed to reset background.' }
-    }
-  }
+  const {
+    openOrCreateDirectChat,
+    createGroup,
+    createGroupChat,
+    addMemberToGroup,
+    addGroupMember,
+    leaveGroup,
+    leaveGroupChat,
+    updateGroupTitle,
+    updateGroupName,
+    updateChatBackground,
+    removeChatBackground,
+  } = conversationsActions
 
   const createChannel = async (name: string) => createGroup(name, []).then(channel => ({ channel, error: null })).catch((err: any) => ({ channel: null, error: err?.message || 'Failed to create channel.' }))
   const openOrCreateDm = async (peerUserId: string) => openOrCreateDirectChat(peerUserId).then(channel => ({ channel, error: null })).catch((err: any) => ({ channel: null, error: err?.message || 'Failed to open direct message.' }))
@@ -2222,23 +1428,6 @@ export function useChatRoom() {
         })
         .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
         .single()
-
-      if (error && (error.message?.includes('conversation_id') || error.code === '42703')) {
-        // Fallback for legacy schema with channel_id
-        const fallbackRes = await supabase
-          .from('messages')
-          .insert({
-            client_id: clientId,
-            channel_id: conversationId,
-            user_id: current.id,
-            content: encryptedContent,
-            reply_to_id: replyToId || null,
-          })
-          .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
-          .single()
-        data = fallbackRes.data
-        error = fallbackRes.error
-      }
 
       if (error) {
         if (isDuplicateKeyError(error)) {
@@ -2340,15 +1529,32 @@ export function useChatRoom() {
 
     pendingImageFiles.set(clientId, { files, caption, conversationId, channelId: conversationId })
 
+    const createdBlobUrls: string[] = []
+    function revokeCreatedBlobs() {
+      if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+        for (const url of createdBlobUrls) {
+          try {
+            URL.revokeObjectURL(url)
+          } catch {}
+        }
+      }
+    }
+
     if (!clientIdOverride) {
-      const localPreviews: LocalImageAttachment[] = files.map((file) => ({
-        file,
-        localUrl: typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
+      const localPreviews: LocalImageAttachment[] = files.map((file) => {
+        const localUrl = typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
           ? URL.createObjectURL(file)
-          : '',
-        width: 0,
-        height: 0,
-      }))
+          : ''
+        if (localUrl) {
+          createdBlobUrls.push(localUrl)
+        }
+        return {
+          file,
+          localUrl,
+          width: 0,
+          height: 0,
+        }
+      })
 
       const optimisticPayload: ImageMessagePayload = {
         type: 'images',
@@ -2438,21 +1644,6 @@ export function useChatRoom() {
         .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
         .single()
 
-      if (error && (error.message?.includes('conversation_id') || error.code === '42703')) {
-        const fallbackRes = await supabase
-          .from('messages')
-          .insert({
-            client_id: clientId,
-            channel_id: conversationId,
-            user_id: current.id,
-            content: encryptedEnvelope,
-          })
-          .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
-          .single()
-        data = fallbackRes.data
-        error = fallbackRes.error
-      }
-
       if (error) {
         if (isDuplicateKeyError(error)) {
           const { data: existing } = await supabase
@@ -2461,6 +1652,7 @@ export function useChatRoom() {
             .eq('client_id', clientId)
             .single()
           if (existing) {
+            revokeCreatedBlobs()
             pendingImageFiles.delete(clientId)
             messagesStore.markMessageSent(clientId, existing.id, existing.created_at)
             return true
@@ -2471,6 +1663,7 @@ export function useChatRoom() {
       }
 
       if (data) {
+        revokeCreatedBlobs()
         pendingImageFiles.delete(clientId)
         messagesStore.markMessageSent(clientId, data.id, data.created_at)
         return true
@@ -2530,22 +1723,6 @@ export function useChatRoom() {
         })
         .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
         .single()
-
-      if (error && (error.message?.includes('conversation_id') || error.code === '42703')) {
-        const fallbackRes = await supabase
-          .from('messages')
-          .insert({
-            client_id: clientId,
-            channel_id: conversationId,
-            user_id: retrying.user_id,
-            content: encryptedContent,
-            reply_to_id: retrying.reply_to_id || null,
-          })
-          .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
-          .single()
-        data = fallbackRes.data
-        error = fallbackRes.error
-      }
 
       if (error) {
         if (isDuplicateKeyError(error)) {

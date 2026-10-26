@@ -75,21 +75,6 @@ export function summarizeReactions(
   return summaries
 }
 
-export function normalizeChannelSlug(input: string): string {
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
-
-export function isValidChannelSlug(slug: string): boolean {
-  if (slug.length < 2 || slug.length > 32) {
-    return false
-  }
-  return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)
-}
-
 export function getAvatarInitials(displayName: string): string {
   const clean = displayName.trim()
   if (!clean) return '?'
@@ -371,6 +356,17 @@ export function buildMessageTimeline(
   let unreadDividerPlaced = false
 
   return messages.map((msg, index) => {
+    let imagePayload: ImageMessagePayload | null = null
+    let systemPayload: SystemMessagePayload | null = null
+
+    if (!msg.deleted_at && msg.encryption !== 'undecryptable' && typeof msg.content === 'string') {
+      if (isImagePayload(msg.content)) {
+        imagePayload = parseImagePayload(msg.content)
+      } else if (isSystemPayload(msg.content)) {
+        systemPayload = parseSystemPayload(msg.content)
+      }
+    }
+
     const currDate = new Date(msg.created_at)
     const currTimeMs = currDate.getTime()
     const currDayKey = Number.isNaN(currTimeMs) ? '' : getLocalDayKey(currDate)
@@ -394,7 +390,10 @@ export function buildMessageTimeline(
       !msg.deleted_at
       && isFromOtherUser
       && (
-        doesMessageMentionUser(msg.content, options?.currentDisplayName)
+        doesMessageMentionUser(
+          imagePayload ? (imagePayload.caption || '') : msg.content,
+          options?.currentDisplayName,
+        )
         || (options?.currentUserId && msg.reply_to?.user_id === options.currentUserId)
       ),
     )
@@ -447,6 +446,7 @@ export function buildMessageTimeline(
     const showSenderHeader = Boolean(!isSender && options?.isGroup && isFirstInGroup)
 
     return {
+      type: 'message',
       message: msg,
       showDateDivider,
       dateLabel,
@@ -457,6 +457,8 @@ export function buildMessageTimeline(
       showSenderHeader,
       showUnreadDivider,
       isMentioningMe,
+      imagePayload,
+      systemPayload,
     }
   })
 }
@@ -467,58 +469,6 @@ export function shouldSendOnKeydown(event: {
   isComposing?: boolean
 }): boolean {
   return event.key === 'Enter' && !event.shiftKey && !event.isComposing
-}
-
-export function normalizeDmPair(
-  userId1: string,
-  userId2: string,
-): { dm_user_a: string; dm_user_b: string; slug: string } | null {
-  const u1 = (typeof userId1 === 'string' ? userId1.trim() : '').toLowerCase()
-  const u2 = (typeof userId2 === 'string' ? userId2.trim() : '').toLowerCase()
-  if (!u1 || !u2 || u1 === u2) {
-    return null
-  }
-  const [dm_user_a, dm_user_b] = u1 < u2 ? [u1, u2] : [u2, u1]
-  return {
-    dm_user_a,
-    dm_user_b,
-    slug: `dm:${dm_user_a}:${dm_user_b}`,
-  }
-}
-
-export function getDmPeerId(
-  channel: Pick<Channel, 'is_dm' | 'dm_user_a' | 'dm_user_b'>,
-  currentUserId?: string | null,
-): string | null {
-  if (!channel?.is_dm || !currentUserId || typeof currentUserId !== 'string') {
-    return null
-  }
-  const cid = currentUserId.trim().toLowerCase()
-  const ua = channel.dm_user_a ? channel.dm_user_a.trim().toLowerCase() : null
-  const ub = channel.dm_user_b ? channel.dm_user_b.trim().toLowerCase() : null
-  if (ua === cid) {
-    return channel.dm_user_b || null
-  }
-  if (ub === cid) {
-    return channel.dm_user_a || null
-  }
-  return null
-}
-
-export function canUserAccessChannel(
-  channel: Pick<Channel, 'is_dm' | 'dm_user_a' | 'dm_user_b'>,
-  currentUserId?: string | null,
-): boolean {
-  if (!channel?.is_dm) {
-    return true
-  }
-  if (!currentUserId || typeof currentUserId !== 'string') {
-    return false
-  }
-  const cid = currentUserId.trim().toLowerCase()
-  const ua = channel.dm_user_a ? channel.dm_user_a.trim().toLowerCase() : null
-  const ub = channel.dm_user_b ? channel.dm_user_b.trim().toLowerCase() : null
-  return ua === cid || ub === cid
 }
 
 export function isValidEmail(email: string): boolean {

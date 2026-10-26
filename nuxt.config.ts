@@ -16,13 +16,12 @@ export default defineNuxtConfig({
         { rel: 'icon', type: 'image/svg+xml', href: '/mug-hot-solid-full.svg' },
         { rel: 'manifest', href: '/manifest.webmanifest' },
         { rel: 'apple-touch-icon', href: '/pwa-192x192.png' },
-        { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-        { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
-        {
-          rel: 'stylesheet',
-          href: 'https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Schibsted+Grotesk:wght@500;600;700;800&display=swap',
-        },
       ],
+    },
+  },
+  runtimeConfig: {
+    public: {
+      e2eeDefaultPhrase: process.env.NUXT_PUBLIC_E2EE_PHRASE || '',
     },
   },
   modules: [
