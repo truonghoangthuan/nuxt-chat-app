@@ -431,13 +431,15 @@ describe('IndexPage (app/pages/index.vue)', () => {
   it.each([
     ['text', 'See you tomorrow'],
     ['text', 'Ok'],
-    ['image', undefined],
     ['image', 'A photo from today'],
     ['image', 'Rõ ràng'],
-  ])('celebrates each outgoing %s once with content %s', async (kind, content) => {
+  ])('celebrates outgoing %s once when content matches dictionary: %s', async (kind, content) => {
     mockChatRoomState.activeConversationId.value = 'conv-1'
     mockChatRoomState.activeConversation.value = {
-      id: 'conv-1', type: 'group', title: 'General',
+      id: 'conv-1',
+      type: 'group',
+      title: 'General',
+      confetti_words: ['see you tomorrow', 'ok', 'a photo from today', 'rõ ràng'],
     } as Conversation
     mockChatRoomState.messages.value = []
     mockChatRoomState.isLoadingHistory.value = false
@@ -486,12 +488,13 @@ describe('IndexPage (app/pages/index.vue)', () => {
     wrapper.unmount()
   })
 
-  it('triggers confetti overlay when sending message with congratulation, ok, or cool', async () => {
+  it('triggers confetti overlay when sending message matching conversation dictionary', async () => {
     mockChatRoomState.activeConversationId.value = 'conv-1'
     mockChatRoomState.activeConversation.value = {
       id: 'conv-1',
       type: 'group',
       title: 'General',
+      confetti_words: ['congratulation', 'ok', 'cool'],
     }
     const wrapper = mount(IndexPage)
     await flushPromises()
@@ -513,6 +516,7 @@ describe('IndexPage (app/pages/index.vue)', () => {
       id: 'conv-1',
       type: 'group',
       title: 'General',
+      confetti_words: ['ok', 'cool'],
     }
     const wrapper = mount(IndexPage)
     await flushPromises()
@@ -540,6 +544,7 @@ describe('IndexPage (app/pages/index.vue)', () => {
       id: 'conv-1',
       type: 'group',
       title: 'General',
+      confetti_words: ['rõ ràng'],
     }
     mockChatRoomState.messages.value = []
     const wrapper = mount(IndexPage)
@@ -565,12 +570,13 @@ describe('IndexPage (app/pages/index.vue)', () => {
     expect(wrapper.find('[data-test="confetti-canvas"]').exists()).toBe(true)
   })
 
-  it('triggers celebration effect for any regular realtime incoming message in active chat', async () => {
+  it('does not trigger confetti for messages that do not match conversation dictionary words', async () => {
     mockChatRoomState.activeConversationId.value = 'conv-1'
     mockChatRoomState.activeConversation.value = {
       id: 'conv-1',
       type: 'group',
       title: 'General',
+      confetti_words: ['specific-trigger'],
     }
     mockChatRoomState.messages.value = []
     const wrapper = mount(IndexPage)
@@ -578,7 +584,6 @@ describe('IndexPage (app/pages/index.vue)', () => {
 
     expect(wrapper.find('[data-test="confetti-overlay"]').exists()).toBe(false)
 
-    // Simulate regular incoming message without any special celebration keyword
     mockChatRoomState.messages.value = [
       {
         id: 'm-new-regular',
@@ -592,8 +597,27 @@ describe('IndexPage (app/pages/index.vue)', () => {
     ]
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.find('[data-test="confetti-overlay"]').exists()).toBe(true)
-    expect(wrapper.find('[data-test="confetti-canvas"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="confetti-overlay"]').exists()).toBe(false)
+  })
+
+  it('opens ConfettiDictionaryModal from stage header button', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    mockChatRoomState.activeConversation.value = {
+      id: 'conv-1',
+      type: 'group',
+      title: 'General',
+      confetti_words: ['launch'],
+    }
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    const openBtn = wrapper.find('[data-test="open-confetti-dictionary-btn"]')
+    expect(openBtn.exists()).toBe(true)
+
+    await openBtn.trigger('click')
+    const dictModal = wrapper.findComponent({ name: 'ConfettiDictionaryModal' })
+    expect(dictModal.exists()).toBe(true)
+    expect(dictModal.props('isOpen')).toBe(true)
   })
 
   it('does not trigger confetti overlay when conversation history loads with celebration keywords', async () => {

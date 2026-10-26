@@ -524,4 +524,19 @@ describe('GroupInfoModal.vue', () => {
     await btn.trigger('click')
     expect(wrapper.emitted('openBackground')).toHaveLength(1)
   })
+
+  it('emits openConfettiDictionary when clicking confetti dictionary shortcut button', async () => {
+    const wrapper = mount(GroupInfoModal, {
+      props: {
+        isOpen: true,
+        conversation: { ...mockGroupConversation, confetti_words: ['win', 'party'] },
+        onlineUserIds: [],
+      },
+    })
+    const btn = wrapper.find('[data-test="group-confetti-dictionary-btn"]')
+    expect(btn.exists()).toBe(true)
+    expect(btn.text()).toContain('2 words')
+    await btn.trigger('click')
+    expect(wrapper.emitted('openConfettiDictionary')).toHaveLength(1)
+  })
 })
