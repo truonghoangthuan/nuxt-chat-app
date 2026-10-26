@@ -1632,123 +1632,139 @@ export function useChatRoom() {
     return 0
   }
 
+  const inFlightDirectChats = new Map<string, Promise<Conversation>>()
+
   async function openOrCreateDirectChat(peerUserId: string): Promise<Conversation> {
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) {
-      throw new Error('Not authenticated.')
-    }
-    if (current.id === peerUserId) {
-      throw new Error('Cannot start a direct message with yourself.')
+    const inFlight = inFlightDirectChats.get(peerUserId)
+    if (inFlight) {
+      return inFlight
     }
 
-    let peerProfile = profilesCache.get(peerUserId) || allProfiles.value.find(p => p.id === peerUserId)
-    if (!peerProfile) {
+    const task = (async () => {
+      const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+      if (!current?.id) {
+        throw new Error('Not authenticated.')
+      }
+      if (current.id === peerUserId) {
+        throw new Error('Cannot start a direct message with yourself.')
+      }
+
+      let peerProfile = profilesCache.get(peerUserId) || allProfiles.value.find(p => p.id === peerUserId)
+      if (!peerProfile) {
+        try {
+          const { data } = await supabase.from('profiles').select('*').eq('id', peerUserId).single()
+          if (data) {
+            peerProfile = data as Profile
+            profilesCache.set(data.id, data as Profile)
+            if (!allProfiles.value.some(p => p.id === data.id)) {
+              allProfiles.value = [...allProfiles.value, data as Profile]
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      const existingInMemory = conversations.value.find(c => {
+        if (c.type !== 'direct') return false
+        if (c.peer?.id === peerUserId) return true
+        if (c.members?.some(m => m.user_id === peerUserId)) return true
+        return false
+      })
+
+      if (existingInMemory) {
+        await selectConversation(existingInMemory.id)
+        return existingInMemory
+      }
+
       try {
-        const { data } = await supabase.from('profiles').select('*').eq('id', peerUserId).single()
-        if (data) {
-          peerProfile = data as Profile
-          profilesCache.set(data.id, data as Profile)
-          if (!allProfiles.value.some(p => p.id === data.id)) {
-            allProfiles.value = [...allProfiles.value, data as Profile]
+        const { data: existingMemberships } = await supabase
+          .from('conversation_members')
+          .select('conversation_id, conversation:conversations(*)')
+          .eq('user_id', peerUserId)
+
+        if (existingMemberships && existingMemberships.length > 0) {
+          const matched = (existingMemberships as any[]).find(
+            m => m.conversation && m.conversation.type === 'direct',
+          )
+          if (matched?.conversation) {
+            const c = matched.conversation
+            const conv: Conversation = {
+              id: c.id,
+              type: 'direct',
+              title: null,
+              created_by: c.created_by,
+              created_at: c.created_at,
+              updated_at: c.updated_at,
+              peer: peerProfile || null,
+              members: [
+                { conversation_id: c.id, user_id: current.id, role: 'owner', joined_at: c.created_at, profile: current },
+                { conversation_id: c.id, user_id: peerUserId, role: 'member', joined_at: c.created_at, profile: peerProfile || null },
+              ],
+              unreadCount: unreadCounts.value[c.id] || 0,
+            }
+            if (!conversations.value.some(item => item.id === conv.id)) {
+              conversations.value = [conv, ...conversations.value]
+            }
+            await selectConversation(conv.id)
+            return conv
           }
         }
       } catch {
         // ignore
       }
-    }
 
-    const existingInMemory = conversations.value.find(c => {
-      if (c.type !== 'direct') return false
-      if (c.peer?.id === peerUserId) return true
-      if (c.members?.some(m => m.user_id === peerUserId)) return true
-      return false
-    })
+      const { data: convData, error: convError } = await supabase
+        .from('conversations')
+        .insert({
+          type: 'direct',
+          created_by: current.id,
+        })
+        .select('*')
+        .single()
 
-    if (existingInMemory) {
-      await selectConversation(existingInMemory.id)
-      return existingInMemory
-    }
-
-    try {
-      const { data: existingMemberships } = await supabase
-        .from('conversation_members')
-        .select('conversation_id, conversation:conversations(*)')
-        .eq('user_id', peerUserId)
-
-      if (existingMemberships && existingMemberships.length > 0) {
-        const matched = (existingMemberships as any[]).find(
-          m => m.conversation && m.conversation.type === 'direct',
-        )
-        if (matched?.conversation) {
-          const c = matched.conversation
-          const conv: Conversation = {
-            id: c.id,
-            type: 'direct',
-            title: null,
-            created_by: c.created_by,
-            created_at: c.created_at,
-            updated_at: c.updated_at,
-            peer: peerProfile || null,
-            members: [
-              { conversation_id: c.id, user_id: current.id, role: 'owner', joined_at: c.created_at, profile: current },
-              { conversation_id: c.id, user_id: peerUserId, role: 'member', joined_at: c.created_at, profile: peerProfile || null },
-            ],
-            unreadCount: unreadCounts.value[c.id] || 0,
-          }
-          if (!conversations.value.some(item => item.id === conv.id)) {
-            conversations.value = [conv, ...conversations.value]
-          }
-          await selectConversation(conv.id)
-          return conv
-        }
+      if (convError || !convData) {
+        throw new Error(convError?.message || 'Failed to create direct conversation.')
       }
-    } catch {
-      // ignore
-    }
 
-    const { data: convData, error: convError } = await supabase
-      .from('conversations')
-      .insert({
+      const membersToInsert = [
+        { conversation_id: convData.id, user_id: current.id, role: 'owner' },
+        { conversation_id: convData.id, user_id: peerUserId, role: 'member' },
+      ]
+      const { error: memberError } = await supabase.from('conversation_members').insert(membersToInsert)
+      if (memberError) {
+        throw new Error(memberError.message || 'Failed to add conversation members.')
+      }
+
+      const newConv: Conversation = {
+        id: convData.id,
         type: 'direct',
+        title: null,
         created_by: current.id,
-      })
-      .select('*')
-      .single()
+        created_at: convData.created_at || new Date().toISOString(),
+        updated_at: convData.updated_at || new Date().toISOString(),
+        peer: peerProfile || null,
+        members: [
+          { conversation_id: convData.id, user_id: current.id, role: 'owner', joined_at: new Date().toISOString(), profile: current },
+          { conversation_id: convData.id, user_id: peerUserId, role: 'member', joined_at: new Date().toISOString(), profile: peerProfile || null },
+        ],
+        unreadCount: 0,
+        background_url: convData.background_url || null,
+      }
 
-    if (convError || !convData) {
-      throw new Error(convError?.message || 'Failed to create direct conversation.')
-    }
+      if (!conversations.value.some(c => c.id === newConv.id)) {
+        conversations.value = [newConv, ...conversations.value]
+      }
+      await selectConversation(newConv.id)
+      return newConv
+    })()
 
-    const membersToInsert = [
-      { conversation_id: convData.id, user_id: current.id, role: 'owner' },
-      { conversation_id: convData.id, user_id: peerUserId, role: 'member' },
-    ]
-    const { error: memberError } = await supabase.from('conversation_members').insert(membersToInsert)
-    if (memberError) {
-      throw new Error(memberError.message || 'Failed to add conversation members.')
+    inFlightDirectChats.set(peerUserId, task)
+    try {
+      return await task
+    } finally {
+      inFlightDirectChats.delete(peerUserId)
     }
-
-    const newConv: Conversation = {
-      id: convData.id,
-      type: 'direct',
-      title: null,
-      created_by: current.id,
-      created_at: convData.created_at || new Date().toISOString(),
-      updated_at: convData.updated_at || new Date().toISOString(),
-      peer: peerProfile || null,
-      members: [
-        { conversation_id: convData.id, user_id: current.id, role: 'owner', joined_at: new Date().toISOString(), profile: current },
-        { conversation_id: convData.id, user_id: peerUserId, role: 'member', joined_at: new Date().toISOString(), profile: peerProfile || null },
-      ],
-      unreadCount: 0,
-      background_url: convData.background_url || null,
-    }
-
-    if (!conversations.value.some(c => c.id === newConv.id)) {
-      conversations.value = [newConv, ...conversations.value]
-    }
-    await selectConversation(newConv.id)
-    return newConv
   }
 
   async function createGroup(title: string, memberUserIds: string[]): Promise<Conversation> {

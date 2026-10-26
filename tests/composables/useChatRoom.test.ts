@@ -1692,6 +1692,52 @@ describe('useChatRoom contacts and conversations', () => {
     expect(room.conversations.value).toHaveLength(1)
   })
 
+  it('deduplicates concurrent openOrCreateDirectChat calls for the same peer', async () => {
+    const room = useChatRoom()
+    let conversationInserts = 0
+    const origFrom = mockSupabase.from
+    mockSupabase.from = vi.fn((table: string) => {
+      const res = origFrom(table)
+      if (table === 'conversations') {
+        const origInsert = res.insert
+        res.insert = vi.fn().mockImplementation((payload: any) => {
+          conversationInserts++
+          const builder = origInsert(payload)
+          return {
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockImplementation(async () => {
+                await new Promise(resolve => setTimeout(resolve, 20))
+                return {
+                  data: {
+                    id: 'conv-concurrent',
+                    type: payload.type,
+                    title: null,
+                    created_by: payload.created_by,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                  },
+                  error: null,
+                }
+              }),
+            }),
+          }
+        })
+      }
+      return res
+    })
+
+    const [conv1, conv2] = await Promise.all([
+      room.openOrCreateDirectChat('u-bob'),
+      room.openOrCreateDirectChat('u-bob'),
+    ])
+
+    expect(conv1).toBeDefined()
+    expect(conv2).toBeDefined()
+    expect(conv1.id).toBe(conv2.id)
+    expect(conversationInserts).toBe(1)
+    expect(room.conversations.value.filter(c => c.type === 'direct')).toHaveLength(1)
+  })
+
   it('creates group conversation with participant list', async () => {
     const room = useChatRoom()
 

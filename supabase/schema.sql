@@ -262,6 +262,68 @@ create policy "Users can remove themselves or owners can manage members"
     )
   );
 
+-- Atomic helper: get or create direct conversation between auth.uid() and target_user_id
+create or replace function public.get_or_create_direct_conversation(target_user_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller_id uuid := auth.uid();
+  existing_cid uuid;
+  new_cid uuid;
+  lock_key bigint;
+begin
+  if caller_id is null then
+    raise exception 'Not authenticated.';
+  end if;
+  if caller_id = target_user_id then
+    raise exception 'Cannot start a direct message with yourself.';
+  end if;
+
+  -- Derive deterministic 64-bit advisory lock key from sorted UUIDs
+  lock_key := ('x' || substr(md5(
+    case when caller_id < target_user_id
+         then caller_id::text || target_user_id::text
+         else target_user_id::text || caller_id::text
+    end
+  ), 1, 15))::bit(64)::bigint;
+
+  perform pg_advisory_xact_lock(lock_key);
+
+  -- Check if direct conversation already exists for this pair
+  select cm1.conversation_id into existing_cid
+  from public.conversation_members cm1
+  join public.conversation_members cm2 on cm1.conversation_id = cm2.conversation_id
+  join public.conversations c on c.id = cm1.conversation_id
+  where c.type = 'direct'
+    and cm1.user_id = caller_id
+    and cm2.user_id = target_user_id
+  limit 1;
+
+  if existing_cid is not null then
+    return existing_cid;
+  end if;
+
+  -- Create new direct conversation
+  insert into public.conversations (type, created_by)
+  values ('direct', caller_id)
+  returning id into new_cid;
+
+  -- Insert both members
+  insert into public.conversation_members (conversation_id, user_id, role)
+  values
+    (new_cid, caller_id, 'owner'),
+    (new_cid, target_user_id, 'member');
+
+  return new_cid;
+end;
+$$;
+
+revoke all on function public.get_or_create_direct_conversation(uuid) from public, anon;
+grant execute on function public.get_or_create_direct_conversation(uuid) to authenticated;
+
 -- Profiles visibility policy (defined after contacts & conversation_members exist)
 drop policy if exists "Authenticated users can view profiles" on public.profiles;
 drop policy if exists "Users can view friends and conversation peers" on public.profiles;
