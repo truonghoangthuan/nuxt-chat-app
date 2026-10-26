@@ -356,6 +356,17 @@ export function buildMessageTimeline(
   let unreadDividerPlaced = false
 
   return messages.map((msg, index) => {
+    let imagePayload: ImageMessagePayload | null = null
+    let systemPayload: SystemMessagePayload | null = null
+
+    if (!msg.deleted_at && msg.encryption !== 'undecryptable' && typeof msg.content === 'string') {
+      if (isImagePayload(msg.content)) {
+        imagePayload = parseImagePayload(msg.content)
+      } else if (isSystemPayload(msg.content)) {
+        systemPayload = parseSystemPayload(msg.content)
+      }
+    }
+
     const currDate = new Date(msg.created_at)
     const currTimeMs = currDate.getTime()
     const currDayKey = Number.isNaN(currTimeMs) ? '' : getLocalDayKey(currDate)
@@ -379,7 +390,10 @@ export function buildMessageTimeline(
       !msg.deleted_at
       && isFromOtherUser
       && (
-        doesMessageMentionUser(msg.content, options?.currentDisplayName)
+        doesMessageMentionUser(
+          imagePayload ? (imagePayload.caption || '') : msg.content,
+          options?.currentDisplayName,
+        )
         || (options?.currentUserId && msg.reply_to?.user_id === options.currentUserId)
       ),
     )
@@ -432,6 +446,7 @@ export function buildMessageTimeline(
     const showSenderHeader = Boolean(!isSender && options?.isGroup && isFirstInGroup)
 
     return {
+      type: 'message',
       message: msg,
       showDateDivider,
       dateLabel,
@@ -442,6 +457,8 @@ export function buildMessageTimeline(
       showSenderHeader,
       showUnreadDivider,
       isMentioningMe,
+      imagePayload,
+      systemPayload,
     }
   })
 }

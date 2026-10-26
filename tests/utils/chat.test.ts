@@ -939,6 +939,29 @@ describe('Conversation utilities', () => {
       expect(seenMap['m-1']?.map(p => p.id)).toEqual(['u-bob'])
       expect(seenMap['m-2']?.map(p => p.id)).toEqual(['u-charlie'])
     })
+
+    it('buildMessageTimeline pre-parses imagePayload and systemPayload once per message item', () => {
+      const imgContent = JSON.stringify({
+        type: 'images',
+        images: [{ path: 'a.enc', mimeType: 'image/png', width: 10, height: 10, size: 50 }],
+        caption: 'Hello @Alice Smith',
+      })
+      const items = buildMessageTimeline([
+        {
+          id: 'm-1',
+          client_id: 'c-1',
+          conversation_id: 'conv-1',
+          channel_id: 'conv-1',
+          user_id: 'u-1',
+          content: imgContent,
+          created_at: '2026-10-20T10:00:00Z',
+          status: 'sent',
+        },
+      ])
+      const msgItem = items.find(i => i.type === 'message') as any
+      expect(msgItem?.imagePayload?.caption).toBe('Hello @Alice Smith')
+      expect(msgItem?.systemPayload).toBeNull()
+    })
   })
 })
 

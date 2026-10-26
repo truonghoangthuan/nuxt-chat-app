@@ -155,6 +155,7 @@ export interface ActiveMentionQuery {
 }
 
 export interface TimelineMessageItem {
+  type?: 'message'
   message: ChatMessage
   showDateDivider: boolean
   dateLabel: string
@@ -165,6 +166,8 @@ export interface TimelineMessageItem {
   showSenderHeader?: boolean
   showUnreadDivider?: boolean
   isMentioningMe?: boolean
+  imagePayload?: ImageMessagePayload | null
+  systemPayload?: SystemMessagePayload | null
 }
 
 export interface TypingUser {

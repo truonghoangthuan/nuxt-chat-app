@@ -2228,6 +2228,35 @@ describe('Chat UI components', () => {
 
     expect(wrapper.text()).toContain('Bob buzzed the chat!')
   })
+
+  it('MessageViewport highlights multi-word @Display Name mentions using conversation members list', () => {
+    const wrapper = mount(MessageViewport, {
+      props: {
+        messages: [
+          {
+            id: 'm-multi-mention',
+            client_id: 'c-multi',
+            conversation_id: 'conv-1',
+            channel_id: 'conv-1',
+            user_id: 'u-bob',
+            content: 'Hey @Alice Wonderland check this out',
+            created_at: '2026-10-20T10:00:00Z',
+            status: 'sent',
+          },
+        ],
+        members: [
+          { id: 'u-alice', display_name: 'Alice Wonderland', avatar_color: '#0284c7' },
+          { id: 'u-bob', display_name: 'Bob', avatar_color: '#7c3aed' },
+        ],
+        currentUserId: 'u-alice',
+        currentDisplayName: 'Alice Wonderland',
+      },
+    })
+    expect(wrapper.text()).toContain('@Alice Wonderland')
+    const mentionSpan = wrapper.find('[data-test="mention-self"]')
+    expect(mentionSpan.exists()).toBe(true)
+    expect(mentionSpan.text()).toBe('@Alice Wonderland')
+  })
 })
 
 
