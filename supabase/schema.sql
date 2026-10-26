@@ -485,11 +485,14 @@ create table if not exists public.conversation_reads (
 );
 
 alter table public.conversation_reads enable row level security;
+alter table public.conversation_reads replica identity full;
 
-create policy "Users can view their own conversation reads"
+drop policy if exists "Users can view their own conversation reads" on public.conversation_reads;
+drop policy if exists "Users can view accessible conversation reads" on public.conversation_reads;
+create policy "Users can view accessible conversation reads"
   on public.conversation_reads for select
   to authenticated
-  using (auth.uid() = user_id);
+  using (public.can_access_conversation(conversation_id));
 
 create policy "Users can insert accessible conversation reads"
   on public.conversation_reads for insert
@@ -519,6 +522,10 @@ create policy "Authenticated users can view e2ee config"
   on public.e2ee_config for select
   to authenticated
   using (true);
+
+insert into public.e2ee_config (id, salt, iterations, verifier)
+values (1, 'R59PQPVU53Wpr0fvlsEpCA', 600000, 'e2ee:v1:tSRqP5o9-D29MLTe:bTkkzKQAj2OTF3U0QmkLrPOOrPr3FZMbGy4ARXzRio0WyWCHag3K3OiP')
+on conflict (id) do nothing;
 
 create or replace function public.enforce_message_e2ee_envelope()
 returns trigger
@@ -644,7 +651,7 @@ do $$
 declare
   tbl text;
 begin
-  for tbl in select unnest(array['conversations', 'conversation_members', 'messages', 'message_reactions', 'profiles', 'contacts']) loop
+  for tbl in select unnest(array['conversations', 'conversation_members', 'messages', 'message_reactions', 'profiles', 'contacts', 'conversation_reads']) loop
     if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
        and not exists (
          select 1 from pg_publication_tables
