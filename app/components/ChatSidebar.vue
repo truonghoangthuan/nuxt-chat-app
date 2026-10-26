@@ -19,6 +19,11 @@ import {
   formatConversationTitle,
   formatConversationTime,
 } from '~/utils/chat'
+import {
+  isImagePayload,
+  parseImagePayload,
+  formatImageMessageSummary,
+} from '~/utils/image'
 import UserAvatar from '~/components/UserAvatar.vue'
 import Button from '~/components/ui/Button.vue'
 
@@ -138,11 +143,16 @@ function getConvSubtitle(conv: Conversation): string {
       return '🔒 Encrypted message'
     }
     if (conv.lastMessage.content) {
+      let text = conv.lastMessage.content
+      if (isImagePayload(text)) {
+        const parsed = parseImagePayload(text)
+        text = parsed?.caption || formatImageMessageSummary(parsed?.images?.length || 1)
+      }
       const sender = conv.lastMessage.author?.display_name
       if (conv.type === 'group' && sender) {
-        return `${sender}: ${conv.lastMessage.content}`
+        return `${sender}: ${text}`
       }
-      return conv.lastMessage.content
+      return text
     }
   }
   if (conv.type === 'direct') {
