@@ -314,18 +314,14 @@ async function handleSendMessage(content: string) {
   const replyId = replyingTo.value?.id || null
   replyingTo.value = null
   isMobileSidebarOpen.value = false
-  if (shouldTriggerConfetti(content)) {
-    triggerConfetti()
-  }
+  triggerConfetti()
   await sendMessage(content, replyId)
 }
 
 async function handleSendImages(files: File[], caption?: string) {
   replyingTo.value = null
   isMobileSidebarOpen.value = false
-  if (caption && shouldTriggerConfetti(caption)) {
-    triggerConfetti()
-  }
+  triggerConfetti()
   await sendImages(files, caption)
 }
 
@@ -371,7 +367,8 @@ watch(
 
     if (newestId !== prevConfettiMessageId) {
       prevConfettiMessageId = newestId
-      if (!newest.deleted_at && shouldTriggerConfetti(newest.content)) {
+      // Outgoing messages already celebrate in the send handlers.
+      if (newest.user_id !== currentProfile.value?.id && !newest.deleted_at && shouldTriggerConfetti(newest.content)) {
         triggerConfetti()
       }
     }
