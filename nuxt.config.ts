@@ -26,6 +26,7 @@ export default defineNuxtConfig({
   },
   modules: [
     '@nuxtjs/supabase',
+    '@vercel/analytics',
   ],
   vite: {
     plugins: [tailwindcss()],
