@@ -38,6 +38,7 @@ import { createMessagesStore } from '~/composables/useMessagesState'
 import { createTypingTracker } from '~/composables/useTypingState'
 import type { Profile, Conversation, Contact } from '~/types/chat'
 import { createPhraseConfig, deriveKey, encryptContent, decryptContent } from '~/utils/crypto'
+import { isSystemPayload, parseSystemPayload } from '~/utils/chat'
 
 describe('useChatRoom realtime message routing & profile caching', () => {
   it('increments unread count for inactive channels and reconciles messages for active channel', () => {
@@ -2255,5 +2256,64 @@ describe('useChatRoom contacts and conversations', () => {
     expect(capturedInKey).toBe('conversation_id')
     expect(capturedInValues).toEqual(['conv-101'])
     expect(capturedLimit).toBe(1000)
+  })
+
+  it('sendBuzz emits an encrypted system message with event buzz', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Buzz Group', ['u-bob'])
+    room.activeConversationId.value = group.id
+
+    await room.sendBuzz()
+
+    expect(mockMessagesInsert).toHaveBeenCalled()
+    const lastCall = mockMessagesInsert.mock.calls[mockMessagesInsert.mock.calls.length - 1][0]
+    expect(lastCall.conversation_id).toBe(group.id)
+    expect(lastCall.content).toMatch(/^e2ee:v1:/)
+    const decrypted = await decryptContent(testKey, lastCall.content, group.id)
+    expect(isSystemPayload(decrypted)).toBe(true)
+    const payload = parseSystemPayload(decrypted)
+    expect(payload?.event).toBe('buzz')
+    expect(payload?.actorName).toBe('Alice')
+  })
+
+  it('updateGroupTitle and updateChatBackground emit encrypted system activity messages', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Original Title', ['u-bob'])
+    room.activeConversationId.value = group.id
+    mockMessagesInsert.mockClear()
+
+    await room.updateGroupTitle(group.id, 'Renamed Title')
+    expect(mockMessagesInsert).toHaveBeenCalled()
+    let lastCall = mockMessagesInsert.mock.calls[mockMessagesInsert.mock.calls.length - 1][0]
+    let decrypted = await decryptContent(testKey, lastCall.content, group.id)
+    let payload = parseSystemPayload(decrypted)
+    expect(payload?.event).toBe('group_rename')
+    expect(payload?.details?.newTitle).toBe('Renamed Title')
+
+    mockMessagesInsert.mockClear()
+    await room.updateChatBackground(group.id, 'preset:sunset')
+    expect(mockMessagesInsert).toHaveBeenCalled()
+    lastCall = mockMessagesInsert.mock.calls[mockMessagesInsert.mock.calls.length - 1][0]
+    decrypted = await decryptContent(testKey, lastCall.content, group.id)
+    payload = parseSystemPayload(decrypted)
+    expect(payload?.event).toBe('background_change')
+
+    mockMessagesInsert.mockClear()
+    await room.removeChatBackground(group.id)
+    expect(mockMessagesInsert).toHaveBeenCalled()
+    lastCall = mockMessagesInsert.mock.calls[mockMessagesInsert.mock.calls.length - 1][0]
+    decrypted = await decryptContent(testKey, lastCall.content, group.id)
+    payload = parseSystemPayload(decrypted)
+    expect(payload?.event).toBe('background_reset')
+  })
+
+  it('tracks conversation reads across all conversation members in conversationReadsByConv', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Reads Group', ['u-bob'])
+    room.activeConversationId.value = group.id
+
+    room.markConversationRead(group.id)
+    expect(room.activeConversationReads.value['u-alice']).toBeTruthy()
+    expect(room.conversationReadsByConv.value[group.id]['u-alice']).toBeTruthy()
   })
 })

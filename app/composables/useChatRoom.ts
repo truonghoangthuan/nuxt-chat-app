@@ -31,6 +31,10 @@ import {
   getDirectPeer,
   formatConversationTitle,
   validateBackgroundFile,
+  serializeSystemMessage,
+  isSystemPayload,
+  parseSystemPayload,
+  CHAT_BACKGROUND_PRESETS,
 } from '~/utils/chat'
 import { isEncryptedEnvelope, encryptContent, decryptContent, encryptBinary } from '~/utils/crypto'
 import { createMessagesStore } from '~/composables/useMessagesState'
@@ -572,6 +576,11 @@ export function useChatRoom() {
   const lastReadByConversation = ref<Record<string, string>>({})
   const lastReadByChannel = lastReadByConversation
   const activeChannelUnreadSince = ref<string | null>(null)
+  const conversationReadsByConv = ref<Record<string, Record<string, string>>>({})
+  const activeConversationReads = computed<Record<string, string>>(() => {
+    const id = activeConversationId.value
+    return id ? (conversationReadsByConv.value[id] || {}) : {}
+  })
 
   const rawOnlineUsers = ref<Profile[]>([])
   const onlineFriends = ref<Profile[]>([])
@@ -637,6 +646,16 @@ export function useChatRoom() {
     const current = authProfile.currentProfile.value
     const nowIso = new Date().toISOString()
     lastReadByConversation.value[conversationId] = nowIso
+    if (current?.id) {
+      const existing = conversationReadsByConv.value[conversationId] || {}
+      conversationReadsByConv.value = {
+        ...conversationReadsByConv.value,
+        [conversationId]: {
+          ...existing,
+          [current.id]: nowIso,
+        },
+      }
+    }
     if (!current?.id) return
 
     await readDebouncer.schedule(conversationId, nowIso, immediate)
@@ -652,10 +671,19 @@ export function useChatRoom() {
       const { data: convReadRows, error: convReadErr } = await supabase
         .from('conversation_reads')
         .select('*')
-        .eq('user_id', current.id)
 
       if (!convReadErr && convReadRows) {
-        readRows = convReadRows
+        readRows = convReadRows.filter((r: any) => r.user_id === current.id)
+        const readsMap: Record<string, Record<string, string>> = {}
+        for (const r of convReadRows) {
+          if (r.conversation_id && r.user_id && r.last_read_at) {
+            if (!readsMap[r.conversation_id]) {
+              readsMap[r.conversation_id] = {}
+            }
+            readsMap[r.conversation_id][r.user_id] = r.last_read_at
+          }
+        }
+        conversationReadsByConv.value = readsMap
       } else {
         const { data: chReadRows } = await supabase
           .from('channel_reads')
@@ -1467,6 +1495,26 @@ export function useChatRoom() {
           }
         },
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'conversation_reads' },
+        (payload) => {
+          const row = payload.new as any
+          if (row && row.conversation_id && row.user_id && row.last_read_at) {
+            const existing = conversationReadsByConv.value[row.conversation_id] || {}
+            conversationReadsByConv.value = {
+              ...conversationReadsByConv.value,
+              [row.conversation_id]: {
+                ...existing,
+                [row.user_id]: row.last_read_at,
+              },
+            }
+            if (row.user_id === authProfile.currentProfile.value?.id) {
+              lastReadByConversation.value[row.conversation_id] = row.last_read_at
+            }
+          }
+        },
+      )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           connectionManager.handleConnected()
@@ -1945,6 +1993,15 @@ export function useChatRoom() {
         return { error: error.message || 'Failed to update group title.' }
       }
 
+      const actorName = current.display_name || 'Someone'
+      const sysPayload = serializeSystemMessage({
+        type: 'system',
+        event: 'group_rename',
+        actorName,
+        details: { newTitle: cleanTitle, oldTitle: previousTitle },
+      })
+      await sendMessage(sysPayload, undefined, conversationId).catch(() => {})
+
       return { error: null }
     } catch (err: any) {
       targetConv.title = previousTitle
@@ -2017,6 +2074,18 @@ export function useChatRoom() {
         targetConv.updated_at = prevUpdated
         return { error: dbError.message || 'Failed to update background.' }
       }
+
+      const actorName = current.display_name || 'Someone'
+      const preset = CHAT_BACKGROUND_PRESETS.find(p => p.url === finalUrl)
+      const presetLabel = preset ? preset.label : 'a custom image'
+      const sysPayload = serializeSystemMessage({
+        type: 'system',
+        event: 'background_change',
+        actorName,
+        details: { backgroundLabel: presetLabel },
+      })
+      await sendMessage(sysPayload, undefined, conversationId).catch(() => {})
+
       return { error: null }
     } catch (err: any) {
       targetConv.background_url = prevBg
@@ -2054,6 +2123,15 @@ export function useChatRoom() {
         targetConv.updated_at = prevUpdated
         return { error: dbError.message || 'Failed to reset background.' }
       }
+
+      const actorName = current.display_name || 'Someone'
+      const sysPayload = serializeSystemMessage({
+        type: 'system',
+        event: 'background_reset',
+        actorName,
+      })
+      await sendMessage(sysPayload, undefined, conversationId).catch(() => {})
+
       return { error: null }
     } catch (err: any) {
       targetConv.background_url = prevBg
@@ -2065,14 +2143,20 @@ export function useChatRoom() {
   const createChannel = async (name: string) => createGroup(name, []).then(channel => ({ channel, error: null })).catch((err: any) => ({ channel: null, error: err?.message || 'Failed to create channel.' }))
   const openOrCreateDm = async (peerUserId: string) => openOrCreateDirectChat(peerUserId).then(channel => ({ channel, error: null })).catch((err: any) => ({ channel: null, error: err?.message || 'Failed to open direct message.' }))
 
-  async function sendMessage(content: string, replyToId?: string | null): Promise<void> {
-    const conversationId = activeConversationId.value
+  async function sendMessage(
+    content: string,
+    replyToId?: string | null,
+    targetConversationId?: string | null,
+  ): Promise<void> {
+    const conversationId = targetConversationId || activeConversationId.value
     if (!conversationId || !isValidMessageContent(content)) return
     let current = authProfile.currentProfile.value
     if (!current?.id) {
       current = await authProfile.ensureProfile()
     }
     if (!current?.id) return
+
+    const isCurrentActive = conversationId === activeConversationId.value
 
     const clientId = typeof crypto !== 'undefined' && crypto.randomUUID
       ? crypto.randomUUID()
@@ -2095,16 +2179,19 @@ export function useChatRoom() {
 
     const plaintext = content.trim()
 
-    const optimisticMessage = messagesStore.addOptimisticMessage({
-      clientId,
-      conversationId,
-      channelId: conversationId,
-      user: current,
-      content: plaintext,
-      replyToId: replyToId || null,
-      replyTo: replyTarget,
-      encryption: 'e2ee',
-    })
+    let optimisticMessage: any = null
+    if (isCurrentActive) {
+      optimisticMessage = messagesStore.addOptimisticMessage({
+        clientId,
+        conversationId,
+        channelId: conversationId,
+        user: current,
+        content: plaintext,
+        replyToId: replyToId || null,
+        replyTo: replyTarget,
+        encryption: 'e2ee',
+      })
+    }
 
     const targetConv = conversations.value.find(c => c.id === conversationId)
     if (targetConv) {
@@ -2115,7 +2202,9 @@ export function useChatRoom() {
     }
 
     if (!e2ee.key.value) {
-      messagesStore.markMessageFailed(clientId)
+      if (isCurrentActive) {
+        messagesStore.markMessageFailed(clientId)
+      }
       return
     }
 
@@ -2161,29 +2250,48 @@ export function useChatRoom() {
           if (existing) {
             const decryptedExisting = await decryptMessageRow(existing, e2ee.key.value, conversationId)
             const sentMsg = { ...decryptedExisting, reply_to: replyTarget, status: 'sent' as const }
-            messagesStore.markMessageSent(clientId, sentMsg)
+            if (isCurrentActive) {
+              messagesStore.markMessageSent(clientId, sentMsg)
+            }
             if (targetConv) {
               targetConv.lastMessage = sentMsg as ChatMessage
               targetConv.updated_at = sentMsg.created_at || targetConv.updated_at
             }
-          } else {
+          } else if (isCurrentActive) {
             messagesStore.markMessageFailed(clientId)
           }
-        } else {
+        } else if (isCurrentActive) {
           messagesStore.markMessageFailed(clientId)
         }
       } else if (data) {
         const decryptedData = await decryptMessageRow(data, e2ee.key.value, conversationId)
         const sentMsg = { ...decryptedData, reply_to: replyTarget, status: 'sent' as const }
-        messagesStore.markMessageSent(clientId, sentMsg)
+        if (isCurrentActive) {
+          messagesStore.markMessageSent(clientId, sentMsg)
+        }
         if (targetConv) {
           targetConv.lastMessage = sentMsg as ChatMessage
           targetConv.updated_at = sentMsg.created_at || targetConv.updated_at
         }
       }
     } catch {
-      messagesStore.markMessageFailed(clientId)
+      if (isCurrentActive) {
+        messagesStore.markMessageFailed(clientId)
+      }
     }
+  }
+
+  async function sendBuzz(): Promise<void> {
+    const conversationId = activeConversationId.value
+    if (!conversationId) return
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    const actorName = current?.display_name || 'Someone'
+    const payload = serializeSystemMessage({
+      type: 'system',
+      event: 'buzz',
+      actorName,
+    })
+    await sendMessage(payload, undefined, conversationId)
   }
 
   async function sendImages(
@@ -2805,6 +2913,8 @@ export function useChatRoom() {
     unreadCounts,
     unreadMentions,
     activeChannelUnreadSince,
+    conversationReadsByConv,
+    activeConversationReads,
     allProfiles,
     knownProfiles,
     onlineFriends,
@@ -2813,6 +2923,7 @@ export function useChatRoom() {
     reconnectCountdownSec,
     initializeChat,
     sendMessage,
+    sendBuzz,
     sendImages,
     retryMessage,
     dismissMessage,

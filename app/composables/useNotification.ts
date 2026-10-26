@@ -3,6 +3,7 @@ import type { ChatMessage } from '~/types/chat'
 import type { NotificationToastItem } from '~/types/notification'
 import { playNotificationChime } from '~/utils/sound'
 import { isImagePayload, parseImagePayload, formatImageMessageSummary } from '~/utils/image'
+import { isSystemPayload, parseSystemPayload, formatSystemMessageText } from '~/utils/chat'
 
 export const STORAGE_KEY_SOUND = 'nuxt-chat-sound-enabled'
 export const STORAGE_KEY_DESKTOP = 'nuxt-chat-desktop-enabled'
@@ -214,6 +215,9 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
     let snippet = (message.content || '').trim()
     if (snippet.startsWith('e2ee:v1:')) {
       snippet = '🔒 Encrypted message'
+    } else if (isSystemPayload(snippet)) {
+      const parsedSys = parseSystemPayload(snippet)
+      snippet = parsedSys ? formatSystemMessageText(parsedSys) : 'System notification'
     } else if (isImagePayload(snippet)) {
       const parsed = parseImagePayload(snippet)
       snippet = formatImageMessageSummary(parsed?.images.length || 1, parsed?.caption)
