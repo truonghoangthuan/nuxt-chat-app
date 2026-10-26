@@ -1333,11 +1333,15 @@ describe('useChatRoom contacts and conversations', () => {
   let mockMembersInsertError: any
   let mockMembersDeleteError: any
   let mockConversationsUpdateError: { message: string } | null = null
-let mockTogglePinError: string | null = null
-let capturedMessagesSelect = ''
+  let mockTogglePinError: string | null = null
+  let mockMessagesUpdateError: { message: string } | null = null
+  let mockReactionsError: { message: string } | null = null
+  let capturedMessagesSelect = ''
 
   beforeEach(async () => {
     mockConversationsUpdateError = null
+    mockMessagesUpdateError = null
+    mockReactionsError = null
     capturedMessagesSelect = ''
     mockMembersInsertError = null
     mockMembersDeleteError = null
@@ -1520,6 +1524,16 @@ let capturedMessagesSelect = ''
         if (table === 'messages') {
           return {
             insert: mockMessagesInsert,
+            update: vi.fn().mockImplementation((payload: any) => ({
+              eq: vi.fn().mockImplementation((_col1: string, _val1: string) => ({
+                eq: vi.fn().mockImplementation((_col2: string, _val2: string) => {
+                  if (mockMessagesUpdateError) {
+                    return Promise.resolve({ error: mockMessagesUpdateError })
+                  }
+                  return Promise.resolve({ error: null })
+                }),
+              })),
+            })),
             select: vi.fn((fields?: string) => {
               if (fields) capturedMessagesSelect = fields
               return {
@@ -1534,6 +1548,24 @@ let capturedMessagesSelect = ''
                   }),
                 }),
               }
+            }),
+          }
+        }
+        if (table === 'message_reactions') {
+          return {
+            insert: vi.fn().mockImplementation((_payload: any) => {
+              if (mockReactionsError) {
+                return Promise.resolve({ error: mockReactionsError })
+              }
+              return Promise.resolve({ error: null })
+            }),
+            delete: vi.fn().mockReturnValue({
+              match: vi.fn().mockImplementation((_matchObj: any) => {
+                if (mockReactionsError) {
+                  return Promise.resolve({ error: mockReactionsError })
+                }
+                return Promise.resolve({ error: null })
+              }),
             }),
           }
         }
@@ -1866,6 +1898,68 @@ let capturedMessagesSelect = ''
     const after = room.messages.value.find(m => m.id === msg.id)
     expect(after?.pinned_at).toBeNull()
     mockTogglePinError = null
+  })
+
+  it('editMessage reverts optimistic update when Supabase update fails', async () => {
+    const room = useChatRoom()
+    await room.createGroup('Edit Team', ['u-bob'])
+    await room.sendMessage('Original content')
+    const msg = room.messages.value[0]
+    expect(msg).toBeDefined()
+    expect(msg.content).toBe('Original content')
+
+    mockMessagesUpdateError = { message: 'Database edit error' }
+    const res = await room.editMessage(msg.id, 'Edited content')
+    expect(res.error).toBe('Database edit error')
+
+    const after = room.messages.value.find(m => m.id === msg.id)
+    expect(after?.content).toBe('Original content')
+    expect(after?.edited_at).toBeFalsy()
+  })
+
+  it('deleteMessage reverts optimistic deletion when Supabase update fails', async () => {
+    const room = useChatRoom()
+    await room.createGroup('Delete Team', ['u-bob'])
+    await room.sendMessage('Message to delete')
+    const msg = room.messages.value[0]
+    expect(msg).toBeDefined()
+
+    mockMessagesUpdateError = { message: 'Database delete error' }
+    const res = await room.deleteMessage(msg.id)
+    expect(res.error).toBe('Database delete error')
+
+    const after = room.messages.value.find(m => m.id === msg.id)
+    expect(after?.deleted_at).toBeNull()
+  })
+
+  it('toggleReaction reverts optimistic reaction when Supabase operation fails', async () => {
+    const room = useChatRoom()
+    await room.createGroup('Reaction Team', ['u-bob'])
+    await room.sendMessage('Message to react')
+    const msg = room.messages.value[0]
+    expect(msg).toBeDefined()
+
+    // Test addition rollback on error
+    mockReactionsError = { message: 'Failed to add reaction' }
+    const res = await room.toggleReaction(msg.id, '👍')
+    expect(res.error).toBe('Failed to add reaction')
+
+    let after = room.messages.value.find(m => m.id === msg.id)
+    expect(after?.reactions?.some(r => r.emoji === '👍')).toBeFalsy()
+
+    // Now add reaction successfully
+    mockReactionsError = null
+    const addRes = await room.toggleReaction(msg.id, '👍')
+    expect(addRes.error).toBeNull()
+    after = room.messages.value.find(m => m.id === msg.id)
+    expect(after?.reactions?.some(r => r.emoji === '👍')).toBe(true)
+
+    // Test removal rollback on error
+    mockReactionsError = { message: 'Failed to remove reaction' }
+    const removeRes = await room.toggleReaction(msg.id, '👍')
+    expect(removeRes.error).toBe('Failed to remove reaction')
+    after = room.messages.value.find(m => m.id === msg.id)
+    expect(after?.reactions?.some(r => r.emoji === '👍')).toBe(true)
   })
 
   it('initializeChat queries recent unread messages using conversation_id without channel_id', async () => {

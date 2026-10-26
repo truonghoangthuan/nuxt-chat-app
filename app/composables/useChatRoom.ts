@@ -2488,6 +2488,10 @@ export function useChatRoom() {
       return { error: 'Conversation not found.' }
     }
 
+    const originalContent = targetMsg?.content
+    const originalEditedAt = targetMsg?.edited_at ?? null
+    const originalEncryption = targetMsg?.encryption
+
     messagesStore.reconcileUpdatedMessage({
       id: messageId,
       content: trimmed,
@@ -2504,8 +2508,23 @@ export function useChatRoom() {
         .eq('id', messageId)
         .eq('user_id', current.id)
 
-      return { error: error ? error.message : null }
+      if (error) {
+        messagesStore.reconcileUpdatedMessage({
+          id: messageId,
+          content: originalContent,
+          edited_at: originalEditedAt,
+          encryption: originalEncryption,
+        })
+        return { error: error.message }
+      }
+      return { error: null }
     } catch (err: any) {
+      messagesStore.reconcileUpdatedMessage({
+        id: messageId,
+        content: originalContent,
+        edited_at: originalEditedAt,
+        encryption: originalEncryption,
+      })
       return { error: err?.message || 'Failed to encrypt message.' }
     }
   }
@@ -2560,6 +2579,7 @@ export function useChatRoom() {
     }
 
     const targetMsg = messages.value.find(m => m.id === messageId)
+    const originalDeletedAt = targetMsg?.deleted_at ?? null
 
     const deletedAt = new Date().toISOString()
     messagesStore.reconcileUpdatedMessage({
@@ -2574,6 +2594,10 @@ export function useChatRoom() {
       .eq('user_id', current.id)
 
     if (error) {
+      messagesStore.reconcileUpdatedMessage({
+        id: messageId,
+        deleted_at: originalDeletedAt,
+      })
       return { error: error.message }
     }
 
@@ -2622,7 +2646,17 @@ export function useChatRoom() {
         .from('message_reactions')
         .delete()
         .match({ message_id: messageId, user_id: current.id, emoji })
-      return { error: error ? error.message : null }
+      if (error) {
+        messagesStore.applyReactionAdded({
+          message_id: messageId,
+          conversation_id: conversationId,
+          channel_id: conversationId,
+          user_id: current.id,
+          emoji,
+        })
+        return { error: error.message }
+      }
+      return { error: null }
     } else {
       const optimisticReaction: MessageReaction = {
         message_id: messageId,
@@ -2635,7 +2669,15 @@ export function useChatRoom() {
       const { error } = await supabase
         .from('message_reactions')
         .insert(optimisticReaction)
-      return { error: error ? error.message : null }
+      if (error) {
+        messagesStore.applyReactionRemoved({
+          message_id: messageId,
+          user_id: current.id,
+          emoji,
+        })
+        return { error: error.message }
+      }
+      return { error: null }
     }
   }
 
