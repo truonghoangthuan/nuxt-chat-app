@@ -102,6 +102,10 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
    - All messages are encrypted client-side using AES-GCM-256 (`e2ee:v1:<iv-base64url>:<ciphertext-base64url>`) before insertion or update. The channel ID is bound as Authenticated Additional Data (AAD) to prevent cross-channel ciphertext splicing.
    - Postgres trigger `enforce_message_e2ee_envelope()` rejects plaintext inserts or updates (`new.content not like 'e2ee:v1:%'`).
    - The workspace key is derived from a shared secret phrase using PBKDF2-HMAC-SHA256 (600,000 iterations) and validated against `public.e2ee_config.verifier`. The derived key is stored only in tab `sessionStorage` (`nuxt-chat-e2ee-key`) and memory, never persisted to disk or sent to the server.
+   - **PBKDF2 Salt Immutability & Safe Seeding Discipline:**
+     - The PBKDF2 salt in `public.e2ee_config.salt` is the immutable cryptographic anchor for all historical ciphertext. Never overwrite an existing salt in migrations or seed scripts (`ON CONFLICT (id) DO NOTHING;` only).
+     - Never provide SQL snippets containing `ON CONFLICT (id) DO UPDATE SET salt = excluded.salt...` unless an explicit, operator-confirmed cryptographic reset of all past history is intended.
+     - When introducing default/transparent auto-unlock, the application's hardcoded or environment secret phrase MUST match the actual existing workspace phrase that originally encrypted the database, never an arbitrary placeholder.
    - **Initial Seed & Reset Runbook:** Generate the `public.e2ee_config` SQL seed via:
      ```bash
      node scripts/generate-e2ee-config.mjs "<secret-phrase>"
@@ -132,9 +136,10 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - `public.profiles` RLS restricts reads to self, mutual friends, and shared channel co-members. Peer profile lookups must happen *after* friendship row insertion.
     - On realtime `contacts` `INSERT` events, if peer profile is missing from memory, asynchronously query Supabase (`fetchProfile`) and merge into `contactsProfiles` store.
 
-12. **Passphrase Workspace Gate Invariant:**
-    - When `e2eeStatus !== 'unlocked'`, the entire chat workspace (`ChatSidebar`, channel views, message lists, composers) must remain unmounted.
-    - Render only `E2eeGate.vue` full-screen until valid passphrase derivation completes to prevent any channel or user metadata exposure in the DOM.
+12. **Transparent Auto-Unlock & Non-Blocking Workspace Hydration:**
+    - Chat workspace hydration (`initializeChat()`, `fetchConversations()`, `fetchContacts()`, Realtime subscriptions) must execute unconditionally on page mount and must NEVER be blocked by E2EE initialization (`initializeE2ee()`).
+    - If E2EE derivation fails, is delayed, or encounters an unrecognized key, the sidebar, conversation roster, contacts, and message timelines must still mount and render.
+    - Decryption failures must remain isolated to individual message bubbles (`encryption: 'undecryptable'`, rendering `🔒 Unable to decrypt this message`) rather than stalling the application shell in an empty or unmounted state.
 
 13. **Native Windows & OS Web Notifications Discipline (Service Worker & Action Center):**
     - **Background & Minimized Tab Delivery:** Modern Chromium on Windows throttles or drops `new window.Notification()` from background or sleeping tabs. Always route desktop notifications through `ServiceWorkerRegistration.showNotification()` via `public/sw.js` when available, falling back to `window.Notification` only in unsupported environments.
