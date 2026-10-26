@@ -414,6 +414,64 @@ describe('IndexPage (app/pages/index.vue)', () => {
     expect(wrapper.findComponent({ name: 'MessageViewport' }).exists()).toBe(true)
   })
 
+  it.each([
+    ['text', 'See you tomorrow'],
+    ['text', 'Ok'],
+    ['image', undefined],
+    ['image', 'A photo from today'],
+    ['image', 'Rõ ràng'],
+  ])('celebrates each outgoing %s once with content %s', async (kind, content) => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    mockChatRoomState.activeConversation.value = {
+      id: 'conv-1', type: 'group', title: 'General',
+    } as Conversation
+    mockChatRoomState.messages.value = []
+    mockChatRoomState.isLoadingHistory.value = false
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    const composer = wrapper.findComponent({ name: 'MessageComposer' })
+    const confetti = wrapper.findComponent({ name: 'ConfettiOverlay' })
+    const files = [new File(['photo'], 'photo.png', { type: 'image/png' })]
+
+    for (let i = 1; i <= 2; i++) {
+      if (kind === 'image') {
+        composer.vm.$emit('sendImages', files, content)
+      } else {
+        composer.vm.$emit('send', content)
+      }
+      await wrapper.vm.$nextTick()
+      expect(confetti.props('burstKey')).toBe(i)
+      expect(confetti.props('active')).toBe(true)
+
+      // The local optimistic row and its server confirmation must not burst again.
+      const row = {
+        id: `local-${i}`, client_id: `client-${i}`,
+        conversation_id: 'conv-1', user_id: 'u-self',
+        content: kind === 'image'
+          ? JSON.stringify({ type: 'images', images: [], caption: content })
+          : content,
+        created_at: new Date().toISOString(), status: 'sending',
+      } as any
+      mockChatRoomState.messages.value = [...mockChatRoomState.messages.value, row]
+      await wrapper.vm.$nextTick()
+      expect(confetti.props('burstKey')).toBe(i)
+      mockChatRoomState.messages.value = mockChatRoomState.messages.value.map(
+        (message: any) => message.client_id === row.client_id
+          ? { ...message, id: `server-${i}`, status: 'sent' } : message,
+      )
+      await wrapper.vm.$nextTick()
+      expect(confetti.props('burstKey')).toBe(i)
+    }
+
+    if (kind === 'image') {
+      expect(mockChatRoomState.sendImages).toHaveBeenCalledWith(files, content)
+    } else {
+      expect(mockChatRoomState.sendMessage).toHaveBeenCalledWith(content, null)
+    }
+    wrapper.unmount()
+  })
+
   it('triggers confetti overlay when sending message with congratulation, ok, or cool', async () => {
     mockChatRoomState.activeConversationId.value = 'conv-1'
     mockChatRoomState.activeConversation.value = {
@@ -550,6 +608,40 @@ describe('IndexPage (app/pages/index.vue)', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('[data-test="confetti-overlay"]').exists()).toBe(false)
+  })
+
+  it('does not celebrate conversation switches or paginated history', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    mockChatRoomState.messages.value = []
+    mockChatRoomState.isLoadingHistory.value = false
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+    const confetti = wrapper.findComponent({ name: 'ConfettiOverlay' })
+
+    mockChatRoomState.activeConversationId.value = 'conv-2'
+    await wrapper.vm.$nextTick()
+    mockChatRoomState.isLoadingHistory.value = true
+    await wrapper.vm.$nextTick()
+    const historical = {
+      id: 'history', client_id: 'history-client', conversation_id: 'conv-2',
+      user_id: 'u-self', content: 'Ok', status: 'sent',
+      created_at: '2026-10-18T10:00:00Z',
+    } as any
+    mockChatRoomState.messages.value = [historical]
+    mockChatRoomState.isLoadingHistory.value = false
+    await wrapper.vm.$nextTick()
+    expect(confetti.props('burstKey')).toBe(0)
+
+    mockChatRoomState.isLoadingHistory.value = true
+    await wrapper.vm.$nextTick()
+    mockChatRoomState.messages.value = [
+      { ...historical, id: 'older', client_id: 'older-client', user_id: 'u-other', content: 'Rõ ràng' },
+      historical,
+    ]
+    mockChatRoomState.isLoadingHistory.value = false
+    await wrapper.vm.$nextTick()
+    expect(confetti.props('burstKey')).toBe(0)
+    wrapper.unmount()
   })
 
   it('removes service worker message event listener when unmounted', async () => {
