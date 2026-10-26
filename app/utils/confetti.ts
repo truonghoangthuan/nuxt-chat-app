@@ -1,4 +1,7 @@
-export type ConfettiShape = 'rect' | 'circle' | 'strip'
+export type CelebrationEffect = 'confetti' | 'pets' | 'water' | 'party'
+export type ConfettiShape = 'rect' | 'circle' | 'strip' | 'droplet' | 'emoji'
+
+export const CELEBRATION_EFFECTS: CelebrationEffect[] = ['confetti', 'pets', 'water', 'party']
 
 export interface ConfettiParticle {
   x: number
@@ -20,6 +23,8 @@ export interface ConfettiParticle {
   opacity: number
   ticks: number
   maxTicks: number
+  effect?: CelebrationEffect
+  emoji?: string
 }
 
 export const RAYCAST_CONFETTI_COLORS = [
@@ -33,20 +38,158 @@ export const RAYCAST_CONFETTI_COLORS = [
   '#FF78C4', // hot pink
 ]
 
+export const WATER_COLORS = [
+  '#38BDF8', // light sky blue
+  '#0EA5E9', // ocean blue
+  '#7DD3FC', // pale cyan
+  '#BAE6FD', // crisp droplet blue
+  '#0284C7', // deep water
+]
+
+const PET_EMOJIS = ['🐕', '🐩', '🐈', '🐈‍⬛', '🐶', '🐱', '🐾', '🦴', '🐟']
+const WATER_EMOJIS = ['🌊', '💧', '🫧', '🦆', '🐳']
+const PARTY_EMOJIS = ['🐸', '🦆', '🚀', '🌮', '🍕', '🎉', '🦄', '🦖', '🪩', '🔥']
+
+export function pickRandomCelebrationEffect(rng: () => number = Math.random): CelebrationEffect {
+  const index = Math.min(CELEBRATION_EFFECTS.length - 1, Math.floor(rng() * CELEBRATION_EFFECTS.length))
+  return CELEBRATION_EFFECTS[index]
+}
+
 export function createRaycastConfettiBurst(
   width: number,
   height: number,
-  countPerCannon = 45,
+  countPerCannon = 80,
+  effect: CelebrationEffect = 'confetti',
 ): ConfettiParticle[] {
   const safeW = width > 0 ? width : 1280
   const safeH = height > 0 ? height : 800
   const particles: ConfettiParticle[] = []
 
+  if (effect === 'pets') {
+    // Walking dogs & cats stampede trotting across horizontal screen lanes
+    const petCount = 28
+    for (let i = 0; i < petCount; i++) {
+      const fromLeft = i % 2 === 0
+      const emoji = PET_EMOJIS[Math.floor(Math.random() * PET_EMOJIS.length)]
+      const speed = 4.5 + Math.random() * 5
+      const vx = fromLeft ? speed : -speed
+      const x = fromLeft ? -30 + Math.random() * 50 : safeW + 30 - Math.random() * 50
+      const laneProgress = (i + 0.5) / petCount
+      const y = safeH * (0.2 + laneProgress * 0.72)
+
+      particles.push({
+        x,
+        y,
+        vx,
+        vy: 0,
+        color: '#FFFFFF',
+        shape: 'emoji',
+        size: 32 + Math.random() * 20,
+        aspect: 1,
+        gravity: 0,
+        drag: 1,
+        wobble: Math.random() * Math.PI * 2,
+        wobbleSpeed: 0.22 + Math.random() * 0.12,
+        tiltAngle: 0,
+        tiltSpeed: 0,
+        rotation: 0,
+        rotationSpeed: 0,
+        opacity: 1,
+        ticks: 0,
+        maxTicks: 240 + Math.floor(Math.random() * 60),
+        effect: 'pets',
+        emoji,
+      })
+    }
+    return particles
+  }
+
+  if (effect === 'water') {
+    // Water splash & glossy teardrop spray
+    const waterCount = Math.max(30, countPerCannon)
+    for (let i = 0; i < waterCount; i++) {
+      const fromLeft = i % 2 === 0
+      const angleDeg = fromLeft
+        ? 55 + (Math.random() - 0.5) * 45
+        : 125 + (Math.random() - 0.5) * 45
+      const angleRad = (angleDeg * Math.PI) / 180
+      const speed = 36 + Math.random() * 32
+      const isEmoji = Math.random() < 0.35
+      const emoji = isEmoji ? WATER_EMOJIS[Math.floor(Math.random() * WATER_EMOJIS.length)] : undefined
+
+      particles.push({
+        x: fromLeft ? Math.random() * 30 : safeW - Math.random() * 30,
+        y: safeH * 0.98 + Math.random() * 10,
+        vx: Math.cos(angleRad) * speed,
+        vy: -Math.sin(angleRad) * speed,
+        color: WATER_COLORS[Math.floor(Math.random() * WATER_COLORS.length)],
+        shape: isEmoji ? 'emoji' : 'droplet',
+        size: isEmoji ? 26 + Math.random() * 18 : 14 + Math.random() * 14,
+        aspect: 1,
+        gravity: 0.55 + Math.random() * 0.2,
+        drag: 0.93,
+        wobble: Math.random() * 10,
+        wobbleSpeed: 0.08 + Math.random() * 0.08,
+        tiltAngle: Math.random() * Math.PI,
+        tiltSpeed: 0.05 + Math.random() * 0.05,
+        rotation: Math.random() * Math.PI * 2,
+        rotationSpeed: (Math.random() - 0.5) * 0.1,
+        opacity: 1,
+        ticks: 0,
+        maxTicks: 160 + Math.floor(Math.random() * 50),
+        effect: 'water',
+        emoji,
+      })
+    }
+    return particles
+  }
+
+  if (effect === 'party') {
+    // Chaos meme cannon with dancing funny emojis & oversized ribbons
+    const partyCount = Math.max(30, countPerCannon)
+    for (let i = 0; i < partyCount; i++) {
+      const fromLeft = i % 2 === 0
+      const angleDeg = fromLeft
+        ? 60 + (Math.random() - 0.5) * 58
+        : 120 + (Math.random() - 0.5) * 58
+      const angleRad = (angleDeg * Math.PI) / 180
+      const speed = 40 + Math.random() * 34
+      const isEmoji = Math.random() < 0.7
+      const emoji = isEmoji ? PARTY_EMOJIS[Math.floor(Math.random() * PARTY_EMOJIS.length)] : undefined
+
+      particles.push({
+        x: fromLeft ? Math.random() * 30 : safeW - Math.random() * 30,
+        y: safeH * 0.98 + Math.random() * 10,
+        vx: Math.cos(angleRad) * speed,
+        vy: -Math.sin(angleRad) * speed,
+        color: RAYCAST_CONFETTI_COLORS[Math.floor(Math.random() * RAYCAST_CONFETTI_COLORS.length)],
+        shape: isEmoji ? 'emoji' : 'strip',
+        size: isEmoji ? 28 + Math.random() * 18 : 16 + Math.random() * 8,
+        aspect: isEmoji ? 1 : 2.8 + Math.random() * 1.5,
+        gravity: 0.58 + Math.random() * 0.15,
+        drag: 0.925 + Math.random() * 0.015,
+        wobble: Math.random() * 10,
+        wobbleSpeed: 0.08 + Math.random() * 0.08,
+        tiltAngle: Math.random() * Math.PI,
+        tiltSpeed: 0.08 + Math.random() * 0.12,
+        rotation: Math.random() * Math.PI * 2,
+        rotationSpeed: (Math.random() - 0.5) * 0.15,
+        opacity: 1,
+        ticks: 0,
+        maxTicks: 160 + Math.floor(Math.random() * 60),
+        effect: 'party',
+        emoji,
+      })
+    }
+    return particles
+  }
+
+  // Default: Mega Raycast Dual-Cannon Confetti (Bigger size, stronger launch speed)
   // Left Cannon (fires up and right: angle ~60deg +/- 26deg)
   for (let i = 0; i < countPerCannon; i++) {
     const angleDeg = 60 + (Math.random() - 0.5) * 52
     const angleRad = (angleDeg * Math.PI) / 180
-    const speed = 25 + Math.random() * 22
+    const speed = 42 + Math.random() * 34
     const shapeRoll = Math.random()
     const shape: ConfettiShape = shapeRoll < 0.6 ? 'rect' : shapeRoll < 0.85 ? 'strip' : 'circle'
 
@@ -57,10 +200,10 @@ export function createRaycastConfettiBurst(
       vy: -Math.sin(angleRad) * speed,
       color: RAYCAST_CONFETTI_COLORS[Math.floor(Math.random() * RAYCAST_CONFETTI_COLORS.length)],
       shape,
-      size: 7 + Math.random() * 5,
+      size: 12 + Math.random() * 10,
       aspect: shape === 'strip' ? 2.6 + Math.random() * 1.4 : 1,
       gravity: 0.6 + Math.random() * 0.15,
-      drag: 0.905 + Math.random() * 0.015,
+      drag: 0.92 + Math.random() * 0.02,
       wobble: Math.random() * 10,
       wobbleSpeed: 0.06 + Math.random() * 0.08,
       tiltAngle: Math.random() * Math.PI,
@@ -69,7 +212,8 @@ export function createRaycastConfettiBurst(
       rotationSpeed: (Math.random() - 0.5) * 0.12,
       opacity: 1,
       ticks: 0,
-      maxTicks: 130 + Math.floor(Math.random() * 60),
+      maxTicks: 150 + Math.floor(Math.random() * 70),
+      effect: 'confetti',
     })
   }
 
@@ -77,7 +221,7 @@ export function createRaycastConfettiBurst(
   for (let i = 0; i < countPerCannon; i++) {
     const angleDeg = 120 + (Math.random() - 0.5) * 52
     const angleRad = (angleDeg * Math.PI) / 180
-    const speed = 25 + Math.random() * 22
+    const speed = 42 + Math.random() * 34
     const shapeRoll = Math.random()
     const shape: ConfettiShape = shapeRoll < 0.6 ? 'rect' : shapeRoll < 0.85 ? 'strip' : 'circle'
 
@@ -88,10 +232,10 @@ export function createRaycastConfettiBurst(
       vy: -Math.sin(angleRad) * speed,
       color: RAYCAST_CONFETTI_COLORS[Math.floor(Math.random() * RAYCAST_CONFETTI_COLORS.length)],
       shape,
-      size: 7 + Math.random() * 5,
+      size: 12 + Math.random() * 10,
       aspect: shape === 'strip' ? 2.6 + Math.random() * 1.4 : 1,
       gravity: 0.6 + Math.random() * 0.15,
-      drag: 0.905 + Math.random() * 0.015,
+      drag: 0.92 + Math.random() * 0.02,
       wobble: Math.random() * 10,
       wobbleSpeed: 0.06 + Math.random() * 0.08,
       tiltAngle: Math.random() * Math.PI,
@@ -100,7 +244,8 @@ export function createRaycastConfettiBurst(
       rotationSpeed: (Math.random() - 0.5) * 0.12,
       opacity: 1,
       ticks: 0,
-      maxTicks: 130 + Math.floor(Math.random() * 60),
+      maxTicks: 150 + Math.floor(Math.random() * 70),
+      effect: 'confetti',
     })
   }
 
@@ -120,6 +265,30 @@ export function stepConfettiParticles(
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i]
     p.ticks += dtScale
+
+    if (p.effect === 'pets') {
+      // Walking pets trotting across screen
+      p.x += p.vx * dtScale
+      p.wobble += p.wobbleSpeed * dtScale
+      p.y += Math.sin(p.wobble) * 2.2 * dtScale
+      p.rotation = Math.sin(p.wobble) * 0.16
+
+      // Late fadeout near exit
+      const fadeStart = p.maxTicks * 0.75
+      if (p.ticks > fadeStart) {
+        const remainingProgress = (p.ticks - fadeStart) / (p.maxTicks - fadeStart)
+        p.opacity = Math.max(0, 1 - remainingProgress)
+      }
+
+      if (
+        p.opacity > 0.01 &&
+        p.ticks < p.maxTicks &&
+        ((p.vx > 0 && p.x <= safeW + 80) || (p.vx < 0 && p.x >= -80))
+      ) {
+        active.push(p)
+      }
+      continue
+    }
 
     // Drag damping & gravity
     const dragFactor = Math.pow(p.drag, dtScale)
@@ -161,12 +330,53 @@ export function drawConfettiParticles(
     ctx.translate(p.x, p.y)
     ctx.rotate(p.rotation)
 
-    // 3D paper flip transformation
+    ctx.globalAlpha = p.opacity
+
+    if (p.shape === 'emoji') {
+      // If walking right, flip sprite horizontally so pet faces forward
+      if (p.effect === 'pets' && p.vx > 0) {
+        ctx.scale(-1, 1)
+      }
+      ctx.font = `${Math.round(p.size)}px 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(p.emoji || '🎉', 0, 0)
+      ctx.restore()
+      continue
+    }
+
+    if (p.shape === 'droplet') {
+      // Glossy water droplet teardrop path with specular highlight
+      const r = p.size / 2
+      ctx.fillStyle = p.color
+      ctx.beginPath()
+      ctx.moveTo(0, -r * 1.35)
+      ctx.quadraticCurveTo(r, -r * 0.2, r, r * 0.45)
+      ctx.arc(0, r * 0.45, r, 0, Math.PI)
+      ctx.quadraticCurveTo(-r, -r * 0.2, 0, -r * 1.35)
+      if (typeof ctx.closePath === 'function') {
+        ctx.closePath()
+      }
+      ctx.fill()
+
+      // Specular highlight
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)'
+      ctx.beginPath()
+      if (typeof ctx.ellipse === 'function') {
+        ctx.ellipse(-r * 0.25, -r * 0.1, r * 0.2, r * 0.35, -0.4, 0, Math.PI * 2)
+      } else {
+        ctx.arc(-r * 0.25, -r * 0.1, r * 0.25, 0, Math.PI * 2)
+      }
+      ctx.fill()
+      ctx.restore()
+      continue
+    }
+
+    // 3D paper flip transformation for confetti
     const scaleX = Math.cos(p.tiltAngle)
     const scaleY = Math.abs(Math.sin(p.tiltAngle * 0.8)) || 0.35
     ctx.scale(scaleX, scaleY)
 
-    ctx.globalAlpha = p.opacity
     ctx.fillStyle = p.color
 
     if (p.shape === 'circle') {

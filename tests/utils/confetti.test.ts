@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   createRaycastConfettiBurst,
   stepConfettiParticles,
+  drawConfettiParticles,
+  pickRandomCelebrationEffect,
+  CELEBRATION_EFFECTS,
 } from '~/utils/confetti'
 
 describe('Raycast confetti physics (app/utils/confetti.ts)', () => {
@@ -54,5 +57,79 @@ describe('Raycast confetti physics (app/utils/confetti.ts)', () => {
     const dead = { ...next, opacity: 0.01, ticks: 500, maxTicks: 100 }
     const offscreen = { ...next, y: 900, vy: 5 }
     expect(stepConfettiParticles([dead, offscreen], 1000, 800, 1)).toHaveLength(0)
+  })
+
+  it('spawns bigger, stronger confetti by default (count=160, size=12..22, launch speed >= 42)', () => {
+    const particles = createRaycastConfettiBurst(1200, 800)
+    expect(particles).toHaveLength(160) // default 80 per cannon
+    expect(particles.every(p => p.size >= 12 && p.size <= 22)).toBe(true)
+    expect(particles.every(p => Math.hypot(p.vx, p.vy) >= 42)).toBe(true)
+  })
+
+  it('provides pickRandomCelebrationEffect and CELEBRATION_EFFECTS catalog', () => {
+    expect(CELEBRATION_EFFECTS).toEqual(['confetti', 'pets', 'water', 'party'])
+    expect(pickRandomCelebrationEffect(() => 0.05)).toBe('confetti')
+    expect(pickRandomCelebrationEffect(() => 0.35)).toBe('pets')
+    expect(pickRandomCelebrationEffect(() => 0.65)).toBe('water')
+    expect(pickRandomCelebrationEffect(() => 0.95)).toBe('party')
+  })
+
+  it('spawns walking dog and cat pets (effect="pets", drag=1, gravity=0) that trot across the screen', () => {
+    const pets = createRaycastConfettiBurst(1200, 800, undefined, 'pets')
+    expect(pets.length).toBeGreaterThanOrEqual(20)
+    expect(pets.every(p => p.effect === 'pets' && p.shape === 'emoji' && Boolean(p.emoji))).toBe(true)
+    expect(pets.every(p => p.drag === 1 && p.gravity === 0)).toBe(true)
+
+    // stepConfettiParticles preserves horizontal speed and adds trotting vertical bob
+    const stepped = stepConfettiParticles([pets[0]], 1200, 800, 1)
+    expect(stepped).toHaveLength(1)
+    expect(stepped[0].vx).toBe(pets[0].vx)
+  })
+
+  it('spawns water splash effect with droplets and water emojis', () => {
+    const waterParticles = createRaycastConfettiBurst(1200, 800, undefined, 'water')
+    expect(waterParticles.length).toBeGreaterThan(0)
+    expect(waterParticles.some(p => p.shape === 'droplet')).toBe(true)
+    expect(waterParticles.some(p => p.shape === 'emoji')).toBe(true)
+  })
+
+  it('spawns party chaos effect with funny emojis and ribbons', () => {
+    const partyParticles = createRaycastConfettiBurst(1200, 800, undefined, 'party')
+    expect(partyParticles.length).toBeGreaterThan(0)
+    expect(partyParticles.some(p => p.shape === 'emoji')).toBe(true)
+  })
+
+  it('draws confetti, droplet, and emoji particles without throwing', () => {
+    const mockCtx = {
+      save: vi.fn(),
+      restore: vi.fn(),
+      translate: vi.fn(),
+      rotate: vi.fn(),
+      scale: vi.fn(),
+      beginPath: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn(),
+      fillRect: vi.fn(),
+      moveTo: vi.fn(),
+      quadraticCurveTo: vi.fn(),
+      closePath: vi.fn(),
+      ellipse: vi.fn(),
+      fillText: vi.fn(),
+      globalAlpha: 1,
+      fillStyle: '',
+      font: '',
+      textAlign: '',
+      textBaseline: '',
+    } as unknown as CanvasRenderingContext2D
+
+    const sampleParticles = [
+      ...createRaycastConfettiBurst(1200, 800, 2, 'confetti'),
+      ...createRaycastConfettiBurst(1200, 800, 2, 'pets'),
+      ...createRaycastConfettiBurst(1200, 800, 2, 'water'),
+    ]
+
+    expect(() => drawConfettiParticles(mockCtx, sampleParticles)).not.toThrow()
+    expect(mockCtx.save).toHaveBeenCalled()
+    expect(mockCtx.restore).toHaveBeenCalled()
   })
 })

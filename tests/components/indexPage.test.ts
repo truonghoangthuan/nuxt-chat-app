@@ -551,31 +551,35 @@ describe('IndexPage (app/pages/index.vue)', () => {
     expect(wrapper.find('[data-test="confetti-canvas"]').exists()).toBe(true)
   })
 
-  it('increments burst key and keeps confetti overlay active across rapid consecutive messages', async () => {
+  it('triggers celebration effect for any regular realtime incoming message in active chat', async () => {
     mockChatRoomState.activeConversationId.value = 'conv-1'
     mockChatRoomState.activeConversation.value = {
       id: 'conv-1',
       type: 'group',
       title: 'General',
     }
+    mockChatRoomState.messages.value = []
     const wrapper = mount(IndexPage)
     await flushPromises()
 
-    const composer = wrapper.findComponent({ name: 'MessageComposer' })
-    await composer.vm.$emit('send', 'ok')
+    expect(wrapper.find('[data-test="confetti-overlay"]').exists()).toBe(false)
+
+    // Simulate regular incoming message without any special celebration keyword
+    mockChatRoomState.messages.value = [
+      {
+        id: 'm-new-regular',
+        client_id: 'c-new-regular',
+        conversation_id: 'conv-1',
+        user_id: 'u-other',
+        content: 'Just a regular everyday message with no celebration words',
+        created_at: new Date().toISOString(),
+        status: 'sent',
+      } as any,
+    ]
     await wrapper.vm.$nextTick()
 
-    const confetti = wrapper.findComponent({ name: 'ConfettiOverlay' })
-    expect(confetti.exists()).toBe(true)
-    expect(confetti.props('active')).toBe(true)
-    expect(confetti.props('burstKey')).toBe(1)
-
-    // Second rapid message
-    await composer.vm.$emit('send', 'cool!')
-    await wrapper.vm.$nextTick()
-
-    expect(confetti.props('active')).toBe(true)
-    expect(confetti.props('burstKey')).toBe(2)
+    expect(wrapper.find('[data-test="confetti-overlay"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="confetti-canvas"]').exists()).toBe(true)
   })
 
   it('does not trigger confetti overlay when conversation history loads with celebration keywords', async () => {

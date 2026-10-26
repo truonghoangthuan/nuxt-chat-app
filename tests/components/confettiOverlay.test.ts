@@ -45,7 +45,7 @@ describe('ConfettiOverlay (app/components/ConfettiOverlay.vue)', () => {
 
     await wrapper.vm.$nextTick()
     expect(wrapper.emitted('complete')).toBeFalsy()
-    vi.advanceTimersByTime(3500)
+    vi.advanceTimersByTime(4000)
     expect(wrapper.emitted('complete')).toBeTruthy()
   })
 
@@ -89,5 +89,46 @@ describe('ConfettiOverlay (app/components/ConfettiOverlay.vue)', () => {
 
     expect(wrapper.emitted('complete')).toBeTruthy()
     window.matchMedia = originalMatchMedia
+  })
+
+  it('passes a randomly picked effect to createRaycastConfettiBurst when effect prop is omitted', async () => {
+    const burstSpy = vi.spyOn(confettiUtils, 'createRaycastConfettiBurst')
+    burstSpy.mockClear()
+
+    const wrapper = mount(ConfettiOverlay, {
+      props: {
+        active: true,
+        burstKey: 1,
+      },
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(burstSpy).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.any(Number),
+      undefined,
+      expect.stringMatching(/^(confetti|pets|water|party)$/),
+    )
+  })
+
+  it('honors explicit effect prop when provided', async () => {
+    const burstSpy = vi.spyOn(confettiUtils, 'createRaycastConfettiBurst')
+    burstSpy.mockClear()
+
+    const wrapper = mount(ConfettiOverlay, {
+      props: {
+        active: true,
+        burstKey: 1,
+        effect: 'pets',
+      },
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(burstSpy).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.any(Number),
+      undefined,
+      'pets',
+    )
   })
 })
