@@ -6,12 +6,35 @@ export interface ImageAttachmentCache {
     path: string,
     mimeType: string,
     channelId: string,
-    key: CryptoKey,
+    key?: CryptoKey | null,
     supabaseClient?: any
   ) => Promise<string>
   revokeAllUrls: () => void
   isDecrypting: (path: string) => boolean
   getCachedUrl: (path: string) => string | undefined
+}
+
+function resolveDefaultKey(): CryptoKey | null {
+  try {
+    if (typeof useE2ee !== 'undefined') {
+      const e2ee = useE2ee()
+      return e2ee.key.value
+    }
+  } catch {
+    // E2EE composable unavailable
+  }
+  return null
+}
+
+function resolveDefaultSupabase(): any {
+  try {
+    if (typeof useSupabaseClient !== 'undefined') {
+      return useSupabaseClient()
+    }
+  } catch {
+    // Supabase client unavailable
+  }
+  return null
 }
 
 export function createImageAttachmentCache(): ImageAttachmentCache {
@@ -31,13 +54,14 @@ export function createImageAttachmentCache(): ImageAttachmentCache {
     path: string,
     mimeType: string,
     channelId: string,
-    key: CryptoKey,
+    key?: CryptoKey | null,
     supabaseClient?: any
   ): Promise<string> {
     if (!path) {
       throw new Error('Image path is required')
     }
-    if (!key) {
+    const resolvedKey = key || resolveDefaultKey()
+    if (!resolvedKey) {
       throw new Error('Decryption key is required')
     }
 
@@ -55,7 +79,7 @@ export function createImageAttachmentCache(): ImageAttachmentCache {
 
     const promise = (async () => {
       try {
-        const client = supabaseClient || (typeof useSupabaseClient !== 'undefined' ? useSupabaseClient() : null)
+        const client = supabaseClient || resolveDefaultSupabase()
         if (!client) {
           throw new Error('Supabase client is not available')
         }
@@ -71,7 +95,7 @@ export function createImageAttachmentCache(): ImageAttachmentCache {
         const buffer = await data.arrayBuffer()
         const encryptedBytes = new Uint8Array(buffer)
 
-        const decryptedBytes = await decryptBinary(key, encryptedBytes, channelId)
+        const decryptedBytes = await decryptBinary(resolvedKey, encryptedBytes, channelId)
 
         const blob = new Blob([decryptedBytes], { type: mimeType })
         let objectUrl: string

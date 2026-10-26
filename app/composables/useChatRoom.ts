@@ -1478,6 +1478,10 @@ export function useChatRoom() {
   }
 
   async function selectConversation(conversationId: string): Promise<void> {
+    if (activeConversationId.value === conversationId && messagesStore.messages.value.length > 0) {
+      markConversationRead(conversationId)
+      return
+    }
     useImageAttachmentCache().revokeAllUrls()
     const priorLastRead = lastReadByConversation.value[conversationId] || null
     const hadUnreads = (unreadCounts.value[conversationId] || 0) > 0
@@ -2261,15 +2265,32 @@ export function useChatRoom() {
 
     pendingImageFiles.set(clientId, { files, caption, conversationId, channelId: conversationId })
 
+    const createdBlobUrls: string[] = []
+    function revokeCreatedBlobs() {
+      if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+        for (const url of createdBlobUrls) {
+          try {
+            URL.revokeObjectURL(url)
+          } catch {}
+        }
+      }
+    }
+
     if (!clientIdOverride) {
-      const localPreviews: LocalImageAttachment[] = files.map((file) => ({
-        file,
-        localUrl: typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
+      const localPreviews: LocalImageAttachment[] = files.map((file) => {
+        const localUrl = typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
           ? URL.createObjectURL(file)
-          : '',
-        width: 0,
-        height: 0,
-      }))
+          : ''
+        if (localUrl) {
+          createdBlobUrls.push(localUrl)
+        }
+        return {
+          file,
+          localUrl,
+          width: 0,
+          height: 0,
+        }
+      })
 
       const optimisticPayload: ImageMessagePayload = {
         type: 'images',
@@ -2367,6 +2388,7 @@ export function useChatRoom() {
             .eq('client_id', clientId)
             .single()
           if (existing) {
+            revokeCreatedBlobs()
             pendingImageFiles.delete(clientId)
             messagesStore.markMessageSent(clientId, existing.id, existing.created_at)
             return true
@@ -2377,6 +2399,7 @@ export function useChatRoom() {
       }
 
       if (data) {
+        revokeCreatedBlobs()
         pendingImageFiles.delete(clientId)
         messagesStore.markMessageSent(clientId, data.id, data.created_at)
         return true

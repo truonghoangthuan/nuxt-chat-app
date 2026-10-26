@@ -2,7 +2,6 @@
 import { ref, computed, watch } from 'vue'
 import type { EncryptedImageMetadata } from '~/types/chat'
 import { useImageAttachmentCache } from '~/composables/useImageAttachmentCache'
-import { useE2ee } from '~/composables/useE2ee'
 
 const props = withDefaults(
   defineProps<{
@@ -29,28 +28,6 @@ const loadingPaths = ref<Record<string, boolean>>({})
 
 const cache = useImageAttachmentCache()
 
-function resolveKey(): CryptoKey | null {
-  if (props.e2eeKey !== undefined) return props.e2eeKey
-  try {
-    const e2ee = useE2ee()
-    return e2ee.key.value
-  } catch {
-    return null
-  }
-}
-
-function resolveSupabase(): any {
-  if (props.supabaseClient !== undefined) return props.supabaseClient
-  try {
-    if (typeof useSupabaseClient !== 'undefined') {
-      return useSupabaseClient()
-    }
-  } catch {
-    return undefined
-  }
-  return undefined
-}
-
 async function loadImage(image: EncryptedImageMetadata) {
   if (!image || !image.path) return
 
@@ -65,12 +42,6 @@ async function loadImage(image: EncryptedImageMetadata) {
     return
   }
 
-  const key = resolveKey()
-  if (!key) {
-    return
-  }
-
-  const supabase = resolveSupabase()
   loadingPaths.value = { ...loadingPaths.value, [image.path]: true }
 
   try {
@@ -78,8 +49,8 @@ async function loadImage(image: EncryptedImageMetadata) {
       image.path,
       image.mimeType,
       props.channelId || '',
-      key,
-      supabase,
+      props.e2eeKey,
+      props.supabaseClient,
     )
     resolvedUrls.value = { ...resolvedUrls.value, [image.path]: url }
   } catch {

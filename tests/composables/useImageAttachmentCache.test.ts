@@ -155,6 +155,15 @@ describe('useImageAttachmentCache', () => {
     expect(cache.isDecrypting('path/corrupted.enc')).toBe(false)
   })
 
+  it('auto-resolves key from useE2ee when key argument is omitted', async () => {
+    const cache = useImageAttachmentCache()
+    vi.stubGlobal('useE2ee', () => ({ key: { value: fakeKey } }))
+
+    const url = await cache.getOrFetchImage('path/auto-key.enc', 'image/jpeg', 'ch-1', undefined, mockSupabase)
+    expect(url).toBeTruthy()
+    vi.unstubAllGlobals()
+  })
+
   it('throws if key is not provided', async () => {
     const cache = useImageAttachmentCache()
 

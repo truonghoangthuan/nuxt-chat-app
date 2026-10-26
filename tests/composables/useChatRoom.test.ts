@@ -2194,4 +2194,26 @@ describe('useChatRoom contacts and conversations', () => {
     expect(room.activeConversationReads.value['u-alice']).toBeTruthy()
     expect(room.conversationReadsByConv.value[group.id]['u-alice']).toBeTruthy()
   })
+
+  it('selectConversation skips revokeAllUrls when re-selecting the already active conversation with loaded messages', async () => {
+    const room = useChatRoom()
+    room.activeConversationId.value = 'conv-active-1'
+    room.messages.value = [
+      {
+        id: 'm-1',
+        client_id: 'c-1',
+        conversation_id: 'conv-active-1',
+        channel_id: 'conv-active-1',
+        user_id: 'u-alice',
+        content: 'Hello',
+        created_at: '2026-10-20T12:00:00.000Z',
+        status: 'sent',
+      },
+    ]
+    const cache = useImageAttachmentCache()
+    const revokeSpy = vi.spyOn(cache, 'revokeAllUrls')
+
+    await room.selectConversation('conv-active-1')
+    expect(revokeSpy).not.toHaveBeenCalled()
+  })
 })
