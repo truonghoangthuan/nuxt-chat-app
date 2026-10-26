@@ -432,6 +432,7 @@ describe('IndexPage (app/pages/index.vue)', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('[data-test="confetti-overlay"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="confetti-canvas"]').exists()).toBe(true)
   })
 
   it('triggers confetti overlay when a new realtime message with rõ ràng arrives in active chat', async () => {
@@ -462,6 +463,7 @@ describe('IndexPage (app/pages/index.vue)', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('[data-test="confetti-overlay"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="confetti-canvas"]').exists()).toBe(true)
   })
 
   it('does not trigger confetti overlay when conversation history loads with celebration keywords', async () => {

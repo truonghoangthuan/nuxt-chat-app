@@ -21,6 +21,7 @@ import NotificationPermissionBanner from '~/components/NotificationPermissionBan
 import UserAvatar from '~/components/UserAvatar.vue'
 import MessageSearchBar from '~/components/MessageSearchBar.vue'
 import ChatBackgroundModal from '~/components/ChatBackgroundModal.vue'
+import ConfettiOverlay from '~/components/ConfettiOverlay.vue'
 import { Menu, Users, Info, Search, Image as ImageIcon, MessageSquare, Link2 } from '@lucide/vue'
 import E2eeGate from '~/components/E2eeGate.vue'
 import { useE2ee } from '~/composables/useE2ee'
@@ -124,16 +125,11 @@ const mediaCount = computed(() => extractMediaFromMessages(messages.value).lengt
 const linksCount = computed(() => extractLinksFromMessages(messages.value).length)
 
 const isConfettiActive = ref(false)
-let confettiTimer: any = null
+const confettiBurstKey = ref(0)
 
 function triggerConfetti() {
+  confettiBurstKey.value++
   isConfettiActive.value = true
-  if (confettiTimer) {
-    clearTimeout(confettiTimer)
-  }
-  confettiTimer = setTimeout(() => {
-    isConfettiActive.value = false
-  }, 2500)
 }
 
 function handleOpenLightbox(payload: { images: EncryptedImageMetadata[]; initialIndex: number }) {
@@ -832,28 +828,12 @@ onUnmounted(() => {
         @update:open="isLightboxOpen = $event"
       />
 
-      <!-- Confetti Burst Overlay -->
-      <div
-        v-if="isConfettiActive"
-        data-test="confetti-overlay"
-        class="pointer-events-none fixed inset-0 z-50 overflow-hidden flex items-center justify-center select-none"
-        aria-hidden="true"
-      >
-        <div class="absolute inset-0 flex items-center justify-center">
-          <span
-            v-for="i in 36"
-            :key="i"
-            class="absolute block w-2.5 h-2.5 rounded-sm animate-ping"
-            :style="{
-              backgroundColor: ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][i % 6],
-              top: `${20 + (i * 17) % 60}%`,
-              left: `${15 + (i * 23) % 70}%`,
-              transform: `rotate(${i * 25}deg) scale(${0.7 + (i % 4) * 0.3})`,
-              animationDuration: `${1.2 + (i % 3) * 0.4}s`,
-            }"
-          />
-        </div>
-      </div>
+      <!-- Confetti Burst Overlay (Raycast-Style Dual Cannon) -->
+      <ConfettiOverlay
+        :active="isConfettiActive"
+        :burst-key="confettiBurstKey"
+        @complete="isConfettiActive = false"
+      />
     </template>
   </div>
 </template>
