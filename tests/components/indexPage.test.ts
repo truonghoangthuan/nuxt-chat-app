@@ -35,6 +35,7 @@ const mockChatRoomState = {
   unreadCounts: ref<Record<string, number>>({}),
   unreadMentions: ref<Record<string, number>>({}),
   activeChannelUnreadSince: ref(null),
+  activeConversationReads: ref<Record<string, string>>({}),
   allProfiles: ref<Profile[]>([]),
   knownProfiles: ref<Profile[]>([]),
   onlineFriends: ref<Profile[]>([]),
@@ -43,6 +44,7 @@ const mockChatRoomState = {
   reconnectCountdownSec: ref(0),
   initializeChat: vi.fn(),
   sendMessage: vi.fn(),
+  sendBuzz: vi.fn().mockResolvedValue(undefined),
   sendImages: vi.fn(),
   retryMessage: vi.fn(),
   dismissMessage: vi.fn(),
@@ -72,7 +74,15 @@ const mockAuthProfileState = {
     display_name: 'Self User',
     avatar_color: '#3b82f6',
   }),
-  updateProfile: vi.fn(),
+  updateProfile: vi.fn().mockImplementation(async (displayName, avatarColor, avatarUrl) => ({
+    error: null,
+    profile: {
+      id: 'u-self',
+      display_name: displayName,
+      avatar_color: avatarColor,
+      avatar_url: avatarUrl,
+    },
+  })),
   signOut: vi.fn(),
 }
 
@@ -120,12 +130,12 @@ describe('IndexPage (app/pages/index.vue)', () => {
     mockChatRoomState.onlineFriends.value = []
   })
 
-  it('blocks application workspace and sidebar completely behind E2eeGate when locked', async () => {
+  it('mounts workspace and sidebar directly without E2eeGate', async () => {
     mockE2eeState.status.value = 'locked'
     const wrapper = mount(IndexPage)
 
-    expect(wrapper.findComponent({ name: 'E2eeGate' }).exists()).toBe(true)
-    expect(wrapper.findComponent({ name: 'ChatSidebar' }).exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'E2eeGate' }).exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'ChatSidebar' }).exists()).toBe(true)
   })
 
   it('renders direct conversation header with peer name and online status', async () => {
@@ -704,5 +714,67 @@ describe('IndexPage (app/pages/index.vue)', () => {
         body: 'Cannot leave group',
       }),
     )
+  })
+
+  it('does not trigger confetti when confettiEnabled is false in settings', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    mockChatRoomState.messages.value = []
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    const profileModal = wrapper.findComponent({ name: 'ProfileSettingsModal' })
+    profileModal.vm.$emit('save', {
+      displayName: 'Self User',
+      avatarColor: '#3b82f6',
+      avatarUrl: '',
+      confettiEnabled: false,
+      onSuccess: vi.fn(),
+    })
+    await flushPromises()
+
+    const composer = wrapper.findComponent({ name: 'MessageComposer' })
+    composer.vm.$emit('send', 'Congratulations on the new job!')
+    await flushPromises()
+
+    const confetti = wrapper.findComponent({ name: 'ConfettiOverlay' })
+    expect(confetti.props('burstKey')).toBe(0)
+  })
+
+  it('emits buzz from composer, calls sendBuzz, and activates buzz shake on main', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    const composer = wrapper.findComponent({ name: 'MessageComposer' })
+    composer.vm.$emit('buzz')
+    await flushPromises()
+
+    expect(mockChatRoomState.sendBuzz).toHaveBeenCalled()
+    const mainEl = wrapper.find('[data-test="chat-stage-main"]')
+    expect(mainEl.classes()).toContain('animate-buzz-shake')
+  })
+
+  it('triggers buzz shake animation on incoming realtime buzz message', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    mockChatRoomState.messages.value = []
+    mockChatRoomState.isLoadingHistory.value = false
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    mockChatRoomState.messages.value = [
+      {
+        id: 'm-buzz-1',
+        client_id: 'c-buzz-1',
+        conversation_id: 'conv-1',
+        user_id: 'u-other',
+        content: JSON.stringify({ type: 'system', event: 'buzz', actorName: 'Bob' }),
+        created_at: '2026-10-26T12:00:00Z',
+        status: 'sent',
+      } as any,
+    ]
+    await wrapper.vm.$nextTick()
+
+    const mainEl = wrapper.find('[data-test="chat-stage-main"]')
+    expect(mainEl.classes()).toContain('animate-buzz-shake')
   })
 })

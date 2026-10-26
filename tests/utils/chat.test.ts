@@ -37,6 +37,11 @@ import {
   extractDomainFromUrl,
   extractLinksFromMessages,
   shouldTriggerConfetti,
+  serializeSystemMessage,
+  isSystemPayload,
+  parseSystemPayload,
+  formatSystemMessageText,
+  computeSeenByMessageId,
 } from '~/utils/chat'
 import type { ChatMessage, Conversation, Profile } from '~/types/chat'
 
@@ -932,6 +937,91 @@ describe('Conversation utilities', () => {
       expect(shouldTriggerConfetti('Look at the cooler')).toBe(false)
       expect(shouldTriggerConfetti('Hello world')).toBe(false)
       expect(shouldTriggerConfetti('')).toBe(false)
+    })
+  })
+
+  describe('SystemMessagePayload helpers & computeSeenByMessageId', () => {
+    it('serializes, detects, parses, and formats system activity and buzz payloads', () => {
+      const renameRaw = serializeSystemMessage({
+        type: 'system',
+        event: 'group_rename',
+        actorName: 'Alice',
+        detail: 'Weekend Trip',
+      })
+      expect(isSystemPayload(renameRaw)).toBe(true)
+      expect(isSystemPayload('Hello world')).toBe(false)
+      expect(formatSystemMessageText(parseSystemPayload(renameRaw)!)).toBe(
+        'Alice changed the group name to "Weekend Trip"',
+      )
+
+      const bgRaw = serializeSystemMessage({
+        type: 'system',
+        event: 'background_change',
+        actorName: 'Bob',
+        detail: 'Aurora Borealis',
+      })
+      expect(formatSystemMessageText(parseSystemPayload(bgRaw)!)).toBe(
+        'Bob changed the chat wallpaper to Aurora Borealis',
+      )
+
+      const resetRaw = serializeSystemMessage({
+        type: 'system',
+        event: 'background_reset',
+        actorName: 'Bob',
+      })
+      expect(formatSystemMessageText(parseSystemPayload(resetRaw)!)).toBe(
+        'Bob reset the chat wallpaper',
+      )
+
+      const buzzRaw = serializeSystemMessage({
+        type: 'system',
+        event: 'buzz',
+        actorName: 'Charlie',
+      })
+      expect(formatSystemMessageText(parseSystemPayload(buzzRaw)!)).toBe(
+        '⚡ Charlie buzzed the chat!',
+      )
+    })
+
+    it('computes per-message seen-by profiles for the latest non-deleted message each peer has read', () => {
+      const alice: Profile = { id: 'u-alice', email: 'a@b.c', display_name: 'Alice', avatar_color: '#0284c7' }
+      const bob: Profile = { id: 'u-bob', email: 'b@b.c', display_name: 'Bob', avatar_color: '#7c3aed' }
+      const charlie: Profile = { id: 'u-charlie', email: 'c@b.c', display_name: 'Charlie', avatar_color: '#059669' }
+
+      const messages: ChatMessage[] = [
+        {
+          id: 'm-1',
+          client_id: 'c-1',
+          conversation_id: 'conv-1',
+          user_id: 'u-alice',
+          content: 'First message',
+          created_at: '2026-10-26T10:00:00Z',
+          status: 'sent',
+        },
+        {
+          id: 'm-2',
+          client_id: 'c-2',
+          conversation_id: 'conv-1',
+          user_id: 'u-alice',
+          content: 'Second message',
+          created_at: '2026-10-26T10:05:00Z',
+          status: 'sent',
+        },
+      ]
+
+      const seenMap = computeSeenByMessageId({
+        messages,
+        readsByUser: {
+          'u-alice': '2026-10-26T10:06:00Z',
+          'u-bob': '2026-10-26T10:02:00Z',
+          'u-charlie': '2026-10-26T10:06:00Z',
+        },
+        profiles: [alice, bob, charlie],
+        currentUserId: 'u-alice',
+      })
+
+      expect(seenMap['m-1']?.map(p => p.id)).toEqual(['u-bob'])
+      expect(seenMap['m-2']?.map(p => p.id)).toEqual(['u-charlie'])
     })
   })
 })

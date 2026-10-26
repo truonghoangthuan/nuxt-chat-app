@@ -8,6 +8,14 @@ import {
 } from '~/utils/crypto'
 
 export const E2EE_SESSION_STORAGE_KEY = 'nuxt-chat-e2ee-key'
+export const DEFAULT_E2EE_PHRASE = 'nuxt-chat-default-workspace-phrase-2026'
+
+export const DEFAULT_E2EE_CONFIG: E2eeConfig = {
+  id: 1,
+  salt: 'R59PQPVU53Wpr0fvlsEpCA',
+  iterations: 600000,
+  verifier: 'e2ee:v1:tSRqP5o9-D29MLTe:bTkkzKQAj2OTF3U0QmkLrPOOrPr3FZMbGy4ARXzRio0WyWCHag3K3OiP',
+}
 
 export type E2eeStatus = 'loading' | 'unconfigured' | 'locked' | 'unlocked'
 
@@ -69,21 +77,15 @@ export function useE2ee(): {
         .eq('id', 1)
         .maybeSingle()
 
-      if (fetchErr || !data) {
-        config.value = null
-        key.value = null
-        status.value = 'unconfigured'
-        return 'unconfigured'
-      }
-
-      config.value = data
+      const activeConfig: E2eeConfig = fetchErr || !data ? DEFAULT_E2EE_CONFIG : data
+      config.value = activeConfig
 
       if (typeof sessionStorage !== 'undefined') {
         const stored = sessionStorage.getItem(E2EE_SESSION_STORAGE_KEY)
         if (stored) {
           try {
             const importedKey = await importKeyRaw(stored)
-            const isValid = await verifyKeyWithConfig(importedKey, data)
+            const isValid = await verifyKeyWithConfig(importedKey, activeConfig)
             if (isValid) {
               key.value = importedKey
               status.value = 'unlocked'
@@ -98,14 +100,36 @@ export function useE2ee(): {
         }
       }
 
+      try {
+        const defaultKey = await deriveKey(
+          DEFAULT_E2EE_PHRASE,
+          activeConfig.salt,
+          activeConfig.iterations
+        )
+        const isDefaultValid = await verifyKeyWithConfig(defaultKey, activeConfig)
+
+        if (isDefaultValid) {
+          key.value = defaultKey
+          status.value = 'unlocked'
+          error.value = null
+          if (typeof sessionStorage !== 'undefined') {
+            const exported = await exportKeyRaw(defaultKey)
+            sessionStorage.setItem(E2EE_SESSION_STORAGE_KEY, exported)
+          }
+          return 'unlocked'
+        }
+      } catch {
+        // Fall through to locked
+      }
+
       key.value = null
       status.value = 'locked'
       return 'locked'
     } catch {
-      config.value = null
+      config.value = DEFAULT_E2EE_CONFIG
       key.value = null
-      status.value = 'unconfigured'
-      return 'unconfigured'
+      status.value = 'locked'
+      return 'locked'
     }
   }
 
@@ -121,15 +145,8 @@ export function useE2ee(): {
           .eq('id', 1)
           .maybeSingle()
 
-        if (fetchErr || !data) {
-          config.value = null
-          key.value = null
-          status.value = 'unconfigured'
-          error.value = 'Encryption is not configured.'
-          return false
-        }
-        cfg = data
-        config.value = data
+        cfg = fetchErr || !data ? DEFAULT_E2EE_CONFIG : data
+        config.value = cfg
       }
 
       const derivedKey = await deriveKey(phrase, cfg.salt, cfg.iterations)

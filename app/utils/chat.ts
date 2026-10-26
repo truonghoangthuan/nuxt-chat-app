@@ -11,6 +11,7 @@ import type {
   ChatBackgroundPreset,
   ExtractedMediaItem,
   ExtractedLinkItem,
+  SystemMessagePayload,
 } from '~/types/chat'
 import { isImagePayload, parseImagePayload } from '~/utils/image'
 
@@ -809,6 +810,115 @@ export function shouldTriggerConfetti(content: string): boolean {
   if (!text.trim()) return false
   return CONFETTI_KEYWORD_REGEX.test(text)
 }
+
+export function serializeSystemMessage(payload: SystemMessagePayload): string {
+  return JSON.stringify(payload)
+}
+
+export function isSystemPayload(content?: string | null): boolean {
+  if (!content || typeof content !== 'string') return false
+  const trimmed = content.trim()
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return false
+  try {
+    const parsed = JSON.parse(trimmed)
+    return Boolean(parsed && parsed.type === 'system' && parsed.event && parsed.actorName)
+  } catch {
+    return false
+  }
+}
+
+export function parseSystemPayload(content?: string | null): SystemMessagePayload | null {
+  if (!content || !isSystemPayload(content)) return null
+  try {
+    const parsed = JSON.parse(content.trim())
+    if (parsed && parsed.type === 'system' && parsed.event && parsed.actorName) {
+      return parsed as SystemMessagePayload
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+export function formatSystemMessageText(payload: SystemMessagePayload): string {
+  switch (payload.event) {
+    case 'buzz':
+      return `⚡ ${payload.actorName} buzzed the chat!`
+    case 'group_rename':
+      return `${payload.actorName} changed the group name to "${payload.detail || ''}"`
+    case 'background_change':
+      return `${payload.actorName} changed the chat wallpaper${payload.detail ? ` to ${payload.detail}` : ''}`
+    case 'background_reset':
+      return `${payload.actorName} reset the chat wallpaper`
+    default:
+      return `${payload.actorName} updated the conversation`
+  }
+}
+
+export function computeSeenByMessageId(params: {
+  messages: ChatMessage[]
+  readsByUser?: Record<string, string>
+  profiles: Profile[]
+  currentUserId?: string
+}): Record<string, Profile[]> {
+  const result: Record<string, Profile[]> = {}
+  if (!Array.isArray(params.messages) || params.messages.length === 0 || !params.readsByUser) {
+    return result
+  }
+
+  const profilesById = new Map<string, Profile>()
+  for (const p of params.profiles) {
+    if (p && p.id) {
+      profilesById.set(p.id, p)
+    }
+  }
+
+  // Eligible confirmed messages sorted oldest to newest
+  const validMessages = params.messages.filter(m => !m.deleted_at && m.status === 'sent')
+  if (validMessages.length === 0) {
+    return result
+  }
+
+  for (const [userId, readIso] of Object.entries(params.readsByUser)) {
+    if (!readIso || (params.currentUserId && userId === params.currentUserId)) {
+      continue
+    }
+
+    const readMs = Date.parse(readIso)
+    if (Number.isNaN(readMs)) {
+      continue
+    }
+
+    const profile = profilesById.get(userId) || {
+      id: userId,
+      email: '',
+      display_name: 'Friend',
+      avatar_color: '#0284c7',
+    }
+
+    // Find latest non-deleted confirmed message created_at <= readMs and not authored by user
+    let latestReadMsg: ChatMessage | null = null
+    for (let i = validMessages.length - 1; i >= 0; i--) {
+      const msg = validMessages[i]
+      const msgMs = Date.parse(msg.created_at)
+      if (!Number.isNaN(msgMs) && msgMs <= readMs && msg.user_id !== userId) {
+        latestReadMsg = msg
+        break
+      }
+    }
+
+    if (latestReadMsg) {
+      const key = latestReadMsg.id || latestReadMsg.client_id
+      if (!result[key]) {
+        result[key] = []
+      }
+      result[key].push(profile)
+    }
+  }
+
+  return result
+}
+
 
 
 

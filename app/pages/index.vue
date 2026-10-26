@@ -23,10 +23,17 @@ import MessageSearchBar from '~/components/MessageSearchBar.vue'
 import ChatBackgroundModal from '~/components/ChatBackgroundModal.vue'
 import ConfettiOverlay from '~/components/ConfettiOverlay.vue'
 import { Menu, Users, Info, Search, Image as ImageIcon, MessageSquare, Link2 } from '@lucide/vue'
-import E2eeGate from '~/components/E2eeGate.vue'
 import { useE2ee } from '~/composables/useE2ee'
 import { usePwaInstall } from '~/composables/usePwaInstall'
-import { extractMediaFromMessages, extractLinksFromMessages, shouldTriggerConfetti } from '~/utils/chat'
+import {
+  extractMediaFromMessages,
+  extractLinksFromMessages,
+  shouldTriggerConfetti,
+  isSystemPayload,
+  parseSystemPayload,
+} from '~/utils/chat'
+import { getConfettiEnabled, setConfettiEnabled } from '~/utils/confetti'
+import { playBuzzSound } from '~/utils/sound'
 
 const {
   conversations,
@@ -61,6 +68,7 @@ const {
   unreadCounts,
   unreadMentions,
   activeChannelUnreadSince,
+  activeConversationReads,
   allProfiles,
   knownProfiles,
   onlineFriends,
@@ -69,6 +77,7 @@ const {
   reconnectCountdownSec,
   initializeChat,
   sendMessage,
+  sendBuzz,
   sendImages,
   retryMessage,
   dismissMessage,
@@ -133,11 +142,44 @@ const linksCount = computed(() => extractLinksFromMessages(messages.value).lengt
 
 const isConfettiActive = ref(false)
 const confettiBurstKey = ref(0)
+const confettiEnabled = ref(getConfettiEnabled())
 
 function triggerConfetti() {
+  if (!confettiEnabled.value) return
   confettiBurstKey.value++
   isConfettiActive.value = true
 }
+
+const isBuzzShaking = ref(false)
+let buzzShakeTimer: any = null
+
+function triggerBuzzShake() {
+  playBuzzSound()
+  isBuzzShaking.value = true
+  if (buzzShakeTimer) clearTimeout(buzzShakeTimer)
+  buzzShakeTimer = setTimeout(() => {
+    isBuzzShaking.value = false
+    buzzShakeTimer = null
+  }, 650)
+}
+
+async function handleSendBuzz() {
+  triggerBuzzShake()
+  await sendBuzz()
+}
+
+const activeConversationMembers = computed<Profile[]>(() => {
+  const members = activeConversation.value?.members
+  if (members && members.length > 0) {
+    return members.map(m => m.profile).filter((p): p is Profile => Boolean(p))
+  }
+  if (activeConversation.value?.peer) {
+    const arr: Profile[] = [activeConversation.value.peer]
+    if (currentProfile.value) arr.push(currentProfile.value)
+    return arr
+  }
+  return knownProfiles.value || []
+})
 
 function handleOpenLightbox(payload: { images: EncryptedImageMetadata[]; initialIndex: number }) {
   lightboxImages.value = payload.images
@@ -380,8 +422,13 @@ watch(
 
     if (newestId !== prevConfettiMessageId) {
       prevConfettiMessageId = newestId
-      // Outgoing messages already celebrate in the send handlers.
-      if (newest.user_id !== currentProfile.value?.id && !newest.deleted_at && newest.encryption !== 'undecryptable') {
+      if (isSystemPayload(newest.content)) {
+        const sys = parseSystemPayload(newest.content)
+        if (sys?.event === 'buzz') {
+          triggerBuzzShake()
+        }
+      } else if (newest.user_id !== currentProfile.value?.id && !newest.deleted_at && newest.encryption !== 'undecryptable') {
+        // Outgoing messages already celebrate in the send handlers.
         triggerConfetti()
       }
     }
@@ -393,9 +440,14 @@ async function handleSaveProfile(payload: {
   displayName: string
   avatarColor: string
   avatarUrl: string
+  confettiEnabled?: boolean
   onSuccess?: () => void
   onError?: (message: string) => void
 }) {
+  if (typeof payload.confettiEnabled === 'boolean') {
+    confettiEnabled.value = payload.confettiEnabled
+    setConfettiEnabled(payload.confettiEnabled)
+  }
   const result = await updateProfile(payload.displayName, payload.avatarColor, payload.avatarUrl)
   if (result.error || !result.profile) {
     payload.onError?.(result.error || 'Failed to update profile')
@@ -443,61 +495,50 @@ onUnmounted(() => {
 
 <template>
   <div class="h-dvh flex overflow-hidden bg-[var(--ap-canvas)] p-2 md:p-3 md:gap-3 transition-colors">
-    <!-- Passphrase / E2EE Entry Gate -->
-    <E2eeGate
-      v-if="e2eeStatus !== 'unlocked'"
-      :status="e2eeStatus"
-      :error="e2eeError"
-      :is-unlocking="e2eeIsUnlocking"
-      @unlock="handleUnlock"
-      @retry-config="handleRetryConfig"
-      @logout="handleLogout"
+    <!-- In-App Notification Toasts -->
+    <NotificationToastContainer
+      :toasts="notificationToasts || []"
+      @navigate="handleSelectConversation"
+      @dismiss="dismissNotificationToast || (() => {})"
     />
 
-    <!-- Main Workspace (only when unlocked) -->
-    <template v-else>
-      <!-- In-App Notification Toasts -->
-      <NotificationToastContainer
-        :toasts="notificationToasts || []"
-        @navigate="handleSelectConversation"
-        @dismiss="dismissNotificationToast || (() => {})"
-      />
+    <!-- Sidebar (Unified 260px Apple Messages Sidebar) -->
+    <ChatSidebar
+      :conversations="conversations"
+      :active-conversation-id="activeConversationId"
+      :channels="publicChannels"
+      :dm-channels="dmChannels"
+      :active-channel-id="activeConversationId || activeChannelId"
+      :unread-counts="unreadCounts"
+      :unread-mentions="unreadMentions"
+      :online-friends="onlineFriends"
+      :current-user="currentProfile"
+      :is-dark="isDark"
+      :connection-status="connectionStatus"
+      :is-open-mobile="isMobileSidebarOpen"
+      :notifications-enabled="soundEnabled || desktopEnabled"
+      :notification-permission="notificationPermission"
+      :can-install-pwa="canInstallPwa"
+      @install-pwa="promptInstallPwa"
+      @toggle-notifications="handleToggleNotifications"
+      @select-conversation="handleSelectConversation"
+      @select-channel="handleSelectConversation"
+      @open-contacts="isContactsModalOpen = true"
+      @open-new-chat="isContactsModalOpen = true"
+      @open-start-dm="isContactsModalOpen = true"
+      @open-create-group="isCreateGroupModalOpen = true"
+      @start-dm-with-user="handleStartDirectChat"
+      @open-profile-settings="isProfileSettingsModalOpen = true"
+      @toggle-theme="toggleTheme"
+      @logout="handleLogout"
+      @close-mobile="isMobileSidebarOpen = false"
+    />
 
-      <!-- Sidebar (Unified 260px Apple Messages Sidebar) -->
-      <ChatSidebar
-        :conversations="conversations"
-        :active-conversation-id="activeConversationId"
-        :channels="publicChannels"
-        :dm-channels="dmChannels"
-        :active-channel-id="activeConversationId || activeChannelId"
-        :unread-counts="unreadCounts"
-        :unread-mentions="unreadMentions"
-        :online-friends="onlineFriends"
-        :current-user="currentProfile"
-        :is-dark="isDark"
-        :connection-status="connectionStatus"
-        :is-open-mobile="isMobileSidebarOpen"
-        :notifications-enabled="soundEnabled || desktopEnabled"
-        :notification-permission="notificationPermission"
-        :can-install-pwa="canInstallPwa"
-        @install-pwa="promptInstallPwa"
-        @toggle-notifications="handleToggleNotifications"
-        @select-conversation="handleSelectConversation"
-        @select-channel="handleSelectConversation"
-        @open-contacts="isContactsModalOpen = true"
-        @open-new-chat="isContactsModalOpen = true"
-        @open-start-dm="isContactsModalOpen = true"
-        @open-create-group="isCreateGroupModalOpen = true"
-        @start-dm-with-user="handleStartDirectChat"
-        @open-profile-settings="isProfileSettingsModalOpen = true"
-        @toggle-theme="toggleTheme"
-        @logout="handleLogout"
-        @close-mobile="isMobileSidebarOpen = false"
-      />
-
-      <main
-        class="flex-1 flex flex-col min-w-0 h-full bg-[var(--ap-stage)] backdrop-blur-2xl rounded-2xl border border-[var(--ap-glass-border)] shadow-xl overflow-hidden"
-      >
+    <main
+      data-test="chat-stage-main"
+      class="flex-1 flex flex-col min-w-0 h-full bg-[var(--ap-stage)] backdrop-blur-2xl rounded-2xl border border-[var(--ap-glass-border)] shadow-xl overflow-hidden transition-transform"
+      :class="{ 'animate-buzz-shake': isBuzzShaking }"
+    >
         <!-- Connection Banner -->
         <ConnectionBanner
           :status="connectionStatus"
@@ -720,6 +761,8 @@ onUnmounted(() => {
           :current-user-id="currentProfile?.id"
           :current-display-name="currentProfile?.display_name"
           :last-read-at="activeChannelUnreadSince"
+          :read-receipts="activeConversationReads"
+          :members="activeConversationMembers"
           :load-older="loadOlderMessages"
           @retry="retryMessage"
           @dismiss="dismissMessage"
@@ -741,6 +784,7 @@ onUnmounted(() => {
             :replying-to="replyingTo"
             :mention-candidates="knownProfiles"
             @send="handleSendMessage"
+            @buzz="handleSendBuzz"
             @typing="notifyTyping"
             @cancel-reply="replyingTo = null"
             @send-images="handleSendImages"
@@ -849,6 +893,5 @@ onUnmounted(() => {
         :burst-key="confettiBurstKey"
         @complete="isConfettiActive = false"
       />
-    </template>
   </div>
 </template>

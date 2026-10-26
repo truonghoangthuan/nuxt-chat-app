@@ -2021,6 +2021,153 @@ describe('Chat UI components', () => {
     await installBtn.trigger('click')
     expect(installableWrapper.emitted('installPwa')).toHaveLength(1)
   })
+
+  it('MessageViewport renders system activity pills for buzz, rename, and background changes', () => {
+    const wrapper = mount(MessageViewport, {
+      props: {
+        hasMoreHistory: false,
+        isLoadingHistory: false,
+        currentUserId: 'u-1',
+        loadOlder: vi.fn().mockResolvedValue(0),
+        messages: [
+          {
+            id: 'm-sys-1',
+            client_id: 'c-sys-1',
+            conversation_id: 'conv-1',
+            user_id: 'u-2',
+            content: JSON.stringify({ type: 'system', event: 'buzz', actorName: 'Bob' }),
+            created_at: '2026-10-26T12:00:00Z',
+            status: 'sent',
+          },
+          {
+            id: 'm-sys-2',
+            client_id: 'c-sys-2',
+            conversation_id: 'conv-1',
+            user_id: 'u-1',
+            content: JSON.stringify({
+              type: 'system',
+              event: 'group_rename',
+              actorName: 'Alice',
+              detail: 'Cool Squad',
+            }),
+            created_at: '2026-10-26T12:01:00Z',
+            status: 'sent',
+          },
+        ] as any,
+      },
+    })
+
+    const buzzPill = wrapper.find('[data-test="system-message-m-sys-1"]')
+    expect(buzzPill.exists()).toBe(true)
+    expect(buzzPill.text()).toContain('Bob buzzed the chat!')
+
+    const renamePill = wrapper.find('[data-test="system-message-m-sys-2"]')
+    expect(renamePill.exists()).toBe(true)
+    expect(renamePill.text()).toContain('Alice changed the group name to "Cool Squad"')
+  })
+
+  it('MessageViewport renders seen-by avatar badges beneath the latest message seen by peers', () => {
+    const wrapper = mount(MessageViewport, {
+      props: {
+        hasMoreHistory: false,
+        isLoadingHistory: false,
+        currentUserId: 'u-1',
+        loadOlder: vi.fn().mockResolvedValue(0),
+        readReceipts: {
+          'u-2': '2026-10-26T12:05:00Z',
+        },
+        members: [
+          { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' },
+          { id: 'u-2', display_name: 'Bob', avatar_color: '#e11d48' },
+        ],
+        messages: [
+          {
+            id: 'm-seen-1',
+            client_id: 'c-seen-1',
+            conversation_id: 'conv-1',
+            user_id: 'u-1',
+            content: 'First msg',
+            created_at: '2026-10-26T12:00:00Z',
+            status: 'sent',
+            author: { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' },
+          },
+        ] as any,
+      },
+    })
+
+    const seenByContainer = wrapper.find('[data-test="seen-by-m-seen-1"]')
+    expect(seenByContainer.exists()).toBe(true)
+    expect(seenByContainer.text()).toContain('BO')
+  })
+
+  it('MessageComposer renders buzz button and emits buzz when clicked', async () => {
+    const wrapper = mount(MessageComposer, {
+      props: { channelSlug: 'general' },
+    })
+
+    const buzzBtn = wrapper.find('[data-test="buzz-button"]')
+    expect(buzzBtn.exists()).toBe(true)
+    await buzzBtn.trigger('click')
+    expect(wrapper.emitted('buzz')).toBeTruthy()
+  })
+
+  it('ProfileSettingsModal renders confetti toggle switch and emits confettiEnabled in save payload', async () => {
+    const ProfileSettingsModal = (await import('~/components/ProfileSettingsModal.vue')).default
+    const wrapper = mount(ProfileSettingsModal, {
+      props: {
+        isOpen: true,
+        profile: {
+          id: 'u-1',
+          display_name: 'Alice',
+          avatar_color: '#0284c7',
+        },
+      },
+    })
+
+    const confettiToggle = wrapper.find('[data-test="confetti-toggle"]')
+    expect(confettiToggle.exists()).toBe(true)
+    await confettiToggle.trigger('click')
+
+    await wrapper.find('form').trigger('submit')
+    const saveEvents = wrapper.emitted('save')
+    expect(saveEvents).toBeTruthy()
+    const payload = saveEvents?.[0][0] as any
+    expect(payload.confettiEnabled).toBeDefined()
+  })
+
+  it('ChatSidebar formats system activity payload in conversation preview snippet', () => {
+    const wrapper = mount(ChatSidebar, {
+      props: {
+        conversations: [
+          {
+            id: 'conv-1',
+            type: 'group',
+            title: 'Team Chat',
+            created_at: '2026-10-26T10:00:00Z',
+            updated_at: '2026-10-26T12:00:00Z',
+            lastMessage: {
+              id: 'm-last',
+              conversation_id: 'conv-1',
+              user_id: 'u-2',
+              content: JSON.stringify({ type: 'system', event: 'buzz', actorName: 'Bob' }),
+              created_at: '2026-10-26T12:00:00Z',
+              status: 'sent',
+            },
+          },
+        ] as any,
+        activeConversationId: 'conv-1',
+        unreadCounts: {},
+        unreadMentions: {},
+        onlineFriends: [],
+        currentUser: { id: 'u-1', display_name: 'Alice', avatar_color: '#10b981' },
+        isDark: true,
+        connectionStatus: 'connected',
+        isOpenMobile: false,
+      },
+    })
+
+    expect(wrapper.text()).toContain('Bob buzzed the chat!')
+  })
 })
 
 

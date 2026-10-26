@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createPhraseConfig, deriveKey, exportKeyRaw } from '~/utils/crypto'
-import { useE2ee, clearE2eeSession, E2EE_SESSION_STORAGE_KEY } from '~/composables/useE2ee'
+import { useE2ee, clearE2eeSession, E2EE_SESSION_STORAGE_KEY, DEFAULT_E2EE_PHRASE } from '~/composables/useE2ee'
 import { useAuthProfile } from '~/composables/useAuthProfile'
 
 const TEST_ITERATIONS = 1000
@@ -32,11 +32,24 @@ describe('useE2ee composable', () => {
     vi.clearAllMocks()
   })
 
-  it('transitions to unconfigured when e2ee_config row is missing', async () => {
+  it('auto-unlocks transparently with default workspace key when e2ee_config row is missing', async () => {
     const e2ee = useE2ee()
-    await e2ee.initializeE2ee()
-    expect(e2ee.status.value).toBe('unconfigured')
-    expect(e2ee.key.value).toBeNull()
+    const status = await e2ee.initializeE2ee()
+    expect(status).toBe('unlocked')
+    expect(e2ee.status.value).toBe('unlocked')
+    expect(e2ee.key.value).not.toBeNull()
+    expect(sessionStorage.getItem(E2EE_SESSION_STORAGE_KEY)).toBeTruthy()
+  })
+
+  it('auto-unlocks transparently using default workspace phrase matching e2ee_config', async () => {
+    const cfg = await createPhraseConfig(DEFAULT_E2EE_PHRASE, TEST_ITERATIONS)
+    mockConfigRow = { id: 1, ...cfg }
+
+    const e2ee = useE2ee()
+    const status = await e2ee.initializeE2ee()
+    expect(status).toBe('unlocked')
+    expect(e2ee.status.value).toBe('unlocked')
+    expect(e2ee.key.value).not.toBeNull()
   })
 
   it('rejects wrong phrase and unlocks + persists to sessionStorage on correct phrase', async () => {

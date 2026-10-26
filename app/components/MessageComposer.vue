@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
-import { Send, X, Plus } from '@lucide/vue'
+import { Send, X, Plus, Zap } from '@lucide/vue'
 import Button from '~/components/ui/Button.vue'
 import type { ChatMessage, Profile } from '~/types/chat'
 import { shouldSendOnKeydown, extractActiveMentionQuery, applyMentionAutocomplete } from '~/utils/chat'
@@ -32,6 +32,7 @@ const emit = defineEmits<{
   (e: 'sendImages', files: File[], caption?: string): void
   (e: 'typing'): void
   (e: 'cancelReply'): void
+  (e: 'buzz'): void
 }>()
 
 const drafts = ref<Record<string, string>>({})
@@ -324,8 +325,26 @@ function handleSend() {
   })
 }
 
+const buzzCooldownRemaining = ref(0)
+let buzzTimer: any = null
+
+function handleBuzz() {
+  if (props.disabled || buzzCooldownRemaining.value > 0) return
+  emit('buzz')
+  buzzCooldownRemaining.value = 5
+  if (buzzTimer) clearInterval(buzzTimer)
+  buzzTimer = setInterval(() => {
+    buzzCooldownRemaining.value -= 1
+    if (buzzCooldownRemaining.value <= 0) {
+      clearInterval(buzzTimer)
+      buzzTimer = null
+    }
+  }, 1000)
+}
+
 onUnmounted(() => {
   clearPendingAttachments()
+  if (buzzTimer) clearInterval(buzzTimer)
 })
 </script>
 
@@ -491,6 +510,22 @@ onUnmounted(() => {
           @keydown="handleKeydown"
           @paste="handlePaste"
         />
+
+        <!-- Buzz Button -->
+        <button
+          type="button"
+          :disabled="disabled || buzzCooldownRemaining > 0"
+          data-test="buzz-button"
+          class="w-8 h-8 rounded-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/25 flex items-center justify-center transition-all active:scale-90 shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          :title="buzzCooldownRemaining > 0 ? `Buzz cooldown (${buzzCooldownRemaining}s)` : 'Buzz the chat!'"
+          aria-label="Buzz the chat"
+          @click="handleBuzz"
+        >
+          <span v-if="buzzCooldownRemaining > 0" class="text-[11px] font-bold font-mono">
+            {{ buzzCooldownRemaining }}
+          </span>
+          <Zap v-else class="size-3.5 fill-current" aria-hidden="true" />
+        </button>
 
         <!-- Send Button -->
         <button

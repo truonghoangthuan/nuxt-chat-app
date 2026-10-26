@@ -311,4 +311,25 @@ describe('useNotification composable', () => {
     notifInstance.onclose()
     expect(manager.activeNotifications.size).toBe(0)
   })
+
+  it('formats system payloads via formatSystemMessageText for toast and notification snippets', () => {
+    const manager = createNotificationManager({
+      isDocumentVisible: () => true,
+    })
+
+    const buzzMsg: Partial<ChatMessage> = {
+      id: 'm-sys-1',
+      conversation_id: 'conv-sys-1',
+      user_id: 'user-other',
+      content: JSON.stringify({ type: 'system', event: 'buzz', actorName: 'Alice' }),
+      author: { id: 'u-alice', display_name: 'Alice', email: 'alice@example.com' },
+    }
+
+    manager.notifyIncomingMessage({
+      message: buzzMsg as any,
+      activeConversationId: 'conv-other',
+    })
+
+    expect(manager.toasts.value[0].snippet).toBe('⚡ Alice buzzed the chat!')
+  })
 })

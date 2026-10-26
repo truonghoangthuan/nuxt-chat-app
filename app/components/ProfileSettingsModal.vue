@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import type { Profile } from '~/types/chat'
 import { AVATAR_PALETTE, isValidDisplayName, isValidAvatarColor, isValidAvatarUrl } from '~/utils/chat'
+import { getConfettiEnabled, setConfettiEnabled } from '~/utils/confetti'
 import UserAvatar from '~/components/UserAvatar.vue'
 import Input from '~/components/ui/Input.vue'
 import Button from '~/components/ui/Button.vue'
@@ -19,6 +20,7 @@ const emit = defineEmits<{
       displayName: string
       avatarColor: string
       avatarUrl: string
+      confettiEnabled: boolean
       onSuccess: () => void
       onError: (message: string) => void
     }
@@ -28,6 +30,7 @@ const emit = defineEmits<{
 const displayName = ref(props.profile?.display_name || '')
 const avatarColor = ref<string>(props.profile?.avatar_color || AVATAR_PALETTE[0])
 const avatarUrl = ref(props.profile?.avatar_url || '')
+const confettiEnabled = ref(getConfettiEnabled())
 const error = ref<string | null>(null)
 const isSubmitting = ref(false)
 const copiedId = ref(false)
@@ -52,6 +55,7 @@ watch(
       displayName.value = prof.display_name
       avatarColor.value = prof.avatar_color || AVATAR_PALETTE[0]
       avatarUrl.value = prof.avatar_url || ''
+      confettiEnabled.value = getConfettiEnabled()
       error.value = null
       isSubmitting.value = false
     }
@@ -77,11 +81,13 @@ function handleSave() {
     return
   }
 
+  setConfettiEnabled(confettiEnabled.value)
   isSubmitting.value = true
   emit('save', {
     displayName: displayName.value.trim(),
     avatarColor: avatarColor.value,
     avatarUrl: avatarUrl.value.trim(),
+    confettiEnabled: confettiEnabled.value,
     onSuccess: () => {
       isSubmitting.value = false
       handleClose()
@@ -218,6 +224,32 @@ function handleSave() {
               <span v-if="avatarColor === color">✓</span>
             </button>
           </div>
+        </div>
+
+        <!-- Confetti Preference Toggle -->
+        <div class="flex items-center justify-between p-3.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
+          <div class="space-y-0.5">
+            <div class="text-xs font-semibold text-white/90">
+              Celebration Confetti 🎉
+            </div>
+            <div class="text-[11px] text-white/40">
+              Pop confetti effects when messages celebrate good news
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            :aria-checked="confettiEnabled"
+            data-test="confetti-toggle"
+            class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+            :class="confettiEnabled ? 'bg-blue-500' : 'bg-white/15'"
+            @click="confettiEnabled = !confettiEnabled"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
+              :class="confettiEnabled ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
         </div>
 
         <div class="flex justify-end gap-2 pt-2">

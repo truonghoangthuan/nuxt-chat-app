@@ -92,3 +92,59 @@ export function playNotificationChime(customContext?: AudioContext | null): void
     // Gracefully ignore audio errors (e.g. autoplay policy restrictions)
   }
 }
+
+let lastBuzzTime = 0
+export const BUZZ_THROTTLE_MS = 600
+
+export function resetBuzzThrottleForTest(): void {
+  lastBuzzTime = 0
+}
+
+
+export function playBuzzSound(customContext?: AudioContext | null): void {
+  const nowMs = Date.now()
+  if (nowMs - lastBuzzTime < BUZZ_THROTTLE_MS) return
+  lastBuzzTime = nowMs
+
+  const ctx = customContext !== undefined ? customContext : getAudioContext()
+  if (!ctx) return
+
+  try {
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {})
+    }
+
+    const now = ctx.currentTime
+    const masterGain = ctx.createGain()
+    masterGain.gain.setValueAtTime(0.25, now)
+    masterGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5)
+    masterGain.connect(ctx.destination)
+
+    // Pulse 1: 140Hz sawtooth
+    const osc1 = ctx.createOscillator()
+    osc1.type = 'sawtooth'
+    osc1.frequency.setValueAtTime(140, now)
+    osc1.connect(masterGain)
+    osc1.start(now)
+    osc1.stop(now + 0.2)
+
+    // Pulse 2: 180Hz sawtooth slightly delayed for double-buzz rattle
+    const osc2 = ctx.createOscillator()
+    osc2.type = 'sawtooth'
+    osc2.frequency.setValueAtTime(180, now + 0.12)
+    osc2.connect(masterGain)
+    osc2.start(now + 0.12)
+    osc2.stop(now + 0.45)
+
+    osc2.onended = () => {
+      try {
+        osc1.disconnect()
+        osc2.disconnect()
+        masterGain.disconnect()
+      } catch {}
+    }
+  } catch {
+    // Gracefully ignore audio errors
+  }
+}
+
