@@ -214,6 +214,12 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - **Accessibility (`prefers-reduced-motion`):** Always query `window.matchMedia('(prefers-reduced-motion: reduce)')`. When active, immediately emit completion or scale particles down to a gentle transition.
     - **Timer & Frame Teardown:** Canvas animation loops (`requestAnimationFrame`) must couple with a safety timeout fallback and cleanly cancel all frame handles and timers on unmount or deactivation.
 
+29. **Windows PWA Installability, High-DPI Icons & Single-Use Prompt Discipline:**
+    - **High-DPI PNG Shortcut Generation:** Chromium on Windows requires raster PNG icons (`192x192` and `512x512`) declared in `public/manifest.webmanifest` to generate native Windows Start Menu and Taskbar `.ico` shortcuts. Generate these using pure Node built-ins (`node:zlib` + `node:fs`) via `scripts/generate-pwa-icons.mjs` without adding heavy image-processing npm dependencies (`sharp`, `canvas`).
+    - **Service Worker Pass-Through Fetch:** Chromium on Windows requires an active `fetch` listener in `public/sw.js` to satisfy PWA installability criteria. Never call `event.respondWith()` or cache E2EE messages, WebSockets, or Supabase responses; keep the fetch handler as a no-op pass-through (`self.addEventListener('fetch', () => {})`).
+    - **Single-Use `BeforeInstallPromptEvent` Invariant:** Chromium invalidates a `BeforeInstallPromptEvent` immediately after `.prompt()` is invoked. Composables (`usePwaInstall.ts`) must nullify the stored event reference and reset `canInstall.value = false` before awaiting `prompt()` or `userChoice` to prevent invalid re-invocations.
+    - **Standalone Mode & E2EE Gate Isolation:** When `window.matchMedia('(display-mode: standalone)').matches` is true, mark `isInstalled = true` and suppress in-app install buttons. Register the service worker at root mount (`initPwaInstall`) so browser address-bar install prompts work on the initial login / gate screens, while mounting in-app install controls strictly inside the unlocked workspace (`ChatSidebar.vue`).
+
 ## 5. Testing Standards
 
 - **Path Aliases:** Both `~` and `@` resolve to `./app` in Nuxt and `vitest.config.ts`.
