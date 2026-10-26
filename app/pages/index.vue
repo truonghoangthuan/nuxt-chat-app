@@ -353,10 +353,8 @@ async function handleUnlock(phrase: string) {
 }
 
 async function handleRetryConfig() {
-  const status = await initializeE2ee()
-  if (status === 'unlocked') {
-    await initializeChat()
-  }
+  await initializeE2ee()
+  await initializeChat()
 }
 
 async function handleSendMessage(content: string) {
@@ -475,10 +473,8 @@ onMounted(async () => {
     navigator.serviceWorker.addEventListener('message', handleSwMessage)
   }
 
-  const status = await initializeE2ee()
-  if (status === 'unlocked') {
-    await initializeChat()
-  }
+  await initializeE2ee()
+  await initializeChat()
 })
 
 onUnmounted(() => {
