@@ -113,6 +113,7 @@ export function stepConfettiParticles(
   height: number,
   dtScale = 1,
 ): ConfettiParticle[] {
+  const safeW = width > 0 ? width : 1280
   const safeH = height > 0 ? height : 800
   const active: ConfettiParticle[] = []
 
@@ -142,7 +143,7 @@ export function stepConfettiParticles(
     }
 
     // Cull dead particles
-    if (p.opacity > 0.01 && p.y <= safeH + 40) {
+    if (p.opacity > 0.01 && p.y <= safeH + 40 && p.x >= -120 && p.x <= safeW + 120) {
       active.push(p)
     }
   }

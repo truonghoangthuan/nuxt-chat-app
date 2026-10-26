@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, watch, onBeforeUnmount, nextTick } from 'vue'
 import {
   createRaycastConfettiBurst,
   stepConfettiParticles,
@@ -26,6 +26,14 @@ let particles: ConfettiParticle[] = []
 let animationFrameId: number | null = null
 let safetyTimer: any = null
 let lastTimestamp = 0
+let lastSpawnedBurstKey = props.burstKey
+
+function isReducedMotion(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return false
+  }
+  return Boolean(window.matchMedia('(prefers-reduced-motion: reduce)')?.matches)
+}
 
 function stopAnimation() {
   if (animationFrameId !== null && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
@@ -54,6 +62,11 @@ function resizeCanvas(canvas: HTMLCanvasElement): { width: number; height: numbe
 }
 
 function spawnBurst() {
+  if (isReducedMotion()) {
+    emit('complete')
+    return
+  }
+
   const canvas = canvasRef.value
   let width = 1280
   let height = 800
@@ -73,6 +86,7 @@ function spawnBurst() {
   // Reset safety timer on every burst wave
   if (safetyTimer) clearTimeout(safetyTimer)
   safetyTimer = setTimeout(() => {
+    stopAnimation()
     emit('complete')
   }, 3200)
 
@@ -99,7 +113,7 @@ function startLoop() {
       return
     }
 
-    const dtMs = Math.min(now - lastTimestamp, 50)
+    const dtMs = Math.max(0, Math.min(now - lastTimestamp, 50))
     lastTimestamp = now
     const dtScale = dtMs / (1000 / 60)
 
@@ -126,6 +140,7 @@ watch(
   () => props.active,
   async (isActive) => {
     if (isActive) {
+      lastSpawnedBurstKey = props.burstKey
       await nextTick()
       spawnBurst()
     } else {
@@ -137,20 +152,14 @@ watch(
 
 watch(
   () => props.burstKey,
-  () => {
-    if (props.active) {
+  async (newKey) => {
+    if (props.active && newKey !== lastSpawnedBurstKey) {
+      lastSpawnedBurstKey = newKey
+      await nextTick()
       spawnBurst()
     }
   },
 )
-
-onMounted(() => {
-  if (props.active) {
-    nextTick(() => {
-      spawnBurst()
-    })
-  }
-})
 
 onBeforeUnmount(() => {
   stopAnimation()

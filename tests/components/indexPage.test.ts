@@ -435,6 +435,33 @@ describe('IndexPage (app/pages/index.vue)', () => {
     expect(wrapper.find('[data-test="confetti-canvas"]').exists()).toBe(true)
   })
 
+  it('increments burst key and keeps confetti overlay active across rapid consecutive messages', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    mockChatRoomState.activeConversation.value = {
+      id: 'conv-1',
+      type: 'group',
+      title: 'General',
+    }
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    const composer = wrapper.findComponent({ name: 'MessageComposer' })
+    await composer.vm.$emit('send', 'ok')
+    await wrapper.vm.$nextTick()
+
+    const confetti = wrapper.findComponent({ name: 'ConfettiOverlay' })
+    expect(confetti.exists()).toBe(true)
+    expect(confetti.props('active')).toBe(true)
+    expect(confetti.props('burstKey')).toBe(1)
+
+    // Second rapid message
+    await composer.vm.$emit('send', 'cool!')
+    await wrapper.vm.$nextTick()
+
+    expect(confetti.props('active')).toBe(true)
+    expect(confetti.props('burstKey')).toBe(2)
+  })
+
   it('triggers confetti overlay when a new realtime message with rõ ràng arrives in active chat', async () => {
     mockChatRoomState.activeConversationId.value = 'conv-1'
     mockChatRoomState.activeConversation.value = {
@@ -464,6 +491,33 @@ describe('IndexPage (app/pages/index.vue)', () => {
 
     expect(wrapper.find('[data-test="confetti-overlay"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="confetti-canvas"]').exists()).toBe(true)
+  })
+
+  it('increments burst key and keeps confetti overlay active across rapid consecutive messages', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    mockChatRoomState.activeConversation.value = {
+      id: 'conv-1',
+      type: 'group',
+      title: 'General',
+    }
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    const composer = wrapper.findComponent({ name: 'MessageComposer' })
+    await composer.vm.$emit('send', 'ok')
+    await wrapper.vm.$nextTick()
+
+    const confetti = wrapper.findComponent({ name: 'ConfettiOverlay' })
+    expect(confetti.exists()).toBe(true)
+    expect(confetti.props('active')).toBe(true)
+    expect(confetti.props('burstKey')).toBe(1)
+
+    // Second rapid message
+    await composer.vm.$emit('send', 'cool!')
+    await wrapper.vm.$nextTick()
+
+    expect(confetti.props('active')).toBe(true)
+    expect(confetti.props('burstKey')).toBe(2)
   })
 
   it('does not trigger confetti overlay when conversation history loads with celebration keywords', async () => {
