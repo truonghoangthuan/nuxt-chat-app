@@ -8,13 +8,13 @@ import {
 } from '~/utils/crypto'
 
 export const E2EE_SESSION_STORAGE_KEY = 'nuxt-chat-e2ee-key'
-export const DEFAULT_E2EE_PHRASE = 'nuxt-chat-default-workspace-phrase-2026'
+export const DEFAULT_E2EE_PHRASE = 'your-secret-passphrase-here'
 
 export const DEFAULT_E2EE_CONFIG: E2eeConfig = {
   id: 1,
-  salt: 'R59PQPVU53Wpr0fvlsEpCA',
+  salt: 'wDNmW-nuKO13SfRopF4rJw',
   iterations: 600000,
-  verifier: 'e2ee:v1:tSRqP5o9-D29MLTe:bTkkzKQAj2OTF3U0QmkLrPOOrPr3FZMbGy4ARXzRio0WyWCHag3K3OiP',
+  verifier: 'e2ee:v1:usx_Wg2j4_dBIqeB:-Q6Gkgb4wHKN7QI0dlA1YJ96EqoRqnFsnSWRzUwbSmJ15zE27EcK1QR8',
 }
 
 export type E2eeStatus = 'loading' | 'unconfigured' | 'locked' | 'unlocked'

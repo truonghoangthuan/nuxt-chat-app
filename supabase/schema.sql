@@ -524,7 +524,7 @@ create policy "Authenticated users can view e2ee config"
   using (true);
 
 insert into public.e2ee_config (id, salt, iterations, verifier)
-values (1, 'R59PQPVU53Wpr0fvlsEpCA', 600000, 'e2ee:v1:tSRqP5o9-D29MLTe:bTkkzKQAj2OTF3U0QmkLrPOOrPr3FZMbGy4ARXzRio0WyWCHag3K3OiP')
+values (1, 'wDNmW-nuKO13SfRopF4rJw', 600000, 'e2ee:v1:usx_Wg2j4_dBIqeB:-Q6Gkgb4wHKN7QI0dlA1YJ96EqoRqnFsnSWRzUwbSmJ15zE27EcK1QR8')
 on conflict (id) do nothing;
 
 create or replace function public.enforce_message_e2ee_envelope()
