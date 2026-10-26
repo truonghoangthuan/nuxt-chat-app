@@ -1998,7 +1998,7 @@ export function useChatRoom() {
         type: 'system',
         event: 'group_rename',
         actorName,
-        details: { newTitle: cleanTitle, oldTitle: previousTitle },
+        detail: cleanTitle,
       })
       await sendMessage(sysPayload, undefined, conversationId).catch(() => {})
 
@@ -2082,7 +2082,7 @@ export function useChatRoom() {
         type: 'system',
         event: 'background_change',
         actorName,
-        details: { backgroundLabel: presetLabel },
+        detail: presetLabel,
       })
       await sendMessage(sysPayload, undefined, conversationId).catch(() => {})
 

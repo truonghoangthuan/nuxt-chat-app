@@ -2288,7 +2288,7 @@ describe('useChatRoom contacts and conversations', () => {
     let decrypted = await decryptContent(testKey, lastCall.content, group.id)
     let payload = parseSystemPayload(decrypted)
     expect(payload?.event).toBe('group_rename')
-    expect(payload?.details?.newTitle).toBe('Renamed Title')
+    expect(payload?.detail).toBe('Renamed Title')
 
     mockMessagesInsert.mockClear()
     await room.updateChatBackground(group.id, 'preset:sunset')

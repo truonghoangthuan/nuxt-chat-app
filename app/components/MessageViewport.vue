@@ -8,6 +8,10 @@ import {
   tokenizeMessageMentions,
   highlightTextSegments,
   resolveChatBackgroundStyle,
+  computeSeenByMessageId,
+  isSystemPayload,
+  parseSystemPayload,
+  formatSystemMessageText,
 } from '~/utils/chat'
 import { isImagePayload, parseImagePayload, formatImageMessageSummary } from '~/utils/image'
 import UserAvatar from '~/components/UserAvatar.vue'
@@ -30,6 +34,8 @@ const props = withDefaults(
     loadOlder?: () => Promise<number>
     searchQuery?: string
     backgroundUrl?: string | null
+    readReceipts?: Record<string, string>
+    members?: Profile[]
   }>(),
   {
     conversationId: null,
@@ -45,6 +51,8 @@ const props = withDefaults(
     loadOlder: () => Promise.resolve(0),
     searchQuery: '',
     backgroundUrl: null,
+    readReceipts: () => ({}),
+    members: () => [],
   },
 )
 
@@ -70,6 +78,15 @@ const editingContent = ref('')
 const copiedCodeMessageId = ref<string | null>(null)
 const activePinnedIndex = ref(0)
 const highlightedMessageId = ref<string | null>(null)
+
+const seenByMap = computed(() =>
+  computeSeenByMessageId({
+    messages: props.messages,
+    readsByUser: props.readReceipts,
+    profiles: props.members || [],
+    currentUserId: props.currentUserId,
+  }),
+)
 
 const pinnedMessages = computed(() =>
   props.messages
@@ -487,8 +504,31 @@ onUnmounted(() => {
           </span>
         </div>
 
+        <!-- System Activity Pill (e.g. buzz, rename, background change) -->
+        <div
+          v-if="isSystemPayload(item.message.content)"
+          :id="`message-${item.message.id}`"
+          :data-message-id="item.message.id"
+          :data-test="`system-message-${item.message.id}`"
+          class="flex justify-center my-2 w-full"
+        >
+          <div
+            class="px-3.5 py-1 rounded-full text-xs font-medium backdrop-blur-md border shadow-xs inline-flex items-center gap-1.5"
+            :class="[
+              parseSystemPayload(item.message.content)?.event === 'buzz'
+                ? 'bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300 font-semibold'
+                : 'bg-black/5 dark:bg-white/8 border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)]'
+            ]"
+          >
+            <span>
+              {{ formatSystemMessageText(parseSystemPayload(item.message.content)!) }}
+            </span>
+          </div>
+        </div>
+
         <!-- Message Row (Flex Container) -->
         <div
+          v-else
           :id="`message-${item.message.id}`"
           :data-message-id="item.message.id"
           :data-test="item.isMentioningMe ? `mention-row-${item.message.id}` : (item.isCompact ? 'compact-message' : 'full-message')"
@@ -910,6 +950,30 @@ onUnmounted(() => {
                 <span>{{ summary.count }}</span>
               </button>
             </div>
+          </div>
+        </div>
+
+        <!-- Seen By Badges -->
+        <div
+          v-if="seenByMap[item.message.id]?.length"
+          :data-test="`seen-by-${item.message.id}`"
+          class="flex items-center gap-1 mt-0.5 mb-1"
+          :class="item.isSender ? 'justify-end pr-1' : 'justify-start pl-11'"
+          :title="`Seen by ${seenByMap[item.message.id].map(p => p.display_name).join(', ')}`"
+        >
+          <div
+            v-for="peer in seenByMap[item.message.id]"
+            :key="peer.id"
+            class="transition-transform hover:scale-110"
+            :title="`Seen by ${peer.display_name}`"
+          >
+            <UserAvatar
+              :display-name="peer.display_name"
+              :avatar-color="peer.avatar_color"
+              :avatar-url="peer.avatar_url"
+              size="sm"
+              class="w-4 h-4 text-[9px] border border-white/20 shadow-xs"
+            />
           </div>
         </div>
       </template>

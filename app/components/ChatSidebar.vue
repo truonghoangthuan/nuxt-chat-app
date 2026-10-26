@@ -19,6 +19,9 @@ import {
   getDirectPeer,
   formatConversationTitle,
   formatConversationTime,
+  isSystemPayload,
+  parseSystemPayload,
+  formatSystemMessageText,
 } from '~/utils/chat'
 import {
   isImagePayload,
@@ -148,6 +151,10 @@ function getConvSubtitle(conv: Conversation): string {
     }
     if (conv.lastMessage.content) {
       let text = conv.lastMessage.content
+      if (isSystemPayload(text)) {
+        const parsed = parseSystemPayload(text)
+        return parsed ? formatSystemMessageText(parsed) : 'System notification'
+      }
       if (isImagePayload(text)) {
         const parsed = parseImagePayload(text)
         text = parsed?.caption || formatImageMessageSummary(parsed?.images?.length || 1)
