@@ -35,6 +35,8 @@ The codebase separates **Supabase/Realtime I/O orchestration** from **pure, test
 ├── app/
 │   ├── components/
 │   │   ├── ChatSidebar.vue         # Channel list, unread badges, online friends, theme & logout controls
+│   │   ├── ConfettiDictionaryModal.vue # Word chips, comma-separated add, delete trigger words
+│   │   ├── ConfettiOverlay.vue     # Raycast-style dual-cannon confetti & funny particle canvas overlay
 │   │   ├── ConnectionBanner.vue    # Reconnecting / disconnected banner with countdown & manual retry
 │   │   ├── ContactsModal.vue       # Contacts address book & email lookup modal
 │   │   ├── CreateGroupModal.vue    # Group creation modal with multi-select contacts
@@ -205,9 +207,11 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - **Client-Side Request Coalescing:** Any client-side action that gets or creates shared unique entities (such as `openOrCreateDirectChat(peerId)`) must deduplicate rapid concurrent invocations using an in-flight Promise map (`Map<string, Promise<T>>`) so simultaneous clicks or triggers share a single network call.
     - **Database Transactional Advisory Locks:** In PostgreSQL schema, functions creating bidirectional or unique 1-to-1 relationships (`get_or_create_direct_conversation`) must acquire a transactional advisory lock (`pg_advisory_xact_lock`) derived deterministically from the sorted entity UUIDs (e.g. `min(user_a, user_b) || max(user_a, user_b)`) to prevent concurrent insert race conditions.
 
-26. **Celebration Triggers & History Boundary Discipline:**
-    - Reactive watchers monitoring message collections for celebratory or multimedia effects (e.g., confetti animations, audio cues, haptic feedback) must NEVER evaluate historical messages fetched during initial conversation load or cursor pagination (`isLoadingHistory.value` or initial history render).
-    - Maintain an explicit baseline tracker (`prevConfettiMessageId` / `hasLoadedHistoryForConv`) so celebration watchers only evaluate freshly appended realtime messages arriving in an active viewport.
+26. **Celebration Triggers, Dictionary Gating & History Boundary Discipline:**
+    - **Per-Conversation Trigger Dictionaries (`confetti_words`):** Message celebration effects (confetti, audio cues, canvas micro-interactions) must never trigger unconditionally on every message. They must be gated behind per-conversation trigger dictionaries stored on `public.conversations.confetti_words` (`text[] not null default '{}'`), synced across all conversation members in real time via existing `public.conversations` `UPDATE` subscriptions.
+    - **Empty Default & Case-Insensitive Substring Match:** New and existing conversations default to an empty dictionary (`[]`), keeping celebration effects suppressed until members explicitly add trigger words. Matching (`matchesConfettiDictionary`) must evaluate case-insensitively against trimmed, lowercased, and deduplicated entries.
+    - **Decrypted Rich Media & Caption Inspection:** Dictionary matching must evaluate both direct message text and decrypted image/attachment captions (`isImagePayload(content) ? parseImagePayload(content)?.caption : content`).
+    - **History Boundary Suppression:** Reactive watchers monitoring message collections for celebration effects must NEVER evaluate historical messages fetched during initial conversation load or cursor pagination (`isLoadingHistory.value` or initial history render). Maintain an explicit baseline tracker (`prevConfettiMessageId` / `hasLoadedHistoryForConv`) so celebration watchers only evaluate freshly appended realtime messages arriving in an active viewport.
     - **O(1) Selector Discipline (No Deep Traversal):** Celebration watchers on message stores MUST watch an O(1) selector (such as array length + tail message ID) rather than deep-watching (`deep: true`) the entire message collection, preventing synchronous O(N) object-graph traversals on every reaction, status change, or optimistic insert.
 
 27. **SPA Service Worker & Global Event Listener Teardown:**
