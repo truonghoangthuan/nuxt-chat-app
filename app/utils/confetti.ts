@@ -320,53 +320,49 @@ export function stepConfettiParticles(
   return active
 }
 
+const BASE_EMOJI_FONT_SIZE = 32
+const EMOJI_FONT = "32px 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif"
+
 export function drawConfettiParticles(
   ctx: CanvasRenderingContext2D,
   particles: ConfettiParticle[],
 ): void {
+  let fontConfigured = false
+
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i]
     ctx.save()
     ctx.translate(p.x, p.y)
     ctx.rotate(p.rotation)
-
     ctx.globalAlpha = p.opacity
 
     if (p.shape === 'emoji') {
-      // If walking right, flip sprite horizontally so pet faces forward
-      if (p.effect === 'pets' && p.vx > 0) {
-        ctx.scale(-1, 1)
+      if (!fontConfigured) {
+        ctx.font = EMOJI_FONT
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        fontConfigured = true
       }
-      ctx.font = `${Math.round(p.size)}px 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif`
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
+      const scale = p.size / BASE_EMOJI_FONT_SIZE
+      const scaleX = (p.effect === 'pets' && p.vx > 0) ? -scale : scale
+      ctx.scale(scaleX, scale)
       ctx.fillText(p.emoji || '🎉', 0, 0)
       ctx.restore()
       continue
     }
 
     if (p.shape === 'droplet') {
-      // Glossy water droplet teardrop path with specular highlight
+      // Fast circular water droplet with specular highlight
       const r = p.size / 2
       ctx.fillStyle = p.color
       ctx.beginPath()
-      ctx.moveTo(0, -r * 1.35)
-      ctx.quadraticCurveTo(r, -r * 0.2, r, r * 0.45)
-      ctx.arc(0, r * 0.45, r, 0, Math.PI)
-      ctx.quadraticCurveTo(-r, -r * 0.2, 0, -r * 1.35)
-      if (typeof ctx.closePath === 'function') {
-        ctx.closePath()
-      }
+      ctx.arc(0, 0, r * 0.7, 0, Math.PI * 2)
       ctx.fill()
 
       // Specular highlight
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)'
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
       ctx.beginPath()
-      if (typeof ctx.ellipse === 'function') {
-        ctx.ellipse(-r * 0.25, -r * 0.1, r * 0.2, r * 0.35, -0.4, 0, Math.PI * 2)
-      } else {
-        ctx.arc(-r * 0.25, -r * 0.1, r * 0.25, 0, Math.PI * 2)
-      }
+      ctx.arc(-r * 0.22, -r * 0.22, r * 0.25, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
       continue

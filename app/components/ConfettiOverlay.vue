@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount, nextTick } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import {
   createRaycastConfettiBurst,
   stepConfettiParticles,
@@ -50,18 +50,30 @@ function stopAnimation() {
   particles = []
 }
 
-function resizeCanvas(canvas: HTMLCanvasElement): { width: number; height: number; dpr: number } {
-  const rect = canvas.getBoundingClientRect()
-  const width = rect.width || window?.innerWidth || 1280
-  const height = rect.height || window?.innerHeight || 800
-  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+let cachedWidth = 1280
+let cachedHeight = 800
+let cachedDpr = 1
 
-  if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
-    canvas.width = width * dpr
-    canvas.height = height * dpr
+function updateCanvasSize(canvas: HTMLCanvasElement): { width: number; height: number; dpr: number } {
+  const rect = canvas.getBoundingClientRect()
+  cachedWidth = rect.width || window?.innerWidth || 1280
+  cachedHeight = rect.height || window?.innerHeight || 800
+  cachedDpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+
+  const targetW = Math.round(cachedWidth * cachedDpr)
+  const targetH = Math.round(cachedHeight * cachedDpr)
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+    canvas.width = targetW
+    canvas.height = targetH
   }
 
-  return { width, height, dpr }
+  return { width: cachedWidth, height: cachedHeight, dpr: cachedDpr }
+}
+
+function handleWindowResize() {
+  if (canvasRef.value) {
+    updateCanvasSize(canvasRef.value)
+  }
 }
 
 function spawnBurst() {
@@ -71,11 +83,11 @@ function spawnBurst() {
   }
 
   const canvas = canvasRef.value
-  let width = 1280
-  let height = 800
+  let width = cachedWidth
+  let height = cachedHeight
 
   if (canvas) {
-    const info = resizeCanvas(canvas)
+    const info = updateCanvasSize(canvas)
     width = info.width
     height = info.height
   } else if (typeof window !== 'undefined') {
@@ -86,6 +98,11 @@ function spawnBurst() {
   const chosenEffect = props.effect || pickRandomCelebrationEffect()
   const newWave = createRaycastConfettiBurst(width, height, undefined, chosenEffect)
   particles.push(...newWave)
+
+  // Cap particles to prevent frame drops on rapid typing
+  if (particles.length > 140) {
+    particles = particles.slice(-140)
+  }
 
   // Reset safety timer on every burst wave
   if (safetyTimer) clearTimeout(safetyTimer)
@@ -121,12 +138,12 @@ function startLoop() {
     lastTimestamp = now
     const dtScale = dtMs / (1000 / 60)
 
-    const { width, height, dpr } = resizeCanvas(canvas)
+    // Render using cached dimensions - zero forced layout reflow during animation loop
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.scale(dpr, dpr)
+    ctx.scale(cachedDpr, cachedDpr)
 
-    particles = stepConfettiParticles(particles, width, height, dtScale)
+    particles = stepConfettiParticles(particles, cachedWidth, cachedHeight, dtScale)
     drawConfettiParticles(ctx, particles)
 
     if (particles.length > 0) {
@@ -165,7 +182,16 @@ watch(
   },
 )
 
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', handleWindowResize)
+  }
+})
+
 onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', handleWindowResize)
+  }
   stopAnimation()
 })
 </script>
