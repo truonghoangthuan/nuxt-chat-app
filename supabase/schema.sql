@@ -449,6 +449,14 @@ grant execute on function public.toggle_pin_message(uuid) to authenticated;
 -- ============================================================================
 -- 5. Message Reactions Table
 -- ============================================================================
+-- Drop any legacy channel-based policies that fail PostgREST schema cache
+drop policy if exists "Authenticated users can view message reactions" on public.message_reactions;
+drop policy if exists "Authenticated users can view accessible message reactions" on public.message_reactions;
+drop policy if exists "Authenticated users can insert their own reactions" on public.message_reactions;
+drop policy if exists "Authenticated users can insert accessible reactions" on public.message_reactions;
+drop policy if exists "Authenticated users can delete their own reactions" on public.message_reactions;
+drop policy if exists "Authenticated users can delete accessible reactions" on public.message_reactions;
+
 create table if not exists public.message_reactions (
   id uuid primary key default gen_random_uuid(),
   message_id uuid not null references public.messages(id) on delete cascade,
@@ -458,6 +466,37 @@ create table if not exists public.message_reactions (
   created_at timestamptz not null default now(),
   unique (message_id, user_id, emoji)
 );
+
+-- Ensure conversation_id column exists if table was migrated from channel_id
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'message_reactions' and column_name = 'conversation_id'
+  ) then
+    if exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'message_reactions' and column_name = 'channel_id'
+    ) then
+      alter table public.message_reactions rename column channel_id to conversation_id;
+    else
+      alter table public.message_reactions add column conversation_id uuid references public.conversations(id) on delete cascade;
+    end if;
+  end if;
+
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'message_reactions' and column_name = 'channel_id'
+  ) and exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'message_reactions' and column_name = 'conversation_id'
+  ) then
+    alter table public.message_reactions drop column if exists channel_id cascade;
+  end if;
+end;
+$$;
+
+drop index if exists public.message_reactions_channel_idx;
 
 alter table public.message_reactions replica identity full;
 alter table public.message_reactions enable row level security;
