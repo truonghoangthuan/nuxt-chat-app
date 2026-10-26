@@ -5,6 +5,9 @@ import {
   drawConfettiParticles,
   pickRandomCelebrationEffect,
   CELEBRATION_EFFECTS,
+  STORAGE_KEY_CONFETTI,
+  getConfettiEnabled,
+  setConfettiEnabled,
 } from '~/utils/confetti'
 
 describe('Raycast confetti physics (app/utils/confetti.ts)', () => {
@@ -160,5 +163,16 @@ describe('Raycast confetti physics (app/utils/confetti.ts)', () => {
     expect(mockCtx.save).toHaveBeenCalledTimes(1)
     expect(mockCtx.restore).toHaveBeenCalledTimes(1)
     expect(mockCtx.setTransform).toHaveBeenCalledTimes(sampleParticles.length)
+  })
+
+  it('provides getConfettiEnabled and setConfettiEnabled with localStorage persistence', () => {
+    localStorage.clear()
+    expect(getConfettiEnabled()).toBe(true)
+    setConfettiEnabled(false)
+    expect(localStorage.getItem(STORAGE_KEY_CONFETTI)).toBe('false')
+    expect(getConfettiEnabled()).toBe(false)
+    setConfettiEnabled(true)
+    expect(localStorage.getItem(STORAGE_KEY_CONFETTI)).toBe('true')
+    expect(getConfettiEnabled()).toBe(true)
   })
 })

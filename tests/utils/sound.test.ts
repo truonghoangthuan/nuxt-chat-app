@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { playNotificationChime, resetChimeThrottleForTest } from '~/utils/sound'
+import { playNotificationChime, playBuzzSound, resetChimeThrottleForTest, resetBuzzThrottleForTest } from '~/utils/sound'
 
 describe('sound utility', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     resetChimeThrottleForTest()
+    resetBuzzThrottleForTest()
   })
 
   it('safely handles missing AudioContext in SSR or unsupported environments', () => {
@@ -135,5 +136,33 @@ describe('sound utility', () => {
     // Call immediately again -> should be throttled
     playNotificationChime(mockCtx)
     expect(mockCtx.createGain).toHaveBeenCalledTimes(1)
+  })
+
+  it('safely handles playBuzzSound with null AudioContext or created mock', () => {
+    expect(() => playBuzzSound(null)).not.toThrow()
+    resetBuzzThrottleForTest()
+
+    const mockCtx = {
+      state: 'running',
+      currentTime: 10,
+      destination: {},
+      createGain: vi.fn().mockReturnValue({
+        gain: { setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+      }),
+      createOscillator: vi.fn().mockReturnValue({
+        type: 'sawtooth',
+        frequency: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn(),
+      }),
+    } as unknown as AudioContext
+
+    expect(() => playBuzzSound(mockCtx)).not.toThrow()
+    expect(mockCtx.createGain).toHaveBeenCalled()
+    expect(mockCtx.createOscillator).toHaveBeenCalled()
   })
 })

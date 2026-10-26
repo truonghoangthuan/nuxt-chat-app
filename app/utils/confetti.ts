@@ -466,3 +466,18 @@ export function drawConfettiParticles(
     ctx.restore()
   }
 }
+
+export const STORAGE_KEY_CONFETTI = 'nuxt-chat-confetti-enabled'
+
+export function getConfettiEnabled(): boolean {
+  if (typeof localStorage === 'undefined') return true
+  const val = localStorage.getItem(STORAGE_KEY_CONFETTI)
+  return val !== 'false'
+}
+
+export function setConfettiEnabled(enabled: boolean): void {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_CONFETTI, String(enabled))
+  }
+}
+

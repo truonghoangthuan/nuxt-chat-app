@@ -214,3 +214,13 @@ export interface ExtractedLinkItem {
   userId: string
 }
 
+export type SystemEventType = 'buzz' | 'group_rename' | 'background_change' | 'background_reset'
+
+export interface SystemMessagePayload {
+  type: 'system'
+  event: SystemEventType
+  actorName: string
+  detail?: string
+}
+
+
