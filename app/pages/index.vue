@@ -222,13 +222,31 @@ async function handleCreateGroup(payload: {
 
 async function handleAddMember(email: string) {
   if (activeConversationId.value) {
-    await addMemberToGroup(activeConversationId.value, email)
+    try {
+      await addMemberToGroup(activeConversationId.value, email)
+    } catch (err: any) {
+      if (addNotificationToast) {
+        addNotificationToast({
+          title: 'Failed to add member',
+          body: err?.message || 'Could not add member to group.',
+        })
+      }
+    }
   }
 }
 
 async function handleLeaveGroup(conversationId: string) {
-  await leaveGroup(conversationId)
-  isGroupInfoModalOpen.value = false
+  try {
+    await leaveGroup(conversationId)
+    isGroupInfoModalOpen.value = false
+  } catch (err: any) {
+    if (addNotificationToast) {
+      addNotificationToast({
+        title: 'Failed to leave group',
+        body: err?.message || 'Could not leave group.',
+      })
+    }
+  }
 }
 
 async function handleUpdateGroupTitle(newTitle: string) {
@@ -316,6 +334,30 @@ async function handleSendImages(files: File[], caption?: string) {
 }
 
 let prevConfettiMessageId: string | null = null
+let hasLoadedHistoryForConv = false
+
+watch(
+  () => activeConversationId.value,
+  () => {
+    prevConfettiMessageId = null
+    hasLoadedHistoryForConv = false
+  },
+)
+
+watch(
+  () => isLoadingHistory.value,
+  (loading) => {
+    if (!loading) {
+      hasLoadedHistoryForConv = true
+      if (messages.value.length > 0) {
+        const last = messages.value[messages.value.length - 1]
+        prevConfettiMessageId = last.client_id || last.id
+      }
+    }
+  },
+  { immediate: true },
+)
+
 watch(
   () => messages.value,
   (newMessages) => {
@@ -325,13 +367,12 @@ watch(
     }
     const newest = newMessages[newMessages.length - 1]
     const newestId = newest.client_id || newest.id
-    if (!prevConfettiMessageId) {
+
+    if (isLoadingHistory.value || !hasLoadedHistoryForConv) {
       prevConfettiMessageId = newestId
-      if (!newest.deleted_at && shouldTriggerConfetti(newest.content)) {
-        triggerConfetti()
-      }
       return
     }
+
     if (newestId !== prevConfettiMessageId) {
       prevConfettiMessageId = newestId
       if (!newest.deleted_at && shouldTriggerConfetti(newest.content)) {
@@ -339,7 +380,7 @@ watch(
       }
     }
   },
-  { deep: true },
+  { deep: true, flush: 'sync' },
 )
 
 async function handleSaveProfile(payload: {
@@ -359,17 +400,19 @@ async function handleSaveProfile(payload: {
   }
 }
 
+function handleSwMessage(event: MessageEvent) {
+  if (event.data?.type === 'NAVIGATE_CONVERSATION' && event.data.conversationId) {
+    handleSelectConversation(event.data.conversationId)
+  }
+}
+
 onMounted(async () => {
   if (typeof window !== 'undefined') {
     window.addEventListener('keydown', handleGlobalKeydown)
   }
 
   if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-    navigator.serviceWorker.addEventListener('message', (event) => {
-      if (event.data?.type === 'NAVIGATE_CONVERSATION' && event.data.conversationId) {
-        handleSelectConversation(event.data.conversationId)
-      }
-    })
+    navigator.serviceWorker.addEventListener('message', handleSwMessage)
   }
 
   const status = await initializeE2ee()
@@ -381,6 +424,9 @@ onMounted(async () => {
 onUnmounted(() => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('keydown', handleGlobalKeydown)
+  }
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.removeEventListener('message', handleSwMessage)
   }
   cleanupChat()
 })
