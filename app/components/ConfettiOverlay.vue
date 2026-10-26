@@ -4,13 +4,16 @@ import {
   createRaycastConfettiBurst,
   stepConfettiParticles,
   drawConfettiParticles,
+  pickRandomCelebrationEffect,
   type ConfettiParticle,
+  type CelebrationEffect,
 } from '~/utils/confetti'
 
 const props = withDefaults(
   defineProps<{
     active: boolean
     burstKey?: number
+    effect?: CelebrationEffect
   }>(),
   {
     burstKey: 0,
@@ -80,7 +83,8 @@ function spawnBurst() {
     height = window.innerHeight || 800
   }
 
-  const newWave = createRaycastConfettiBurst(width, height)
+  const chosenEffect = props.effect || pickRandomCelebrationEffect()
+  const newWave = createRaycastConfettiBurst(width, height, undefined, chosenEffect)
   particles.push(...newWave)
 
   // Reset safety timer on every burst wave
@@ -88,7 +92,7 @@ function spawnBurst() {
   safetyTimer = setTimeout(() => {
     stopAnimation()
     emit('complete')
-  }, 3200)
+  }, 3800)
 
   startLoop()
 }

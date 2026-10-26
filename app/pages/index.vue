@@ -368,7 +368,7 @@ watch(
     if (newestId !== prevConfettiMessageId) {
       prevConfettiMessageId = newestId
       // Outgoing messages already celebrate in the send handlers.
-      if (newest.user_id !== currentProfile.value?.id && !newest.deleted_at && shouldTriggerConfetti(newest.content)) {
+      if (newest.user_id !== currentProfile.value?.id && !newest.deleted_at && newest.encryption !== 'undecryptable') {
         triggerConfetti()
       }
     }
