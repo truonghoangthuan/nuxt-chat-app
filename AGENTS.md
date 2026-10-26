@@ -24,7 +24,7 @@ A lightweight, resilient Slack-style real-time chat web app for friends across p
 - **Environment Variables:** Copy `.env.example` to `.env` and set `SUPABASE_URL` and `SUPABASE_KEY`.
 - **Database Schema:** `supabase/schema.sql` defines `public.profiles`, `public.channels`, `public.messages`, `public.e2ee_config`, the `on_auth_user_created` profile-creation trigger, the `enforce_message_e2ee_envelope` trigger, RLS policies, the composite cursor index `messages_channel_cursor_idx`, and the `supabase_realtime` publication.
 - **Windows CLI Tooling:** GitHub CLI (`gh`) is often at `C:\Program Files\GitHub CLI\gh.exe` if not present in default `$env:PATH`. When invoking `gh pr create` or `gh issue create` with multiline Markdown in PowerShell, never pass multiline string literals in `--body "..."` (PowerShell argument parsing splits and corrupts unescaped newlines/quotes); always write the text to a temporary file and use `--body-file <path>` (cleaning up the temp file after).
-- **Windows Line Endings:** Git with `core.autocrlf = true` checks out CRLF. Normalize or match exact CRLF when applying targeted file edits.
+- **Windows Line Endings:** Git with `core.autocrlf = true` checks out CRLF. Normalize or match exact CRLF when applying targeted file edits. If targeted edits fail due to CRLF mismatches, normalize to LF via `node -e 'fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(/\r\n/g, "\n"))'` before editing.
 - **Primary Git Branch (`master`):** The repository's default and production base branch is `master` (not `main`). Always specify `--base master` when creating PRs (`gh pr create --base master`) or merging development branches.
 
 ## 3. Architecture & Directory Layout
@@ -191,6 +191,21 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - To safely modernize without breaking invariant test suites:
       1. Define a backward-compatible alias in `app/assets/css/main.css` mapped to the semantic token (e.g. `--fp-text-muted: var(--ap-text-muted);`).
       2. Keep the asserted legacy class alongside the semantic class on the target element (`text-[var(--fp-text-muted)] text-[var(--ap-text-muted)]`).
+
+24. **Optimistic Mutation Rollback & Reversible State Stores:**
+    - Any optimistic UI mutation on active message state (`editMessage`, `deleteMessage`, `toggleReaction`, `updateGroupTitle`, `togglePinMessage`) must capture the pre-mutation baseline state before updating stores.
+    - If the backend RPC or Postgres mutation returns an error or rejects, the orchestrator MUST explicitly revert `messagesStore` / reactive state back to the captured baseline values (`reconcileUpdatedMessage`, `applyReactionAdded`/`applyReactionRemoved`) and return `{ error }` rather than leaving phantom edits/deletions in memory.
+
+25. **Concurrent Entity Creation Coalescing & Advisory Lock Discipline:**
+    - **Client-Side Request Coalescing:** Any client-side action that gets or creates shared unique entities (such as `openOrCreateDirectChat(peerId)`) must deduplicate rapid concurrent invocations using an in-flight Promise map (`Map<string, Promise<T>>`) so simultaneous clicks or triggers share a single network call.
+    - **Database Transactional Advisory Locks:** In PostgreSQL schema, functions creating bidirectional or unique 1-to-1 relationships (`get_or_create_direct_conversation`) must acquire a transactional advisory lock (`pg_advisory_xact_lock`) derived deterministically from the sorted entity UUIDs (e.g. `min(user_a, user_b) || max(user_a, user_b)`) to prevent concurrent insert race conditions.
+
+26. **Celebration Triggers & History Boundary Discipline:**
+    - Reactive watchers monitoring message collections for celebratory or multimedia effects (e.g., confetti animations, audio cues, haptic feedback) must NEVER evaluate historical messages fetched during initial conversation load or cursor pagination (`isLoadingHistory.value` or initial history render).
+    - Maintain an explicit baseline tracker (`prevConfettiMessageId` / `hasLoadedHistoryForConv`) so celebration watchers only evaluate freshly appended realtime messages arriving in an active viewport.
+
+27. **SPA Service Worker & Global Event Listener Teardown:**
+    - Global browser event listeners registered in page components—including `navigator.serviceWorker.addEventListener('message', handler)` and `window.addEventListener('keydown', handler)`—must always reference named function handlers and be explicitly unregistered in `onUnmounted`. Anonymous inline listener closures cause listener accumulation, memory leaks, and zombie navigation calls across route transitions.
 
 ## 5. Testing Standards
 
