@@ -258,6 +258,29 @@ describe('Chat UI components', () => {
     expect(copyBtn.text()).toContain('Copy')
   })
 
+  it('ProfileSettingsModal renders Default, VSCode, and Yahoo theme options and updates active theme on click', async () => {
+    const ProfileSettingsModal = (await import('~/components/ProfileSettingsModal.vue')).default
+    const { useTheme } = await import('~/composables/useTheme')
+    const { uiTheme, initTheme } = useTheme()
+    localStorage.clear()
+    initTheme()
+
+    const wrapper = mount(ProfileSettingsModal, {
+      props: {
+        isOpen: true,
+        profile: { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' },
+      },
+    })
+
+    await wrapper.find('[data-test="theme-option-vscode"]').trigger('click')
+    expect(uiTheme.value).toBe('vscode')
+    expect(document.documentElement.dataset.theme).toBe('vscode')
+
+    await wrapper.find('[data-test="theme-option-yahoo"]').trigger('click')
+    expect(uiTheme.value).toBe('yahoo')
+    expect(document.documentElement.dataset.theme).toBe('yahoo')
+  })
+
   it('MessageViewport supports inline editing, soft-delete tombstones, quote-reply headers, and reaction pills', async () => {
     const wrapper = mount(MessageViewport, {
       props: {
