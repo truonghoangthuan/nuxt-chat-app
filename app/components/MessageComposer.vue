@@ -6,6 +6,9 @@ import type { ChatMessage, Profile } from '~/types/chat'
 import { shouldSendOnKeydown, extractActiveMentionQuery, applyMentionAutocomplete } from '~/utils/chat'
 import { validateImageFiles, isImagePayload, parseImagePayload, formatImageMessageSummary } from '~/utils/image'
 import UserAvatar from '~/components/UserAvatar.vue'
+import { useTheme } from '~/composables/useTheme'
+
+const { uiTheme } = useTheme()
 
 const props = withDefaults(
   defineProps<{
@@ -474,10 +477,48 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <!-- VSCode Terminal Header -->
+      <div
+        v-if="uiTheme === 'vscode'"
+        data-test="vscode-terminal-header"
+        class="mb-1 px-3 py-1 bg-[#252526] border-b border-[#3c3c3c] flex items-center justify-between text-[11px] font-mono text-[#858585] select-none rounded-t"
+      >
+        <div class="flex items-center gap-4">
+          <span class="hover:text-white cursor-pointer">PROBLEMS</span>
+          <span class="hover:text-white cursor-pointer">OUTPUT</span>
+          <span class="text-white border-b border-[#007acc] pb-0.5 font-bold cursor-pointer">TERMINAL</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span>bash</span>
+        </div>
+      </div>
+
+      <!-- Yahoo Composer Toolbar -->
+      <div
+        v-if="uiTheme === 'yahoo'"
+        data-test="yahoo-composer-toolbar"
+        class="mb-1.5 px-2 py-1 bg-[#ece7f2] dark:bg-[#1b1029] border border-[#b5a8c9] dark:border-[#3b235a] rounded-[3px] flex items-center justify-between text-xs font-sans select-none"
+      >
+        <div class="flex items-center gap-2 text-[#4a3b5c] dark:text-[#d8b4fe]">
+          <span class="px-1.5 py-0.5 bg-white dark:bg-[#251838] border border-[#b5a8c9] dark:border-[#3b235a] rounded text-[11px] font-medium">Tahoma 10pt</span>
+          <span class="text-sm cursor-pointer" title="Emoticons">😊</span>
+          <button
+            type="button"
+            data-test="yahoo-buzz-btn"
+            :disabled="disabled"
+            class="px-2 py-0.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-bold rounded text-[10px] uppercase shadow-xs cursor-pointer active:scale-95 disabled:opacity-40"
+            @click="emit('send', '🔊 BUZZ!!!')"
+          >
+            BUZZ!
+          </button>
+        </div>
+      </div>
+
       <!-- Apple Floating Frosted Pill Dock -->
       <div
         data-test="composer-deck"
-        class="relative rounded-full bg-black/[0.04] dark:bg-white/8 hover:bg-black/[0.06] dark:hover:bg-white/10 backdrop-blur-2xl border border-black/[0.08] dark:border-white/15 shadow-xl p-1.5 flex items-center gap-2 transition-all focus-within:bg-black/[0.06] dark:focus-within:bg-white/12 focus-within:ring-2 focus-within:ring-blue-500/40"
+        class="relative bg-black/[0.04] dark:bg-white/8 hover:bg-black/[0.06] dark:hover:bg-white/10 backdrop-blur-2xl border border-black/[0.08] dark:border-white/15 shadow-xl p-1.5 flex items-center gap-2 transition-all focus-within:bg-black/[0.06] dark:focus-within:bg-white/12 focus-within:ring-2 focus-within:ring-blue-500/40"
+        :class="uiTheme === 'vscode' ? 'rounded-none border-x-0 border-b-0 border-t border-[#3c3c3c]' : (uiTheme === 'yahoo' ? 'rounded-[3px] border-[#b5a8c9] dark:border-[#3b235a]' : 'rounded-full')"
         @dragover.prevent
         @drop.prevent="handleDrop"
         @keydown="handleDeckKeydown"

@@ -3,14 +3,18 @@ import { ref, computed, watch } from 'vue'
 import type { Profile } from '~/types/chat'
 import { AVATAR_PALETTE, isValidDisplayName, isValidAvatarColor, isValidAvatarUrl } from '~/utils/chat'
 import { getConfettiEnabled, setConfettiEnabled } from '~/utils/confetti'
+import { useTheme, type AppUiTheme } from '~/composables/useTheme'
 import UserAvatar from '~/components/UserAvatar.vue'
 import Input from '~/components/ui/Input.vue'
 import Button from '~/components/ui/Button.vue'
+import { Sun, Moon, Laptop, Code2, MessageCircle } from '@lucide/vue'
 
 const props = defineProps<{
   isOpen: boolean
   profile: Profile | null
 }>()
+
+const { uiTheme, setUiTheme, isDark, toggleTheme } = useTheme()
 
 const emit = defineEmits<{
   (e: 'close'): void
@@ -222,6 +226,86 @@ function handleSave() {
               @click="avatarColor = color"
             >
               <span v-if="avatarColor === color">✓</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Application Theme Selector -->
+        <div class="space-y-2 p-3.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
+          <div class="flex items-center justify-between">
+            <div class="space-y-0.5">
+              <div class="text-xs font-semibold text-white/90">
+                Application Theme
+              </div>
+              <div class="text-[11px] text-white/40">
+                Select visual style and layout personality
+              </div>
+            </div>
+            <button
+              type="button"
+              data-test="theme-mode-toggle"
+              class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-white/10 hover:bg-white/15 text-white/80 hover:text-white border border-white/10 transition-colors cursor-pointer"
+              @click="toggleTheme"
+            >
+              <Sun v-if="isDark" class="size-3.5 text-amber-300" />
+              <Moon v-else class="size-3.5 text-blue-300" />
+              <span>{{ isDark ? 'Dark Mode' : 'Light Mode' }}</span>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2 pt-1">
+            <!-- Default (Apple Fluid) -->
+            <button
+              type="button"
+              data-test="theme-option-default"
+              class="p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer"
+              :class="uiTheme === 'default' ? 'bg-blue-500/20 border-blue-500 text-white ring-1 ring-blue-500' : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'"
+              @click="setUiTheme('default')"
+            >
+              <div class="flex items-center justify-between w-full mb-1">
+                <Laptop class="size-4" :class="uiTheme === 'default' ? 'text-blue-400' : 'text-white/60'" />
+                <span v-if="uiTheme === 'default'" class="text-[10px] text-blue-400 font-bold">Active</span>
+              </div>
+              <div>
+                <div class="text-xs font-semibold">Default</div>
+                <div class="text-[10px] text-white/40 leading-tight">Apple Fluid</div>
+              </div>
+            </button>
+
+            <!-- VSCode -->
+            <button
+              type="button"
+              data-test="theme-option-vscode"
+              class="p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer"
+              :class="uiTheme === 'vscode' ? 'bg-blue-500/20 border-blue-500 text-white ring-1 ring-blue-500' : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'"
+              @click="setUiTheme('vscode')"
+            >
+              <div class="flex items-center justify-between w-full mb-1">
+                <Code2 class="size-4" :class="uiTheme === 'vscode' ? 'text-blue-400' : 'text-white/60'" />
+                <span v-if="uiTheme === 'vscode'" class="text-[10px] text-blue-400 font-bold">Active</span>
+              </div>
+              <div>
+                <div class="text-xs font-semibold font-mono">VSCode</div>
+                <div class="text-[10px] text-white/40 leading-tight">IDE Shell</div>
+              </div>
+            </button>
+
+            <!-- Yahoo! Messenger -->
+            <button
+              type="button"
+              data-test="theme-option-yahoo"
+              class="p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer"
+              :class="uiTheme === 'yahoo' ? 'bg-purple-500/20 border-purple-500 text-white ring-1 ring-purple-500' : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'"
+              @click="setUiTheme('yahoo')"
+            >
+              <div class="flex items-center justify-between w-full mb-1">
+                <MessageCircle class="size-4" :class="uiTheme === 'yahoo' ? 'text-purple-400' : 'text-white/60'" />
+                <span v-if="uiTheme === 'yahoo'" class="text-[10px] text-purple-400 font-bold">Active</span>
+              </div>
+              <div>
+                <div class="text-xs font-semibold">Yahoo!</div>
+                <div class="text-[10px] text-white/40 leading-tight">Classic IM</div>
+              </div>
             </button>
           </div>
         </div>

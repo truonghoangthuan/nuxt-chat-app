@@ -109,6 +109,152 @@ html.dark {
   --sidebar-ring: #0a84ff;
 }
 
+/* VSCode Theme (Light+) */
+html[data-theme="vscode"] {
+  --radius: 0px;
+  --ap-bg: #f3f3f3;
+  --ap-canvas: #ffffff;
+  --ap-sidebar: #f3f3f3;
+  --ap-stage: #ffffff;
+  --ap-glass: rgba(0, 0, 0, 0.04);
+  --ap-glass-border: #e5e5e5;
+  --ap-glass-hover: #e8e8e8;
+  --ap-blue: #007acc;
+  --ap-blue-gradient: linear-gradient(135deg, #007acc 0%, #005a9e 100%);
+  --ap-text-primary: #333333;
+  --ap-text-secondary: #001080;
+  --ap-text-muted: #6e7681;
+  --fp-text-muted: var(--ap-text-muted);
+  --ap-presence-online: #16825d;
+  --ap-destructive: #cd3131;
+
+  --background: #ffffff;
+  --foreground: #333333;
+  --card: #f8f8f8;
+  --card-foreground: #333333;
+  --popover: #ffffff;
+  --popover-foreground: #333333;
+  --primary: #007acc;
+  --primary-foreground: #ffffff;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --sidebar: #f3f3f3;
+  --sidebar-foreground: #333333;
+  --sidebar-border: #e5e5e5;
+}
+
+/* VSCode Theme (Dark+) */
+html.dark[data-theme="vscode"] {
+  --radius: 0px;
+  --ap-bg: #1e1e1e;
+  --ap-canvas: #1e1e1e;
+  --ap-sidebar: #252526;
+  --ap-stage: #1e1e1e;
+  --ap-glass: rgba(255, 255, 255, 0.04);
+  --ap-glass-border: #3c3c3c;
+  --ap-glass-hover: #2a2d2e;
+  --ap-blue: #007acc;
+  --ap-blue-gradient: linear-gradient(135deg, #007acc 0%, #005a9e 100%);
+  --ap-text-primary: #d4d4d4;
+  --ap-text-secondary: #9cdcfe;
+  --ap-text-muted: #858585;
+  --fp-text-muted: var(--ap-text-muted);
+  --ap-presence-online: #89d185;
+  --ap-destructive: #f14c4c;
+
+  --background: #1e1e1e;
+  --foreground: #d4d4d4;
+  --card: #252526;
+  --card-foreground: #d4d4d4;
+  --popover: #252526;
+  --popover-foreground: #d4d4d4;
+  --primary: #007acc;
+  --primary-foreground: #ffffff;
+  --border: #3c3c3c;
+  --input: #3c3c3c;
+  --sidebar: #252526;
+  --sidebar-foreground: #d4d4d4;
+  --sidebar-border: #3c3c3c;
+}
+
+/* Yahoo Theme (Classic Light) */
+html[data-theme="yahoo"] {
+  --radius: 3px;
+  --ap-bg: #dcd8e8;
+  --ap-canvas: #dcd8e8;
+  --ap-sidebar: #ffffff;
+  --ap-stage: #ffffff;
+  --ap-glass: rgba(80, 0, 149, 0.04);
+  --ap-glass-border: #b5a8c9;
+  --ap-glass-hover: #ece7f2;
+  --ap-blue: #500095;
+  --ap-blue-gradient: linear-gradient(135deg, #7b0099 0%, #500095 100%);
+  --ap-text-primary: #1a1a1a;
+  --ap-text-secondary: #4a3b5c;
+  --ap-text-muted: #6e647a;
+  --fp-text-muted: var(--ap-text-muted);
+  --ap-presence-online: #008800;
+  --ap-destructive: #cc0000;
+
+  --background: #dcd8e8;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  --primary: #500095;
+  --primary-foreground: #ffffff;
+  --border: #b5a8c9;
+  --input: #b5a8c9;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-border: #b5a8c9;
+}
+
+/* Yahoo Theme (Yahoo Dark) */
+html.dark[data-theme="yahoo"] {
+  --radius: 3px;
+  --ap-bg: #12091c;
+  --ap-canvas: #12091c;
+  --ap-sidebar: #1b1029;
+  --ap-stage: #160d22;
+  --ap-glass: rgba(192, 132, 252, 0.06);
+  --ap-glass-border: #3b235a;
+  --ap-glass-hover: #29183d;
+  --ap-blue: #a855f7;
+  --ap-blue-gradient: linear-gradient(135deg, #7b0099 0%, #3b0066 100%);
+  --ap-text-primary: #f3e8ff;
+  --ap-text-secondary: #d8b4fe;
+  --ap-text-muted: #9378b8;
+  --fp-text-muted: var(--ap-text-muted);
+  --ap-presence-online: #4ade80;
+  --ap-destructive: #f87171;
+
+  --background: #12091c;
+  --foreground: #f3e8ff;
+  --card: #1b1029;
+  --card-foreground: #f3e8ff;
+  --popover: #1b1029;
+  --popover-foreground: #f3e8ff;
+  --primary: #a855f7;
+  --primary-foreground: #ffffff;
+  --border: #3b235a;
+  --input: #3b235a;
+  --sidebar: #1b1029;
+  --sidebar-foreground: #f3e8ff;
+  --sidebar-border: #3b235a;
+}
+
+html[data-theme="vscode"] body {
+  font-family: 'Geist Mono', 'Consolas', 'Courier New', monospace;
+  background-image: none;
+}
+
+html[data-theme="yahoo"] body {
+  font-family: 'Tahoma', 'Verdana', 'Segoe UI', sans-serif;
+  background-image: none;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", sans-serif;
   font-variant-numeric: tabular-nums;

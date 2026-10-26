@@ -17,6 +17,9 @@ import { isImagePayload, parseImagePayload, formatImageMessageSummary } from '~/
 import UserAvatar from '~/components/UserAvatar.vue'
 import MessageImageGrid from '~/components/MessageImageGrid.vue'
 import { Pin, ChevronLeft, ChevronRight, X, ChevronDown } from '@lucide/vue'
+import { useTheme } from '~/composables/useTheme'
+
+const { uiTheme } = useTheme()
 
 const props = withDefaults(
   defineProps<{
@@ -479,7 +482,7 @@ onUnmounted(() => {
 
       <!-- Messages List -->
       <template
-        v-for="item in timelineItems"
+        v-for="(item, idx) in timelineItems"
         :key="item.message.client_id || item.message.id"
       >
         <!-- Frosted Date Divider -->
@@ -534,13 +537,30 @@ onUnmounted(() => {
           :data-test="item.isMentioningMe ? `mention-row-${item.message.id}` : (item.isCompact ? 'compact-message' : 'full-message')"
           class="relative flex w-full group py-0.5 transition-colors"
           :class="[
-            item.isSender ? 'justify-end' : 'justify-start items-end gap-2',
+            uiTheme === 'vscode' || uiTheme === 'yahoo'
+              ? 'justify-start items-start gap-1 font-mono text-xs'
+              : (item.isSender ? 'justify-end' : 'justify-start items-end gap-2'),
             item.isMentioningMe ? 'bg-amber-500/10 border-l-2 border-amber-500 dark:border-amber-400 pl-2 rounded-2xl' : '',
             item.isFirstInGroup && !item.showDateDivider && !item.showUnreadDivider ? 'mt-2' : 'mt-0.5',
           ]"
         >
-          <!-- Recipient Avatar (rendered at the bottom of the cluster) -->
-          <template v-if="!item.isSender">
+          <!-- VSCode Line Number -->
+          <span
+            v-if="uiTheme === 'vscode'"
+            data-test="vscode-line-number"
+            class="w-8 shrink-0 text-right pr-2 font-mono text-[11px] text-[#858585] select-none pt-0.5"
+          >{{ idx + 1 }}</span>
+
+          <!-- Yahoo Transcript Author -->
+          <span
+            v-if="uiTheme === 'yahoo'"
+            data-test="yahoo-transcript-author"
+            class="font-bold text-xs mr-1 shrink-0 font-sans"
+            :class="item.isSender ? 'text-[#0033cc] dark:text-[#60a5fa]' : 'text-[#800080] dark:text-[#c084fc]'"
+          >{{ item.message.author?.display_name || 'Friend' }} ({{ formatTime(item.message.created_at) }}):</span>
+
+          <!-- Recipient Avatar (rendered at the bottom of the cluster in default theme) -->
+          <template v-if="uiTheme === 'default' && !item.isSender">
             <div
               v-if="item.isLastInGroup"
               data-test="recipient-avatar-trigger"
@@ -660,19 +680,23 @@ onUnmounted(() => {
                 </span>
               </div>
 
-              <!-- Apple iMessage Bubble Container -->
+              <!-- Message Bubble Container -->
               <div
                 :data-test="`message-bubble-${item.message.id}`"
-              class="relative px-4 py-2.5 text-[13.5px] leading-relaxed shadow-xs break-words transition-all"
-              :class="[
-                item.isSender
-                  ? 'bg-indigo-600 bg-gradient-to-br from-[#0a84ff] to-[#0062cc] text-white rounded-[22px] rounded-br-[4px] shadow-md shadow-blue-600/25'
-                  : 'bg-black/[0.04] dark:bg-white/8 hover:bg-black/[0.06] dark:hover:bg-white/10 backdrop-blur-md border border-black/[0.08] dark:border-white/10 text-[var(--ap-text-primary)] rounded-[22px] rounded-bl-[4px]',
-                item.message.status === 'sending' ? 'opacity-85' : '',
-                item.message.status === 'failed' ? 'border-rose-500/50' : '',
-                highlightedMessageId === item.message.id ? 'ring-2 ring-blue-500 ring-offset-2' : '',
-              ]"
-            >
+                class="relative text-[13.5px] leading-relaxed break-words transition-all"
+                :class="[
+                  uiTheme === 'vscode'
+                    ? 'px-1 py-0.5 text-xs text-[var(--ap-text-primary)] rounded-none shadow-none font-mono'
+                    : (uiTheme === 'yahoo'
+                        ? 'px-0 py-0 text-xs text-[var(--ap-text-primary)] rounded-none shadow-none font-sans inline'
+                        : (item.isSender
+                            ? 'px-4 py-2.5 bg-indigo-600 bg-gradient-to-br from-[#0a84ff] to-[#0062cc] text-white rounded-[22px] rounded-br-[4px] shadow-md shadow-blue-600/25'
+                            : 'px-4 py-2.5 bg-black/[0.04] dark:bg-white/8 hover:bg-black/[0.06] dark:hover:bg-white/10 backdrop-blur-md border border-black/[0.08] dark:border-white/10 text-[var(--ap-text-primary)] rounded-[22px] rounded-bl-[4px] shadow-xs')),
+                  item.message.status === 'sending' ? 'opacity-85' : '',
+                  item.message.status === 'failed' ? 'border-rose-500/50' : '',
+                  highlightedMessageId === item.message.id ? 'ring-2 ring-blue-500 ring-offset-2' : '',
+                ]"
+              >
               <!-- Quoted Reply Preview -->
               <div
                 v-if="item.message.reply_to_id"

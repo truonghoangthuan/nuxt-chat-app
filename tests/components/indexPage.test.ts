@@ -106,7 +106,10 @@ vi.mock('~/composables/useAuthProfile', () => ({
 vi.mock('~/composables/useTheme', () => ({
   useTheme: () => ({
     isDark: ref(true),
+    uiTheme: ref('default'),
     toggleTheme: vi.fn(),
+    initTheme: vi.fn(),
+    setUiTheme: vi.fn(),
   }),
 }))
 

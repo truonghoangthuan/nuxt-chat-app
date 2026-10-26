@@ -258,6 +258,99 @@ describe('Chat UI components', () => {
     expect(copyBtn.text()).toContain('Copy')
   })
 
+  it('ProfileSettingsModal renders Default, VSCode, and Yahoo theme options and updates active theme on click', async () => {
+    const ProfileSettingsModal = (await import('~/components/ProfileSettingsModal.vue')).default
+    const { useTheme } = await import('~/composables/useTheme')
+    const { uiTheme, initTheme } = useTheme()
+    localStorage.clear()
+    initTheme()
+
+    const wrapper = mount(ProfileSettingsModal, {
+      props: {
+        isOpen: true,
+        profile: { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' },
+      },
+    })
+
+    await wrapper.find('[data-test="theme-option-vscode"]').trigger('click')
+    expect(uiTheme.value).toBe('vscode')
+    expect(document.documentElement.dataset.theme).toBe('vscode')
+
+    await wrapper.find('[data-test="theme-option-yahoo"]').trigger('click')
+    expect(uiTheme.value).toBe('yahoo')
+    expect(document.documentElement.dataset.theme).toBe('yahoo')
+  })
+
+  it('ChatSidebar switches structural chrome for vscode and yahoo themes while keeping conversation hooks', async () => {
+    const { useTheme } = await import('~/composables/useTheme')
+    const { setUiTheme } = useTheme()
+
+    setUiTheme('vscode')
+    const wrapper = mount(ChatSidebar, {
+      props: {
+        conversations: [{ id: 'c-1', type: 'group', title: 'dev-team', created_by: 'u-1', created_at: '2026-10-20T00:00:00Z' }],
+        activeConversationId: 'c-1',
+        unreadCounts: {},
+        onlineFriends: [],
+        currentUser: { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' },
+        isDark: true,
+        connectionStatus: 'connected',
+        isOpenMobile: false,
+      },
+    })
+
+    expect(wrapper.find('[data-test="vscode-explorer-header"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="conversation-item-c-1"]').exists()).toBe(true)
+
+    setUiTheme('yahoo')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-test="yahoo-messenger-header"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="conversation-item-c-1"]').exists()).toBe(true)
+    setUiTheme('default')
+  })
+
+  it('MessageViewport and MessageComposer render VSCode IDE log/terminal and Yahoo IM transcript/toolbar', async () => {
+    const { useTheme } = await import('~/composables/useTheme')
+    const { setUiTheme } = useTheme()
+
+    setUiTheme('vscode')
+    const viewport = mount(MessageViewport, {
+      props: {
+        currentUserId: 'u-1',
+        messages: [
+          {
+            id: 'm-1',
+            client_id: 'c-1',
+            channel_id: 'ch-1',
+            user_id: 'u-1',
+            content: 'const x = 42',
+            created_at: '2026-10-20T10:00:00Z',
+            status: 'sent',
+            author: { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' },
+          },
+        ],
+      },
+    })
+    expect(viewport.find('[data-test="vscode-line-number"]').exists()).toBe(true)
+    expect(viewport.find('[data-test="message-bubble-m-1"]').exists()).toBe(true)
+
+    const composer = mount(MessageComposer, {
+      props: { channelSlug: 'general' },
+    })
+    expect(composer.find('[data-test="vscode-terminal-header"]').exists()).toBe(true)
+
+    setUiTheme('yahoo')
+    await viewport.vm.$nextTick()
+    await composer.vm.$nextTick()
+    expect(viewport.find('[data-test="yahoo-transcript-author"]').exists()).toBe(true)
+    expect(composer.find('[data-test="yahoo-composer-toolbar"]').exists()).toBe(true)
+
+    await composer.find('[data-test="yahoo-buzz-btn"]').trigger('click')
+    expect(composer.emitted('send')?.[0]).toEqual(['🔊 BUZZ!!!'])
+
+    setUiTheme('default')
+  })
+
   it('MessageViewport supports inline editing, soft-delete tombstones, quote-reply headers, and reaction pills', async () => {
     const wrapper = mount(MessageViewport, {
       props: {
