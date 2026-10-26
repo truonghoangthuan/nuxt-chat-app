@@ -463,7 +463,7 @@ function handleSwMessage(event: MessageEvent) {
 }
 
 onMounted(async () => {
-  initTheme()
+  initTheme?.()
   initPwaInstall()
 
   if (typeof window !== 'undefined') {

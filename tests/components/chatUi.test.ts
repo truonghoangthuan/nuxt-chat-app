@@ -309,6 +309,48 @@ describe('Chat UI components', () => {
     setUiTheme('default')
   })
 
+  it('MessageViewport and MessageComposer render VSCode IDE log/terminal and Yahoo IM transcript/toolbar', async () => {
+    const { useTheme } = await import('~/composables/useTheme')
+    const { setUiTheme } = useTheme()
+
+    setUiTheme('vscode')
+    const viewport = mount(MessageViewport, {
+      props: {
+        currentUserId: 'u-1',
+        messages: [
+          {
+            id: 'm-1',
+            client_id: 'c-1',
+            channel_id: 'ch-1',
+            user_id: 'u-1',
+            content: 'const x = 42',
+            created_at: '2026-10-20T10:00:00Z',
+            status: 'sent',
+            author: { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' },
+          },
+        ],
+      },
+    })
+    expect(viewport.find('[data-test="vscode-line-number"]').exists()).toBe(true)
+    expect(viewport.find('[data-test="message-bubble-m-1"]').exists()).toBe(true)
+
+    const composer = mount(MessageComposer, {
+      props: { channelSlug: 'general' },
+    })
+    expect(composer.find('[data-test="vscode-terminal-header"]').exists()).toBe(true)
+
+    setUiTheme('yahoo')
+    await viewport.vm.$nextTick()
+    await composer.vm.$nextTick()
+    expect(viewport.find('[data-test="yahoo-transcript-author"]').exists()).toBe(true)
+    expect(composer.find('[data-test="yahoo-composer-toolbar"]').exists()).toBe(true)
+
+    await composer.find('[data-test="yahoo-buzz-btn"]').trigger('click')
+    expect(composer.emitted('send')?.[0]).toEqual(['🔊 BUZZ!!!'])
+
+    setUiTheme('default')
+  })
+
   it('MessageViewport supports inline editing, soft-delete tombstones, quote-reply headers, and reaction pills', async () => {
     const wrapper = mount(MessageViewport, {
       props: {
