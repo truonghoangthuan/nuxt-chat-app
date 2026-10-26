@@ -8,6 +8,9 @@ import {
   STORAGE_KEY_CONFETTI,
   getConfettiEnabled,
   setConfettiEnabled,
+  normalizeConfettiWord,
+  sanitizeConfettiWords,
+  matchesConfettiDictionary,
 } from '~/utils/confetti'
 
 describe('Raycast confetti physics (app/utils/confetti.ts)', () => {
@@ -174,5 +177,31 @@ describe('Raycast confetti physics (app/utils/confetti.ts)', () => {
     setConfettiEnabled(true)
     expect(localStorage.getItem(STORAGE_KEY_CONFETTI)).toBe('true')
     expect(getConfettiEnabled()).toBe(true)
+  })
+})
+
+describe('Confetti dictionary helpers (app/utils/confetti.ts)', () => {
+  it('normalizes and deduplicates confetti words including comma-separated entries', () => {
+    expect(normalizeConfettiWord('  Chúc Mừng!  ')).toBe('chúc mừng!')
+    expect(sanitizeConfettiWords(['  Party ', 'PARTY', 'congrats,  hooray ', '', '   '])).toEqual([
+      'party',
+      'congrats',
+      'hooray',
+    ])
+  })
+
+  it('returns false when dictionary or text is empty', () => {
+    expect(matchesConfettiDictionary('congrats on the release!', [])).toBe(false)
+    expect(matchesConfettiDictionary('congrats on the release!', null)).toBe(false)
+    expect(matchesConfettiDictionary('', ['congrats'])).toBe(false)
+    expect(matchesConfettiDictionary(undefined, ['congrats'])).toBe(false)
+  })
+
+  it('matches case-insensitively when message contains any dictionary word or phrase', () => {
+    const dict = ['congrats', 'rõ ràng', 'ship it']
+    expect(matchesConfettiDictionary('Big CONGRATS team!', dict)).toBe(true)
+    expect(matchesConfettiDictionary('Rõ ràng là tuyệt vời', dict)).toBe(true)
+    expect(matchesConfettiDictionary('Let us SHIP IT today', dict)).toBe(true)
+    expect(matchesConfettiDictionary('Just a normal message', dict)).toBe(false)
   })
 })

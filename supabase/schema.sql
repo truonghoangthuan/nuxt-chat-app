@@ -612,6 +612,10 @@ create policy "Authenticated users can delete conversation attachments"
 alter table public.conversations
   add column if not exists background_url text;
 
+-- Migration: add confetti_words dictionary array to conversations
+alter table public.conversations
+  add column if not exists confetti_words text[] not null default '{}';
+
 -- Storage Bucket for shared chat backgrounds (publicly readable)
 insert into storage.buckets (id, name, public)
 values ('chat-backgrounds', 'chat-backgrounds', true)

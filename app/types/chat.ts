@@ -39,6 +39,7 @@ export interface Conversation {
   lastMessage?: ChatMessage | null  // For sidebar snippet
   unreadCount?: number
   background_url?: string | null
+  confetti_words?: string[]
 }
 
 export interface Contact {

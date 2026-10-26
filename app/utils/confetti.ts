@@ -481,3 +481,37 @@ export function setConfettiEnabled(enabled: boolean): void {
   }
 }
 
+export function normalizeConfettiWord(word: string): string {
+  return word.trim().toLowerCase()
+}
+
+export function sanitizeConfettiWords(words: string[]): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const raw of words) {
+    for (const part of raw.split(',')) {
+      const normalized = normalizeConfettiWord(part)
+      if (normalized && !seen.has(normalized)) {
+        seen.add(normalized)
+        result.push(normalized)
+      }
+    }
+  }
+  return result
+}
+
+export function matchesConfettiDictionary(
+  text: string | null | undefined,
+  dictionary: string[] | null | undefined,
+): boolean {
+  if (!text || !dictionary || dictionary.length === 0) return false
+  const haystack = text.toLowerCase()
+  for (const entry of dictionary) {
+    const needle = normalizeConfettiWord(entry)
+    if (needle && haystack.includes(needle)) {
+      return true
+    }
+  }
+  return false
+}
+
