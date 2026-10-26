@@ -1725,6 +1725,51 @@ export function useChatRoom() {
         return existingInMemory
       }
 
+      if (typeof (supabase as any).rpc === 'function') {
+        try {
+          const { data: rpcConvId, error: rpcErr } = await (supabase as any).rpc(
+            'get_or_create_direct_conversation',
+            { target_user_id: peerUserId },
+          )
+          if (!rpcErr && typeof rpcConvId === 'string' && rpcConvId) {
+            await loadConversations()
+            let found = conversations.value.find(c => c.id === rpcConvId)
+            if (!found) {
+              const { data: freshConv } = await supabase
+                .from('conversations')
+                .select('*, members:conversation_members(*, profile:profiles(*))')
+                .eq('id', rpcConvId)
+                .single()
+              if (freshConv) {
+                const convObj: Conversation = {
+                  id: freshConv.id,
+                  type: 'direct',
+                  title: null,
+                  created_by: freshConv.created_by,
+                  created_at: freshConv.created_at,
+                  updated_at: freshConv.updated_at,
+                  peer: peerProfile || null,
+                  members: freshConv.members || [],
+                  unreadCount: 0,
+                  background_url: freshConv.background_url || null,
+                }
+                conversations.value = [convObj, ...conversations.value]
+                found = convObj
+              }
+            }
+            if (found) {
+              if (peerProfile && !found.peer) {
+                found.peer = peerProfile
+              }
+              await selectConversation(found.id)
+              return found
+            }
+          }
+        } catch {
+          // RPC failed or unmocked; fall back to client queries
+        }
+      }
+
       try {
         const { data: existingMemberships } = await supabase
           .from('conversation_members')

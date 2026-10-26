@@ -1675,6 +1675,34 @@ describe('useChatRoom contacts and conversations', () => {
     expect(mockContactsDb.some(c => c.user_id === 'u-bob' && c.contact_user_id === 'u-alice')).toBe(false)
   })
 
+  it('openOrCreateDirectChat prefers atomic get_or_create_direct_conversation RPC before client queries', async () => {
+    const rpcSpy = vi.spyOn(mockSupabase, 'rpc').mockImplementation(async (fnName: string, args: any) => {
+      if (fnName === 'get_or_create_direct_conversation') {
+        const convId = 'conv-rpc-dm-1'
+        mockConversationsDb.push({
+          id: convId,
+          type: 'direct',
+          title: null,
+          created_by: 'u-alice',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          members: [
+            { conversation_id: convId, user_id: 'u-alice', role: 'owner', profile: mockProfilesDb.get('u-alice') },
+            { conversation_id: convId, user_id: args.target_user_id, role: 'member', profile: mockProfilesDb.get(args.target_user_id) },
+          ],
+        })
+        return { data: convId, error: null }
+      }
+      return { data: null, error: { message: 'Unknown RPC' } }
+    })
+
+    const room = useChatRoom()
+    const conv = await room.openOrCreateDirectChat('u-bob')
+    expect(rpcSpy).toHaveBeenCalledWith('get_or_create_direct_conversation', { target_user_id: 'u-bob' })
+    expect(conv.id).toBe('conv-rpc-dm-1')
+    expect(conv.type).toBe('direct')
+  })
+
   it('creates direct conversation idempotently', async () => {
     const room = useChatRoom()
 

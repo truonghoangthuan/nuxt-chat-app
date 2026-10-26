@@ -241,7 +241,13 @@ create policy "Authenticated users can insert conversation members"
   on public.conversation_members for insert
   to authenticated
   with check (
-    public.can_access_conversation(conversation_id)
+    (
+      public.can_access_conversation(conversation_id)
+      and exists (
+        select 1 from public.conversations c
+        where c.id = conversation_id and c.type = 'group'
+      )
+    )
     or exists (
       select 1 from public.conversations c
       where c.id = conversation_id and c.created_by = auth.uid()
@@ -632,6 +638,7 @@ create policy "Authenticated users can update chat backgrounds"
   to authenticated
   using (
     bucket_id = 'chat-backgrounds'
+    and owner = auth.uid()
     and public.can_access_conversation(public.storage_conversation_id(name))
   );
 
@@ -641,6 +648,7 @@ create policy "Authenticated users can delete chat backgrounds"
   to authenticated
   using (
     bucket_id = 'chat-backgrounds'
+    and owner = auth.uid()
     and public.can_access_conversation(public.storage_conversation_id(name))
   );
 
