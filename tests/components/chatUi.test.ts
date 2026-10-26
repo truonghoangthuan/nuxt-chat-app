@@ -1013,6 +1013,17 @@ describe('Chat UI components', () => {
       expect(wrapper.emitted('retryConfig')).toBeTruthy()
     })
 
+    it('E2eeGate uses semantic tokens for text, inputs, and card backgrounds', () => {
+      const wrapper = mount(E2eeGate, {
+        props: { status: 'locked', error: null, isUnlocking: false },
+      })
+      const input = wrapper.find('[data-test="e2ee-phrase-input"]')
+      expect(input.classes()).not.toContain('text-white')
+      expect(input.classes()).not.toContain('placeholder-white/40')
+      const heading = wrapper.find('h1')
+      expect(heading.classes().some(c => c.includes('text-[var(--ap-text-primary)]'))).toBe(true)
+    })
+
     it('MessageViewport renders legacy badge, undecryptable placeholder, and hides Edit on undecryptable messages', () => {
       const wrapper = mount(MessageViewport, {
         props: {
