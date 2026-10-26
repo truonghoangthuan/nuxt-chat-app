@@ -52,6 +52,24 @@ describe('useE2ee composable', () => {
     expect(e2ee.key.value).not.toBeNull()
   })
 
+  it('initializeE2ee uses runtimeConfig.public.e2eeDefaultPhrase when configured', async () => {
+    const customPhrase = 'custom-runtime-workspace-phrase'
+    const customCfg = await createPhraseConfig(customPhrase, TEST_ITERATIONS)
+    mockConfigRow = { id: 1, ...customCfg }
+    vi.stubGlobal('useRuntimeConfig', () => ({
+      public: { e2eeDefaultPhrase: customPhrase },
+    }))
+
+    const e2ee = useE2ee()
+    const status = await e2ee.initializeE2ee()
+    expect(status).toBe('unlocked')
+    expect(e2ee.status.value).toBe('unlocked')
+    expect(e2ee.key.value).not.toBeNull()
+    vi.unstubAllGlobals()
+    vi.stubGlobal('useSupabaseClient', () => mockSupabase)
+    vi.stubGlobal('useSupabaseUser', () => ({ value: null }))
+  })
+
   it('rejects wrong phrase and unlocks + persists to sessionStorage on correct phrase', async () => {
     const cfg = await createPhraseConfig('shared friend secret phrase', TEST_ITERATIONS)
     mockConfigRow = { id: 1, ...cfg }
