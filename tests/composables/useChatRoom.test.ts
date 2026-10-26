@@ -2216,4 +2216,32 @@ describe('useChatRoom contacts and conversations', () => {
     await room.selectConversation('conv-active-1')
     expect(revokeSpy).not.toHaveBeenCalled()
   })
+
+  it('loadConversationReadsAndUnreads scopes conversation_reads query to active conversation IDs', async () => {
+    let capturedReadsInIds: string[] | null = null
+    const origFrom = mockSupabase.from
+    mockSupabase.from = vi.fn((table: string) => {
+      if (table === 'conversation_reads') {
+        return {
+          select: vi.fn().mockReturnValue({
+            in: vi.fn((_col: string, ids: string[]) => {
+              capturedReadsInIds = ids
+              return Promise.resolve({ data: [], error: null })
+            }),
+          }),
+        }
+      }
+      return origFrom(table)
+    })
+
+    mockSupabase.auth.getUser = vi.fn().mockResolvedValue({
+      data: { user: { id: 'u-alice', email: 'alice@example.com' } },
+      error: null,
+    })
+
+    const room = useChatRoom()
+    const group = await room.createGroup('Alpha', ['u-bob'])
+    await room.initializeChat()
+    expect(capturedReadsInIds).toEqual([group.id])
+  })
 })

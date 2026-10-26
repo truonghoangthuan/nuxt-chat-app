@@ -41,6 +41,37 @@ import { useE2ee } from '~/composables/useE2ee'
 import { useNotification, createNotificationManager } from '~/composables/useNotification'
 import { useImageAttachmentCache } from '~/composables/useImageAttachmentCache'
 import {
+  computeUnreadSnapshot,
+  computeInitialUnreadSnapshot,
+  computeOldestReadTimestamp,
+  computeConversationReadMap,
+  computeChannelReadMap,
+  createConversationReadDebouncer,
+  createChannelReadDebouncer,
+  createReadReceiptDebouncer,
+  applyIncomingUnreadIncrement,
+  applyActiveChannelReadReset,
+  applyCrossTabReadTimestamp,
+} from '~/composables/useUnreadReads'
+import { createContactsActions } from '~/composables/useContacts'
+import { createConversationsActions } from '~/composables/useConversations'
+
+export {
+  computeUnreadSnapshot,
+  computeInitialUnreadSnapshot,
+  computeOldestReadTimestamp,
+  computeConversationReadMap,
+  computeChannelReadMap,
+  createConversationReadDebouncer,
+  createChannelReadDebouncer,
+  createReadReceiptDebouncer,
+  applyIncomingUnreadIncrement,
+  applyActiveChannelReadReset,
+  applyCrossTabReadTimestamp,
+}
+export { createContactsActions }
+export { createConversationsActions }
+import {
   isImagePayload,
   parseImagePayload,
   formatImageMessageSummary,
@@ -145,132 +176,6 @@ export async function decryptMessageRows<
 ): Promise<T[]> {
   return Promise.all(rows.map(row => decryptMessageRow(row, key, fallbackConversationId)))
 }
-
-export function computeUnreadSnapshot(params: {
-  messages: Array<Pick<ChatMessage, 'id' | 'conversation_id' | 'channel_id' | 'user_id' | 'content' | 'created_at' | 'deleted_at' | 'reply_to_id'>>
-  lastReadByConversation?: Record<string, string>
-  lastReadByChannel?: Record<string, string>
-  activeConversationId?: string | null
-  activeChannelId?: string | null
-  currentUserId: string
-  currentDisplayName?: string | null
-}): {
-  unreadCounts: Record<string, number>
-  unreadMentions: Record<string, number>
-} {
-  const unreadCounts: Record<string, number> = {}
-  const unreadMentions: Record<string, number> = {}
-  const activeId = params.activeConversationId !== undefined ? params.activeConversationId : (params.activeChannelId || null)
-  const lastReadMap = params.lastReadByConversation || params.lastReadByChannel || {}
-
-  for (const msg of params.messages) {
-    if (!msg || msg.deleted_at) continue
-    const targetId = msg.conversation_id || msg.channel_id || ''
-    if (!targetId || targetId === activeId) continue
-    if (params.currentUserId && msg.user_id === params.currentUserId) continue
-
-    const lastReadIso = lastReadMap[targetId]
-    if (lastReadIso && Date.parse(msg.created_at) <= Date.parse(lastReadIso)) {
-      continue
-    }
-
-    unreadCounts[targetId] = (unreadCounts[targetId] || 0) + 1
-    const textToCheck = isImagePayload(msg.content)
-      ? (parseImagePayload(msg.content)?.caption || formatImageMessageSummary(parseImagePayload(msg.content)?.images.length || 1))
-      : msg.content
-    if (doesMessageMentionUser(textToCheck, params.currentDisplayName)) {
-      unreadMentions[targetId] = (unreadMentions[targetId] || 0) + 1
-    }
-  }
-
-  return { unreadCounts, unreadMentions }
-}
-
-export function computeOldestReadTimestamp(timestamps: string[]): string | null {
-  if (timestamps.length === 0) return null
-  return timestamps.reduce((a, b) => {
-    const tA = Date.parse(a)
-    const tB = Date.parse(b)
-    if (!Number.isNaN(tA) && !Number.isNaN(tB)) {
-      return tA < tB ? a : b
-    }
-    return a < b ? a : b
-  })
-}
-
-export function computeConversationReadMap(params: {
-  conversations?: Array<{ id: string }>
-  channels?: Array<{ id: string }>
-  readRows?: Array<{ conversation_id?: string; channel_id?: string; last_read_at: string }> | null
-  existingMap?: Record<string, string>
-  defaultReadTimestamp: string
-}): Record<string, string> {
-  const map: Record<string, string> = {}
-  if (params.readRows) {
-    for (const r of params.readRows) {
-      const id = r.conversation_id || r.channel_id
-      if (id) {
-        map[id] = r.last_read_at
-      }
-    }
-  }
-  const list = params.conversations || params.channels || []
-  for (const item of list) {
-    if (!map[item.id]) {
-      map[item.id] = params.existingMap?.[item.id] || params.defaultReadTimestamp
-    }
-  }
-  return map
-}
-
-export const computeChannelReadMap = computeConversationReadMap
-
-export function createConversationReadDebouncer(
-  upsertFn: (conversationId: string, timestamp: string) => Promise<any>,
-  delayMs = 2000,
-) {
-  const timers = new Map<string, any>()
-  const pendingTimestamps = new Map<string, string>()
-
-  function schedule(conversationId: string, timestamp: string, immediate = false): Promise<void> | void {
-    pendingTimestamps.set(conversationId, timestamp)
-    const existing = timers.get(conversationId)
-    if (existing) {
-      clearTimeout(existing)
-      timers.delete(conversationId)
-    }
-
-    const flush = async () => {
-      timers.delete(conversationId)
-      const ts = pendingTimestamps.get(conversationId) || timestamp
-      pendingTimestamps.delete(conversationId)
-      try {
-        await upsertFn(conversationId, ts)
-      } catch {
-        // Ignored
-      }
-    }
-
-    if (immediate) {
-      return flush()
-    }
-
-    const timer = setTimeout(flush, delayMs)
-    timers.set(conversationId, timer)
-  }
-
-  function cancelAll() {
-    for (const t of timers.values()) {
-      clearTimeout(t)
-    }
-    timers.clear()
-    pendingTimestamps.clear()
-  }
-
-  return { schedule, cancelAll, timers }
-}
-
-export const createChannelReadDebouncer = createConversationReadDebouncer
 
 export function subscribeWithPromise(
   channel: { subscribe: (callback: (status: string) => void) => any } | null,
@@ -621,10 +526,17 @@ export function useChatRoom() {
     if (!current?.id || conversations.value.length === 0) return
 
     try {
-      let readRows: any[] | null = null
-      const { data: convReadRows, error: convReadErr } = await supabase
+      const convIds = conversations.value.map(c => c.id).filter(Boolean)
+      let readsQuery: any = supabase
         .from('conversation_reads')
         .select('*')
+
+      if (convIds.length > 0 && typeof readsQuery.in === 'function') {
+        readsQuery = readsQuery.in('conversation_id', convIds)
+      }
+
+      let readRows: any[] | null = null
+      const { data: convReadRows, error: convReadErr } = await readsQuery
 
       if (!convReadErr && convReadRows) {
         readRows = convReadRows.filter((r: any) => r.user_id === current.id)
@@ -653,7 +565,6 @@ export function useChatRoom() {
       const oldestRead = computeOldestReadTimestamp(Object.values(map))
       if (!oldestRead) return
 
-      const convIds = conversations.value.map(c => c.id).filter(Boolean)
       let query: any = supabase
         .from('messages')
         .select('id, conversation_id, user_id, content, created_at, deleted_at, reply_to_id')
@@ -759,10 +670,16 @@ export function useChatRoom() {
 
   async function loadAllProfiles(): Promise<void> {
     try {
-      const { data, error } = await supabase
+      let query: any = supabase
         .from('profiles')
         .select('id, email, display_name, avatar_color, avatar_url')
         .order('display_name', { ascending: true })
+
+      if (typeof query.limit === 'function') {
+        query = query.limit(200)
+      }
+
+      const { data, error } = await query
 
       if (data && !error) {
         allProfiles.value = data as Profile[]
@@ -775,198 +692,21 @@ export function useChatRoom() {
     }
   }
 
-  async function findUserByEmail(email: string): Promise<Profile | null> {
-    if (!email || !isValidEmail(email)) {
-      return null
-    }
-    const cleanEmail = email.trim().toLowerCase()
-
-    try {
-      if (typeof supabase.rpc === 'function') {
-        const { data, error } = await supabase.rpc('lookup_profile_by_email', { search_email: cleanEmail })
-        if (!error && data) {
-          const profile = (Array.isArray(data) ? data[0] : data) as Profile
-          if (profile && profile.id) {
-            profilesCache.set(profile.id, profile)
-            if (!allProfiles.value.some(p => p.id === profile.id)) {
-              allProfiles.value = [...allProfiles.value, profile].sort((a, b) =>
-                a.display_name.localeCompare(b.display_name),
-              )
-            }
-            return profile
-          }
-        }
-      }
-    } catch {
-      // Fallback to direct query below
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .ilike('email', cleanEmail)
-        .single()
-
-      if (error || !data) {
-        return null
-      }
-      const profile = data as Profile
-      profilesCache.set(profile.id, profile)
-      if (!allProfiles.value.some(p => p.id === profile.id)) {
-        allProfiles.value = [...allProfiles.value, profile].sort((a, b) =>
-          a.display_name.localeCompare(b.display_name),
-        )
-      }
-      return profile
-    } catch {
-      return null
-    }
-  }
-
-  async function loadContacts(): Promise<void> {
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) return
-
-    try {
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('user_id, contact_user_id, created_at, profile:profiles!contacts_contact_user_id_fkey(*)')
-        .eq('user_id', current.id)
-        .order('created_at', { ascending: true })
-
-      if (data && !error) {
-        contacts.value = (data as any[]).map((row) => {
-          let profile = row.profile
-          if (profile) {
-            profilesCache.set(profile.id, profile)
-          } else {
-            profile = profilesCache.get(row.contact_user_id) || allProfiles.value.find(p => p.id === row.contact_user_id) || null
-          }
-          return {
-            user_id: row.user_id,
-            contact_user_id: row.contact_user_id,
-            created_at: row.created_at,
-            profile,
-          }
-        })
-        syncOnlineFriends()
-      }
-    } catch {
-      // Ignore contacts load failure
-    }
-  }
-
-  async function addContact(contactUserId: string): Promise<{ contact: Contact | null; error: string | null }> {
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) {
-      return { contact: null, error: 'Not authenticated.' }
-    }
-    if (current.id === contactUserId) {
-      return { contact: null, error: 'Cannot add yourself as a contact.' }
-    }
-
-    const existing = contacts.value.find(c => c.contact_user_id === contactUserId)
-    if (existing) {
-      return { contact: existing, error: null }
-    }
-
-    let peerProfile = profilesCache.get(contactUserId) || allProfiles.value.find(p => p.id === contactUserId)
-    if (!peerProfile) {
-      try {
-        const { data } = await supabase.from('profiles').select('*').eq('id', contactUserId).single()
-        if (data) {
-          peerProfile = data as Profile
-          profilesCache.set(data.id, data as Profile)
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    try {
-      let data: any = null
-      let addError: any = null
-
-      if (typeof supabase.rpc === 'function') {
-        const { error: rpcError } = await supabase.rpc('add_mutual_friend', { target_user_id: contactUserId })
-        addError = rpcError
-      }
-
-      if (addError || typeof supabase.rpc !== 'function') {
-        const res = await supabase
-          .from('contacts')
-          .insert({
-            user_id: current.id,
-            contact_user_id: contactUserId,
-          })
-          .select('*')
-          .single()
-
-        if (res.error && !isDuplicateKeyError(res.error)) {
-          return { contact: null, error: res.error.message }
-        }
-        data = res.data
-      }
-
-      if (!peerProfile) {
-        try {
-          const { data: fetchedProfile } = await supabase.from('profiles').select('*').eq('id', contactUserId).maybeSingle()
-          if (fetchedProfile) {
-            peerProfile = fetchedProfile as Profile
-            profilesCache.set(fetchedProfile.id, fetchedProfile as Profile)
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      const newContact: Contact = {
-        user_id: current.id,
-        contact_user_id: contactUserId,
-        created_at: data?.created_at || new Date().toISOString(),
-        profile: (data as any)?.profile || peerProfile || null,
-      }
-
-      if (!contacts.value.some(c => c.contact_user_id === contactUserId)) {
-        contacts.value = [...contacts.value, newContact]
-        syncOnlineFriends()
-      }
-
-      return { contact: newContact, error: null }
-    } catch (err: any) {
-      return { contact: null, error: err?.message || 'Failed to add contact.' }
-    }
-  }
-
-  async function removeContact(contactUserId: string): Promise<{ error: string | null }> {
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) {
-      return { error: 'Not authenticated.' }
-    }
-
-    contacts.value = contacts.value.filter(c => c.contact_user_id !== contactUserId)
-    syncOnlineFriends()
-
-    try {
-      if (typeof supabase.rpc === 'function') {
-        const { error: rpcError } = await supabase.rpc('remove_mutual_friend', { target_user_id: contactUserId })
-        if (!rpcError) {
-          return { error: null }
-        }
-      }
-
-      const { error } = await supabase
-        .from('contacts')
-        .delete()
-        .eq('user_id', current.id)
-        .eq('contact_user_id', contactUserId)
-
-      return { error: error ? error.message : null }
-    } catch (err: any) {
-      return { error: err?.message || 'Failed to remove contact.' }
-    }
-  }
+  const contactsActions = createContactsActions({
+    supabase,
+    authProfile,
+    contacts,
+    profilesCache,
+    allProfiles,
+    syncOnlineFriends,
+  })
+  const {
+    findUserByEmail,
+    lookupUserByEmail,
+    loadContacts,
+    addContact,
+    removeContact,
+  } = contactsActions
 
   async function loadConversations(): Promise<void> {
     const current = authProfile.currentProfile.value
@@ -1577,510 +1317,34 @@ export function useChatRoom() {
     return 0
   }
 
-  const inFlightDirectChats = new Map<string, Promise<Conversation>>()
-
-  async function openOrCreateDirectChat(peerUserId: string): Promise<Conversation> {
-    const inFlight = inFlightDirectChats.get(peerUserId)
-    if (inFlight) {
-      return inFlight
-    }
-
-    const task = (async () => {
-      const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-      if (!current?.id) {
-        throw new Error('Not authenticated.')
-      }
-      if (current.id === peerUserId) {
-        throw new Error('Cannot start a direct message with yourself.')
-      }
-
-      let peerProfile = profilesCache.get(peerUserId) || allProfiles.value.find(p => p.id === peerUserId)
-      if (!peerProfile) {
-        try {
-          const { data } = await supabase.from('profiles').select('*').eq('id', peerUserId).single()
-          if (data) {
-            peerProfile = data as Profile
-            profilesCache.set(data.id, data as Profile)
-            if (!allProfiles.value.some(p => p.id === data.id)) {
-              allProfiles.value = [...allProfiles.value, data as Profile]
-            }
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      const existingInMemory = conversations.value.find(c => {
-        if (c.type !== 'direct') return false
-        if (c.peer?.id === peerUserId) return true
-        if (c.members?.some(m => m.user_id === peerUserId)) return true
-        return false
-      })
-
-      if (existingInMemory) {
-        await selectConversation(existingInMemory.id)
-        return existingInMemory
-      }
-
-      if (typeof (supabase as any).rpc === 'function') {
-        try {
-          const { data: rpcConvId, error: rpcErr } = await (supabase as any).rpc(
-            'get_or_create_direct_conversation',
-            { target_user_id: peerUserId },
-          )
-          if (!rpcErr && typeof rpcConvId === 'string' && rpcConvId) {
-            await loadConversations()
-            let found = conversations.value.find(c => c.id === rpcConvId)
-            if (!found) {
-              const { data: freshConv } = await supabase
-                .from('conversations')
-                .select('*, members:conversation_members(*, profile:profiles(*))')
-                .eq('id', rpcConvId)
-                .single()
-              if (freshConv) {
-                const convObj: Conversation = {
-                  id: freshConv.id,
-                  type: 'direct',
-                  title: null,
-                  created_by: freshConv.created_by,
-                  created_at: freshConv.created_at,
-                  updated_at: freshConv.updated_at,
-                  peer: peerProfile || null,
-                  members: freshConv.members || [],
-                  unreadCount: 0,
-                  background_url: freshConv.background_url || null,
-                }
-                conversations.value = [convObj, ...conversations.value]
-                found = convObj
-              }
-            }
-            if (found) {
-              if (peerProfile && !found.peer) {
-                found.peer = peerProfile
-              }
-              await selectConversation(found.id)
-              return found
-            }
-          }
-        } catch {
-          // RPC failed or unmocked; fall back to client queries
-        }
-      }
-
-      try {
-        const { data: existingMemberships } = await supabase
-          .from('conversation_members')
-          .select('conversation_id, conversation:conversations(*)')
-          .eq('user_id', peerUserId)
-
-        if (existingMemberships && existingMemberships.length > 0) {
-          const matched = (existingMemberships as any[]).find(
-            m => m.conversation && m.conversation.type === 'direct',
-          )
-          if (matched?.conversation) {
-            const c = matched.conversation
-            const conv: Conversation = {
-              id: c.id,
-              type: 'direct',
-              title: null,
-              created_by: c.created_by,
-              created_at: c.created_at,
-              updated_at: c.updated_at,
-              peer: peerProfile || null,
-              members: [
-                { conversation_id: c.id, user_id: current.id, role: 'owner', joined_at: c.created_at, profile: current },
-                { conversation_id: c.id, user_id: peerUserId, role: 'member', joined_at: c.created_at, profile: peerProfile || null },
-              ],
-              unreadCount: unreadCounts.value[c.id] || 0,
-            }
-            if (!conversations.value.some(item => item.id === conv.id)) {
-              conversations.value = [conv, ...conversations.value]
-            }
-            await selectConversation(conv.id)
-            return conv
-          }
-        }
-      } catch {
-        // ignore
-      }
-
-      const { data: convData, error: convError } = await supabase
-        .from('conversations')
-        .insert({
-          type: 'direct',
-          created_by: current.id,
-        })
-        .select('*')
-        .single()
-
-      if (convError || !convData) {
-        throw new Error(convError?.message || 'Failed to create direct conversation.')
-      }
-
-      const membersToInsert = [
-        { conversation_id: convData.id, user_id: current.id, role: 'owner' },
-        { conversation_id: convData.id, user_id: peerUserId, role: 'member' },
-      ]
-      const { error: memberError } = await supabase.from('conversation_members').insert(membersToInsert)
-      if (memberError) {
-        throw new Error(memberError.message || 'Failed to add conversation members.')
-      }
-
-      const newConv: Conversation = {
-        id: convData.id,
-        type: 'direct',
-        title: null,
-        created_by: current.id,
-        created_at: convData.created_at || new Date().toISOString(),
-        updated_at: convData.updated_at || new Date().toISOString(),
-        peer: peerProfile || null,
-        members: [
-          { conversation_id: convData.id, user_id: current.id, role: 'owner', joined_at: new Date().toISOString(), profile: current },
-          { conversation_id: convData.id, user_id: peerUserId, role: 'member', joined_at: new Date().toISOString(), profile: peerProfile || null },
-        ],
-        unreadCount: 0,
-        background_url: convData.background_url || null,
-      }
-
-      if (!conversations.value.some(c => c.id === newConv.id)) {
-        conversations.value = [newConv, ...conversations.value]
-      }
-      await selectConversation(newConv.id)
-      return newConv
-    })()
-
-    inFlightDirectChats.set(peerUserId, task)
-    try {
-      return await task
-    } finally {
-      inFlightDirectChats.delete(peerUserId)
-    }
-  }
-
-  async function createGroup(title: string, memberUserIds: string[]): Promise<Conversation> {
-    const cleanTitle = title?.trim()
-    if (!cleanTitle) {
-      throw new Error('Group title is required.')
-    }
-
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) {
-      throw new Error('Not authenticated.')
-    }
-
-    const { data: convData, error: convError } = await supabase
-      .from('conversations')
-      .insert({
-        type: 'group',
-        title: cleanTitle,
-        created_by: current.id,
-      })
-      .select('*')
-      .single()
-
-    if (convError || !convData) {
-      throw new Error(convError?.message || 'Failed to create group conversation.')
-    }
-
-    const uniqueOtherIds = Array.from(new Set(memberUserIds.filter(id => id && id !== current.id)))
-    const membersToInsert = [
-      { conversation_id: convData.id, user_id: current.id, role: 'owner' },
-      ...uniqueOtherIds.map(uid => ({
-        conversation_id: convData.id,
-        user_id: uid,
-        role: 'member',
-      })),
-    ]
-
-    const { error: memberError } = await supabase.from('conversation_members').insert(membersToInsert)
-    if (memberError) {
-      throw new Error(memberError.message || 'Failed to add group members.')
-    }
-
-    const memberList: ConversationMember[] = membersToInsert.map(m => ({
-      conversation_id: convData.id,
-      user_id: m.user_id,
-      role: m.role as 'owner' | 'member',
-      joined_at: new Date().toISOString(),
-      profile: m.user_id === current.id ? current : (profilesCache.get(m.user_id) || allProfiles.value.find(p => p.id === m.user_id) || null),
-    }))
-
-    const newGroup: Conversation = {
-      id: convData.id,
-      type: 'group',
-      title: cleanTitle,
-      created_by: current.id,
-      created_at: convData.created_at || new Date().toISOString(),
-      updated_at: convData.updated_at || new Date().toISOString(),
-      members: memberList,
-      unreadCount: 0,
-      background_url: convData.background_url || null,
-    }
-
-    if (!conversations.value.some(c => c.id === newGroup.id)) {
-      conversations.value = [newGroup, ...conversations.value]
-    }
-    await selectConversation(newGroup.id)
-    return newGroup
-  }
-
-  async function addMemberToGroup(conversationId: string, email: string): Promise<void> {
-    const conv = conversations.value.find(c => c.id === conversationId)
-    if (conv && conv.type !== 'group') {
-      throw new Error('Cannot add members to a direct message.')
-    }
-
-    const user = await findUserByEmail(email)
-    if (!user) {
-      throw new Error(`User not found with email: ${email}`)
-    }
-
-    if (conv?.members?.some(m => m.user_id === user.id)) {
-      return
-    }
-
-    const { error } = await supabase
-      .from('conversation_members')
-      .insert({
-        conversation_id: conversationId,
-        user_id: user.id,
-        role: 'member',
-      })
-
-    if (error) {
-      throw new Error(error.message)
-    }
-
-    if (conv) {
-      const newMember: ConversationMember = {
-        conversation_id: conversationId,
-        user_id: user.id,
-        role: 'member',
-        joined_at: new Date().toISOString(),
-        profile: user,
-      }
-      conv.members = [...(conv.members || []), newMember]
-    }
-  }
-
-  async function leaveGroup(conversationId: string): Promise<void> {
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) {
-      throw new Error('Not authenticated.')
-    }
-
-    const { error: leaveError } = await supabase
-      .from('conversation_members')
-      .delete()
-      .eq('conversation_id', conversationId)
-      .eq('user_id', current.id)
-
-    if (leaveError) {
-      throw new Error(leaveError.message || 'Failed to leave group.')
-    }
-
-    conversations.value = conversations.value.filter(c => c.id !== conversationId)
-
-    if (activeConversationId.value === conversationId) {
-      const next = conversations.value[0]?.id || null
-      if (next) {
-        await selectConversation(next)
-      } else {
-        activeConversationId.value = null
-        messagesStore.setInitialHistory([], '')
-      }
-    }
-  }
-
-  async function updateGroupTitle(
-    conversationId: string,
-    title: string,
-  ): Promise<{ error: string | null }> {
-    const cleanTitle = title?.trim()
-    if (!cleanTitle || cleanTitle.length > 100) {
-      return { error: 'Group title must be 1–100 characters.' }
-    }
-
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) {
-      return { error: 'Not authenticated.' }
-    }
-
-    const targetConv = conversations.value.find(c => c.id === conversationId)
-    if (!targetConv || targetConv.type !== 'group') {
-      return { error: 'Group conversation not found.' }
-    }
-
-    const previousTitle = targetConv.title
-    const previousUpdatedAt = targetConv.updated_at
-    const nowIso = new Date().toISOString()
-
-    // Optimistic update
-    targetConv.title = cleanTitle
-    targetConv.updated_at = nowIso
-
-    try {
-      const { error } = await supabase
-        .from('conversations')
-        .update({
-          title: cleanTitle,
-          updated_at: nowIso,
-        })
-        .eq('id', conversationId)
-
-      if (error) {
-        // Rollback
-        targetConv.title = previousTitle
-        targetConv.updated_at = previousUpdatedAt
-        return { error: error.message || 'Failed to update group title.' }
-      }
-
-      const actorName = current.display_name || 'Someone'
-      const sysPayload = serializeSystemMessage({
-        type: 'system',
-        event: 'group_rename',
-        actorName,
-        detail: cleanTitle,
-      })
-      await sendMessage(sysPayload, undefined, conversationId).catch(() => {})
-
-      return { error: null }
-    } catch (err: any) {
-      targetConv.title = previousTitle
-      targetConv.updated_at = previousUpdatedAt
-      return { error: err?.message || 'Failed to update group title.' }
-    }
-  }
-
-  async function updateChatBackground(
-    conversationId: string,
-    backgroundOrFile: string | File,
-  ): Promise<{ error: string | null }> {
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) {
-      return { error: 'Not authenticated.' }
-    }
-
-    const targetConv = conversations.value.find(c => c.id === conversationId)
-    if (!targetConv) {
-      return { error: 'Conversation not found.' }
-    }
-
-    let finalUrl: string
-    if (typeof backgroundOrFile !== 'string') {
-      const file = backgroundOrFile
-      const validation = validateBackgroundFile(file)
-      if (!validation.valid) {
-        return { error: validation.error || 'Invalid background file.' }
-      }
-
-      try {
-        const ext = file.name ? file.name.split('.').pop() || 'jpg' : 'jpg'
-        const filePath = `conversations/${conversationId}/bg-${Date.now()}.${ext}`
-        const { error: uploadError } = await supabase.storage
-          .from('chat-backgrounds')
-          .upload(filePath, file, { contentType: file.type, upsert: true })
-
-        if (uploadError) {
-          return { error: uploadError.message || 'Failed to upload background image.' }
-        }
-
-        const { data: publicUrlData } = supabase.storage
-          .from('chat-backgrounds')
-          .getPublicUrl(filePath)
-
-        finalUrl = publicUrlData.publicUrl
-      } catch (err: any) {
-        return { error: err?.message || 'Failed to upload background image.' }
-      }
-    } else {
-      finalUrl = backgroundOrFile.trim()
-    }
-
-    const prevBg = targetConv.background_url
-    const prevUpdated = targetConv.updated_at
-    const nowIso = new Date().toISOString()
-
-    // Optimistic update
-    targetConv.background_url = finalUrl
-    targetConv.updated_at = nowIso
-
-    try {
-      const { error: dbError } = await supabase
-        .from('conversations')
-        .update({ background_url: finalUrl, updated_at: nowIso })
-        .eq('id', conversationId)
-
-      if (dbError) {
-        targetConv.background_url = prevBg
-        targetConv.updated_at = prevUpdated
-        return { error: dbError.message || 'Failed to update background.' }
-      }
-
-      const actorName = current.display_name || 'Someone'
-      const preset = CHAT_BACKGROUND_PRESETS.find(p => p.value === finalUrl)
-      const presetLabel = preset ? preset.label : 'a custom image'
-      const sysPayload = serializeSystemMessage({
-        type: 'system',
-        event: 'background_change',
-        actorName,
-        detail: presetLabel,
-      })
-      await sendMessage(sysPayload, undefined, conversationId).catch(() => {})
-
-      return { error: null }
-    } catch (err: any) {
-      targetConv.background_url = prevBg
-      targetConv.updated_at = prevUpdated
-      return { error: err?.message || 'Failed to update background.' }
-    }
-  }
-
-  async function removeChatBackground(conversationId: string): Promise<{ error: string | null }> {
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) {
-      return { error: 'Not authenticated.' }
-    }
-
-    const targetConv = conversations.value.find(c => c.id === conversationId)
-    if (!targetConv) {
-      return { error: 'Conversation not found.' }
-    }
-
-    const prevBg = targetConv.background_url
-    const prevUpdated = targetConv.updated_at
-    const nowIso = new Date().toISOString()
-
-    targetConv.background_url = null
-    targetConv.updated_at = nowIso
-
-    try {
-      const { error: dbError } = await supabase
-        .from('conversations')
-        .update({ background_url: null, updated_at: nowIso })
-        .eq('id', conversationId)
-
-      if (dbError) {
-        targetConv.background_url = prevBg
-        targetConv.updated_at = prevUpdated
-        return { error: dbError.message || 'Failed to reset background.' }
-      }
-
-      const actorName = current.display_name || 'Someone'
-      const sysPayload = serializeSystemMessage({
-        type: 'system',
-        event: 'background_reset',
-        actorName,
-      })
-      await sendMessage(sysPayload, undefined, conversationId).catch(() => {})
-
-      return { error: null }
-    } catch (err: any) {
-      targetConv.background_url = prevBg
-      targetConv.updated_at = prevUpdated
-      return { error: err?.message || 'Failed to reset background.' }
-    }
-  }
+  const conversationsActions = createConversationsActions({
+    supabase,
+    authProfile,
+    conversations,
+    activeConversationId,
+    unreadCounts,
+    profilesCache,
+    allProfiles,
+    selectConversation,
+    loadConversations,
+    messagesStore,
+    sendMessage: (content: string, replyTo?: any, conversationId?: string) => sendMessage(content, replyTo, conversationId),
+    findUserByEmail,
+  })
+
+  const {
+    openOrCreateDirectChat,
+    createGroup,
+    createGroupChat,
+    addMemberToGroup,
+    addGroupMember,
+    leaveGroup,
+    leaveGroupChat,
+    updateGroupTitle,
+    updateGroupName,
+    updateChatBackground,
+    removeChatBackground,
+  } = conversationsActions
 
   const createChannel = async (name: string) => createGroup(name, []).then(channel => ({ channel, error: null })).catch((err: any) => ({ channel: null, error: err?.message || 'Failed to create channel.' }))
   const openOrCreateDm = async (peerUserId: string) => openOrCreateDirectChat(peerUserId).then(channel => ({ channel, error: null })).catch((err: any) => ({ channel: null, error: err?.message || 'Failed to open direct message.' }))
