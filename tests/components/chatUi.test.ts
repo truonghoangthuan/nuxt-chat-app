@@ -1013,6 +1013,17 @@ describe('Chat UI components', () => {
       expect(wrapper.emitted('retryConfig')).toBeTruthy()
     })
 
+    it('E2eeGate uses semantic tokens for text, inputs, and card backgrounds', () => {
+      const wrapper = mount(E2eeGate, {
+        props: { status: 'locked', error: null, isUnlocking: false },
+      })
+      const input = wrapper.find('[data-test="e2ee-phrase-input"]')
+      expect(input.classes()).not.toContain('text-white')
+      expect(input.classes()).not.toContain('placeholder-white/40')
+      const heading = wrapper.find('h1')
+      expect(heading.classes().some(c => c.includes('text-[var(--ap-text-primary)]'))).toBe(true)
+    })
+
     it('MessageViewport renders legacy badge, undecryptable placeholder, and hides Edit on undecryptable messages', () => {
       const wrapper = mount(MessageViewport, {
         props: {
@@ -1693,6 +1704,81 @@ describe('Chat UI components', () => {
       expect(allItems[0].attributes('data-test')).toBe('conversation-item-conv-recent')
       expect(allItems[1].attributes('data-test')).toBe('conversation-item-conv-deleted')
       expect(allItems[2].attributes('data-test')).toBe('conversation-item-conv-no-act')
+    })
+
+    it('formats image payload in lastMessage as photo summary in conversation item subtitle', () => {
+      const convWithCaption: Conversation = {
+        id: 'conv-img-caption',
+        type: 'direct',
+        title: null,
+        created_by: 'u-bob',
+        created_at: '2026-10-18T10:00:00Z',
+        updated_at: '2026-10-18T10:00:00Z',
+        peer: mockPeerBob,
+        lastMessage: {
+          id: 'm-img-1',
+          client_id: 'c-img-1',
+          channel_id: 'conv-img-caption',
+          user_id: 'u-bob',
+          content: JSON.stringify({
+            type: 'images',
+            images: [{ path: 'channels/c-img-1/0.enc', mimeType: 'image/jpeg', width: 800, height: 600, size: 100 }],
+            caption: 'Sunset photo',
+          }),
+          created_at: '2026-10-18T10:05:00Z',
+          status: 'sent',
+          encryption: 'e2ee',
+        },
+      }
+
+      const convWithoutCaption: Conversation = {
+        id: 'conv-img-nocaption',
+        type: 'direct',
+        title: null,
+        created_by: 'u-bob',
+        created_at: '2026-10-18T10:00:00Z',
+        updated_at: '2026-10-18T10:00:00Z',
+        peer: mockPeerBob,
+        lastMessage: {
+          id: 'm-img-2',
+          client_id: 'c-img-2',
+          channel_id: 'conv-img-nocaption',
+          user_id: 'u-bob',
+          content: JSON.stringify({
+            type: 'images',
+            images: [
+              { path: 'channels/c-img-2/0.enc', mimeType: 'image/jpeg', width: 800, height: 600, size: 100 },
+              { path: 'channels/c-img-2/1.enc', mimeType: 'image/jpeg', width: 800, height: 600, size: 100 },
+            ],
+          }),
+          created_at: '2026-10-18T10:05:00Z',
+          status: 'sent',
+          encryption: 'e2ee',
+        },
+      }
+
+      const wrapper = mount(ChatSidebar, {
+        props: {
+          conversations: [convWithCaption, convWithoutCaption],
+          activeConversationId: null,
+          unreadCounts: {},
+          onlineFriends: [],
+          currentUser: mockCurrentUser,
+          isDark: true,
+          connectionStatus: 'connected',
+          isOpenMobile: false,
+        },
+      })
+
+      const item1 = wrapper.find('[data-test="conversation-item-conv-img-caption"]')
+      expect(item1.exists()).toBe(true)
+      expect(item1.text()).toContain('Sunset photo')
+      expect(item1.text()).not.toContain('{"type":"images"')
+
+      const item2 = wrapper.find('[data-test="conversation-item-conv-img-nocaption"]')
+      expect(item2.exists()).toBe(true)
+      expect(item2.text()).toContain('📷 2 photos')
+      expect(item2.text()).not.toContain('{"type":"images"')
     })
 
     it('ChatSidebar does not render macOS window traffic light dots', () => {

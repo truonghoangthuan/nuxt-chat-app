@@ -74,19 +74,12 @@ export async function encryptContent(key, plaintext, channelId) {
   return `${E2EE_ENVELOPE_PREFIX}${ivPart}:${ctPart}`
 }
 
-async function main() {
-  const phrase = process.argv[2]
-  if (!phrase) {
-    console.error('Usage: node scripts/generate-e2ee-config.mjs "<secret-phrase>"')
-    process.exit(1)
-  }
-
+export async function generateE2eeSeed(phrase) {
   const normalized = normalizeSecretPhrase(phrase)
   if (normalized.length < MIN_SECRET_PHRASE_LENGTH) {
-    console.error(
-      `Error: Secret phrase must be at least ${MIN_SECRET_PHRASE_LENGTH} characters after normalization.`
+    throw new Error(
+      `Secret phrase must be at least ${MIN_SECRET_PHRASE_LENGTH} characters after normalization.`
     )
-    process.exit(1)
   }
 
   const saltBytes = new Uint8Array(16)
@@ -98,10 +91,36 @@ async function main() {
 
   const sql = `INSERT INTO public.e2ee_config (id, salt, iterations, verifier) VALUES (1, '${salt}', ${DEFAULT_PBKDF2_ITERATIONS}, '${verifier}') ON CONFLICT (id) DO UPDATE SET salt = excluded.salt, iterations = excluded.iterations, verifier = excluded.verifier;`
 
-  console.log(sql)
+  return {
+    salt,
+    iterations: DEFAULT_PBKDF2_ITERATIONS,
+    verifier,
+    sql,
+  }
 }
 
-if (process.argv[1] && process.argv[1].endsWith('generate-e2ee-config.mjs')) {
+async function main() {
+  const phrase = process.argv[2]
+  if (!phrase) {
+    console.error('Usage: node scripts/generate-e2ee-config.mjs "<secret-phrase>"')
+    process.exit(1)
+  }
+
+  try {
+    const { sql } = await generateE2eeSeed(phrase)
+    console.log(sql)
+  } catch (err) {
+    console.error(`Error: ${err.message}`)
+    process.exit(1)
+  }
+}
+
+const isMain = process.argv[1] && (
+  process.argv[1].endsWith('generate-e2ee-config.mjs') ||
+  process.argv[1].endsWith('generate-e2ee-config')
+)
+
+if (isMain && !process.env.VITEST) {
   main().catch((err) => {
     console.error(err)
     process.exit(1)

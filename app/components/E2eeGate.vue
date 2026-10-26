@@ -50,7 +50,7 @@ function handleRetryConfig() {
       <div class="flex flex-col items-center text-center mb-6">
         <div class="relative mb-4 flex items-center justify-center">
           <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-pink-500 via-purple-500 to-cyan-400 p-0.5 shadow-[0_0_30px_rgba(168,85,247,0.35)] animate-pulse">
-            <div class="w-full h-full bg-[#161824] rounded-full flex items-center justify-center text-white/90">
+            <div class="w-full h-full bg-[var(--ap-stage)] rounded-full flex items-center justify-center text-[var(--ap-text-primary)]">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
@@ -58,10 +58,10 @@ function handleRetryConfig() {
           </div>
         </div>
 
-        <h1 class="text-xl font-bold text-white/95 tracking-tight">
+        <h1 class="text-xl font-bold text-[var(--ap-text-primary)] tracking-tight">
           End-to-End Encryption
         </h1>
-        <p class="text-[13px] text-white/60 mt-1.5 leading-relaxed">
+        <p class="text-[13px] text-[var(--ap-text-secondary)] mt-1.5 leading-relaxed">
           Messages in this workspace are protected with client-side zero-knowledge AES-256-GCM encryption.
         </p>
       </div>
@@ -69,7 +69,7 @@ function handleRetryConfig() {
       <!-- State: Loading -->
       <div v-if="status === 'loading'" class="py-8 flex flex-col items-center justify-center text-center space-y-3">
         <div class="w-8 h-8 rounded-full border-2 border-blue-500 border-t-transparent animate-spin"></div>
-        <p class="text-sm font-medium text-white/70">
+        <p class="text-sm font-medium text-[var(--ap-text-secondary)]">
           Verifying encryption key...
         </p>
       </div>
@@ -78,7 +78,7 @@ function handleRetryConfig() {
       <div v-else-if="status === 'unconfigured'" class="space-y-4">
         <div class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs leading-relaxed backdrop-blur-md">
           <span class="font-bold block mb-1">Encryption not configured</span>
-          The server does not have an active E2EE configuration record (<code class="font-mono text-[11px] bg-black/30 px-1.5 py-0.5 rounded">public.e2ee_config</code>). Run the setup script to initialize the workspace master key.
+          The server does not have an active E2EE configuration record (<code class="font-mono text-[11px] bg-black/10 dark:bg-black/30 px-1.5 py-0.5 rounded">public.e2ee_config</code>). Run the setup script to initialize the workspace master key.
         </div>
         <div class="flex items-center gap-3 pt-2">
           <button
@@ -91,7 +91,7 @@ function handleRetryConfig() {
           </button>
           <button
             type="button"
-            class="py-2.5 px-4 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-semibold text-white/80 hover:text-white cursor-pointer transition-colors"
+            class="py-2.5 px-4 rounded-full border border-[var(--ap-glass-border)] bg-[var(--ap-glass)] hover:bg-[var(--ap-glass-hover)] text-xs font-semibold text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] cursor-pointer transition-colors"
             @click="emit('logout')"
           >
             Sign Out
@@ -111,7 +111,7 @@ function handleRetryConfig() {
 
         <form class="space-y-4" @submit.prevent="handleUnlockSubmit">
           <div>
-            <label class="block text-xs font-semibold text-white/70 mb-1.5">
+            <label class="block text-xs font-semibold text-[var(--ap-text-secondary)] mb-1.5">
               Workspace Secret Passphrase
             </label>
             <div class="relative">
@@ -122,11 +122,11 @@ function handleRetryConfig() {
                 required
                 autocomplete="current-password"
                 placeholder="Enter shared secret phrase..."
-                class="w-full h-10 px-4 pr-10 text-xs rounded-full bg-white/8 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:bg-white/12 focus:ring-1 focus:ring-blue-500/50 transition-all"
+                class="w-full h-10 px-4 pr-10 text-xs rounded-full bg-[var(--ap-glass)] border border-[var(--ap-glass-border)] text-[var(--ap-text-primary)] placeholder:text-[var(--ap-text-muted)] focus:outline-none focus:bg-[var(--ap-glass-hover)] focus:ring-1 focus:ring-blue-500/50 transition-all"
               />
               <button
                 type="button"
-                class="absolute inset-y-0 right-0 px-3.5 flex items-center text-white/40 hover:text-white cursor-pointer"
+                class="absolute inset-y-0 right-0 px-3.5 flex items-center text-[var(--ap-text-muted)] hover:text-[var(--ap-text-primary)] cursor-pointer"
                 :title="showPhrase ? 'Hide phrase' : 'Show phrase'"
                 @click="showPhrase = !showPhrase"
               >
@@ -139,7 +139,7 @@ function handleRetryConfig() {
                 </svg>
               </button>
             </div>
-            <p class="text-[11px] text-white/40 font-mono mt-1.5 pl-2">
+            <p class="text-[11px] text-[var(--ap-text-muted)] font-mono mt-1.5 pl-2">
               PBKDF2-HMAC-SHA256 (600,000 iterations). Client-side only.
             </p>
           </div>
@@ -155,7 +155,7 @@ function handleRetryConfig() {
             </button>
             <button
               type="button"
-              class="h-10 px-5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-semibold text-white/80 hover:text-white cursor-pointer transition-colors"
+              class="h-10 px-5 rounded-full border border-[var(--ap-glass-border)] bg-[var(--ap-glass)] hover:bg-[var(--ap-glass-hover)] text-xs font-semibold text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] cursor-pointer transition-colors"
               @click="emit('logout')"
             >
               Sign Out

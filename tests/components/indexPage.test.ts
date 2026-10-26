@@ -463,4 +463,94 @@ describe('IndexPage (app/pages/index.vue)', () => {
 
     expect(wrapper.find('[data-test="confetti-overlay"]').exists()).toBe(true)
   })
+
+  it('does not trigger confetti overlay when conversation history loads with celebration keywords', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    mockChatRoomState.activeConversation.value = {
+      id: 'conv-1',
+      type: 'group',
+      title: 'General',
+    }
+    mockChatRoomState.messages.value = []
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="confetti-overlay"]').exists()).toBe(false)
+
+    // Simulate history query returning initial batch of messages
+    mockChatRoomState.isLoadingHistory.value = true
+    mockChatRoomState.messages.value = [
+      {
+        id: 'm-historical-1',
+        client_id: 'c-historical-1',
+        conversation_id: 'conv-1',
+        user_id: 'u-other',
+        content: 'Historical message with cool and congratulation',
+        created_at: '2026-10-18T10:00:00Z',
+        status: 'sent',
+      } as any,
+    ]
+    mockChatRoomState.isLoadingHistory.value = false
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-test="confetti-overlay"]').exists()).toBe(false)
+  })
+
+  it('removes service worker message event listener when unmounted', async () => {
+    const addEventListenerSpy = vi.fn()
+    const removeEventListenerSpy = vi.fn()
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        addEventListener: addEventListenerSpy,
+        removeEventListener: removeEventListenerSpy,
+      },
+      configurable: true,
+      writable: true,
+    })
+
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+    expect(addEventListenerSpy).toHaveBeenCalledWith('message', expect.any(Function))
+
+    wrapper.unmount()
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('message', expect.any(Function))
+  })
+
+  it('handles addMember and leaveGroup errors with notification toasts', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-group-9'
+    mockChatRoomState.activeConversation.value = {
+      id: 'conv-group-9',
+      type: 'group',
+      title: 'General',
+      created_by: 'u-self',
+      members: [],
+    }
+    mockChatRoomState.addMemberToGroup.mockRejectedValueOnce(new Error('User not found'))
+    mockChatRoomState.leaveGroup.mockRejectedValueOnce(new Error('Cannot leave group'))
+
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    await wrapper.find('[data-test="open-group-info"]').trigger('click')
+    const modal = wrapper.findComponent({ name: 'GroupInfoModal' })
+    modal.vm.$emit('addMember', 'nonexistent@example.com')
+    await flushPromises()
+
+    expect(mockChatRoomState.addNotificationToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Failed to add member',
+        body: 'User not found',
+      }),
+    )
+
+    modal.vm.$emit('leave', 'conv-group-9')
+    await flushPromises()
+
+    expect(mockChatRoomState.addNotificationToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Failed to leave group',
+        body: 'Cannot leave group',
+      }),
+    )
+  })
 })

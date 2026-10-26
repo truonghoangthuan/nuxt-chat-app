@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import type { Profile } from '~/types/chat'
 import UserAvatar from '~/components/UserAvatar.vue'
 import { X, Copy, Check, MessageSquare } from '@lucide/vue'
@@ -49,6 +49,34 @@ function handleStartDm() {
     emit('close')
   }
 }
+
+function onKeyDown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && props.isOpen) {
+    emit('close')
+  }
+}
+
+watch(
+  () => props.isOpen,
+  (open) => {
+    if (open) {
+      if (typeof window !== 'undefined') {
+        window.addEventListener('keydown', onKeyDown)
+      }
+    } else {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('keydown', onKeyDown)
+      }
+    }
+  },
+  { immediate: true },
+)
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('keydown', onKeyDown)
+  }
+})
 </script>
 
 <template>

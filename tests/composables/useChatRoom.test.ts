@@ -1333,11 +1333,15 @@ describe('useChatRoom contacts and conversations', () => {
   let mockMembersInsertError: any
   let mockMembersDeleteError: any
   let mockConversationsUpdateError: { message: string } | null = null
-let mockTogglePinError: string | null = null
-let capturedMessagesSelect = ''
+  let mockTogglePinError: string | null = null
+  let mockMessagesUpdateError: { message: string } | null = null
+  let mockReactionsError: { message: string } | null = null
+  let capturedMessagesSelect = ''
 
   beforeEach(async () => {
     mockConversationsUpdateError = null
+    mockMessagesUpdateError = null
+    mockReactionsError = null
     capturedMessagesSelect = ''
     mockMembersInsertError = null
     mockMembersDeleteError = null
@@ -1520,6 +1524,16 @@ let capturedMessagesSelect = ''
         if (table === 'messages') {
           return {
             insert: mockMessagesInsert,
+            update: vi.fn().mockImplementation((payload: any) => ({
+              eq: vi.fn().mockImplementation((_col1: string, _val1: string) => ({
+                eq: vi.fn().mockImplementation((_col2: string, _val2: string) => {
+                  if (mockMessagesUpdateError) {
+                    return Promise.resolve({ error: mockMessagesUpdateError })
+                  }
+                  return Promise.resolve({ error: null })
+                }),
+              })),
+            })),
             select: vi.fn((fields?: string) => {
               if (fields) capturedMessagesSelect = fields
               return {
@@ -1534,6 +1548,24 @@ let capturedMessagesSelect = ''
                   }),
                 }),
               }
+            }),
+          }
+        }
+        if (table === 'message_reactions') {
+          return {
+            insert: vi.fn().mockImplementation((_payload: any) => {
+              if (mockReactionsError) {
+                return Promise.resolve({ error: mockReactionsError })
+              }
+              return Promise.resolve({ error: null })
+            }),
+            delete: vi.fn().mockReturnValue({
+              match: vi.fn().mockImplementation((_matchObj: any) => {
+                if (mockReactionsError) {
+                  return Promise.resolve({ error: mockReactionsError })
+                }
+                return Promise.resolve({ error: null })
+              }),
             }),
           }
         }
@@ -1658,6 +1690,52 @@ let capturedMessagesSelect = ''
     const conv2 = await room.openOrCreateDirectChat('u-bob')
     expect(conv2.id).toBe(conv1.id)
     expect(room.conversations.value).toHaveLength(1)
+  })
+
+  it('deduplicates concurrent openOrCreateDirectChat calls for the same peer', async () => {
+    const room = useChatRoom()
+    let conversationInserts = 0
+    const origFrom = mockSupabase.from
+    mockSupabase.from = vi.fn((table: string) => {
+      const res = origFrom(table)
+      if (table === 'conversations') {
+        const origInsert = res.insert
+        res.insert = vi.fn().mockImplementation((payload: any) => {
+          conversationInserts++
+          const builder = origInsert(payload)
+          return {
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockImplementation(async () => {
+                await new Promise(resolve => setTimeout(resolve, 20))
+                return {
+                  data: {
+                    id: 'conv-concurrent',
+                    type: payload.type,
+                    title: null,
+                    created_by: payload.created_by,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                  },
+                  error: null,
+                }
+              }),
+            }),
+          }
+        })
+      }
+      return res
+    })
+
+    const [conv1, conv2] = await Promise.all([
+      room.openOrCreateDirectChat('u-bob'),
+      room.openOrCreateDirectChat('u-bob'),
+    ])
+
+    expect(conv1).toBeDefined()
+    expect(conv2).toBeDefined()
+    expect(conv1.id).toBe(conv2.id)
+    expect(conversationInserts).toBe(1)
+    expect(room.conversations.value.filter(c => c.type === 'direct')).toHaveLength(1)
   })
 
   it('creates group conversation with participant list', async () => {
@@ -1868,6 +1946,68 @@ let capturedMessagesSelect = ''
     mockTogglePinError = null
   })
 
+  it('editMessage reverts optimistic update when Supabase update fails', async () => {
+    const room = useChatRoom()
+    await room.createGroup('Edit Team', ['u-bob'])
+    await room.sendMessage('Original content')
+    const msg = room.messages.value[0]
+    expect(msg).toBeDefined()
+    expect(msg.content).toBe('Original content')
+
+    mockMessagesUpdateError = { message: 'Database edit error' }
+    const res = await room.editMessage(msg.id, 'Edited content')
+    expect(res.error).toBe('Database edit error')
+
+    const after = room.messages.value.find(m => m.id === msg.id)
+    expect(after?.content).toBe('Original content')
+    expect(after?.edited_at).toBeFalsy()
+  })
+
+  it('deleteMessage reverts optimistic deletion when Supabase update fails', async () => {
+    const room = useChatRoom()
+    await room.createGroup('Delete Team', ['u-bob'])
+    await room.sendMessage('Message to delete')
+    const msg = room.messages.value[0]
+    expect(msg).toBeDefined()
+
+    mockMessagesUpdateError = { message: 'Database delete error' }
+    const res = await room.deleteMessage(msg.id)
+    expect(res.error).toBe('Database delete error')
+
+    const after = room.messages.value.find(m => m.id === msg.id)
+    expect(after?.deleted_at).toBeNull()
+  })
+
+  it('toggleReaction reverts optimistic reaction when Supabase operation fails', async () => {
+    const room = useChatRoom()
+    await room.createGroup('Reaction Team', ['u-bob'])
+    await room.sendMessage('Message to react')
+    const msg = room.messages.value[0]
+    expect(msg).toBeDefined()
+
+    // Test addition rollback on error
+    mockReactionsError = { message: 'Failed to add reaction' }
+    const res = await room.toggleReaction(msg.id, '👍')
+    expect(res.error).toBe('Failed to add reaction')
+
+    let after = room.messages.value.find(m => m.id === msg.id)
+    expect(after?.reactions?.some(r => r.emoji === '👍')).toBeFalsy()
+
+    // Now add reaction successfully
+    mockReactionsError = null
+    const addRes = await room.toggleReaction(msg.id, '👍')
+    expect(addRes.error).toBeNull()
+    after = room.messages.value.find(m => m.id === msg.id)
+    expect(after?.reactions?.some(r => r.emoji === '👍')).toBe(true)
+
+    // Test removal rollback on error
+    mockReactionsError = { message: 'Failed to remove reaction' }
+    const removeRes = await room.toggleReaction(msg.id, '👍')
+    expect(removeRes.error).toBe('Failed to remove reaction')
+    after = room.messages.value.find(m => m.id === msg.id)
+    expect(after?.reactions?.some(r => r.emoji === '👍')).toBe(true)
+  })
+
   it('initializeChat queries recent unread messages using conversation_id without channel_id', async () => {
     mockConversationsDb.push({
       id: 'conv-test-1',
@@ -1958,5 +2098,162 @@ let capturedMessagesSelect = ''
 
     const updated = room.conversations.value.find(c => c.id === group.id)
     expect(updated?.background_url).toBeNull()
+  })
+
+  it('discards stale loadOlderMessages and fetchGapMessages results when activeConversationId changes in flight', async () => {
+    let resolveQuery: (val: any) => void = () => {}
+    const delayedPromise = new Promise((resolve) => {
+      resolveQuery = resolve
+    })
+
+    mockSupabase.from = vi.fn((table: string) => {
+      if (table === 'messages') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              or: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockReturnValue(delayedPromise),
+                  }),
+                }),
+              }),
+            }),
+          }),
+        }
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      }
+    })
+
+    const room = useChatRoom()
+    room.activeConversationId.value = 'conv-1'
+    room.hasMoreHistory.value = true
+    room.messages.value = [
+      {
+        id: 'm-current-1',
+        client_id: 'c-1',
+        conversation_id: 'conv-1',
+        user_id: 'u-alice',
+        content: 'current message',
+        created_at: '2026-10-20T10:00:00Z',
+        status: 'sent',
+      } as any,
+    ]
+
+    const loadPromise = room.loadOlderMessages()
+    // User switches conversations while query is in flight
+    room.activeConversationId.value = 'conv-2'
+    room.messages.value = []
+
+    // Now resolve query with old conversation messages
+    resolveQuery({
+      data: [
+        {
+          id: 'm-old-1',
+          client_id: 'c-old-1',
+          conversation_id: 'conv-1',
+          user_id: 'u-bob',
+          content: 'old message from conv-1',
+          created_at: '2026-10-19T10:00:00Z',
+          status: 'sent',
+        },
+      ],
+      error: null,
+    })
+
+    const prependedCount = await loadPromise
+    expect(prependedCount).toBe(0)
+    expect(room.messages.value).toHaveLength(0)
+  })
+
+  it('loadConversationReadsAndUnreads scopes query to conversation IDs and clamps default read timestamp to 30-day window instead of 1970', async () => {
+    let capturedGt = ''
+    let capturedInKey = ''
+    let capturedInValues: any[] = []
+    let capturedLimit: number | null = null
+
+    const origFrom = mockSupabase.from
+    mockSupabase.from = vi.fn((table: string) => {
+      if (table === 'conversation_reads') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        }
+      }
+      if (table === 'messages') {
+        return {
+          select: vi.fn().mockReturnValue({
+            gt: vi.fn().mockImplementation((col: string, val: string) => {
+              capturedGt = val
+              const chain: any = {
+                in: vi.fn().mockImplementation((inCol: string, inVals: any[]) => {
+                  capturedInKey = inCol
+                  capturedInValues = inVals
+                  return chain
+                }),
+                order: vi.fn().mockImplementation(() => chain),
+                limit: vi.fn().mockImplementation((lim: number) => {
+                  capturedLimit = lim
+                  return Promise.resolve({ data: [], error: null })
+                }),
+              }
+              chain.then = (fn: any) => Promise.resolve({ data: [], error: null }).then(fn)
+              return chain
+            }),
+          }),
+        }
+      }
+      return origFrom(table)
+    })
+
+    mockSupabase.auth.getUser = vi.fn().mockResolvedValue({
+      data: { user: { id: 'u-alice', email: 'alice@example.com' } },
+      error: null,
+    })
+    mockProfilesDb.set('u-alice', {
+      id: 'u-alice',
+      email: 'alice@example.com',
+      display_name: 'Alice',
+      avatar_color: '#0284c7',
+    })
+    mockConversationsDb.push({
+      id: 'conv-101',
+      type: 'group',
+      title: 'Scoped Channel',
+      created_at: '2026-10-18T10:00:00Z',
+      updated_at: '2026-10-18T10:00:00Z',
+    })
+    mockMembersDb.push({
+      conversation_id: 'conv-101',
+      user_id: 'u-alice',
+      role: 'member',
+      joined_at: '2026-10-18T10:00:00Z',
+      conversation: {
+        id: 'conv-101',
+        type: 'group',
+        title: 'Scoped Channel',
+        created_at: '2026-10-18T10:00:00Z',
+        updated_at: '2026-10-18T10:00:00Z',
+      },
+    })
+
+    const room = useChatRoom()
+    await room.initializeChat()
+
+    expect(capturedGt).not.toContain('1970-01-01')
+    const parsedGt = Date.parse(capturedGt)
+    expect(Number.isNaN(parsedGt)).toBe(false)
+    const thirtyDaysAgo = Date.now() - 31 * 24 * 60 * 60 * 1000
+    expect(parsedGt).toBeGreaterThan(thirtyDaysAgo)
+    expect(capturedInKey).toBe('conversation_id')
+    expect(capturedInValues).toEqual(['conv-101'])
+    expect(capturedLimit).toBe(1000)
   })
 })

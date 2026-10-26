@@ -103,4 +103,16 @@ describe('UserProfileModal', () => {
     await wrapper.find('[data-test="copy-profile-id"]').trigger('click')
     expect(writeText).toHaveBeenCalledWith('u-bob-123')
   })
+
+  it('emits close when Escape key is pressed', async () => {
+    const wrapper = mount(UserProfileModal, {
+      props: {
+        isOpen: true,
+        profile: mockProfile,
+      },
+    })
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(wrapper.emitted('close')).toBeTruthy()
+  })
 })

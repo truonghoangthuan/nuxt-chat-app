@@ -664,7 +664,8 @@ export function useChatRoom() {
         readRows = chReadRows
       }
 
-      const defaultRead = current.created_at || '1970-01-01T00:00:00.000Z'
+      const UNREAD_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000
+      const defaultRead = current.created_at || new Date(Date.now() - UNREAD_LOOKBACK_MS).toISOString()
       const map = computeConversationReadMap({
         conversations: conversations.value,
         readRows,
@@ -676,18 +677,35 @@ export function useChatRoom() {
       const oldestRead = computeOldestReadTimestamp(Object.values(map))
       if (!oldestRead) return
 
-      let { data: recentMessages, error: msgErr } = await supabase
+      const convIds = conversations.value.map(c => c.id).filter(Boolean)
+      let query: any = supabase
         .from('messages')
         .select('id, conversation_id, user_id, content, created_at, deleted_at, reply_to_id')
         .gt('created_at', oldestRead)
-        .order('created_at', { ascending: true })
+
+      if (convIds.length > 0 && typeof query.in === 'function') {
+        query = query.in('conversation_id', convIds)
+      }
+      query = query.order('created_at', { ascending: true })
+      if (typeof query.limit === 'function') {
+        query = query.limit(1000)
+      }
+
+      let { data: recentMessages, error: msgErr } = await query
 
       if (msgErr && (msgErr.code === '42703' || msgErr.message?.includes('conversation_id'))) {
-        const { data: fallbackMessages } = await supabase
+        let fallbackQuery: any = supabase
           .from('messages')
           .select('id, channel_id, user_id, content, created_at, deleted_at, reply_to_id')
           .gt('created_at', oldestRead)
-          .order('created_at', { ascending: true })
+        if (convIds.length > 0 && typeof fallbackQuery.in === 'function') {
+          fallbackQuery = fallbackQuery.in('channel_id', convIds)
+        }
+        fallbackQuery = fallbackQuery.order('created_at', { ascending: true })
+        if (typeof fallbackQuery.limit === 'function') {
+          fallbackQuery = fallbackQuery.limit(1000)
+        }
+        const { data: fallbackMessages } = await fallbackQuery
         recentMessages = fallbackMessages
       }
 
@@ -1072,9 +1090,12 @@ export function useChatRoom() {
         error = res.error
       }
 
+      if (activeConversationId.value !== convId) return
+
       if (data && !error && data.length > 0) {
         cacheProfilesFromMessages(data)
         const hydrated = await hydrateMessagesWithReactionsAndReplies(data)
+        if (activeConversationId.value !== convId) return
         messagesStore.mergeGapMessages(hydrated)
       }
     } catch {
@@ -1589,6 +1610,10 @@ export function useChatRoom() {
         error = fallback.error
       }
 
+      if (activeConversationId.value !== convId) {
+        return 0
+      }
+
       if (data && !error) {
         if (data.length < PAGE_SIZE) {
           hasMoreHistory.value = false
@@ -1596,6 +1621,9 @@ export function useChatRoom() {
         const chronological = [...data].reverse()
         cacheProfilesFromMessages(chronological)
         const hydrated = await hydrateMessagesWithReactionsAndReplies(chronological)
+        if (activeConversationId.value !== convId) {
+          return 0
+        }
         return messagesStore.prependHistoryPage(hydrated)
       }
     } finally {
@@ -1604,123 +1632,139 @@ export function useChatRoom() {
     return 0
   }
 
+  const inFlightDirectChats = new Map<string, Promise<Conversation>>()
+
   async function openOrCreateDirectChat(peerUserId: string): Promise<Conversation> {
-    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
-    if (!current?.id) {
-      throw new Error('Not authenticated.')
-    }
-    if (current.id === peerUserId) {
-      throw new Error('Cannot start a direct message with yourself.')
+    const inFlight = inFlightDirectChats.get(peerUserId)
+    if (inFlight) {
+      return inFlight
     }
 
-    let peerProfile = profilesCache.get(peerUserId) || allProfiles.value.find(p => p.id === peerUserId)
-    if (!peerProfile) {
+    const task = (async () => {
+      const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+      if (!current?.id) {
+        throw new Error('Not authenticated.')
+      }
+      if (current.id === peerUserId) {
+        throw new Error('Cannot start a direct message with yourself.')
+      }
+
+      let peerProfile = profilesCache.get(peerUserId) || allProfiles.value.find(p => p.id === peerUserId)
+      if (!peerProfile) {
+        try {
+          const { data } = await supabase.from('profiles').select('*').eq('id', peerUserId).single()
+          if (data) {
+            peerProfile = data as Profile
+            profilesCache.set(data.id, data as Profile)
+            if (!allProfiles.value.some(p => p.id === data.id)) {
+              allProfiles.value = [...allProfiles.value, data as Profile]
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      const existingInMemory = conversations.value.find(c => {
+        if (c.type !== 'direct') return false
+        if (c.peer?.id === peerUserId) return true
+        if (c.members?.some(m => m.user_id === peerUserId)) return true
+        return false
+      })
+
+      if (existingInMemory) {
+        await selectConversation(existingInMemory.id)
+        return existingInMemory
+      }
+
       try {
-        const { data } = await supabase.from('profiles').select('*').eq('id', peerUserId).single()
-        if (data) {
-          peerProfile = data as Profile
-          profilesCache.set(data.id, data as Profile)
-          if (!allProfiles.value.some(p => p.id === data.id)) {
-            allProfiles.value = [...allProfiles.value, data as Profile]
+        const { data: existingMemberships } = await supabase
+          .from('conversation_members')
+          .select('conversation_id, conversation:conversations(*)')
+          .eq('user_id', peerUserId)
+
+        if (existingMemberships && existingMemberships.length > 0) {
+          const matched = (existingMemberships as any[]).find(
+            m => m.conversation && m.conversation.type === 'direct',
+          )
+          if (matched?.conversation) {
+            const c = matched.conversation
+            const conv: Conversation = {
+              id: c.id,
+              type: 'direct',
+              title: null,
+              created_by: c.created_by,
+              created_at: c.created_at,
+              updated_at: c.updated_at,
+              peer: peerProfile || null,
+              members: [
+                { conversation_id: c.id, user_id: current.id, role: 'owner', joined_at: c.created_at, profile: current },
+                { conversation_id: c.id, user_id: peerUserId, role: 'member', joined_at: c.created_at, profile: peerProfile || null },
+              ],
+              unreadCount: unreadCounts.value[c.id] || 0,
+            }
+            if (!conversations.value.some(item => item.id === conv.id)) {
+              conversations.value = [conv, ...conversations.value]
+            }
+            await selectConversation(conv.id)
+            return conv
           }
         }
       } catch {
         // ignore
       }
-    }
 
-    const existingInMemory = conversations.value.find(c => {
-      if (c.type !== 'direct') return false
-      if (c.peer?.id === peerUserId) return true
-      if (c.members?.some(m => m.user_id === peerUserId)) return true
-      return false
-    })
+      const { data: convData, error: convError } = await supabase
+        .from('conversations')
+        .insert({
+          type: 'direct',
+          created_by: current.id,
+        })
+        .select('*')
+        .single()
 
-    if (existingInMemory) {
-      await selectConversation(existingInMemory.id)
-      return existingInMemory
-    }
-
-    try {
-      const { data: existingMemberships } = await supabase
-        .from('conversation_members')
-        .select('conversation_id, conversation:conversations(*)')
-        .eq('user_id', peerUserId)
-
-      if (existingMemberships && existingMemberships.length > 0) {
-        const matched = (existingMemberships as any[]).find(
-          m => m.conversation && m.conversation.type === 'direct',
-        )
-        if (matched?.conversation) {
-          const c = matched.conversation
-          const conv: Conversation = {
-            id: c.id,
-            type: 'direct',
-            title: null,
-            created_by: c.created_by,
-            created_at: c.created_at,
-            updated_at: c.updated_at,
-            peer: peerProfile || null,
-            members: [
-              { conversation_id: c.id, user_id: current.id, role: 'owner', joined_at: c.created_at, profile: current },
-              { conversation_id: c.id, user_id: peerUserId, role: 'member', joined_at: c.created_at, profile: peerProfile || null },
-            ],
-            unreadCount: unreadCounts.value[c.id] || 0,
-          }
-          if (!conversations.value.some(item => item.id === conv.id)) {
-            conversations.value = [conv, ...conversations.value]
-          }
-          await selectConversation(conv.id)
-          return conv
-        }
+      if (convError || !convData) {
+        throw new Error(convError?.message || 'Failed to create direct conversation.')
       }
-    } catch {
-      // ignore
-    }
 
-    const { data: convData, error: convError } = await supabase
-      .from('conversations')
-      .insert({
+      const membersToInsert = [
+        { conversation_id: convData.id, user_id: current.id, role: 'owner' },
+        { conversation_id: convData.id, user_id: peerUserId, role: 'member' },
+      ]
+      const { error: memberError } = await supabase.from('conversation_members').insert(membersToInsert)
+      if (memberError) {
+        throw new Error(memberError.message || 'Failed to add conversation members.')
+      }
+
+      const newConv: Conversation = {
+        id: convData.id,
         type: 'direct',
+        title: null,
         created_by: current.id,
-      })
-      .select('*')
-      .single()
+        created_at: convData.created_at || new Date().toISOString(),
+        updated_at: convData.updated_at || new Date().toISOString(),
+        peer: peerProfile || null,
+        members: [
+          { conversation_id: convData.id, user_id: current.id, role: 'owner', joined_at: new Date().toISOString(), profile: current },
+          { conversation_id: convData.id, user_id: peerUserId, role: 'member', joined_at: new Date().toISOString(), profile: peerProfile || null },
+        ],
+        unreadCount: 0,
+        background_url: convData.background_url || null,
+      }
 
-    if (convError || !convData) {
-      throw new Error(convError?.message || 'Failed to create direct conversation.')
-    }
+      if (!conversations.value.some(c => c.id === newConv.id)) {
+        conversations.value = [newConv, ...conversations.value]
+      }
+      await selectConversation(newConv.id)
+      return newConv
+    })()
 
-    const membersToInsert = [
-      { conversation_id: convData.id, user_id: current.id, role: 'owner' },
-      { conversation_id: convData.id, user_id: peerUserId, role: 'member' },
-    ]
-    const { error: memberError } = await supabase.from('conversation_members').insert(membersToInsert)
-    if (memberError) {
-      throw new Error(memberError.message || 'Failed to add conversation members.')
+    inFlightDirectChats.set(peerUserId, task)
+    try {
+      return await task
+    } finally {
+      inFlightDirectChats.delete(peerUserId)
     }
-
-    const newConv: Conversation = {
-      id: convData.id,
-      type: 'direct',
-      title: null,
-      created_by: current.id,
-      created_at: convData.created_at || new Date().toISOString(),
-      updated_at: convData.updated_at || new Date().toISOString(),
-      peer: peerProfile || null,
-      members: [
-        { conversation_id: convData.id, user_id: current.id, role: 'owner', joined_at: new Date().toISOString(), profile: current },
-        { conversation_id: convData.id, user_id: peerUserId, role: 'member', joined_at: new Date().toISOString(), profile: peerProfile || null },
-      ],
-      unreadCount: 0,
-      background_url: convData.background_url || null,
-    }
-
-    if (!conversations.value.some(c => c.id === newConv.id)) {
-      conversations.value = [newConv, ...conversations.value]
-    }
-    await selectConversation(newConv.id)
-    return newConv
   }
 
   async function createGroup(title: string, memberUserIds: string[]): Promise<Conversation> {
@@ -2460,6 +2504,10 @@ export function useChatRoom() {
       return { error: 'Conversation not found.' }
     }
 
+    const originalContent = targetMsg?.content
+    const originalEditedAt = targetMsg?.edited_at ?? null
+    const originalEncryption = targetMsg?.encryption
+
     messagesStore.reconcileUpdatedMessage({
       id: messageId,
       content: trimmed,
@@ -2476,8 +2524,23 @@ export function useChatRoom() {
         .eq('id', messageId)
         .eq('user_id', current.id)
 
-      return { error: error ? error.message : null }
+      if (error) {
+        messagesStore.reconcileUpdatedMessage({
+          id: messageId,
+          content: originalContent,
+          edited_at: originalEditedAt,
+          encryption: originalEncryption,
+        })
+        return { error: error.message }
+      }
+      return { error: null }
     } catch (err: any) {
+      messagesStore.reconcileUpdatedMessage({
+        id: messageId,
+        content: originalContent,
+        edited_at: originalEditedAt,
+        encryption: originalEncryption,
+      })
       return { error: err?.message || 'Failed to encrypt message.' }
     }
   }
@@ -2532,6 +2595,7 @@ export function useChatRoom() {
     }
 
     const targetMsg = messages.value.find(m => m.id === messageId)
+    const originalDeletedAt = targetMsg?.deleted_at ?? null
 
     const deletedAt = new Date().toISOString()
     messagesStore.reconcileUpdatedMessage({
@@ -2546,6 +2610,10 @@ export function useChatRoom() {
       .eq('user_id', current.id)
 
     if (error) {
+      messagesStore.reconcileUpdatedMessage({
+        id: messageId,
+        deleted_at: originalDeletedAt,
+      })
       return { error: error.message }
     }
 
@@ -2594,7 +2662,17 @@ export function useChatRoom() {
         .from('message_reactions')
         .delete()
         .match({ message_id: messageId, user_id: current.id, emoji })
-      return { error: error ? error.message : null }
+      if (error) {
+        messagesStore.applyReactionAdded({
+          message_id: messageId,
+          conversation_id: conversationId,
+          channel_id: conversationId,
+          user_id: current.id,
+          emoji,
+        })
+        return { error: error.message }
+      }
+      return { error: null }
     } else {
       const optimisticReaction: MessageReaction = {
         message_id: messageId,
@@ -2607,7 +2685,15 @@ export function useChatRoom() {
       const { error } = await supabase
         .from('message_reactions')
         .insert(optimisticReaction)
-      return { error: error ? error.message : null }
+      if (error) {
+        messagesStore.applyReactionRemoved({
+          message_id: messageId,
+          user_id: current.id,
+          emoji,
+        })
+        return { error: error.message }
+      }
+      return { error: null }
     }
   }
 

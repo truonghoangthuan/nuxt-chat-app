@@ -69,49 +69,49 @@ function setMode(signUp: boolean) {
       <div class="relative z-10 flex items-center gap-3">
         <div class="brand-mark flex size-10 items-center justify-center rounded-xl bg-blue-500 text-xs font-bold text-white shadow-md shadow-blue-500/30">FC</div>
         <div>
-          <p class="text-sm font-semibold tracking-tight text-white/95">Friends Chat</p>
-          <p class="text-xs text-white/40">Cupertino Fluid Messenger</p>
+          <p class="text-sm font-semibold tracking-tight text-[var(--ap-text-primary)]">Friends Chat</p>
+          <p class="text-xs text-[var(--ap-text-muted)]">Cupertino Fluid Messenger</p>
         </div>
       </div>
 
       <div class="auth-story-copy relative z-10 max-w-2xl py-12">
-        <div class="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-md px-3 py-1 text-xs font-medium text-white/80">
+        <div class="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--ap-glass-border)] bg-[var(--ap-glass)] backdrop-blur-md px-3 py-1 text-xs font-medium text-[var(--ap-text-secondary)]">
           <Radio class="size-3 text-emerald-400" aria-hidden="true" />
           <span>Real-time presence & zero-knowledge E2EE</span>
         </div>
-        <h1 class="max-w-2xl text-4xl font-semibold leading-[1.12] tracking-tight text-white xl:text-5xl">
+        <h1 class="max-w-2xl text-4xl font-semibold leading-[1.12] tracking-tight text-[var(--ap-text-primary)] xl:text-5xl">
           Good conversations deserve a <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-300">better space.</span>
         </h1>
-        <p class="mt-4 max-w-lg text-[15px] leading-relaxed text-white/60">
+        <p class="mt-4 max-w-lg text-[15px] leading-relaxed text-[var(--ap-text-secondary)]">
           Catch up in topic channels, pick up an encrypted direct message, and stay effortlessly connected with fluid glass physics.
         </p>
       </div>
 
       <div class="auth-preview relative z-10 grid grid-cols-2 gap-3 xl:max-w-2xl">
-        <div class="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md p-4 shadow-sm">
+        <div class="rounded-2xl border border-[var(--ap-glass-border)] bg-[var(--ap-glass)] backdrop-blur-md p-4 shadow-sm">
           <div class="mb-3 flex items-center justify-between">
-            <p class="text-xs font-semibold text-white/90">Your spaces</p>
-            <span class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-mono text-white/60">3 channels</span>
+            <p class="text-xs font-semibold text-[var(--ap-text-primary)]">Your spaces</p>
+            <span class="rounded-full bg-[var(--ap-glass)] border border-[var(--ap-glass-border)] px-2 py-0.5 text-[10px] font-mono text-[var(--ap-text-muted)]">3 channels</span>
           </div>
           <div class="space-y-1.5 text-xs">
             <div class="flex items-center gap-2 rounded-xl bg-blue-600/30 border border-blue-500/30 px-2.5 py-1.5 font-medium text-white"><span class="font-mono text-blue-300">#</span> general</div>
-            <div class="flex items-center gap-2 px-2.5 py-1 text-white/70 hover:text-white transition-colors"><span class="font-mono text-white/40">#</span> weekend-plans</div>
-            <div class="flex items-center gap-2 px-2.5 py-1 text-white/70 hover:text-white transition-colors"><span class="font-mono text-white/40">#</span> good-music</div>
+            <div class="flex items-center gap-2 px-2.5 py-1 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition-colors"><span class="font-mono text-[var(--ap-text-muted)]">#</span> weekend-plans</div>
+            <div class="flex items-center gap-2 px-2.5 py-1 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition-colors"><span class="font-mono text-[var(--ap-text-muted)]">#</span> good-music</div>
           </div>
         </div>
-        <div class="flex flex-col justify-between rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md p-4 shadow-sm">
-          <div class="flex items-center gap-2 text-xs font-semibold text-white/90"><UsersRound class="size-3.5 text-blue-400" aria-hidden="true" /> Around right now</div>
+        <div class="flex flex-col justify-between rounded-2xl border border-[var(--ap-glass-border)] bg-[var(--ap-glass)] backdrop-blur-md p-4 shadow-sm">
+          <div class="flex items-center gap-2 text-xs font-semibold text-[var(--ap-text-primary)]"><UsersRound class="size-3.5 text-blue-400" aria-hidden="true" /> Around right now</div>
           <div class="space-y-2.5 py-3">
             <div v-for="(person, index) in [{ name: 'Alice Nguyen', color: '#e11d48' }, { name: 'Minh Tran', color: '#0891b2' }, { name: 'Khoa Le', color: '#ea580c' }]" :key="person.name" class="flex items-center gap-2.5">
               <span class="relative flex size-6 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-xs" :style="{ backgroundColor: person.color }">{{ person.name.split(' ').map(part => part[0]).join('') }}<i v-if="index < 2" class="absolute -bottom-0.5 -right-0.5 size-1.5 rounded-full border border-black bg-emerald-400" /></span>
-              <span class="text-xs text-white/80">{{ person.name }}</span>
+              <span class="text-xs text-[var(--ap-text-secondary)]">{{ person.name }}</span>
               <span v-if="index === 0" class="ml-auto text-[10px] text-emerald-400 font-mono">active</span>
             </div>
           </div>
-          <div class="flex items-center gap-1.5 border-t border-white/5 pt-2.5 text-[11px] text-white/40"><MessageCircle class="size-3 text-blue-400" aria-hidden="true" /> Start a conversation anytime</div>
+          <div class="flex items-center gap-1.5 border-t border-[var(--ap-glass-border)] pt-2.5 text-[11px] text-[var(--ap-text-muted)]"><MessageCircle class="size-3 text-blue-400" aria-hidden="true" /> Start a conversation anytime</div>
         </div>
       </div>
-      <p class="relative z-10 mt-6 text-[11px] text-white/40">Apple Fluid System · Zero-knowledge AES-256-GCM</p>
+      <p class="relative z-10 mt-6 text-[11px] text-[var(--ap-text-muted)]">Apple Fluid System · Zero-knowledge AES-256-GCM</p>
     </section>
 
     <!-- Right Auth Form Card -->
@@ -120,20 +120,20 @@ function setMode(signUp: boolean) {
         <div class="mb-6 flex items-center gap-3 lg:hidden">
           <div class="brand-mark flex size-9 items-center justify-center rounded-xl bg-blue-500 text-xs font-bold text-white shadow-md shadow-blue-500/30">FC</div>
           <div>
-            <p class="text-sm font-semibold text-white/95">Friends Chat</p>
-            <p class="text-xs text-white/40">Your people, in one place</p>
+            <p class="text-sm font-semibold text-[var(--ap-text-primary)]">Friends Chat</p>
+            <p class="text-xs text-[var(--ap-text-muted)]">Your people, in one place</p>
           </div>
         </div>
 
         <div class="mb-6">
           <p class="mb-1 text-[11px] font-semibold tracking-wider uppercase text-blue-400">{{ isSignUp ? 'YOUR PEOPLE ARE HERE' : 'WELCOME BACK' }}</p>
-          <h2 class="text-2xl font-bold tracking-tight text-white/95">{{ isSignUp ? 'Make yourself at home.' : 'Pick up where you left off.' }}</h2>
-          <p class="mt-1.5 text-xs text-white/60">{{ isSignUp ? 'Create an account to join the conversation.' : 'Sign in to catch up with your friends.' }}</p>
+          <h2 class="text-2xl font-bold tracking-tight text-[var(--ap-text-primary)]">{{ isSignUp ? 'Make yourself at home.' : 'Pick up where you left off.' }}</h2>
+          <p class="mt-1.5 text-xs text-[var(--ap-text-secondary)]">{{ isSignUp ? 'Create an account to join the conversation.' : 'Sign in to catch up with your friends.' }}</p>
         </div>
 
-        <div role="tablist" aria-label="Account access" class="mb-5 grid grid-cols-2 rounded-full border border-white/10 bg-white/5 p-1 backdrop-blur-md">
-          <button id="signin-tab" type="button" role="tab" :aria-selected="!isSignUp" class="rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none cursor-pointer" :class="!isSignUp ? 'bg-white/15 text-white shadow-xs' : 'text-white/60 hover:text-white'" @click="setMode(false)">Sign in</button>
-          <button id="signup-tab" type="button" role="tab" :aria-selected="isSignUp" class="rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none cursor-pointer" :class="isSignUp ? 'bg-white/15 text-white shadow-xs' : 'text-white/60 hover:text-white'" @click="setMode(true)">Create account</button>
+        <div role="tablist" aria-label="Account access" class="mb-5 grid grid-cols-2 rounded-full border border-[var(--ap-glass-border)] bg-[var(--ap-glass)] p-1 backdrop-blur-md">
+          <button id="signin-tab" type="button" role="tab" :aria-selected="!isSignUp" class="rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none cursor-pointer" :class="!isSignUp ? 'bg-[var(--ap-stage)] text-[var(--ap-text-primary)] shadow-xs' : 'text-[var(--ap-text-muted)] hover:text-[var(--ap-text-primary)]'" @click="setMode(false)">Sign in</button>
+          <button id="signup-tab" type="button" role="tab" :aria-selected="isSignUp" class="rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none cursor-pointer" :class="isSignUp ? 'bg-[var(--ap-stage)] text-[var(--ap-text-primary)] shadow-xs' : 'text-[var(--ap-text-muted)] hover:text-[var(--ap-text-primary)]'" @click="setMode(true)">Create account</button>
         </div>
 
         <div v-if="errorMsg" role="alert" class="mb-4 rounded-xl border border-rose-500/25 bg-rose-500/10 p-3 text-xs text-rose-400 backdrop-blur-md">{{ errorMsg }}</div>
@@ -141,16 +141,16 @@ function setMode(signUp: boolean) {
 
         <form class="space-y-3.5" @submit.prevent="handleSubmit">
           <div v-if="isSignUp" class="space-y-1">
-            <label for="display-name" class="block text-xs font-semibold text-white/70">Display name</label>
-            <Input id="display-name" v-model="displayName" autocomplete="nickname" type="text" required maxlength="40" placeholder="e.g. Alice" class="h-10 rounded-xl border-white/10 bg-white/8 text-sm text-white placeholder-white/40 focus-visible:ring-blue-500/30" />
+            <label for="display-name" class="block text-xs font-semibold text-[var(--ap-text-secondary)]">Display name</label>
+            <Input id="display-name" v-model="displayName" autocomplete="nickname" type="text" required maxlength="40" placeholder="e.g. Alice" class="h-10 rounded-xl border-[var(--ap-glass-border)] bg-[var(--ap-glass)] text-sm text-[var(--ap-text-primary)] placeholder:text-[var(--ap-text-muted)] focus-visible:ring-blue-500/30" />
           </div>
           <div class="space-y-1">
-            <label for="email" class="block text-xs font-semibold text-white/70">Email address</label>
-            <Input id="email" v-model="email" autocomplete="email" type="email" required placeholder="you@example.com" class="h-10 rounded-xl border-white/10 bg-white/8 text-sm text-white placeholder-white/40 focus-visible:ring-blue-500/30" />
+            <label for="email" class="block text-xs font-semibold text-[var(--ap-text-secondary)]">Email address</label>
+            <Input id="email" v-model="email" autocomplete="email" type="email" required placeholder="you@example.com" class="h-10 rounded-xl border-[var(--ap-glass-border)] bg-[var(--ap-glass)] text-sm text-[var(--ap-text-primary)] placeholder:text-[var(--ap-text-muted)] focus-visible:ring-blue-500/30" />
           </div>
           <div class="space-y-1">
-            <label for="password" class="block text-xs font-semibold text-white/70">Password</label>
-            <Input id="password" v-model="password" :autocomplete="isSignUp ? 'new-password' : 'current-password'" type="password" required minlength="6" placeholder="At least 6 characters" class="h-10 rounded-xl border-white/10 bg-white/8 text-sm text-white placeholder-white/40 focus-visible:ring-blue-500/30" />
+            <label for="password" class="block text-xs font-semibold text-[var(--ap-text-secondary)]">Password</label>
+            <Input id="password" v-model="password" :autocomplete="isSignUp ? 'new-password' : 'current-password'" type="password" required minlength="6" placeholder="At least 6 characters" class="h-10 rounded-xl border-[var(--ap-glass-border)] bg-[var(--ap-glass)] text-sm text-[var(--ap-text-primary)] placeholder:text-[var(--ap-text-muted)] focus-visible:ring-blue-500/30" />
           </div>
           <Button type="submit" :disabled="isLoading" class="mt-2 h-10 w-full rounded-full bg-blue-500 hover:bg-blue-600 text-xs font-semibold text-white shadow-md shadow-blue-500/30 focus-visible:ring-blue-500 disabled:opacity-50 cursor-pointer transition-all active:scale-95">
             <span v-if="isLoading" class="mr-2 size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" aria-hidden="true" />
@@ -158,9 +158,9 @@ function setMode(signUp: boolean) {
           </Button>
         </form>
 
-        <p class="mt-5 text-center text-[11px] leading-relaxed text-white/40">By continuing, you agree to keep the conversation kind and respectful.</p>
+        <p class="mt-5 text-center text-[11px] leading-relaxed text-[var(--ap-text-muted)]">By continuing, you agree to keep the conversation kind and respectful.</p>
       </div>
-      <p class="mt-auto pt-6 text-center text-[11px] text-white/40">Friends Chat <span aria-hidden="true">·</span> Apple Fluid System</p>
+      <p class="mt-auto pt-6 text-center text-[11px] text-[var(--ap-text-muted)]">Friends Chat <span aria-hidden="true">·</span> Apple Fluid System</p>
     </section>
   </main>
 </template>
