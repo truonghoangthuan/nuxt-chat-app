@@ -52,7 +52,7 @@ onMounted(() => { initTheme(); void openFromLink() })
 </script>
 
 <template>
-  <main class="chess-page">
+  <main class="chess-page animate-page-enter">
     <div class="chess-shell">
       <header class="chess-header">
         <div>

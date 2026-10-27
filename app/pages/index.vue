@@ -662,7 +662,7 @@ onUnmounted(() => {
 
 <template>
   <div
-    class="h-dvh flex overflow-hidden bg-[var(--ap-canvas)] transition-colors"
+    class="h-dvh flex overflow-hidden bg-[var(--ap-canvas)] transition-colors animate-page-enter"
     :class="uiTheme === 'vscode' ? 'p-0 pb-6 gap-0' : (uiTheme === 'yahoo' ? 'p-2 md:p-2.5 md:gap-2.5' : 'p-2 md:p-3 md:gap-3')"
   >
     <!-- In-App Notification Toasts -->

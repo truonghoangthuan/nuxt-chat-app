@@ -50,7 +50,7 @@ onMounted(() => { initTheme?.(); void openFromLink() })
 </script>
 
 <template>
-  <main class="caro-page min-h-dvh bg-[var(--ap-canvas)] text-[var(--ap-text-primary)] p-4 sm:p-8">
+  <main class="caro-page min-h-dvh bg-[var(--ap-canvas)] text-[var(--ap-text-primary)] p-4 sm:p-8 animate-page-enter">
     <div class="mx-auto max-w-3xl space-y-6">
       <header class="flex flex-wrap items-center justify-between gap-4">
         <div>

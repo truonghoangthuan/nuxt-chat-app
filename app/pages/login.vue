@@ -69,7 +69,7 @@ function setMode(signUp: boolean) {
 </script>
 
 <template>
-  <main class="auth-shell min-h-screen grid lg:grid-cols-[minmax(0,1fr)_minmax(390px,460px)] gap-3 p-3 sm:p-4 lg:gap-4 bg-[var(--ap-canvas)]">
+  <main class="auth-shell min-h-screen grid lg:grid-cols-[minmax(0,1fr)_minmax(390px,460px)] gap-3 p-3 sm:p-4 lg:gap-4 bg-[var(--ap-canvas)] animate-page-enter">
     <!-- Left Hero Section (Cupertino Frosted Showcase) -->
     <section class="auth-story relative hidden min-h-[calc(100vh-2rem)] overflow-hidden rounded-2xl border border-[var(--ap-glass-border)] bg-[var(--ap-stage)] backdrop-blur-2xl p-8 lg:flex lg:flex-col lg:justify-between xl:p-12 shadow-xl">
       <div class="relative z-10 flex items-center gap-3">
