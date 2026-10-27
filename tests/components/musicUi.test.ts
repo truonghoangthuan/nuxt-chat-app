@@ -86,4 +86,40 @@ describe('Music UI components', () => {
       expect.objectContaining({ videoId: 'jfKfPfyJRdk' }),
     )
   })
+
+  it('renders proxied thumbnail URLs in MusicPlayerBar and YouTubeSearchModal so browser never hits i.ytimg.com', () => {
+    const bar = mount(MusicPlayerBar, {
+      props: {
+        track: {
+          conversationId: 'conv-1',
+          videoId: 'dQw4w9WgXcQ',
+          title: 'Never Gonna Give You Up',
+          channelTitle: 'Rick Astley',
+          thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg',
+          isPlaying: true,
+          positionSec: 10,
+          updatedAt: Date.now(),
+          startedBy: 'Alice',
+        },
+        currentTimeSec: 10,
+        durationSec: 213,
+      },
+    })
+    expect(bar.find('img').attributes('src')).toBe('/api/youtube/thumbnail?v=dQw4w9WgXcQ')
+
+    const modal = mount(YouTubeSearchModal, {
+      props: {
+        open: true,
+        initialResults: [
+          {
+            videoId: 'jfKfPfyJRdk',
+            title: 'lofi hip hop radio',
+            channelTitle: 'Lofi Girl',
+            thumbnail: 'https://i.ytimg.com/vi/jfKfPfyJRdk/mqdefault.jpg',
+          },
+        ],
+      },
+    })
+    expect(modal.find('img').attributes('src')).toBe('/api/youtube/thumbnail?v=jfKfPfyJRdk')
+  })
 })

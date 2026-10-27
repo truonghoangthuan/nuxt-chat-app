@@ -138,126 +138,52 @@ const isUserProfileModalOpen = ref(false)
 const selectedUserProfile = ref<Profile | null>(null)
 
 const isMusicSearchModalOpen = ref(false)
-let ytPlayer: any = null
-let ytTimeInterval: any = null
+const audioPlayerRef = ref<HTMLAudioElement | null>(null)
 
-function createYtPlayerInstance(onReadyCallback?: () => void) {
-  if (typeof window === 'undefined' || !(window as any).YT?.Player) return
-  const container = document.getElementById('youtube-hidden-player')
-  if (!container) return
-
-  try {
-    ytPlayer = new (window as any).YT.Player('youtube-hidden-player', {
-      height: '1',
-      width: '1',
-      playerVars: {
-        autoplay: 1,
-        controls: 0,
-        disablekb: 1,
-        fs: 0,
-        modestbranding: 1,
-        playsinline: 1,
-        rel: 0,
-      },
-      events: {
-        onReady: (event: any) => {
-          if (typeof event.target.setVolume === 'function') {
-            event.target.setVolume(musicVolume.value)
-          }
-          if (musicIsMuted.value && typeof event.target.mute === 'function') {
-            event.target.mute()
-          }
-          onReadyCallback?.()
-        },
-        onStateChange: (event: any) => {
-          if (event.data === 1) {
-            musicAutoplayBlocked.value = false
-            if (typeof event.target.getDuration === 'function') {
-              const dur = event.target.getDuration()
-              if (dur && dur > 0) {
-                musicDurationSec.value = dur
-              }
-            }
-            if (!ytTimeInterval) {
-              ytTimeInterval = setInterval(() => {
-                if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
-                  musicCurrentTimeSec.value = Math.floor(ytPlayer.getCurrentTime())
-                }
-              }, 500)
-            }
-          } else if (event.data === 2) {
-            if (ytTimeInterval) {
-              clearInterval(ytTimeInterval)
-              ytTimeInterval = null
-            }
-          } else if (event.data === 0) {
-            if (ytTimeInterval) {
-              clearInterval(ytTimeInterval)
-              ytTimeInterval = null
-            }
-            musicStopPlayback(true)
-          }
-        },
-        onError: () => {
-          musicAutoplayBlocked.value = true
-        },
-      },
-    })
-  } catch {
-    // Graceful fallback
+function handleAudioTimeUpdate() {
+  if (audioPlayerRef.value) {
+    musicCurrentTimeSec.value = Math.floor(audioPlayerRef.value.currentTime || 0)
   }
 }
 
-function initYouTubePlayer(onReadyCallback?: () => void) {
-  if (typeof window === 'undefined') return
-  if ((window as any).YT && (window as any).YT.Player) {
-    createYtPlayerInstance(onReadyCallback)
-    return
+function handleAudioMetadata() {
+  if (audioPlayerRef.value && Number.isFinite(audioPlayerRef.value.duration) && audioPlayerRef.value.duration > 0) {
+    musicDurationSec.value = Math.floor(audioPlayerRef.value.duration)
   }
-  const existingScript = document.getElementById('youtube-iframe-api-script')
-  if (!existingScript) {
-    const tag = document.createElement('script')
-    tag.id = 'youtube-iframe-api-script'
-    tag.src = 'https://www.youtube.com/iframe_api'
-    const firstScriptTag = document.getElementsByTagName('script')[0]
-    firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag)
-  }
+}
 
-  const prevOnYouTubeIframeAPIReady = (window as any).onYouTubeIframeAPIReady
-  ;(window as any).onYouTubeIframeAPIReady = () => {
-    prevOnYouTubeIframeAPIReady?.()
-    createYtPlayerInstance(onReadyCallback)
-  }
+function handleAudioEnded() {
+  musicStopPlayback(true)
+}
+
+function handleAudioError() {
+  musicAutoplayBlocked.value = true
 }
 
 function onPlayerAction(action: 'play' | 'pause' | 'seek' | 'load', payload?: any) {
   if (typeof window === 'undefined') return
-  if (!ytPlayer) {
-    initYouTubePlayer(() => {
-      onPlayerAction(action, payload)
-    })
-    return
-  }
+  const audio = audioPlayerRef.value
+  if (!audio) return
+
   try {
     if (action === 'load' && payload?.videoId) {
-      if (typeof ytPlayer.loadVideoById === 'function') {
-        ytPlayer.loadVideoById({
-          videoId: payload.videoId,
-          startSeconds: payload.startSeconds || 0,
+      audio.src = `/api/youtube/stream?v=${encodeURIComponent(payload.videoId)}`
+      audio.currentTime = payload.startSeconds || 0
+      audio.volume = Math.max(0, Math.min(1, musicVolume.value / 100))
+      audio.muted = !!musicIsMuted.value
+      if (payload.autoplay !== false) {
+        audio.play()?.catch(() => {
+          musicAutoplayBlocked.value = true
         })
       }
     } else if (action === 'play') {
-      if (typeof ytPlayer.playVideo === 'function') {
-        ytPlayer.playVideo()
-      }
+      audio.play()?.catch(() => {
+        musicAutoplayBlocked.value = true
+      })
     } else if (action === 'pause') {
-      if (typeof ytPlayer.pauseVideo === 'function') {
-        ytPlayer.pauseVideo()
-      }
+      audio.pause()
     } else if (action === 'seek' && typeof payload === 'number') {
-      if (typeof ytPlayer.seekTo === 'function') {
-        ytPlayer.seekTo(payload, true)
-      }
+      audio.currentTime = payload
     }
   } catch {
     // Ignore playback exception
@@ -293,18 +219,14 @@ const {
 } = musicPlayer
 
 watch(musicVolume, (newVol) => {
-  if (ytPlayer && typeof ytPlayer.setVolume === 'function') {
-    ytPlayer.setVolume(newVol)
+  if (audioPlayerRef.value) {
+    audioPlayerRef.value.volume = Math.max(0, Math.min(1, newVol / 100))
   }
 })
 
 watch(musicIsMuted, (muted) => {
-  if (ytPlayer) {
-    if (muted && typeof ytPlayer.mute === 'function') {
-      ytPlayer.mute()
-    } else if (!muted && typeof ytPlayer.unMute === 'function') {
-      ytPlayer.unMute()
-    }
+  if (audioPlayerRef.value) {
+    audioPlayerRef.value.muted = muted
   }
 })
 
@@ -707,15 +629,11 @@ onUnmounted(() => {
     unsubMusicSync()
     unsubMusicSync = null
   }
-  if (ytTimeInterval) {
-    clearInterval(ytTimeInterval)
-    ytTimeInterval = null
-  }
-  if (ytPlayer && typeof ytPlayer.destroy === 'function') {
+  if (audioPlayerRef.value) {
     try {
-      ytPlayer.destroy()
+      audioPlayerRef.value.pause()
+      audioPlayerRef.value.src = ''
     } catch {}
-    ytPlayer = null
   }
   if (typeof window !== 'undefined') {
     window.removeEventListener('keydown', handleGlobalKeydown)
@@ -1280,8 +1198,20 @@ onUnmounted(() => {
         @complete="isConfettiActive = false"
       />
 
-      <!-- Hidden YouTube iframe container for persistent audio -->
-      <div id="youtube-hidden-player" class="hidden pointer-events-none w-0 h-0 opacity-0 overflow-hidden" aria-hidden="true"></div>
+      <!-- Native HTML5 audio element for persistent room playback (server-proxied to bypass corporate network restrictions) -->
+      <audio
+        id="youtube-hidden-player"
+        ref="audioPlayerRef"
+        preload="auto"
+        class="hidden pointer-events-none w-0 h-0 opacity-0 overflow-hidden"
+        aria-hidden="true"
+        @timeupdate="handleAudioTimeUpdate"
+        @loadedmetadata="handleAudioMetadata"
+        @durationchange="handleAudioMetadata"
+        @play="musicAutoplayBlocked = false"
+        @ended="handleAudioEnded"
+        @error="handleAudioError"
+      ></audio>
 
       <!-- YouTube Music Search Modal -->
       <YouTubeSearchModal

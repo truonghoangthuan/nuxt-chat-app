@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import type { YouTubeSearchResult } from '~/types/chat'
+import { getYouTubeThumbnailProxyUrl } from '~/utils/youtube'
 import { Search, X, Music, Loader2, Play } from '@lucide/vue'
 
 const props = defineProps<{
@@ -174,7 +175,7 @@ function handleKeydown(e: KeyboardEvent) {
         >
           <!-- Thumbnail with hover play overlay -->
           <div class="relative w-20 h-12 rounded-lg overflow-hidden shrink-0 bg-black/20">
-            <img :src="item.thumbnail" :alt="item.title" class="w-full h-full object-cover" />
+            <img :src="getYouTubeThumbnailProxyUrl(item.videoId, item.thumbnail)" :alt="item.title" class="w-full h-full object-cover" />
             <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
               <Play class="w-4 h-4 fill-current ml-0.5" />
             </div>
