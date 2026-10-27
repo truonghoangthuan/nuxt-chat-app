@@ -7,6 +7,7 @@ import {
 } from '~/utils/youtube'
 import streamHandler from '../../server/api/youtube/stream.get'
 import thumbnailHandler from '../../server/api/youtube/thumbnail.get'
+import trendingHandler from '../../server/api/youtube/trending.get'
 
 describe('searchYouTubeVideos', () => {
   it('returns empty items without calling fetch when query is blank', async () => {
@@ -324,6 +325,63 @@ describe('server endpoints', () => {
         'https://pipedproxy.nhackoqc.xyz/vi/dQw4w9WgXcQ/mqdefault.jpg?host=i.ytimg.com',
       )
       expect(res).toBeInstanceOf(Uint8Array)
+    } finally {
+      globalThis.fetch = origFetch
+    }
+  })
+
+  it('trending endpoint defaults to VN', async () => {
+    const origFetch = globalThis.fetch
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [],
+    })
+    globalThis.fetch = fetchMock as any
+
+    try {
+      const mockEvent = {
+        path: '/api/youtube/trending',
+        node: {
+          req: { url: '/api/youtube/trending' },
+          res: { statusCode: 200, setHeader: vi.fn() },
+        },
+      } as any
+
+      const res = await trendingHandler(mockEvent)
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/trending?region=VN'),
+        expect.anything(),
+      )
+      expect(res).toEqual({ items: [] })
+    } finally {
+      globalThis.fetch = origFetch
+    }
+  })
+
+  it('trending endpoint clamps invalid region to VN', async () => {
+    const origFetch = globalThis.fetch
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [],
+    })
+    globalThis.fetch = fetchMock as any
+
+    try {
+      const mockEvent = {
+        path: '/api/youtube/trending?region=../x',
+        node: {
+          req: { url: '/api/youtube/trending?region=../x' },
+          res: { statusCode: 200, setHeader: vi.fn() },
+        },
+      } as any
+
+      await trendingHandler(mockEvent)
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/trending?region=VN'),
+        expect.anything(),
+      )
     } finally {
       globalThis.fetch = origFetch
     }
