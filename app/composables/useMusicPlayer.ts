@@ -57,7 +57,11 @@ export function createMusicController(options: MusicControllerOptions = {}) {
     currentTimeSec.value = 0
     autoplayBlocked.value = false
 
-    options.onPlayerAction?.('load', { videoId: track.videoId, startSeconds: 0 })
+    options.onPlayerAction?.('load', {
+      videoId: track.videoId,
+      title: track.title,
+      startSeconds: 0,
+    })
 
     if (options.onBroadcast && !isApplyingRemoteSync) {
       options.onBroadcast({
@@ -178,6 +182,7 @@ export function createMusicController(options: MusicControllerOptions = {}) {
           if (!isSameVideo) {
             options.onPlayerAction?.('load', {
               videoId: event.state.videoId,
+              title: event.state.title,
               startSeconds: syncedPos,
               autoplay: event.state.isPlaying,
             })
