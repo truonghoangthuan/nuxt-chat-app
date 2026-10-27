@@ -44,11 +44,14 @@ The codebase separates **Supabase/Realtime I/O orchestration** from **pure, test
 │   │   ├── E2eeGate.vue            # Passphrase unlock form & unconfigured/loading gate
 │   │   ├── MessageComposer.vue     # Textarea composer (Enter to send, Shift+Enter newline, typing hook)
 │   │   ├── MessageViewport.vue     # Upward infinite scroll, scroll-lock preservation, new-message pill, E2EE badges
-│   │   └── UserAvatar.vue          # Deterministic color badge + 1-2 character initials
+│   │   ├── MusicPlayerBar.vue      # Persistent synchronized audio player bar (scrubber, play/pause, volume, tune-in)
+│   │   ├── UserAvatar.vue          # Deterministic color badge + 1-2 character initials
+│   │   └── YouTubeSearchModal.vue  # In-app YouTube video search and room track selection modal
 │   ├── composables/
 │   │   ├── useChatRoom.ts          # Central orchestrator wiring Supabase queries & 3 Realtime channels
 │   │   ├── useE2ee.ts              # Session storage key cache, config query, phrase derivation & validation
 │   │   ├── useMessagesState.ts     # Pure store (createMessagesStore): optimistic UI, dedup, ordering, cursors
+│   │   ├── useMusicPlayer.ts       # Shared playback state, seek sync, volume, autoplay detection & broadcast
 │   │   ├── useTypingState.ts       # Pure tracker (createTypingTracker): per-user typing expiry & label
 │   │   ├── usePresenceState.ts     # Pure helper (deduplicatePresenceState): multi-tab presence dedup
 │   │   ├── useConnectionManager.ts # State machine (createConnectionManager): exponential backoff & retry
@@ -64,7 +67,12 @@ The codebase separates **Supabase/Realtime I/O orchestration** from **pure, test
 │   │   └── chat.ts                 # Domain interfaces (Profile, Channel, ChatMessage, TypingUser, E2eeConfig, statuses)
 │   └── utils/
 │       ├── chat.ts                 # Pure helpers (slugs, backoff math, avatar colors/initials, validation)
-│       └── crypto.ts               # WebCrypto AES-GCM-256 + PBKDF2 encryption, decryption, base64url helpers
+│       ├── crypto.ts               # WebCrypto AES-GCM-256 + PBKDF2 encryption, decryption, base64url helpers
+│       └── youtube.ts              # YouTube Data API & InnerTube search parsers, duration formatting
+├── server/
+│   └── api/
+│       └── youtube/
+│           └── search.get.ts       # Keyless InnerTube search endpoint with optional YOUTUBE_API_KEY fallback
 ├── scripts/
 │   └── generate-e2ee-config.mjs    # CLI helper generating public.e2ee_config SQL insert
 ├── supabase/
@@ -239,6 +247,14 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - **Two-Axis Theme Architecture (`uiTheme` + `isDark`):** The application decouples UI personality (`uiTheme: 'default' | 'vscode' | 'yahoo'`) from color mode (`isDark: boolean`), persisting them independently in `localStorage['nuxt-chat-ui-theme']` and `localStorage['nuxt-chat-theme']`. `useTheme.ts` binds both to `document.documentElement` (`data-theme="<theme>"` attribute, `theme-<theme>` class, and `.dark` class).
     - **Functional Invariance Across Clone Layouts:** Structural theme clones (e.g., VSCode Activity Bar, editor tab bar, line-number gutter, and terminal composer; Yahoo! Messenger title bar, menu strip, inline transcript author, and Buzz toolbar) transform visual layout, typography, and chrome while strictly retaining all underlying functional `data-test` hooks (`message-bubble-<id>`, `conversation-item-<id>`, `open-contacts`, `open-start-dm`, `open-create-group`, `composer-deck`), keyboard shortcuts, and event emits so test suites remain 100% green across all themes.
     - **Defensive Lifecycle Invocations & Composable Test Mock Sync:** In root views and components (`app/pages/index.vue`), lifecycle calls on composable exports (such as `initTheme?.()`) must use optional chaining to prevent runtime crashes when test suites (`tests/components/indexPage.test.ts`) isolate composables with `vi.mock('~/composables/useTheme')`. When adding new methods or refs to core composables, all existing partial test mocks in `tests/` must be synchronized.
+
+31. **Realtime Broadcast Media Sync, Zero-DDL Discipline & Autoplay "Tune In" Pattern:**
+    - **Zero-DDL Ephemeral Room Sync:** Fast-moving or transient conversation state (such as shared media playback, scrubber position, play/pause state, or cursor positions) must NEVER require new Postgres columns or tables that risk PostgREST schema cache errors (`PGRST204`). Synchronize ephemeral state using Supabase Realtime Broadcast on conversation channels (`typing:${conversationId}`). Persist only immutable milestones to the database via existing encrypted `public.messages` system payloads (`event: 'music_play'`).
+    - **Late-Joiner Elapsed Timestamp Handshake:** When subscribing to a conversation, if local playback state is empty, broadcast `type: 'request_state'`. Any active room peer responds with `type: 'sync_state'` carrying `positionSec` and `updatedAt`, allowing late joiners to compute current elapsed time (`positionSec + (now - updatedAt) / 1000`) without server-side clocks.
+    - **Browser Autoplay Policy & "Tune In" Fallback:** Modern browser security blocks unprompted audio/video autoplay triggered remotely over Realtime without prior user gesture interaction. Audio players (YouTube IFrame API / Web Audio) must catch playback rejections, set `autoplayBlocked = true`, and surface a prominent, one-click "Tune In" button (`data-test="music-unblock-btn"`) rather than failing silently.
+    - **Keyless Upstream Fallback Discipline:** Server routes querying third-party APIs (such as `/api/youtube/search`) should implement a keyless fallback (e.g. InnerTube POST search) so the application functions out-of-the-box with zero API key configuration, while upgrading to official API keys (`YOUTUBE_API_KEY`) when provided in `.env`.
+    - **Composable Mock Completeness:** When adding new methods or subscriptions to `useChatRoom.ts`, page components must guard execution with `typeof fn === 'function'` in lifecycle hooks, and corresponding mock fixtures in `tests/components/indexPage.test.ts` must be updated immediately to prevent `TypeError: <fn> is not a function` during test runs.
+
 
 ## 5. Testing Standards
 
