@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
-import { searchYouTubeVideos, resolveYouTubeAudioStream, resolveItunesAudioFallback } from '~/utils/youtube'
+import {
+  searchYouTubeVideos,
+  resolveYouTubeAudioStream,
+  fetchPipedTrending,
+  PIPED_API,
+} from '~/utils/youtube'
 import streamHandler from '../../server/api/youtube/stream.get'
 import thumbnailHandler from '../../server/api/youtube/thumbnail.get'
 
@@ -11,85 +16,71 @@ describe('searchYouTubeVideos', () => {
     expect(fetchFn).not.toHaveBeenCalled()
   })
 
-  it('uses YouTube Data API v3 when apiKey is provided', async () => {
+  it('searches KOQC Piped with filter=videos', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
         items: [
           {
-            id: { videoId: 'abc12345678' },
-            snippet: { title: 'Test Song', channelTitle: 'Test Artist' },
+            url: '/watch?v=xyz98765432',
+            type: 'stream',
+            title: 'Keyless Track',
+            uploaderName: 'Indie Channel',
+            thumbnail: 'https://pipedproxy.example.com/thumb.jpg',
+            duration: 260,
+            isShort: false,
           },
         ],
-      }),
-    })
-    const res = await searchYouTubeVideos('test song', {
-      apiKey: 'AIza-mock',
-      fetchFn: fetchFn as any,
-    })
-    expect(fetchFn).toHaveBeenCalledWith(
-      expect.stringContaining('https://www.googleapis.com/youtube/v3/search'),
-    )
-    expect(res.items).toHaveLength(1)
-    expect(res.items[0].videoId).toBe('abc12345678')
-  })
-
-  it('uses keyless YouTube InnerTube POST search when no apiKey is provided', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        contents: {
-          sectionListRenderer: {
-            contents: [
-              {
-                videoRenderer: {
-                  videoId: 'xyz98765432',
-                  title: { runs: [{ text: 'Keyless Track' }] },
-                  ownerText: { runs: [{ text: 'Indie Channel' }] },
-                  lengthText: { simpleText: '4:20' },
-                },
-              },
-            ],
-          },
-        },
       }),
     })
     const res = await searchYouTubeVideos('keyless track', { fetchFn: fetchFn as any })
     expect(fetchFn).toHaveBeenCalledWith(
-      'https://youtubei.googleapis.com/youtubei/v1/search?prettyPrint=false',
-      expect.objectContaining({ method: 'POST' }),
+      `${PIPED_API}/search?q=keyless%20track&filter=videos`,
+      expect.anything(),
     )
     expect(res.items[0]?.videoId).toBe('xyz98765432')
-  })
-
-  it('resolves iTunes AAC audio fallback by video title when YouTube streams are blocked', async () => {
-    const fetchFn = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        results: [
-          {
-            trackName: 'Em Không Quay Về',
-            artistName: 'Hoàng Tôn',
-            previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/sample.plus.aac.p.m4a',
-          },
-        ],
-      }),
-    })
-
-    const res = await resolveItunesAudioFallback('ZlSx-6UbrmI', {
-      title: 'HOÀNG TÔN feat. YANBI - Em Không Quay Về | Official Music Video',
-      fetchFn: fetchFn as any,
-    })
-    expect(res).toEqual({
-      url: 'https://audio-ssl.itunes.apple.com/itunes-assets/sample.plus.aac.p.m4a',
-      mimeType: 'audio/mp4',
-    })
+    expect(res.items[0]?.title).toBe('Keyless Track')
+    expect(res.items[0]?.channelTitle).toBe('Indie Channel')
+    expect(res.items[0]?.durationText).toBe('4:20')
   })
 
   it('handles upstream fetch errors gracefully', async () => {
     const fetchFn = vi.fn().mockRejectedValue(new Error('Network down'))
     const res = await searchYouTubeVideos('lofi', { fetchFn: fetchFn as any })
     expect(res).toEqual({ items: [], error: 'Failed to search YouTube' })
+  })
+})
+
+describe('fetchPipedTrending', () => {
+  it('calls /trending?region=VN and parses items', async () => {
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [
+        {
+          url: '/watch?v=trend123456',
+          type: 'stream',
+          title: 'Trending Hit',
+          uploaderName: 'Top Star',
+          thumbnail: 'https://pipedproxy.example.com/trend.jpg',
+          duration: 185,
+          isShort: false,
+        },
+      ],
+    })
+    const res = await fetchPipedTrending('VN', { fetchFn: fetchFn as any })
+    expect(fetchFn).toHaveBeenCalledWith(
+      `${PIPED_API}/trending?region=VN`,
+      expect.anything(),
+    )
+    expect(res.items).toHaveLength(1)
+    expect(res.items[0].videoId).toBe('trend123456')
+    expect(res.items[0].durationText).toBe('3:05')
+  })
+
+  it('returns error shape when upstream fails', async () => {
+    const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 500 })
+    const res = await fetchPipedTrending('VN', { fetchFn: fetchFn as any })
+    expect(res).toEqual({ items: [], error: 'Failed to fetch trending' })
   })
 })
 
@@ -101,19 +92,22 @@ describe('resolveYouTubeAudioStream', () => {
     expect(fetchFn).not.toHaveBeenCalled()
   })
 
-  it('extracts audio stream from InnerTube player response when available', async () => {
+  it('resolves best audio from KOQC /streams', async () => {
     const fetchFn = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        streamingData: {
-          adaptiveFormats: [
-            {
-              itag: 140,
-              mimeType: 'audio/mp4; codecs="mp4a.40.2"',
-              url: 'https://rr1---sn-mock.googlevideo.com/videoplayback?itag=140',
-            },
-          ],
-        },
+        audioStreams: [
+          {
+            url: 'https://pipedproxy.example.com/audio.webm',
+            mimeType: 'audio/webm',
+            bitrate: 70000,
+          },
+          {
+            url: 'https://pipedproxy.example.com/audio.m4a',
+            mimeType: 'audio/mp4',
+            bitrate: 128000,
+          },
+        ],
       }),
     })
 
@@ -121,42 +115,23 @@ describe('resolveYouTubeAudioStream', () => {
       fetchFn: fetchFn as any,
       bypassCache: true,
     })
-    expect(res).toEqual({
-      url: 'https://rr1---sn-mock.googlevideo.com/videoplayback?itag=140',
-      mimeType: 'audio/mp4',
-      userAgent: 'com.google.android.youtube/20.03.35 (Linux; U; Android 14) gzip',
-    })
-  })
-
-  it('falls back to Piped/Invidious API when InnerTube player returns no stream', async () => {
-    const fetchFn = vi
-      .fn()
-      // 1. InnerTube ANDROID_VR fails
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ playabilityStatus: { status: 'LOGIN_REQUIRED' } }) })
-      // 2. InnerTube IOS fails
-      .mockResolvedValueOnce({ ok: false })
-      // 3. Piped instance succeeds
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          audioStreams: [
-            {
-              url: 'https://pipedproxy.example.com/audio.m4a',
-              mimeType: 'audio/mp4',
-              bitrate: 128000,
-            },
-          ],
-        }),
-      })
-
-    const res = await resolveYouTubeAudioStream('jfKfPfyJRdk', {
-      fetchFn: fetchFn as any,
-      bypassCache: true,
-    })
+    expect(fetchFn).toHaveBeenCalledWith(
+      `${PIPED_API}/streams/dQw4w9WgXcQ`,
+      expect.anything(),
+    )
     expect(res).toEqual({
       url: 'https://pipedproxy.example.com/audio.m4a',
       mimeType: 'audio/mp4',
     })
+  })
+
+  it('returns null when KOQC fails', async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: false, status: 502 })
+    const res = await resolveYouTubeAudioStream('dQw4w9WgXcQ', {
+      fetchFn: fetchFn as any,
+      bypassCache: true,
+    })
+    expect(res).toBeNull()
   })
 })
 
