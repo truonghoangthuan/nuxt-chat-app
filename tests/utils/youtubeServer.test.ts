@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { searchYouTubeVideos, resolveYouTubeAudioStream } from '~/utils/youtube'
+import { searchYouTubeVideos, resolveYouTubeAudioStream, resolveItunesAudioFallback } from '~/utils/youtube'
 import streamHandler from '../../server/api/youtube/stream.get'
 import thumbnailHandler from '../../server/api/youtube/thumbnail.get'
 
@@ -56,10 +56,34 @@ describe('searchYouTubeVideos', () => {
     })
     const res = await searchYouTubeVideos('keyless track', { fetchFn: fetchFn as any })
     expect(fetchFn).toHaveBeenCalledWith(
-      'https://www.youtube.com/youtubei/v1/search?prettyPrint=false',
+      'https://youtubei.googleapis.com/youtubei/v1/search?prettyPrint=false',
       expect.objectContaining({ method: 'POST' }),
     )
     expect(res.items[0]?.videoId).toBe('xyz98765432')
+  })
+
+  it('resolves iTunes AAC audio fallback by video title when YouTube streams are blocked', async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        results: [
+          {
+            trackName: 'Em Không Quay Về',
+            artistName: 'Hoàng Tôn',
+            previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/sample.plus.aac.p.m4a',
+          },
+        ],
+      }),
+    })
+
+    const res = await resolveItunesAudioFallback('ZlSx-6UbrmI', {
+      title: 'HOÀNG TÔN feat. YANBI - Em Không Quay Về | Official Music Video',
+      fetchFn: fetchFn as any,
+    })
+    expect(res).toEqual({
+      url: 'https://audio-ssl.itunes.apple.com/itunes-assets/sample.plus.aac.p.m4a',
+      mimeType: 'audio/mp4',
+    })
   })
 
   it('handles upstream fetch errors gracefully', async () => {
@@ -100,6 +124,7 @@ describe('resolveYouTubeAudioStream', () => {
     expect(res).toEqual({
       url: 'https://rr1---sn-mock.googlevideo.com/videoplayback?itag=140',
       mimeType: 'audio/mp4',
+      userAgent: 'com.google.android.youtube/20.03.35 (Linux; U; Android 14) gzip',
     })
   })
 

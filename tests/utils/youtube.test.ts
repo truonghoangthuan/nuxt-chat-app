@@ -105,4 +105,15 @@ describe('youtube utils', () => {
       mimeType: 'audio/mp4',
     })
   })
+
+  it('falls back to muxed video/mp4 (itag 18) when no standalone audio/* format exists', () => {
+    const picked = extractBestAudioFormat([
+      { mimeType: 'video/mp4', url: 'https://v.example/video-only.mp4', videoOnly: true, itag: 137 },
+      { mimeType: 'video/mp4; codecs="avc1.42001E, mp4a.40.2"', url: 'https://v.example/muxed18.mp4', videoOnly: false, itag: 18 },
+    ])
+    expect(picked).toEqual({
+      url: 'https://v.example/muxed18.mp4',
+      mimeType: 'audio/mp4',
+    })
+  })
 })

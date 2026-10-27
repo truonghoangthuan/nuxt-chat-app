@@ -174,7 +174,7 @@ export async function searchYouTubeVideos(
 
   // 2. Keyless YouTube InnerTube POST endpoint
   try {
-    const resp = await myFetch('https://www.youtube.com/youtubei/v1/search?prettyPrint=false', {
+    const resp = await myFetch('https://youtubei.googleapis.com/youtubei/v1/search?prettyPrint=false', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -269,7 +269,25 @@ export function extractBestAudioFormat(formats: any[]): { url: string; mimeType:
     return type.startsWith('audio/')
   })
 
-  if (audioFormats.length === 0) return null
+  if (audioFormats.length === 0) {
+    // Fallback to muxed video/mp4 with audio (e.g. itag 18 360p) for HTML5 <audio> playback
+    const muxedFormats = formats.filter((f) => {
+      if (!f || typeof f.url !== 'string' || !/^https?:\/\//.test(f.url)) return false
+      if (f.videoOnly === true) return false
+      const type = String(f.mimeType || f.type || '').toLowerCase()
+      return (
+        type.startsWith('video/mp4') &&
+        (f.itag === 18 || Boolean(f.audioQuality) || type.includes('mp4a') || type.includes('avc1'))
+      )
+    })
+    if (muxedFormats.length > 0) {
+      return {
+        url: muxedFormats[0].url,
+        mimeType: 'audio/mp4',
+      }
+    }
+    return null
+  }
 
   // Prefer audio/mp4 (m4a) for universal Safari/Chrome/Firefox/Edge compatibility, then audio/webm
   const sorted = [...audioFormats].sort((a, b) => {
@@ -296,9 +314,65 @@ export function extractBestAudioFormat(formats: any[]): { url: string; mimeType:
   }
 }
 
+export function cleanMusicSearchTitle(rawTitle: string): string {
+  if (!rawTitle || typeof rawTitle !== 'string') return ''
+  return rawTitle
+    .replace(/\[.*?\]|\(.*?\)/g, ' ')
+    .replace(/\b(official|music|video|mv|audio|lyrics|lyric|hd|4k|visualizer|full|playlist|remix|feat|ft)\b/gi, ' ')
+    .replace(/[|•\-_/]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+export async function resolveItunesAudioFallback(
+  videoId: string,
+  options: { title?: string; fetchFn?: typeof fetch } = {},
+): Promise<{ url: string; mimeType: string; userAgent?: string } | null> {
+  const myFetch = options.fetchFn || (typeof fetch !== 'undefined' ? fetch : undefined)
+  if (!myFetch) return null
+
+  let title = options.title?.trim()
+  if (!title) {
+    try {
+      const searchRes = await searchYouTubeVideos(videoId, { fetchFn: myFetch })
+      const match = searchRes.items.find((i) => i.videoId === videoId) || searchRes.items[0]
+      title = match?.title || ''
+    } catch {
+      // ignore
+    }
+  }
+  if (!title) return null
+
+  const cleaned = cleanMusicSearchTitle(title) || title
+  try {
+    const timeoutSignal =
+      typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+        ? AbortSignal.timeout(3500)
+        : undefined
+    const resp = await myFetch(
+      `https://itunes.apple.com/search?term=${encodeURIComponent(cleaned)}&media=music&entity=song&limit=1`,
+      timeoutSignal ? { signal: timeoutSignal } : undefined,
+    )
+    if (resp.ok) {
+      const data = await resp.json()
+      const item = data?.results?.[0]
+      if (item?.previewUrl) {
+        return {
+          url: item.previewUrl,
+          mimeType: 'audio/mp4',
+        }
+      }
+    }
+  } catch {
+    // Fallback failed
+  }
+  return null
+}
+
 interface CachedStream {
   url: string
   mimeType: string
+  userAgent?: string
   expiresAt: number
 }
 
@@ -312,7 +386,7 @@ export interface ResolveAudioOptions {
 export async function resolveYouTubeAudioStream(
   videoId: string,
   options: ResolveAudioOptions = {},
-): Promise<{ url: string; mimeType: string } | null> {
+): Promise<{ url: string; mimeType: string; userAgent?: string } | null> {
   const cleanId = typeof videoId === 'string' ? videoId.trim() : ''
   if (!isValidYouTubeVideoId(cleanId)) {
     return null
@@ -327,73 +401,99 @@ export async function resolveYouTubeAudioStream(
   if (!options.bypassCache) {
     const cached = streamUrlCache.get(cleanId)
     if (cached && cached.expiresAt > now) {
-      return { url: cached.url, mimeType: cached.mimeType }
+      return { url: cached.url, mimeType: cached.mimeType, userAgent: cached.userAgent }
     }
   }
 
-  // 1. YouTube InnerTube Player API with ANDROID_VR client
+  const timeoutSignal = () =>
+    typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+      ? AbortSignal.timeout(3500)
+      : undefined
+
+  // 1. YouTube InnerTube Player API with ANDROID client (20.03.35)
+  const ANDROID_UA = 'com.google.android.youtube/20.03.35 (Linux; U; Android 14) gzip'
   try {
-    const resp = await myFetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+    const resp = await myFetch('https://youtubei.googleapis.com/youtubei/v1/player?prettyPrint=false', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': ANDROID_UA,
       },
       body: JSON.stringify({
         context: {
           client: {
-            clientName: 'ANDROID_VR',
-            clientVersion: '1.60.19',
+            clientName: 'ANDROID',
+            clientVersion: '20.03.35',
+            androidSdkVersion: 34,
+            osName: 'Android',
+            osVersion: '14',
             hl: 'en',
             gl: 'US',
           },
         },
         videoId: cleanId,
+        contentCheckOk: true,
+        racyCheckOk: true,
       }),
+      signal: timeoutSignal(),
     })
     if (resp.ok) {
       const data = await resp.json()
-      const formats = data?.streamingData?.adaptiveFormats
+      const formats = [
+        ...(data?.streamingData?.adaptiveFormats || []),
+        ...(data?.streamingData?.formats || []),
+      ]
       const best = extractBestAudioFormat(formats)
       if (best) {
-        streamUrlCache.set(cleanId, { ...best, expiresAt: now + 10 * 60 * 1000 })
-        return best
+        const streamInfo = { ...best, userAgent: ANDROID_UA }
+        streamUrlCache.set(cleanId, { ...streamInfo, expiresAt: now + 10 * 60 * 1000 })
+        return streamInfo
       }
     }
   } catch {
     // Continue to next client / provider
   }
 
-  // 2. YouTube InnerTube Player API with IOS client
+  // 2. YouTube InnerTube Player API with IOS client (20.03.02)
+  const IOS_UA =
+    'com.google.ios.youtube/20.03.02 (iPhone16,2; U; CPU iOS 18_2_1 like Mac OS X;)'
   try {
-    const resp = await myFetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+    const resp = await myFetch('https://youtubei.googleapis.com/youtubei/v1/player?prettyPrint=false', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent':
-          'com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X; en_US)',
+        'User-Agent': IOS_UA,
       },
       body: JSON.stringify({
         context: {
           client: {
             clientName: 'IOS',
-            clientVersion: '19.45.4',
+            clientVersion: '20.03.02',
+            deviceMake: 'Apple',
+            deviceModel: 'iPhone16,2',
+            osName: 'iPhone',
+            osVersion: '18.2.1.22C161',
             hl: 'en',
             gl: 'US',
-            deviceModel: 'iPhone16,2',
           },
         },
         videoId: cleanId,
+        contentCheckOk: true,
+        racyCheckOk: true,
       }),
+      signal: timeoutSignal(),
     })
     if (resp.ok) {
       const data = await resp.json()
-      const formats = data?.streamingData?.adaptiveFormats
+      const formats = [
+        ...(data?.streamingData?.adaptiveFormats || []),
+        ...(data?.streamingData?.formats || []),
+      ]
       const best = extractBestAudioFormat(formats)
       if (best) {
-        streamUrlCache.set(cleanId, { ...best, expiresAt: now + 10 * 60 * 1000 })
-        return best
+        const streamInfo = { ...best, userAgent: IOS_UA }
+        streamUrlCache.set(cleanId, { ...streamInfo, expiresAt: now + 10 * 60 * 1000 })
+        return streamInfo
       }
     }
   } catch {
@@ -409,10 +509,15 @@ export async function resolveYouTubeAudioStream(
 
   for (const instance of PIPED_INSTANCES) {
     try {
-      const resp = await myFetch(`${instance}/streams/${cleanId}`)
+      const resp = await myFetch(`${instance}/streams/${cleanId}`, {
+        signal: timeoutSignal(),
+      })
       if (resp.ok) {
         const data = await resp.json()
-        const formats = data?.audioStreams
+        const formats = [
+          ...(data?.audioStreams || []),
+          ...(data?.videoStreams || []).filter((v: any) => v && v.videoOnly === false),
+        ]
         const best = extractBestAudioFormat(formats)
         if (best) {
           streamUrlCache.set(cleanId, { ...best, expiresAt: now + 10 * 60 * 1000 })
@@ -432,10 +537,15 @@ export async function resolveYouTubeAudioStream(
 
   for (const instance of INVIDIOUS_INSTANCES) {
     try {
-      const resp = await myFetch(`${instance}/api/v1/videos/${cleanId}`)
+      const resp = await myFetch(`${instance}/api/v1/videos/${cleanId}`, {
+        signal: timeoutSignal(),
+      })
       if (resp.ok) {
         const data = await resp.json()
-        const formats = data?.adaptiveFormats
+        const formats = [
+          ...(data?.adaptiveFormats || []),
+          ...(data?.formatStreams || []),
+        ]
         const best = extractBestAudioFormat(formats)
         if (best) {
           streamUrlCache.set(cleanId, { ...best, expiresAt: now + 10 * 60 * 1000 })
