@@ -370,3 +370,25 @@ body {
 .animate-buzz-shake {
   animation: buzz-shake 0.65s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
+
+/* Apple Fluid micro-transitions and modal motion */
+.modal-fade-enter-active {
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.modal-fade-leave-active {
+  transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

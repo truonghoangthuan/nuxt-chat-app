@@ -517,7 +517,7 @@ onUnmounted(() => {
       <!-- Apple Floating Frosted Pill Dock -->
       <div
         data-test="composer-deck"
-        class="relative bg-black/[0.04] dark:bg-white/8 hover:bg-black/[0.06] dark:hover:bg-white/10 backdrop-blur-2xl border border-black/[0.08] dark:border-white/15 shadow-xl p-1.5 flex items-center gap-2 transition-all focus-within:bg-black/[0.06] dark:focus-within:bg-white/12 focus-within:ring-2 focus-within:ring-blue-500/40"
+        class="relative bg-black/[0.04] dark:bg-white/8 hover:bg-black/[0.06] dark:hover:bg-white/10 backdrop-blur-2xl border border-black/[0.08] dark:border-white/15 shadow-xl p-1.5 flex items-center gap-2 transition-all focus-within:bg-black/[0.06] dark:focus-within:bg-white/12 focus-within:ring-2 focus-within:ring-blue-500/40 focus-within:border-blue-500/50 focus-within:shadow-[0_4px_24px_rgba(0,122,255,0.12)]"
         :class="uiTheme === 'vscode' ? 'rounded-none border-x-0 border-b-0 border-t border-[#3c3c3c]' : (uiTheme === 'yahoo' ? 'rounded-[3px] border-[#b5a8c9] dark:border-[#3b235a]' : 'rounded-full')"
         @dragover.prevent
         @drop.prevent="handleDrop"
@@ -529,7 +529,7 @@ onUnmounted(() => {
           type="button"
           :disabled="disabled"
           data-test="attach-image-button"
-          class="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] flex items-center justify-center transition-all shrink-0 cursor-pointer disabled:opacity-40"
+          class="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] flex items-center justify-center transition-all active:scale-90 shrink-0 cursor-pointer disabled:opacity-40"
           title="Attach images"
           aria-label="Attach images"
           @click="triggerFileInput"

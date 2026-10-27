@@ -26,6 +26,7 @@ import ConfettiDictionaryModal from '~/components/ConfettiDictionaryModal.vue'
 import ConfettiOverlay from '~/components/ConfettiOverlay.vue'
 import MusicPlayerBar from '~/components/MusicPlayerBar.vue'
 import YouTubeSearchModal from '~/components/YouTubeSearchModal.vue'
+import ChangelogModal from '~/components/ChangelogModal.vue'
 import { Menu, Users, Info, Search, Image as ImageIcon, MessageSquare, Link2, Settings, Sun, Moon, Plus, Sparkles, Music } from '@lucide/vue'
 import { useE2ee } from '~/composables/useE2ee'
 import { usePwaInstall } from '~/composables/usePwaInstall'
@@ -134,6 +135,7 @@ const isGroupInfoModalOpen = ref(false)
 const isChatBackgroundModalOpen = ref(false)
 const isConfettiDictionaryModalOpen = ref(false)
 const isProfileSettingsModalOpen = ref(false)
+const isChangelogModalOpen = ref(false)
 const isUserProfileModalOpen = ref(false)
 const selectedUserProfile = ref<Profile | null>(null)
 
@@ -745,6 +747,7 @@ onUnmounted(() => {
       @open-create-group="isCreateGroupModalOpen = true"
       @start-dm-with-user="handleStartDirectChat"
       @open-profile-settings="isProfileSettingsModalOpen = true"
+      @open-changelog="isChangelogModalOpen = true"
       @toggle-theme="toggleTheme"
       @logout="handleLogout"
       @close-mobile="isMobileSidebarOpen = false"
@@ -889,7 +892,7 @@ onUnmounted(() => {
               type="button"
               data-test="open-chat-background-btn"
               title="Customize chat wallpaper"
-              class="p-1.5 rounded-full bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition cursor-pointer"
+              class="p-1.5 rounded-full bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition-all active:scale-90 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
               aria-label="Customize chat wallpaper"
               @click="isChatBackgroundModalOpen = true"
             >
@@ -902,7 +905,7 @@ onUnmounted(() => {
               type="button"
               data-test="open-confetti-dictionary-btn"
               title="Confetti trigger dictionary"
-              class="p-1.5 rounded-full bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition cursor-pointer"
+              class="p-1.5 rounded-full bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition-all active:scale-90 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
               aria-label="Confetti trigger dictionary"
               @click="isConfettiDictionaryModalOpen = true"
             >
@@ -915,7 +918,7 @@ onUnmounted(() => {
               type="button"
               data-test="open-music-search-btn"
               title="Play YouTube music with room"
-              class="p-1.5 rounded-full bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition cursor-pointer"
+              class="p-1.5 rounded-full bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition-all active:scale-90 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
               aria-label="Play YouTube music with room"
               @click="isMusicSearchModalOpen = true"
             >
@@ -935,7 +938,7 @@ onUnmounted(() => {
               type="button"
               data-test="open-search-btn"
               title="Search messages (Cmd+F)"
-              class="p-1.5 rounded-full bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition cursor-pointer"
+              class="p-1.5 rounded-full bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition-all active:scale-90 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
               @click="handleToggleSearch"
             >
               <Search class="w-4 h-4" />
@@ -945,7 +948,7 @@ onUnmounted(() => {
               v-if="activeConversation?.type === 'group'"
               type="button"
               data-test="open-group-info"
-              class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border border-black/10 dark:border-white/10 text-xs font-medium text-[var(--ap-text-primary)] transition cursor-pointer"
+              class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border border-black/10 dark:border-white/10 text-xs font-medium text-[var(--ap-text-primary)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
               aria-label="Group Info & Settings"
               @click="isGroupInfoModalOpen = true"
             >
@@ -991,12 +994,12 @@ onUnmounted(() => {
         <div
           v-if="activeConversation || activeChannel"
           data-test="stage-subtabs"
-          class="h-10 px-4 md:px-6 border-b border-[var(--ap-glass-border)] flex items-center gap-1 shrink-0 bg-black/[0.02] dark:bg-white/[0.02]"
+          class="h-10 px-4 md:px-6 border-b border-[var(--ap-glass-border)] flex items-center gap-1.5 shrink-0 bg-black/[0.02] dark:bg-white/[0.02]"
         >
           <button
             type="button"
             data-test="subtab-messages"
-            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition cursor-pointer"
+            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
             :class="activeStageTab === 'messages' ? 'bg-black/10 dark:bg-white/12 text-[var(--ap-text-primary)] shadow-sm' : 'text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/5'"
             @click="activeStageTab = 'messages'"
           >
@@ -1007,7 +1010,7 @@ onUnmounted(() => {
           <button
             type="button"
             data-test="subtab-media"
-            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition cursor-pointer"
+            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
             :class="activeStageTab === 'media' ? 'bg-black/10 dark:bg-white/12 text-[var(--ap-text-primary)] shadow-sm' : 'text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/5'"
             @click="activeStageTab = 'media'"
           >
@@ -1024,7 +1027,7 @@ onUnmounted(() => {
           <button
             type="button"
             data-test="subtab-links"
-            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition cursor-pointer"
+            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
             :class="activeStageTab === 'links' ? 'bg-black/10 dark:bg-white/12 text-[var(--ap-text-primary)] shadow-sm' : 'text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/5'"
             @click="activeStageTab = 'links'"
           >
@@ -1171,6 +1174,12 @@ onUnmounted(() => {
         :profile="currentProfile"
         @close="isProfileSettingsModalOpen = false"
         @save="handleSaveProfile"
+      />
+
+      <!-- Changelog / What's New Modal -->
+      <ChangelogModal
+        :is-open="isChangelogModalOpen"
+        @close="isChangelogModalOpen = false"
       />
 
       <!-- User Profile View Modal -->

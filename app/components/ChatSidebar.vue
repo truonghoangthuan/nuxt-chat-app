@@ -13,6 +13,7 @@ import {
   MessageSquarePlus,
   Search,
   Download,
+  Gamepad2,
 } from '@lucide/vue'
 import type { Conversation, Channel, Profile, ConnectionStatus } from '~/types/chat'
 import {
@@ -31,6 +32,7 @@ import {
 import UserAvatar from '~/components/UserAvatar.vue'
 import Button from '~/components/ui/Button.vue'
 import { useTheme } from '~/composables/useTheme'
+import { APP_VERSION } from '~/utils/version'
 
 const { uiTheme } = useTheme()
 
@@ -51,6 +53,7 @@ const props = withDefaults(
     notificationsEnabled?: boolean
     notificationPermission?: NotificationPermission
     canInstallPwa?: boolean
+    appVersion?: string
   }>(),
   {
     conversations: undefined,
@@ -62,6 +65,7 @@ const props = withDefaults(
     notificationsEnabled: true,
     notificationPermission: 'default',
     canInstallPwa: false,
+    appVersion: APP_VERSION,
   },
 )
 
@@ -75,6 +79,7 @@ const emit = defineEmits<{
   (e: 'openCreateChannel'): void
   (e: 'startDmWithUser', userId: string): void
   (e: 'openProfileSettings'): void
+  (e: 'openChangelog'): void
   (e: 'toggleNotifications'): void
   (e: 'toggleTheme'): void
   (e: 'installPwa'): void
@@ -489,7 +494,7 @@ function onContactsClick() {
               :key="conv.id"
               type="button"
               :data-test="`conversation-item-${conv.id}`"
-              class="w-full flex items-center px-2.5 py-2 rounded-xl text-[13.5px] transition-all group cursor-pointer text-left"
+              class="w-full flex items-center px-2.5 py-2 rounded-xl text-[13.5px] transition-all group cursor-pointer text-left active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
               :class="activeId === conv.id ? 'bg-blue-600/15 dark:bg-blue-600/25 border border-blue-500/30 text-blue-900 dark:text-white font-medium shadow-xs' : 'text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'"
               @click="onConversationClick(conv.id)"
             >
@@ -588,7 +593,7 @@ function onContactsClick() {
               type="button"
               :data-test="`online-friend-${friend.id}`"
               :disabled="Boolean(currentUser && friend.id === currentUser.id)"
-              class="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl text-[12.5px] font-medium text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left group"
+              class="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl text-[12.5px] font-medium text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/5 transition-all text-left group active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
               :class="currentUser && friend.id === currentUser.id ? 'cursor-default' : 'cursor-pointer'"
               @click="onOnlineFriendClick(friend)"
             >
@@ -612,6 +617,31 @@ function onContactsClick() {
                 Chat
               </span>
             </button>
+          </div>
+        </div>
+
+        <!-- Activities / Mini-Games Section -->
+        <div class="pt-2 border-t border-[var(--ap-glass-border)]">
+          <div class="flex items-center justify-between px-2 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--ap-text-muted)]">
+            <span>Activities</span>
+          </div>
+          <div class="grid grid-cols-2 gap-1.5">
+            <a
+              href="/caro"
+              data-test="play-caro"
+              class="flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-semibold text-[var(--ap-text-primary)] bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 border border-black/5 dark:border-white/5 transition-all cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+            >
+              <Gamepad2 class="size-3.5 text-blue-500 shrink-0" aria-hidden="true" />
+              <span class="truncate">Play Caro</span>
+            </a>
+            <a
+              href="/chess"
+              data-test="play-chess"
+              class="flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-semibold text-[var(--ap-text-primary)] bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 border border-black/5 dark:border-white/5 transition-all cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+            >
+              <Gamepad2 class="size-3.5 text-amber-500 shrink-0" aria-hidden="true" />
+              <span class="truncate">Play Chess</span>
+            </a>
           </div>
         </div>
       </div>
@@ -716,8 +746,24 @@ function onContactsClick() {
           </Button>
         </div>
       </div>
-      <a href="/caro" data-test="play-caro" class="shrink-0 px-4 py-3 border-t border-[var(--ap-glass-border)] text-sm font-semibold text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px]">Play Caro</a>
-      <a href="/chess" data-test="play-chess" class="shrink-0 px-4 py-3 border-t border-[var(--ap-glass-border)] text-sm font-semibold text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px]">Play Chess</a>
+
+      <!-- App Version & Release Notes Trigger -->
+      <div class="px-3 py-1.5 border-t border-[var(--ap-glass-border)]/50 bg-black/[0.01] dark:bg-white/[0.01] shrink-0 flex items-center justify-between text-[11px]">
+        <button
+          type="button"
+          data-test="open-changelog"
+          class="group inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full hover:bg-black/5 dark:hover:bg-white/8 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition-all cursor-pointer active:scale-95"
+          :title="`View what's new in v${appVersion}`"
+          @click="emit('openChangelog')"
+        >
+          <span class="w-1.5 h-1.5 rounded-full bg-blue-500 ring-2 ring-blue-500/20 group-hover:scale-110 transition-transform"></span>
+          <span class="font-mono font-medium text-[10px] text-[var(--ap-text-primary)]">v{{ appVersion }}</span>
+          <span class="text-[10px] text-[var(--ap-text-muted)] group-hover:text-[var(--ap-text-secondary)]">· What's new</span>
+        </button>
+        <span class="text-[10px] font-mono text-[var(--ap-text-muted)]/60 pr-0.5">
+          Precision Studio
+        </span>
+      </div>
     </aside>
   </div>
 </template>

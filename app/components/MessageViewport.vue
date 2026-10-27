@@ -584,7 +584,7 @@ onUnmounted(() => {
           <!-- Frosted Action Toolbar (Hover on Desktop, Tap/Focus on Touch) -->
           <div
             v-if="item.message.status === 'sent' && !item.message.deleted_at"
-            class="absolute -top-3 z-20 flex opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto active:opacity-100 active:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity items-center gap-0.5 bg-white/95 dark:bg-[#1a1d28]/95 backdrop-blur-xl border border-black/10 dark:border-white/15 rounded-full px-2 py-0.5 shadow-xl max-w-[calc(100%-0.5rem)] overflow-x-auto"
+            class="absolute -top-3 z-20 flex opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto active:opacity-100 active:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-all duration-150 ease-out translate-y-1 group-hover:translate-y-0 group-focus-within:translate-y-0 active:translate-y-0 focus-within:translate-y-0 items-center gap-0.5 bg-white/95 dark:bg-[#1a1d28]/95 backdrop-blur-xl border border-black/10 dark:border-white/15 rounded-full px-2 py-0.5 shadow-xl max-w-[calc(100%-0.5rem)] overflow-x-auto"
             :class="item.isSender ? 'right-0' : 'left-11 max-w-[calc(100%-2.75rem)]'"
           >
             <button
@@ -1022,7 +1022,7 @@ onUnmounted(() => {
         data-test="scroll-to-bottom"
         class="absolute bottom-3 right-6 z-10 transition-all cursor-pointer backdrop-blur-md shadow-lg"
         :class="unreadNewCount > 0
-          ? 'px-3.5 py-1.5 rounded-full bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium shadow-blue-500/30 animate-bounce flex items-center gap-1.5'
+          ? 'px-3.5 py-1.5 rounded-full bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold shadow-md shadow-blue-500/30 hover:scale-105 active:scale-95 flex items-center gap-1.5'
           : 'w-9 h-9 rounded-full bg-white/80 dark:bg-[#1a1d28]/90 hover:bg-white dark:hover:bg-[#1a1d28] border border-black/10 dark:border-white/10 text-[var(--ap-text-primary)] flex items-center justify-center shadow-black/10 hover:scale-105 active:scale-95'"
         :aria-label="unreadNewCount > 0 ? `${unreadNewCount} new messages` : 'Scroll to bottom'"
         @click="scrollToBottom(true)"

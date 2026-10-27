@@ -829,4 +829,19 @@ describe('IndexPage (app/pages/index.vue)', () => {
     const mainEl = wrapper.find('[data-test="chat-stage-main"]')
     expect(mainEl.classes()).toContain('animate-buzz-shake')
   })
+
+  it('opens ChangelogModal when openChangelog is emitted from ChatSidebar', async () => {
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    const changelogModal = wrapper.findComponent({ name: 'ChangelogModal' })
+    expect(changelogModal.exists()).toBe(true)
+    expect(changelogModal.props('isOpen')).toBe(false)
+
+    const sidebar = wrapper.findComponent({ name: 'ChatSidebar' })
+    sidebar.vm.$emit('openChangelog')
+    await wrapper.vm.$nextTick()
+
+    expect(changelogModal.props('isOpen')).toBe(true)
+  })
 })
