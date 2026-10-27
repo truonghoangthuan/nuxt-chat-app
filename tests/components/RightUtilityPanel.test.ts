@@ -89,4 +89,19 @@ describe('RightUtilityPanel Component', () => {
 
     expect(localStorage.getItem('chaos-banter-conv-123')).toBe('Pizza bet: Alice owes 2 slices')
   })
+
+  it('renders mobile backdrop when open and emits close when backdrop is clicked', async () => {
+    const wrapper = mount(RightUtilityPanel, {
+      props: {
+        isOpen: true,
+        conversation: mockConversation,
+      },
+    })
+
+    const backdrop = wrapper.find('[data-test="utility-panel-backdrop"]')
+    expect(backdrop.exists()).toBe(true)
+
+    await backdrop.trigger('click')
+    expect(wrapper.emitted('close')).toBeTruthy()
+  })
 })

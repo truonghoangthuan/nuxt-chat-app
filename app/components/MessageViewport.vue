@@ -163,8 +163,8 @@ function parseCodeBlock(content: string) {
   return { isCode: false, language: '', code: '' }
 }
 
-function parseStickerPayload(content: string) {
-  if (!content) return null
+function parseStickerPayload(content?: string) {
+  if (!content || typeof content !== 'string') return null
   const match = content.match(/^\[sticker:([a-zA-Z0-9_-]+):([^:]+):([^\]]+)\]$/)
   if (match) {
     return {
@@ -738,7 +738,7 @@ onUnmounted(() => {
                   @{{ item.message.reply_to?.author?.display_name || 'Friend' }}
                 </span>
                 <span class="truncate italic">
-                  {{ item.message.reply_to?.deleted_at ? 'Original message was deleted' : (item.message.reply_to?.encryption === 'undecryptable' ? '🔒 Unable to decrypt this message' : (isImagePayload(item.message.reply_to?.content) ? formatImageMessageSummary(parseImagePayload(item.message.reply_to?.content)?.images.length || 1) : (item.message.reply_to?.content || 'Message'))) }}
+                  {{ item.message.reply_to?.deleted_at ? 'Original message was deleted' : (item.message.reply_to?.encryption === 'undecryptable' ? '🔒 Unable to decrypt this message' : (isImagePayload(item.message.reply_to?.content) ? formatImageMessageSummary(parseImagePayload(item.message.reply_to?.content)?.images.length || 1) : (parseStickerPayload(item.message.reply_to?.content) ? `[Sticker] ${parseStickerPayload(item.message.reply_to?.content)!.emoji} ${parseStickerPayload(item.message.reply_to?.content)!.label}` : (item.message.reply_to?.content || 'Message')))) }}
                 </span>
               </div>
 

@@ -106,13 +106,24 @@ function handleSendSticker(sticker: typeof STICKERS[0]) {
 </script>
 
 <template>
-  <aside
-    data-test="right-utility-panel"
-    class="flex flex-col h-full bg-[var(--ap-sidebar)] backdrop-blur-2xl rounded-2xl border border-[var(--ap-glass-border)] shadow-xl overflow-hidden transition-all duration-300 ease-in-out shrink-0 select-none z-30"
-    :class="[
-      isOpen ? 'w-80 opacity-100' : 'w-0 opacity-0 pointer-events-none border-0 p-0 overflow-hidden'
-    ]"
-  >
+  <div class="h-full shrink-0 flex">
+    <!-- Mobile Backdrop -->
+    <div
+      v-if="isOpen"
+      data-test="utility-panel-backdrop"
+      class="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs md:hidden"
+      @click="emit('close')"
+    ></div>
+
+    <aside
+      data-test="right-utility-panel"
+      class="fixed inset-y-0 right-0 z-50 md:static md:z-30 flex flex-col h-full bg-[var(--ap-sidebar)] backdrop-blur-2xl rounded-l-2xl md:rounded-2xl border-l md:border border-[var(--ap-glass-border)] shadow-2xl md:shadow-xl overflow-hidden transition-all duration-300 ease-in-out shrink-0 select-none"
+      :class="[
+        isOpen
+          ? 'w-80 opacity-100 translate-x-0'
+          : 'w-0 opacity-0 pointer-events-none border-0 p-0 overflow-hidden translate-x-full md:translate-x-0'
+      ]"
+    >
     <!-- Panel Header -->
     <div class="h-14 px-4 border-b border-[var(--ap-glass-border)] flex items-center justify-between shrink-0 bg-white/5 dark:bg-white/[0.02]">
       <div class="flex items-center gap-2">
@@ -354,4 +365,5 @@ function handleSendSticker(sticker: typeof STICKERS[0]) {
       </div>
     </div>
   </aside>
+  </div>
 </template>

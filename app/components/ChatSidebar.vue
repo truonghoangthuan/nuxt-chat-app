@@ -47,7 +47,8 @@ const FUN_STATUSES = [
   'listening to bangers 🎵',
 ]
 
-function getFriendFunnyStatus(id: string): string {
+function getFriendFunnyStatus(id?: string): string {
+  if (!id || typeof id !== 'string') return FUN_STATUSES[0]
   let hash = 0
   for (let i = 0; i < id.length; i++) {
     hash = (hash << 5) - hash + id.charCodeAt(i)

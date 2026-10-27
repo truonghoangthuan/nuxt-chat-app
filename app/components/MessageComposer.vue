@@ -10,6 +10,19 @@ import { useTheme } from '~/composables/useTheme'
 
 const { uiTheme } = useTheme()
 
+function parseStickerPayload(content?: string) {
+  if (!content || typeof content !== 'string') return null
+  const match = content.match(/^\[sticker:([a-zA-Z0-9_-]+):([^:]+):([^\]]+)\]$/)
+  if (match) {
+    return {
+      id: match[1],
+      label: match[2],
+      emoji: match[3],
+    }
+  }
+  return null
+}
+
 const props = withDefaults(
   defineProps<{
     conversationId?: string
@@ -417,7 +430,7 @@ onUnmounted(() => {
       >
         <div class="truncate text-[var(--ap-text-secondary)]">
           Replying to <span class="font-semibold text-blue-600 dark:text-blue-300 font-mono">@{{ replyingTo.author?.display_name || 'Friend' }}</span>:
-          <span class="italic ml-1 text-[var(--ap-text-primary)]">{{ isImagePayload(replyingTo.content) ? formatImageMessageSummary(parseImagePayload(replyingTo.content)?.images.length || 1) : replyingTo.content }}</span>
+          <span class="italic ml-1 text-[var(--ap-text-primary)]">{{ isImagePayload(replyingTo.content) ? formatImageMessageSummary(parseImagePayload(replyingTo.content)?.images.length || 1) : (parseStickerPayload(replyingTo.content) ? `[Sticker] ${parseStickerPayload(replyingTo.content)!.emoji} ${parseStickerPayload(replyingTo.content)!.label}` : replyingTo.content) }}</span>
         </div>
         <Button
           type="button"
