@@ -191,4 +191,54 @@ describe('server endpoints', () => {
     const res = await streamHandler(mockEvent)
     expect(res).toEqual({ error: 'Invalid video ID' })
   })
+
+  it('stream endpoint falls back to iTunes AAC stream when upstream YouTube stream fails', async () => {
+    const origFetch = globalThis.fetch
+    globalThis.fetch = vi.fn().mockImplementation(async (input: any) => {
+      const url = String(input)
+      if (url.includes('itunes.apple.com/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            results: [{ previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/mock.m4a' }],
+          }),
+        }
+      }
+      if (url.includes('audio-ssl.itunes.apple.com')) {
+        return new Response(new Uint8Array([1, 2, 3, 4]), {
+          status: 206,
+          headers: {
+            'content-type': 'audio/mp4',
+            'content-range': 'bytes 0-3/4',
+            'content-length': '4',
+          },
+        })
+      }
+      // Simulate all direct YouTube / Piped / Invidious endpoints failing on datacenter IP
+      return { ok: false, status: 403, json: async () => ({}) }
+    }) as any
+
+    try {
+      const mockEvent = {
+        path: '/api/youtube/stream?v=ZlSx-6UbrmI&title=Em%20Khong%20Quay%20Ve',
+        node: {
+          req: {
+            url: '/api/youtube/stream?v=ZlSx-6UbrmI&title=Em%20Khong%20Quay%20Ve',
+            headers: { range: 'bytes=0-1023' },
+          },
+          res: {
+            statusCode: 200,
+            setHeader: vi.fn(),
+          },
+        },
+      } as any
+
+      const res = (await streamHandler(mockEvent)) as Response
+      expect(res.status).toBe(206)
+      expect(res.headers.get('Content-Type')).toBe('audio/mp4')
+    } finally {
+      globalThis.fetch = origFetch
+    }
+  })
 })

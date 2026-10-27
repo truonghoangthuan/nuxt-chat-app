@@ -167,7 +167,8 @@ function onPlayerAction(action: 'play' | 'pause' | 'seek' | 'load', payload?: an
 
   try {
     if (action === 'load' && payload?.videoId) {
-      audio.src = `/api/youtube/stream?v=${encodeURIComponent(payload.videoId)}`
+      const titleParam = payload.title ? `&title=${encodeURIComponent(payload.title)}` : ''
+      audio.src = `/api/youtube/stream?v=${encodeURIComponent(payload.videoId)}${titleParam}`
       audio.currentTime = payload.startSeconds || 0
       audio.volume = Math.max(0, Math.min(1, musicVolume.value / 100))
       audio.muted = !!musicIsMuted.value
