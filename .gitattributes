@@ -1,0 +1,2 @@
+# Enforce LF for scripts with shebangs to prevent Vite/Rollup SyntaxError on Windows CRLF
+scripts/* text eol=lf
