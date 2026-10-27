@@ -27,6 +27,7 @@ import ConfettiOverlay from '~/components/ConfettiOverlay.vue'
 import MusicPlayerBar from '~/components/MusicPlayerBar.vue'
 import YouTubeSearchModal from '~/components/YouTubeSearchModal.vue'
 import ChangelogModal from '~/components/ChangelogModal.vue'
+import RightUtilityPanel from '~/components/RightUtilityPanel.vue'
 import { Menu, Users, Info, Search, Image as ImageIcon, MessageSquare, Link2, Settings, Sun, Moon, Plus, Sparkles, Music } from '@lucide/vue'
 import { useE2ee } from '~/composables/useE2ee'
 import { usePwaInstall } from '~/composables/usePwaInstall'
@@ -140,7 +141,18 @@ const isUserProfileModalOpen = ref(false)
 const selectedUserProfile = ref<Profile | null>(null)
 
 const isMusicSearchModalOpen = ref(false)
+const isUtilityPanelOpen = ref(false)
 const audioPlayerRef = ref<HTMLAudioElement | null>(null)
+
+function handleSendQuickReaction(emoji: string) {
+  const sentMsgs = messages.value.filter(m => m.status === 'sent' && !m.deleted_at)
+  if (sentMsgs.length > 0) {
+    const latest = sentMsgs[sentMsgs.length - 1]
+    toggleReaction(latest.id, emoji)
+  } else {
+    handleSendMessage(emoji)
+  }
+}
 
 function handleAudioTimeUpdate() {
   if (audioPlayerRef.value) {
@@ -944,6 +956,19 @@ onUnmounted(() => {
               <Search class="w-4 h-4" />
             </button>
 
+            <!-- Beautiful Chaos Utility Panel Trigger -->
+            <button
+              v-if="activeConversation || activeChannel"
+              type="button"
+              data-test="toggle-utility-panel"
+              title="Toggle Chaos & Utility Panel"
+              class="p-1.5 rounded-full bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/25 text-purple-600 dark:text-purple-300 transition-all active:scale-90 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/50"
+              aria-label="Toggle Chaos & Utility Panel"
+              @click="isUtilityPanelOpen = !isUtilityPanelOpen"
+            >
+              <Sparkles class="w-4 h-4" />
+            </button>
+
             <button
               v-if="activeConversation?.type === 'group'"
               type="button"
@@ -1086,6 +1111,7 @@ onUnmounted(() => {
             @typing="notifyTyping"
             @cancel-reply="replyingTo = null"
             @send-images="handleSendImages"
+            @toggle-stickers="isUtilityPanelOpen = !isUtilityPanelOpen"
           />
         </MessageViewport>
 
@@ -1112,6 +1138,21 @@ onUnmounted(() => {
           @view-profile="handleViewProfile"
         />
       </main>
+
+      <!-- Right Utility Panel (Collapsible Beautiful Chaos Hub) -->
+      <RightUtilityPanel
+        :is-open="isUtilityPanelOpen"
+        :conversation="activeConversation"
+        :media-count="mediaCount"
+        :links-count="linksCount"
+        @close="isUtilityPanelOpen = false"
+        @send-sticker="handleSendMessage"
+        @send-reaction="handleSendQuickReaction"
+        @switch-tab="activeStageTab = $event"
+        @open-background="isChatBackgroundModalOpen = true"
+        @open-confetti="isConfettiDictionaryModalOpen = true"
+        @open-group-info="isGroupInfoModalOpen = true"
+      />
 
       <!-- Contacts Modal -->
       <ContactsModal

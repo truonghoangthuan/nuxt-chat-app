@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
-import { Send, X, Plus, Zap } from '@lucide/vue'
+import { Send, X, Plus, Zap, Sparkles } from '@lucide/vue'
 import Button from '~/components/ui/Button.vue'
 import type { ChatMessage, Profile } from '~/types/chat'
 import { shouldSendOnKeydown, extractActiveMentionQuery, applyMentionAutocomplete } from '~/utils/chat'
@@ -36,6 +36,7 @@ const emit = defineEmits<{
   (e: 'typing'): void
   (e: 'cancelReply'): void
   (e: 'buzz'): void
+  (e: 'toggleStickers'): void
 }>()
 
 const drafts = ref<Record<string, string>>({})
@@ -557,7 +558,7 @@ onUnmounted(() => {
           type="button"
           :disabled="disabled || buzzCooldownRemaining > 0"
           data-test="buzz-button"
-          class="w-8 h-8 rounded-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/25 flex items-center justify-center transition-all active:scale-90 shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          class="w-8 h-8 rounded-full bg-amber-500/15 hover:bg-amber-500/25 text-amber-600 dark:text-amber-400 border border-amber-500/35 hover:shadow-[0_0_12px_rgba(245,158,11,0.4)] flex items-center justify-center transition-all active:scale-90 shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           :title="buzzCooldownRemaining > 0 ? `Buzz cooldown (${buzzCooldownRemaining}s)` : 'Buzz the chat!'"
           aria-label="Buzz the chat"
           @click="handleBuzz"
@@ -566,6 +567,18 @@ onUnmounted(() => {
             {{ buzzCooldownRemaining }}
           </span>
           <Zap v-else class="size-3.5 fill-current" aria-hidden="true" />
+        </button>
+
+        <!-- Quick Stickers & Chaos Toggle Button -->
+        <button
+          type="button"
+          data-test="open-stickers-btn"
+          class="w-8 h-8 rounded-full bg-purple-500/15 hover:bg-purple-500/25 text-purple-600 dark:text-purple-300 border border-purple-500/30 hover:shadow-[0_0_12px_rgba(168,85,247,0.4)] flex items-center justify-center transition-all active:scale-90 shrink-0 cursor-pointer"
+          title="Quick Stickers & Chaos"
+          aria-label="Quick Stickers & Chaos"
+          @click="emit('toggleStickers')"
+        >
+          <Sparkles class="size-3.5" aria-hidden="true" />
         </button>
 
         <!-- Send Button -->

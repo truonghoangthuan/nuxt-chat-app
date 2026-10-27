@@ -8,20 +8,20 @@
 
 :root {
   /* Apple Fluid (Light Mode) */
-  --ap-bg: #f5f6fa;
-  --ap-canvas: #f5f6fa;
-  --ap-sidebar: rgba(255, 255, 255, 0.85);
-  --ap-stage: rgba(255, 255, 255, 0.92);
+  --ap-bg: #f8f7fc;
+  --ap-canvas: #f8f7fc;
+  --ap-sidebar: rgba(255, 255, 255, 0.88);
+  --ap-stage: rgba(255, 255, 255, 0.94);
   --ap-glass: rgba(0, 0, 0, 0.04);
-  --ap-glass-border: rgba(0, 0, 0, 0.08);
-  --ap-glass-hover: rgba(0, 0, 0, 0.06);
-  --ap-blue: #007aff;
-  --ap-blue-gradient: linear-gradient(135deg, #0a84ff 0%, #0062cc 100%);
-  --ap-text-primary: #1d1d1f;
-  --ap-text-secondary: rgba(0, 0, 0, 0.65);
-  --ap-text-muted: rgba(0, 0, 0, 0.40);
+  --ap-glass-border: rgba(139, 92, 246, 0.12);
+  --ap-glass-hover: rgba(139, 92, 246, 0.08);
+  --ap-blue: #7c3aed;
+  --ap-blue-gradient: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  --ap-text-primary: #181423;
+  --ap-text-secondary: rgba(24, 20, 35, 0.70);
+  --ap-text-muted: rgba(24, 20, 35, 0.45);
   --fp-text-muted: var(--ap-text-muted);
-  --ap-presence-online: #34c759;
+  --ap-presence-online: #10b981;
   --ap-destructive: #ff3b30;
 
   --radius: 0.75rem;
@@ -59,22 +59,22 @@
 }
 
 html.dark {
-  /* Apple Fluid (Dark Mode) */
-  --ap-bg: #0d0f17;
-  --ap-canvas: #0d0f17;
-  --ap-sidebar: rgba(22, 25, 36, 0.75);
-  --ap-stage: rgba(16, 18, 26, 0.85);
-  --ap-glass: rgba(255, 255, 255, 0.06);
-  --ap-glass-border: rgba(255, 255, 255, 0.12);
-  --ap-glass-hover: rgba(255, 255, 255, 0.10);
-  --ap-blue: #007aff;
-  --ap-blue-gradient: linear-gradient(135deg, #0a84ff 0%, #0062cc 100%);
-  --ap-text-primary: #ffffff;
-  --ap-text-secondary: rgba(255, 255, 255, 0.70);
-  --ap-text-muted: rgba(255, 255, 255, 0.40);
+  /* Apple Fluid (Dark Mode) - Beautiful Chaos */
+  --ap-bg: #0c0a14;
+  --ap-canvas: #0c0a14;
+  --ap-sidebar: rgba(19, 16, 31, 0.82);
+  --ap-stage: rgba(14, 12, 24, 0.88);
+  --ap-glass: rgba(255, 255, 255, 0.05);
+  --ap-glass-border: rgba(168, 85, 247, 0.16);
+  --ap-glass-hover: rgba(168, 85, 247, 0.12);
+  --ap-blue: #8b5cf6;
+  --ap-blue-gradient: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);
+  --ap-text-primary: #f8fafc;
+  --ap-text-secondary: rgba(241, 245, 249, 0.75);
+  --ap-text-muted: rgba(241, 245, 249, 0.45);
   --fp-text-muted: var(--ap-text-muted);
-  --ap-presence-online: #30d158;
-  --ap-destructive: #ff453a;
+  --ap-presence-online: #34d399;
+  --ap-destructive: #f43f5e;
 
   --background: #09090b;
   --foreground: #f4f4f5;
@@ -259,8 +259,9 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", sans-serif;
   font-variant-numeric: tabular-nums;
   background-color: var(--ap-canvas);
-  background-image: radial-gradient(circle at 15% 20%, rgba(94, 106, 210, 0.10) 0%, transparent 40%),
-                    radial-gradient(circle at 85% 80%, rgba(0, 122, 255, 0.10) 0%, transparent 40%);
+  background-image: radial-gradient(circle at 12% 18%, rgba(139, 92, 246, 0.14) 0%, transparent 45%),
+                    radial-gradient(circle at 88% 82%, rgba(99, 102, 241, 0.12) 0%, transparent 45%),
+                    radial-gradient(circle at 50% 50%, rgba(236, 72, 153, 0.05) 0%, transparent 60%);
   background-attachment: fixed;
   color: var(--ap-text-primary);
   -webkit-font-smoothing: antialiased;
@@ -369,6 +370,26 @@ body {
 
 .animate-buzz-shake {
   animation: buzz-shake 0.65s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes chaos-pop {
+  0% { transform: scale(0.9); opacity: 0; }
+  60% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-chaos-pop {
+  animation: chaos-pop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+@keyframes sticker-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-3deg) scale(1.02); }
+  75% { transform: rotate(3deg) scale(1.02); }
+}
+
+.animate-sticker-wiggle:hover {
+  animation: sticker-wiggle 0.4s ease-in-out infinite;
 }
 
 /* Apple Fluid micro-transitions and modal motion */

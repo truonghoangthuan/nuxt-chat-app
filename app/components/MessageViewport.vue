@@ -163,6 +163,19 @@ function parseCodeBlock(content: string) {
   return { isCode: false, language: '', code: '' }
 }
 
+function parseStickerPayload(content: string) {
+  if (!content) return null
+  const match = content.match(/^\[sticker:([a-zA-Z0-9_-]+):([^:]+):([^\]]+)\]$/)
+  if (match) {
+    return {
+      id: match[1],
+      label: match[2],
+      emoji: match[3],
+    }
+  }
+  return null
+}
+
 async function copyCode(code: string, messageId: string) {
   try {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -464,24 +477,37 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <!-- Apple Empty State with Iridescent Aura Ring -->
+      <!-- Beautiful Chaos Empty State with Iridescent Glow & Whimsical Emojis -->
       <div
         v-if="messages.length === 0"
         data-test="empty-channel-placeholder"
-        class="h-full flex flex-col items-center justify-center text-center py-16"
+        class="h-full flex flex-col items-center justify-center text-center py-16 px-4 select-none"
       >
         <div class="relative mb-5 flex items-center justify-center">
-          <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-pink-500 via-purple-500 to-cyan-400 p-0.5 shadow-[0_0_30px_rgba(168,85,247,0.35)] animate-pulse">
-            <div class="w-full h-full bg-white dark:bg-[#161824] rounded-full flex items-center justify-center text-xl font-bold font-mono text-[var(--ap-text-primary)]">
+          <!-- Floating playful decorative particles -->
+          <span class="absolute -top-3 -left-5 text-xl animate-bounce [animation-delay:-0.2s]">✨</span>
+          <span class="absolute -top-2 -right-5 text-xl animate-bounce [animation-delay:-0.4s]">⚡</span>
+          <span class="absolute -bottom-2 -left-4 text-lg animate-bounce [animation-delay:-0.6s]">🍿</span>
+          <span class="absolute -bottom-2 -right-4 text-lg animate-bounce [animation-delay:-0.8s]">👾</span>
+
+          <div class="w-18 h-18 rounded-3xl bg-gradient-to-tr from-purple-500 via-pink-500 to-indigo-500 p-0.5 shadow-[0_0_35px_rgba(168,85,247,0.4)] animate-pulse">
+            <div class="w-full h-full bg-white dark:bg-[#151221] rounded-3xl flex items-center justify-center text-2xl font-bold font-mono text-purple-600 dark:text-purple-300">
               {{ !isGroupComputed ? '@' : '#' }}
             </div>
           </div>
         </div>
-        <h3 class="text-base font-semibold text-[var(--ap-text-primary)] tracking-tight">No Messages Yet</h3>
-        <p class="text-[13px] text-[var(--ap-text-secondary)] font-medium max-w-sm mt-1">
+        <h3 class="text-base font-bold text-[var(--ap-text-primary)] tracking-tight flex items-center gap-1.5">
+          <span>No Messages Yet</span>
+          <span class="text-[10px] px-2 py-0.5 rounded-full font-mono bg-purple-500/15 text-purple-600 dark:text-purple-300 font-semibold border border-purple-500/25">
+            Calm Before Chaos
+          </span>
+        </h3>
+        <p class="text-[13px] text-[var(--ap-text-secondary)] font-medium max-w-sm mt-1.5">
           {{ !isGroupComputed ? `This is the start of your direct message history with ${peerName ? '@' + peerName : 'your friend'}` : 'This is the start of this channel' }}
         </p>
-        <p class="text-xs text-[var(--ap-text-muted)] mt-1 mb-5">Be the first to say hello, share photos, or kick off a conversation with end-to-end encryption.</p>
+        <p class="text-xs text-[var(--ap-text-muted)] mt-1 mb-5 max-w-xs">
+          80% functional messaging, 20% delightful nonsense. Be the first to drop a meme, say hello, or start some chaos!
+        </p>
       </div>
 
       <!-- Messages List -->
@@ -694,8 +720,8 @@ onUnmounted(() => {
                     : (uiTheme === 'yahoo'
                         ? 'px-0 py-0 text-xs text-[var(--ap-text-primary)] rounded-none shadow-none font-sans inline'
                         : (item.isSender
-                            ? 'px-4 py-2.5 bg-indigo-600 bg-gradient-to-br from-[#0a84ff] to-[#0062cc] text-white rounded-[22px] rounded-br-[4px] shadow-md shadow-blue-600/25'
-                            : 'px-4 py-2.5 bg-black/[0.04] dark:bg-white/8 hover:bg-black/[0.06] dark:hover:bg-white/10 backdrop-blur-md border border-black/[0.08] dark:border-white/10 text-[var(--ap-text-primary)] rounded-[22px] rounded-bl-[4px] shadow-xs')),
+                            ? 'px-4 py-2.5 bg-indigo-600 bg-gradient-to-br from-[#8b5cf6] via-[#7c3aed] to-[#6366f1] text-white rounded-[22px] rounded-br-[4px] shadow-md shadow-purple-600/25 border border-purple-400/20'
+                            : 'px-4 py-2.5 bg-black/[0.04] dark:bg-white/8 hover:bg-black/[0.06] dark:hover:bg-white/10 backdrop-blur-md border border-black/[0.08] dark:border-purple-500/15 text-[var(--ap-text-primary)] rounded-[22px] rounded-bl-[4px] shadow-xs')),
                   item.message.status === 'sending' ? 'opacity-85' : '',
                   item.message.status === 'failed' ? 'border-rose-500/50' : '',
                   highlightedMessageId === item.message.id ? 'ring-2 ring-blue-500 ring-offset-2' : '',
@@ -857,6 +883,17 @@ onUnmounted(() => {
                   </button>
                 </div>
                 <pre class="p-3 overflow-x-auto text-white/90 leading-relaxed font-mono text-[12px]">{{ parseCodeBlock(item.message.content).code }}</pre>
+              </div>
+
+              <!-- Expressive Chaos Sticker Message -->
+              <div
+                v-else-if="parseStickerPayload(item.message.content)"
+                data-test="sticker-bubble"
+                class="flex flex-col items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-purple-500/20 via-pink-500/15 to-indigo-500/20 border border-purple-500/35 shadow-md shadow-purple-500/10 animate-chaos-pop my-1 min-w-[120px] select-none text-center"
+              >
+                <span class="text-4xl animate-bounce mb-1">{{ parseStickerPayload(item.message.content)!.emoji }}</span>
+                <span class="text-xs font-bold tracking-tight text-[var(--ap-text-primary)]">{{ parseStickerPayload(item.message.content)!.label }}</span>
+                <span class="text-[9.5px] font-mono px-2 py-0.2 rounded-full bg-purple-500/25 text-purple-700 dark:text-purple-300 border border-purple-500/30 mt-1 font-semibold">Sticker</span>
               </div>
 
               <!-- Standard Text Message Content -->

@@ -36,6 +36,26 @@ import { APP_VERSION } from '~/utils/version'
 
 const { uiTheme } = useTheme()
 
+const FUN_STATUSES = [
+  'vibing in chaos ✨',
+  'plotting shenanigans 🧠',
+  'touching grass 🌱',
+  'gaming hard 🎮',
+  'scheming nonsense ⚡',
+  'eating snacks 🍕',
+  'caffeinated & fast ☕',
+  'listening to bangers 🎵',
+]
+
+function getFriendFunnyStatus(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash << 5) - hash + id.charCodeAt(i)
+    hash |= 0
+  }
+  return FUN_STATUSES[Math.abs(hash) % FUN_STATUSES.length]
+}
+
 const props = withDefaults(
   defineProps<{
     conversations?: Conversation[]
@@ -378,10 +398,15 @@ function onContactsClick() {
         </div>
       </div>
 
-      <!-- Header Bar with Quick Actions (Traffic lights removed) -->
-      <div v-else class="h-12 px-3.5 flex items-center justify-between border-b border-[var(--ap-glass-border)] shrink-0">
-        <!-- Title -->
-        <span class="text-xs font-semibold text-[var(--ap-text-primary)] tracking-tight">Messages</span>
+      <!-- Header Bar with Quick Actions -->
+      <div v-else class="h-12 px-3.5 flex items-center justify-between border-b border-[var(--ap-glass-border)] shrink-0 bg-white/5 dark:bg-white/[0.02]">
+        <!-- Title & Playful Brand -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-xs font-bold text-[var(--ap-text-primary)] tracking-tight">Messages</span>
+          <span class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[9.5px] font-bold bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/25 shadow-xs">
+            ✨ Chaos
+          </span>
+        </div>
 
         <!-- Quick actions -->
         <div class="flex items-center gap-1">
@@ -495,7 +520,7 @@ function onContactsClick() {
               type="button"
               :data-test="`conversation-item-${conv.id}`"
               class="w-full flex items-center px-2.5 py-2 rounded-xl text-[13.5px] transition-all group cursor-pointer text-left active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
-              :class="activeId === conv.id ? 'bg-blue-600/15 dark:bg-blue-600/25 border border-blue-500/30 text-blue-900 dark:text-white font-medium shadow-xs' : 'text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'"
+              :class="activeId === conv.id ? 'bg-purple-600/15 dark:bg-purple-600/25 border border-purple-500/35 text-purple-900 dark:text-white font-medium shadow-xs shadow-purple-500/10' : 'text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'"
               @click="onConversationClick(conv.id)"
             >
               <div
@@ -597,7 +622,7 @@ function onContactsClick() {
               :class="currentUser && friend.id === currentUser.id ? 'cursor-default' : 'cursor-pointer'"
               @click="onOnlineFriendClick(friend)"
             >
-              <div class="flex items-center gap-2 truncate">
+              <div class="flex items-center gap-2 truncate min-w-0">
                 <UserAvatar
                   :display-name="friend.display_name"
                   :avatar-color="friend.avatar_color"
@@ -605,10 +630,15 @@ function onContactsClick() {
                   :show-online="true"
                   size="sm"
                 />
-                <span class="truncate">
-                  {{ friend.display_name }}
-                  <span v-if="currentUser && friend.id === currentUser.id" class="text-[var(--ap-text-muted)] text-[11px] ml-1">(you)</span>
-                </span>
+                <div class="truncate text-left">
+                  <div class="truncate leading-tight">
+                    {{ friend.display_name }}
+                    <span v-if="currentUser && friend.id === currentUser.id" class="text-[var(--ap-text-muted)] text-[11px] ml-1">(you)</span>
+                  </div>
+                  <div class="text-[10px] text-[var(--ap-text-muted)] truncate font-normal">
+                    {{ getFriendFunnyStatus(friend.id) }}
+                  </div>
+                </div>
               </div>
               <span
                 v-if="!currentUser || friend.id !== currentUser.id"
