@@ -224,3 +224,228 @@ export async function searchYouTubeVideos(
 
   return { items: [], error: 'Failed to search YouTube' }
 }
+
+export function isValidYouTubeVideoId(videoId: string): boolean {
+  if (typeof videoId !== 'string') return false
+  return /^[\w-]{11}$/.test(videoId.trim())
+}
+
+export function getYouTubeThumbnailProxyUrl(videoId: string, fallbackThumbnail = ''): string {
+  if (isValidYouTubeVideoId(videoId)) {
+    return `/api/youtube/thumbnail?v=${encodeURIComponent(videoId.trim())}`
+  }
+  return fallbackThumbnail
+}
+
+export function normalizeStreamRangeHeader(
+  rangeHeader: string | undefined,
+  maxChunkBytes: number = 2 * 1024 * 1024,
+): string {
+  if (!rangeHeader || typeof rangeHeader !== 'string') {
+    return `bytes=0-${maxChunkBytes - 1}`
+  }
+  const match = rangeHeader.trim().match(/^bytes=(\d+)-(\d*)$/)
+  if (!match) {
+    return `bytes=0-${maxChunkBytes - 1}`
+  }
+  const start = parseInt(match[1], 10)
+  if (Number.isNaN(start) || start < 0) {
+    return `bytes=0-${maxChunkBytes - 1}`
+  }
+  const requestedEnd = match[2] ? parseInt(match[2], 10) : undefined
+  const maxEnd = start + maxChunkBytes - 1
+  const end = requestedEnd !== undefined && !Number.isNaN(requestedEnd) && requestedEnd >= start
+    ? Math.min(requestedEnd, maxEnd)
+    : maxEnd
+  return `bytes=${start}-${end}`
+}
+
+export function extractBestAudioFormat(formats: any[]): { url: string; mimeType: string } | null {
+  if (!Array.isArray(formats) || formats.length === 0) return null
+
+  const audioFormats = formats.filter((f) => {
+    if (!f || typeof f.url !== 'string' || !/^https?:\/\//.test(f.url)) return false
+    const type = String(f.mimeType || f.type || '').toLowerCase()
+    return type.startsWith('audio/')
+  })
+
+  if (audioFormats.length === 0) return null
+
+  // Prefer audio/mp4 (m4a) for universal Safari/Chrome/Firefox/Edge compatibility, then audio/webm
+  const sorted = [...audioFormats].sort((a, b) => {
+    const aType = String(a.mimeType || a.type || '').toLowerCase()
+    const bType = String(b.mimeType || b.type || '').toLowerCase()
+    const aIsMp4 = aType.includes('mp4') || aType.includes('m4a')
+    const bIsMp4 = bType.includes('mp4') || bType.includes('m4a')
+
+    if (aIsMp4 && !bIsMp4) return -1
+    if (!aIsMp4 && bIsMp4) return 1
+
+    const aBitrate = Number(a.bitrate || a.audioBitrate || 0)
+    const bBitrate = Number(b.bitrate || b.audioBitrate || 0)
+    return bBitrate - aBitrate
+  })
+
+  const best = sorted[0]
+  const rawType = String(best.mimeType || best.type || '').toLowerCase()
+  const mimeType = rawType.includes('mp4') || rawType.includes('m4a') ? 'audio/mp4' : 'audio/webm'
+
+  return {
+    url: best.url,
+    mimeType,
+  }
+}
+
+interface CachedStream {
+  url: string
+  mimeType: string
+  expiresAt: number
+}
+
+const streamUrlCache = new Map<string, CachedStream>()
+
+export interface ResolveAudioOptions {
+  fetchFn?: typeof fetch
+  bypassCache?: boolean
+}
+
+export async function resolveYouTubeAudioStream(
+  videoId: string,
+  options: ResolveAudioOptions = {},
+): Promise<{ url: string; mimeType: string } | null> {
+  const cleanId = typeof videoId === 'string' ? videoId.trim() : ''
+  if (!isValidYouTubeVideoId(cleanId)) {
+    return null
+  }
+
+  const myFetch = options.fetchFn || (typeof fetch !== 'undefined' ? fetch : undefined)
+  if (!myFetch) {
+    return null
+  }
+
+  const now = Date.now()
+  if (!options.bypassCache) {
+    const cached = streamUrlCache.get(cleanId)
+    if (cached && cached.expiresAt > now) {
+      return { url: cached.url, mimeType: cached.mimeType }
+    }
+  }
+
+  // 1. YouTube InnerTube Player API with ANDROID_VR client
+  try {
+    const resp = await myFetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+      body: JSON.stringify({
+        context: {
+          client: {
+            clientName: 'ANDROID_VR',
+            clientVersion: '1.60.19',
+            hl: 'en',
+            gl: 'US',
+          },
+        },
+        videoId: cleanId,
+      }),
+    })
+    if (resp.ok) {
+      const data = await resp.json()
+      const formats = data?.streamingData?.adaptiveFormats
+      const best = extractBestAudioFormat(formats)
+      if (best) {
+        streamUrlCache.set(cleanId, { ...best, expiresAt: now + 10 * 60 * 1000 })
+        return best
+      }
+    }
+  } catch {
+    // Continue to next client / provider
+  }
+
+  // 2. YouTube InnerTube Player API with IOS client
+  try {
+    const resp = await myFetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent':
+          'com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X; en_US)',
+      },
+      body: JSON.stringify({
+        context: {
+          client: {
+            clientName: 'IOS',
+            clientVersion: '19.45.4',
+            hl: 'en',
+            gl: 'US',
+            deviceModel: 'iPhone16,2',
+          },
+        },
+        videoId: cleanId,
+      }),
+    })
+    if (resp.ok) {
+      const data = await resp.json()
+      const formats = data?.streamingData?.adaptiveFormats
+      const best = extractBestAudioFormat(formats)
+      if (best) {
+        streamUrlCache.set(cleanId, { ...best, expiresAt: now + 10 * 60 * 1000 })
+        return best
+      }
+    }
+  } catch {
+    // Continue to Piped/Invidious pool
+  }
+
+  // 3. Fallback: Piped API pool
+  const PIPED_INSTANCES = [
+    'https://pipedapi.kavin.rocks',
+    'https://api.piped.private.coffee',
+    'https://pipedapi.adminforge.de',
+  ]
+
+  for (const instance of PIPED_INSTANCES) {
+    try {
+      const resp = await myFetch(`${instance}/streams/${cleanId}`)
+      if (resp.ok) {
+        const data = await resp.json()
+        const formats = data?.audioStreams
+        const best = extractBestAudioFormat(formats)
+        if (best) {
+          streamUrlCache.set(cleanId, { ...best, expiresAt: now + 10 * 60 * 1000 })
+          return best
+        }
+      }
+    } catch {
+      // Try next instance
+    }
+  }
+
+  // 4. Fallback: Invidious API pool
+  const INVIDIOUS_INSTANCES = [
+    'https://inv.nadeko.net',
+    'https://invidious.nerdvpn.de',
+  ]
+
+  for (const instance of INVIDIOUS_INSTANCES) {
+    try {
+      const resp = await myFetch(`${instance}/api/v1/videos/${cleanId}`)
+      if (resp.ok) {
+        const data = await resp.json()
+        const formats = data?.adaptiveFormats
+        const best = extractBestAudioFormat(formats)
+        if (best) {
+          streamUrlCache.set(cleanId, { ...best, expiresAt: now + 10 * 60 * 1000 })
+          return best
+        }
+      }
+    } catch {
+      // Try next instance
+    }
+  }
+
+  return null
+}

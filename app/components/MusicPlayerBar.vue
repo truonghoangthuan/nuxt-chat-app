@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { MusicPlaybackState } from '~/types/chat'
-import { formatDurationSeconds } from '~/utils/youtube'
+import { formatDurationSeconds, getYouTubeThumbnailProxyUrl } from '~/utils/youtube'
 import { Play, Pause, Square, Volume2, VolumeX, Music, Volume1 } from '@lucide/vue'
 
 const props = defineProps<{
@@ -50,7 +50,7 @@ function handleSeekInput(e: Event) {
       <div class="relative w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-black/10 dark:bg-white/10 flex items-center justify-center border border-[var(--ap-glass-border)]">
         <img
           v-if="track.thumbnail"
-          :src="track.thumbnail"
+          :src="getYouTubeThumbnailProxyUrl(track.videoId, track.thumbnail)"
           :alt="track.title"
           class="w-full h-full object-cover"
         />
