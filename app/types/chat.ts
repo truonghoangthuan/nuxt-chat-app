@@ -218,13 +218,41 @@ export interface ExtractedLinkItem {
   userId: string
 }
 
-export type SystemEventType = 'buzz' | 'group_rename' | 'background_change' | 'background_reset'
+export type SystemEventType = 'buzz' | 'group_rename' | 'background_change' | 'background_reset' | 'music_play'
 
 export interface SystemMessagePayload {
   type: 'system'
   event: SystemEventType
   actorName: string
   detail?: string
+}
+
+export interface YouTubeSearchResult {
+  videoId: string
+  title: string
+  channelTitle: string
+  thumbnail: string
+  durationText?: string
+}
+
+export interface MusicPlaybackState {
+  conversationId: string
+  videoId: string
+  title: string
+  channelTitle: string
+  thumbnail: string
+  isPlaying: boolean
+  positionSec: number
+  updatedAt: number
+  startedBy: string
+  actorId?: string
+}
+
+export interface MusicSyncEvent {
+  type: 'play' | 'pause' | 'seek' | 'stop' | 'request_state' | 'sync_state'
+  state: MusicPlaybackState | null
+  senderId: string
+  conversationId: string
 }
 
 
