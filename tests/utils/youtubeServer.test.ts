@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { searchYouTubeVideos, resolveYouTubeAudioStream } from '~/utils/youtube'
+import streamHandler from '../../server/api/youtube/stream.get'
+import thumbnailHandler from '../../server/api/youtube/thumbnail.get'
 
 describe('searchYouTubeVideos', () => {
   it('returns empty items without calling fetch when query is blank', async () => {
@@ -130,5 +132,38 @@ describe('resolveYouTubeAudioStream', () => {
       url: 'https://pipedproxy.example.com/audio.m4a',
       mimeType: 'audio/mp4',
     })
+  })
+})
+
+describe('server endpoints', () => {
+  it('thumbnail endpoint rejects invalid videoId with 400', async () => {
+    let status = 200
+    const mockEvent = {
+      node: {
+        req: { url: '/api/youtube/thumbnail?v=invalid' },
+        res: {
+          statusCode: 200,
+          setHeader: vi.fn(),
+        },
+      },
+    } as any
+
+    const res = await thumbnailHandler(mockEvent)
+    expect(res).toEqual({ error: 'Invalid video ID' })
+  })
+
+  it('stream endpoint rejects invalid videoId with 400', async () => {
+    const mockEvent = {
+      node: {
+        req: { url: '/api/youtube/stream?v=bad' },
+        res: {
+          statusCode: 200,
+          setHeader: vi.fn(),
+        },
+      },
+    } as any
+
+    const res = await streamHandler(mockEvent)
+    expect(res).toEqual({ error: 'Invalid video ID' })
   })
 })
