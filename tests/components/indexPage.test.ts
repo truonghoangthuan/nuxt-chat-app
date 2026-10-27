@@ -66,6 +66,9 @@ const mockChatRoomState = {
   requestNotificationPermission: vi.fn(),
   dismissNotificationToast: vi.fn(),
   addNotificationToast: vi.fn(),
+  onMusicSync: vi.fn(),
+  broadcastMusicSync: vi.fn(),
+  sendMusicPlaySystemMessage: vi.fn(),
 }
 
 const mockAuthProfileState = {
@@ -618,6 +621,25 @@ describe('IndexPage (app/pages/index.vue)', () => {
     const dictModal = wrapper.findComponent({ name: 'ConfettiDictionaryModal' })
     expect(dictModal.exists()).toBe(true)
     expect(dictModal.props('isOpen')).toBe(true)
+  })
+
+  it('opens YouTubeSearchModal from stage header button', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    mockChatRoomState.activeConversation.value = {
+      id: 'conv-1',
+      type: 'group',
+      title: 'General',
+    }
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    const openBtn = wrapper.find('[data-test="open-music-search-btn"]')
+    expect(openBtn.exists()).toBe(true)
+
+    await openBtn.trigger('click')
+    const musicModal = wrapper.findComponent({ name: 'YouTubeSearchModal' })
+    expect(musicModal.exists()).toBe(true)
+    expect(musicModal.props('open')).toBe(true)
   })
 
   it('does not trigger confetti overlay when conversation history loads with celebration keywords', async () => {

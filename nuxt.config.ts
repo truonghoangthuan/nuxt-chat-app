@@ -20,6 +20,7 @@ export default defineNuxtConfig({
     },
   },
   runtimeConfig: {
+    youtubeApiKey: process.env.YOUTUBE_API_KEY || '',
     public: {
       e2eeDefaultPhrase: process.env.NUXT_PUBLIC_E2EE_PHRASE || '',
     },

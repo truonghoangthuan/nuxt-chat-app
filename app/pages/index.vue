@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import type { ChatMessage, EncryptedImageMetadata, Profile } from '~/types/chat'
+import type { ChatMessage, EncryptedImageMetadata, Profile, YouTubeSearchResult } from '~/types/chat'
 import { useChatRoom } from '~/composables/useChatRoom'
 import { useAuthProfile } from '~/composables/useAuthProfile'
 import { useTheme } from '~/composables/useTheme'
+import { useMusicPlayer } from '~/composables/useMusicPlayer'
 import ChatSidebar from '~/components/ChatSidebar.vue'
 import ConnectionBanner from '~/components/ConnectionBanner.vue'
 import MessageViewport from '~/components/MessageViewport.vue'
@@ -23,7 +24,9 @@ import MessageSearchBar from '~/components/MessageSearchBar.vue'
 import ChatBackgroundModal from '~/components/ChatBackgroundModal.vue'
 import ConfettiDictionaryModal from '~/components/ConfettiDictionaryModal.vue'
 import ConfettiOverlay from '~/components/ConfettiOverlay.vue'
-import { Menu, Users, Info, Search, Image as ImageIcon, MessageSquare, Link2, Settings, Sun, Moon, Plus, Sparkles } from '@lucide/vue'
+import MusicPlayerBar from '~/components/MusicPlayerBar.vue'
+import YouTubeSearchModal from '~/components/YouTubeSearchModal.vue'
+import { Menu, Users, Info, Search, Image as ImageIcon, MessageSquare, Link2, Settings, Sun, Moon, Plus, Sparkles, Music } from '@lucide/vue'
 import { useE2ee } from '~/composables/useE2ee'
 import { usePwaInstall } from '~/composables/usePwaInstall'
 import {
@@ -103,6 +106,9 @@ const {
   requestNotificationPermission,
   dismissNotificationToast,
   addNotificationToast,
+  onMusicSync,
+  broadcastMusicSync,
+  sendMusicPlaySystemMessage,
 } = useChatRoom()
 
 const { currentProfile, updateProfile, signOut } = useAuthProfile()
@@ -130,6 +136,185 @@ const isConfettiDictionaryModalOpen = ref(false)
 const isProfileSettingsModalOpen = ref(false)
 const isUserProfileModalOpen = ref(false)
 const selectedUserProfile = ref<Profile | null>(null)
+
+const isMusicSearchModalOpen = ref(false)
+let ytPlayer: any = null
+let ytTimeInterval: any = null
+
+function createYtPlayerInstance(onReadyCallback?: () => void) {
+  if (typeof window === 'undefined' || !(window as any).YT?.Player) return
+  const container = document.getElementById('youtube-hidden-player')
+  if (!container) return
+
+  try {
+    ytPlayer = new (window as any).YT.Player('youtube-hidden-player', {
+      height: '1',
+      width: '1',
+      playerVars: {
+        autoplay: 1,
+        controls: 0,
+        disablekb: 1,
+        fs: 0,
+        modestbranding: 1,
+        playsinline: 1,
+        rel: 0,
+      },
+      events: {
+        onReady: (event: any) => {
+          if (typeof event.target.setVolume === 'function') {
+            event.target.setVolume(musicVolume.value)
+          }
+          if (musicIsMuted.value && typeof event.target.mute === 'function') {
+            event.target.mute()
+          }
+          onReadyCallback?.()
+        },
+        onStateChange: (event: any) => {
+          if (event.data === 1) {
+            musicAutoplayBlocked.value = false
+            if (typeof event.target.getDuration === 'function') {
+              const dur = event.target.getDuration()
+              if (dur && dur > 0) {
+                musicDurationSec.value = dur
+              }
+            }
+            if (!ytTimeInterval) {
+              ytTimeInterval = setInterval(() => {
+                if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
+                  musicCurrentTimeSec.value = Math.floor(ytPlayer.getCurrentTime())
+                }
+              }, 500)
+            }
+          } else if (event.data === 2) {
+            if (ytTimeInterval) {
+              clearInterval(ytTimeInterval)
+              ytTimeInterval = null
+            }
+          } else if (event.data === 0) {
+            if (ytTimeInterval) {
+              clearInterval(ytTimeInterval)
+              ytTimeInterval = null
+            }
+            musicStopPlayback(true)
+          }
+        },
+        onError: () => {
+          musicAutoplayBlocked.value = true
+        },
+      },
+    })
+  } catch {
+    // Graceful fallback
+  }
+}
+
+function initYouTubePlayer(onReadyCallback?: () => void) {
+  if (typeof window === 'undefined') return
+  if ((window as any).YT && (window as any).YT.Player) {
+    createYtPlayerInstance(onReadyCallback)
+    return
+  }
+  const existingScript = document.getElementById('youtube-iframe-api-script')
+  if (!existingScript) {
+    const tag = document.createElement('script')
+    tag.id = 'youtube-iframe-api-script'
+    tag.src = 'https://www.youtube.com/iframe_api'
+    const firstScriptTag = document.getElementsByTagName('script')[0]
+    firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag)
+  }
+
+  const prevOnYouTubeIframeAPIReady = (window as any).onYouTubeIframeAPIReady
+  ;(window as any).onYouTubeIframeAPIReady = () => {
+    prevOnYouTubeIframeAPIReady?.()
+    createYtPlayerInstance(onReadyCallback)
+  }
+}
+
+function onPlayerAction(action: 'play' | 'pause' | 'seek' | 'load', payload?: any) {
+  if (typeof window === 'undefined') return
+  if (!ytPlayer) {
+    initYouTubePlayer(() => {
+      onPlayerAction(action, payload)
+    })
+    return
+  }
+  try {
+    if (action === 'load' && payload?.videoId) {
+      if (typeof ytPlayer.loadVideoById === 'function') {
+        ytPlayer.loadVideoById({
+          videoId: payload.videoId,
+          startSeconds: payload.startSeconds || 0,
+        })
+      }
+    } else if (action === 'play') {
+      if (typeof ytPlayer.playVideo === 'function') {
+        ytPlayer.playVideo()
+      }
+    } else if (action === 'pause') {
+      if (typeof ytPlayer.pauseVideo === 'function') {
+        ytPlayer.pauseVideo()
+      }
+    } else if (action === 'seek' && typeof payload === 'number') {
+      if (typeof ytPlayer.seekTo === 'function') {
+        ytPlayer.seekTo(payload, true)
+      }
+    }
+  } catch {
+    // Ignore playback exception
+  }
+}
+
+const musicPlayer = useMusicPlayer({
+  onBroadcast: (event) => {
+    if (typeof broadcastMusicSync === 'function') {
+      broadcastMusicSync(event)
+    }
+  },
+  getCurrentUserId: () => currentProfile.value?.id,
+  getCurrentUserName: () => currentProfile.value?.display_name,
+  onPlayerAction,
+})
+
+const {
+  currentTrack: musicCurrentTrack,
+  currentTimeSec: musicCurrentTimeSec,
+  durationSec: musicDurationSec,
+  volume: musicVolume,
+  isMuted: musicIsMuted,
+  autoplayBlocked: musicAutoplayBlocked,
+  playTrack: musicPlayTrack,
+  togglePlayPause: musicTogglePlayPause,
+  seekTo: musicSeekTo,
+  stopPlayback: musicStopPlayback,
+  setVolume: musicSetVolume,
+  toggleMute: musicToggleMute,
+  unblockAutoplay: musicUnblockAutoplay,
+  applyRemoteSyncEvent: musicApplyRemoteSyncEvent,
+} = musicPlayer
+
+watch(musicVolume, (newVol) => {
+  if (ytPlayer && typeof ytPlayer.setVolume === 'function') {
+    ytPlayer.setVolume(newVol)
+  }
+})
+
+watch(musicIsMuted, (muted) => {
+  if (ytPlayer) {
+    if (muted && typeof ytPlayer.mute === 'function') {
+      ytPlayer.mute()
+    } else if (!muted && typeof ytPlayer.unMute === 'function') {
+      ytPlayer.unMute()
+    }
+  }
+})
+
+async function handleSelectMusicTrack(track: YouTubeSearchResult) {
+  if (!activeConversationId.value) return
+  musicPlayTrack(track, activeConversationId.value)
+  if (typeof sendMusicPlaySystemMessage === 'function') {
+    await sendMusicPlaySystemMessage(track.title, activeConversationId.value)
+  }
+}
 
 function handleViewProfile(profile: Profile) {
   selectedUserProfile.value = profile
@@ -492,6 +677,8 @@ function handleSwMessage(event: MessageEvent) {
   }
 }
 
+let unsubMusicSync: (() => void) | null = null
+
 onMounted(async () => {
   initTheme?.()
   initPwaInstall()
@@ -504,12 +691,32 @@ onMounted(async () => {
     navigator.serviceWorker.addEventListener('message', handleSwMessage)
   }
 
+  if (typeof onMusicSync === 'function') {
+    unsubMusicSync = onMusicSync((event) => {
+      musicApplyRemoteSyncEvent(event)
+    })
+  }
+
   await initializeE2ee()
   await initializeChat()
 })
 
 onUnmounted(() => {
   cleanupPwaInstall()
+  if (unsubMusicSync) {
+    unsubMusicSync()
+    unsubMusicSync = null
+  }
+  if (ytTimeInterval) {
+    clearInterval(ytTimeInterval)
+    ytTimeInterval = null
+  }
+  if (ytPlayer && typeof ytPlayer.destroy === 'function') {
+    try {
+      ytPlayer.destroy()
+    } catch {}
+    ytPlayer = null
+  }
   if (typeof window !== 'undefined') {
     window.removeEventListener('keydown', handleGlobalKeydown)
   }
@@ -783,6 +990,19 @@ onUnmounted(() => {
               <Sparkles class="w-4 h-4 text-amber-500 dark:text-amber-400" />
             </button>
 
+            <!-- YouTube Music Room Player Trigger -->
+            <button
+              v-if="activeConversation || activeChannel"
+              type="button"
+              data-test="open-music-search-btn"
+              title="Play YouTube music with room"
+              class="p-1.5 rounded-full bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition cursor-pointer"
+              aria-label="Play YouTube music with room"
+              @click="isMusicSearchModalOpen = true"
+            >
+              <Music class="w-4 h-4 text-purple-500 dark:text-purple-400" />
+            </button>
+
             <!-- Search Bar or Toggle Button -->
             <MessageSearchBar
               v-if="isSearchOpen"
@@ -831,6 +1051,22 @@ onUnmounted(() => {
             </div>
           </div>
         </header>
+
+        <!-- Persistent Music Player Bar -->
+        <MusicPlayerBar
+          :track="musicCurrentTrack"
+          :current-time-sec="musicCurrentTimeSec"
+          :duration-sec="musicDurationSec"
+          :is-muted="musicIsMuted"
+          :autoplay-blocked="musicAutoplayBlocked"
+          :conversation-name="musicCurrentTrack?.conversationId !== activeConversationId ? (conversations.find(c => c.id === musicCurrentTrack?.conversationId)?.title || conversations.find(c => c.id === musicCurrentTrack?.conversationId)?.peer?.display_name || undefined) : undefined"
+          @toggle-play="musicTogglePlayPause"
+          @seek="musicSeekTo"
+          @toggle-mute="musicToggleMute"
+          @stop="musicStopPlayback(true)"
+          @unblock-autoplay="musicUnblockAutoplay"
+          @open-search="isMusicSearchModalOpen = true"
+        />
 
         <!-- Stage Subtabs Navigation (Messages | Media | Links) -->
         <div
@@ -1042,6 +1278,17 @@ onUnmounted(() => {
         :active="isConfettiActive"
         :burst-key="confettiBurstKey"
         @complete="isConfettiActive = false"
+      />
+
+      <!-- Hidden YouTube iframe container for persistent audio -->
+      <div id="youtube-hidden-player" class="hidden pointer-events-none w-0 h-0 opacity-0 overflow-hidden" aria-hidden="true"></div>
+
+      <!-- YouTube Music Search Modal -->
+      <YouTubeSearchModal
+        :open="isMusicSearchModalOpen"
+        :conversation-title="activeConversation?.title || activeConversation?.peer?.display_name || undefined"
+        @close="isMusicSearchModalOpen = false"
+        @select="handleSelectMusicTrack"
       />
 
     <!-- VSCode Status Bar -->

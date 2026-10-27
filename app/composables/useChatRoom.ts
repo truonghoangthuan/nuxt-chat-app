@@ -17,6 +17,7 @@ import type {
   EncryptedImageMetadata,
   ImageMessagePayload,
   LocalImageAttachment,
+  MusicSyncEvent,
 } from '~/types/chat'
 import {
   isValidMessageContent,
@@ -1182,6 +1183,38 @@ export function useChatRoom() {
       })
   }
 
+  const musicSyncListeners = new Set<(event: MusicSyncEvent) => void>()
+
+  function onMusicSync(listener: (event: MusicSyncEvent) => void): () => void {
+    musicSyncListeners.add(listener)
+    return () => {
+      musicSyncListeners.delete(listener)
+    }
+  }
+
+  function broadcastMusicSync(event: MusicSyncEvent): void {
+    if (!typingChannel) return
+    typingChannel.send({
+      type: 'broadcast',
+      event: 'music_sync',
+      payload: event,
+    })
+  }
+
+  async function sendMusicPlaySystemMessage(trackTitle: string, conversationId?: string): Promise<void> {
+    const targetId = conversationId || activeConversationId.value
+    if (!targetId) return
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    const actorName = current?.display_name || 'Someone'
+    const payload = serializeSystemMessage({
+      type: 'system',
+      event: 'music_play',
+      actorName,
+      detail: trackTitle,
+    })
+    await sendMessage(payload, undefined, targetId).catch(() => {})
+  }
+
   function setupTypingSubscription(conversationId: string): void {
     if (typingChannel) {
       supabase.removeChannel(typingChannel)
@@ -1195,7 +1228,30 @@ export function useChatRoom() {
           typingTracker.recordTyping(payload.payload)
         }
       })
-      .subscribe()
+      .on('broadcast', { event: 'music_sync' }, (payload) => {
+        if (payload?.payload) {
+          for (const listener of musicSyncListeners) {
+            try {
+              listener(payload.payload)
+            } catch {}
+          }
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          const currentId = authProfile.currentProfile.value?.id || ''
+          typingChannel?.send({
+            type: 'broadcast',
+            event: 'music_sync',
+            payload: {
+              type: 'request_state',
+              state: null,
+              senderId: currentId,
+              conversationId,
+            },
+          })
+        }
+      })
   }
 
   function notifyTyping(): void {
@@ -2136,5 +2192,8 @@ export function useChatRoom() {
     requestNotificationPermission: notification.requestPermission,
     dismissNotificationToast: notification.dismissToast,
     addNotificationToast: notification.addToast,
+    onMusicSync,
+    broadcastMusicSync,
+    sendMusicPlaySystemMessage,
   }
 }

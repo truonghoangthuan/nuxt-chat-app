@@ -800,6 +800,8 @@ export function formatSystemMessageText(payload: SystemMessagePayload): string {
       return `${payload.actorName} changed the chat wallpaper${payload.detail ? ` to ${payload.detail}` : ''}`
     case 'background_reset':
       return `${payload.actorName} reset the chat wallpaper`
+    case 'music_play':
+      return `${payload.actorName} started playing 🎵 ${payload.detail || 'a track'}`
     default:
       return `${payload.actorName} updated the conversation`
   }
