@@ -1,17 +1,23 @@
 <script setup lang="ts">
 import { watch, onMounted } from 'vue'
+import { safeAuthRedirectPath } from '~/utils/authRedirect'
 
 const user = useSupabaseUser()
+const redirectInfo = useSupabaseCookieRedirect()
+
+function redirectAfterAuth() {
+  return navigateTo(safeAuthRedirectPath(redirectInfo.pluck()))
+}
 
 watch(user, () => {
   if (user.value) {
-    return navigateTo('/')
+    return redirectAfterAuth()
   }
 }, { immediate: true })
 
 onMounted(() => {
   setTimeout(() => {
-    navigateTo('/')
+    if (!user.value) navigateTo('/')
   }, 1200)
 })
 </script>

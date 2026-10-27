@@ -4,8 +4,14 @@ import { MessageCircle, Radio, UsersRound } from '@lucide/vue'
 import Button from '~/components/ui/Button.vue'
 import Input from '~/components/ui/Input.vue'
 import { useAuthProfile } from '~/composables/useAuthProfile'
+import { safeAuthRedirectPath } from '~/utils/authRedirect'
 
 const { signInWithPassword, signUpWithProfile } = useAuthProfile()
+const redirectInfo = useSupabaseCookieRedirect()
+
+async function redirectAfterAuth() {
+  return await navigateTo(safeAuthRedirectPath(redirectInfo.pluck()))
+}
 
 const isSignUp = ref(false)
 const email = ref('')
@@ -38,14 +44,14 @@ async function handleSubmit() {
       } else if (res.needsEmailConfirmation) {
         infoMsg.value = 'Check your email inbox to confirm your account before signing in.'
       } else {
-        await navigateTo('/')
+        await redirectAfterAuth()
       }
     } else {
       const res = await signInWithPassword(email.value, password.value)
       if (res.error) {
         errorMsg.value = res.error
       } else {
-        await navigateTo('/')
+        await redirectAfterAuth()
       }
     }
   } catch (err: any) {
