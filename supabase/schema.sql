@@ -713,3 +713,124 @@ begin
   end loop;
 end;
 $$;
+-- Caro: apply this entire section as one transaction before enabling the UI.
+begin;
+create table if not exists public.caro_games (
+  id uuid primary key default gen_random_uuid(),
+  player_x_id uuid not null references auth.users(id),
+  player_o_id uuid references auth.users(id),
+  status text not null default 'waiting' check (status in ('waiting', 'active', 'won', 'draw')),
+  current_player_id uuid references auth.users(id),
+  winner_id uuid references auth.users(id),
+  move_count integer not null default 0 check (move_count between 0 and 225),
+  created_at timestamptz not null default now(),
+  check (player_o_id is null or player_o_id <> player_x_id),
+  check (current_player_id is null or current_player_id = player_x_id or current_player_id = player_o_id),
+  check (winner_id is null or winner_id = player_x_id or winner_id = player_o_id),
+  check (
+    (status = 'waiting' and player_o_id is null and current_player_id is null and winner_id is null and move_count = 0) or
+    (status = 'active' and player_o_id is not null and current_player_id is not null and winner_id is null and move_count < 225) or
+    (status = 'won' and player_o_id is not null and current_player_id is null and winner_id is not null) or
+    (status = 'draw' and player_o_id is not null and current_player_id is null and winner_id is null and move_count = 225)
+  )
+);
+create table if not exists public.caro_moves (
+  game_id uuid not null references public.caro_games(id) on delete cascade,
+  turn_number integer not null check (turn_number between 1 and 225),
+  player_id uuid not null references auth.users(id),
+  row integer not null check (row between 0 and 14),
+  col integer not null check (col between 0 and 14),
+  primary key (game_id, turn_number),
+  unique (game_id, row, col)
+);
+create index if not exists caro_games_player_x_idx on public.caro_games(player_x_id);
+create index if not exists caro_games_player_o_idx on public.caro_games(player_o_id);
+alter table public.caro_games enable row level security;
+alter table public.caro_moves enable row level security;
+revoke all on public.caro_games, public.caro_moves from public, anon, authenticated;
+grant select on public.caro_games, public.caro_moves to authenticated;
+drop policy if exists caro_games_participants on public.caro_games;
+create policy caro_games_participants on public.caro_games for select to authenticated
+  using (auth.uid() = player_x_id or auth.uid() = player_o_id);
+drop policy if exists caro_moves_participants on public.caro_moves;
+create policy caro_moves_participants on public.caro_moves for select to authenticated
+  using (exists (select 1 from public.caro_games g where g.id = game_id and (auth.uid() = g.player_x_id or auth.uid() = g.player_o_id)));
+-- No INSERT/UPDATE/DELETE policies or grants: all mutations go through these RPCs.
+create or replace function public.create_caro_game()
+returns public.caro_games language plpgsql security definer set search_path = pg_catalog, public as $$
+declare g public.caro_games;
+begin
+  if auth.uid() is null then raise exception 'Sign in to play'; end if;
+  insert into public.caro_games(player_x_id) values (auth.uid()) returning * into g;
+  return g;
+end;
+$$;
+create or replace function public.join_caro_game(p_game_id uuid)
+returns public.caro_games language plpgsql security definer set search_path = pg_catalog, public as $$
+declare g public.caro_games; actor uuid := auth.uid();
+begin
+  if actor is null then raise exception 'Sign in to play'; end if;
+  select * into g from public.caro_games where id = p_game_id for update;
+  if not found then raise exception 'Room unavailable'; end if;
+  -- Existing participants can reopen even a completed room.
+  if actor = g.player_x_id or actor = g.player_o_id then return g; end if;
+  if g.status <> 'waiting' or g.player_o_id is not null then raise exception 'Room unavailable'; end if;
+  update public.caro_games set player_o_id = actor, status = 'active', current_player_id = player_x_id
+    where id = p_game_id returning * into g;
+  return g;
+end;
+$$;
+create or replace function public.make_caro_move(p_game_id uuid, p_row integer, p_col integer)
+returns public.caro_games language plpgsql security definer set search_path = pg_catalog, public as $$
+declare
+  g public.caro_games; actor uuid := auth.uid(); direction integer[];
+  dr integer; dc integer; sign integer; distance integer; total integer; won boolean := false;
+begin
+  if actor is null then raise exception 'Sign in to play'; end if;
+  select * into g from public.caro_games where id = p_game_id for update;
+  if not found then raise exception 'Room unavailable'; end if;
+  if actor is distinct from g.player_x_id and actor is distinct from g.player_o_id then raise exception 'Room unavailable'; end if;
+  if g.status <> 'active' then raise exception 'Game is not active'; end if;
+  if actor is distinct from g.current_player_id then raise exception 'Not your turn'; end if;
+  if p_row is null or p_col is null or p_row not between 0 and 14 or p_col not between 0 and 14 then raise exception 'Invalid cell'; end if;
+  if exists (select 1 from public.caro_moves where game_id = p_game_id and row = p_row and col = p_col) then raise exception 'Cell occupied'; end if;
+  insert into public.caro_moves(game_id, turn_number, player_id, row, col)
+    values (p_game_id, g.move_count + 1, actor, p_row, p_col);
+  foreach direction slice 1 in array array[[0,1],[1,0],[1,1],[1,-1]] loop
+    dr := direction[1]; dc := direction[2]; total := 1;
+    foreach sign in array array[-1,1] loop
+      for distance in 1..14 loop
+        exit when not exists (select 1 from public.caro_moves where game_id = p_game_id and player_id = actor
+          and row = p_row + dr * sign * distance and col = p_col + dc * sign * distance);
+        total := total + 1;
+      end loop;
+    end loop;
+    if total >= 5 then won := true; exit; end if;
+  end loop;
+  update public.caro_games set
+    move_count = g.move_count + 1,
+    status = case when won then 'won' when g.move_count + 1 = 225 then 'draw' else 'active' end,
+    winner_id = case when won then actor else null end,
+    current_player_id = case when won or g.move_count + 1 = 225 then null when actor = g.player_x_id then g.player_o_id else g.player_x_id end
+    where id = p_game_id returning * into g;
+  return g;
+end;
+$$;
+revoke all on function public.create_caro_game() from public, anon;
+revoke all on function public.join_caro_game(uuid) from public, anon;
+revoke all on function public.make_caro_move(uuid, integer, integer) from public, anon;
+grant execute on function public.create_caro_game() to authenticated;
+grant execute on function public.join_caro_game(uuid) to authenticated;
+grant execute on function public.make_caro_move(uuid, integer, integer) to authenticated;
+do $$
+declare tbl text;
+begin
+  foreach tbl in array array['caro_games', 'caro_moves'] loop
+    if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+      and not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = tbl) then
+      execute format('alter publication supabase_realtime add table public.%I', tbl);
+    end if;
+  end loop;
+end;
+$$;
+commit;

@@ -29,6 +29,10 @@ A modern, resilient, end-to-end encrypted real-time web chat application built w
 - **Typing Indicators**: Real-time per-conversation typing broadcasts with automatic idle expiry.
 - **Optimistic UI**: Messages render immediately with UUID `client_id` for idempotent deduplication and retry/dismiss handling on failure.
 
+### Multiplayer Caro
+- **Invite-link rooms**: Create a private two-player 15×15 game and invite someone with a room link.
+- **Server-authoritative turns**: Supabase validates turns, occupied cells, wins, and draws; seated players receive room updates through Realtime.
+
 ### Rich Interactions & Search
 - **Emoji Reactions**: Live reaction counter pills with optimistic local toggling.
 - **Pinned Messages**: Pin important messages per conversation via atomic `toggle_pin_message` RPC.
@@ -64,11 +68,13 @@ A modern, resilient, end-to-end encrypted real-time web chat application built w
 1. Create a project at [supabase.com](https://supabase.com).
 2. Navigate to the **SQL Editor** in your Supabase dashboard.
 3. Paste and run the entire contents of [`supabase/schema.sql`](./supabase/schema.sql). This configures:
-   - Tables: `profiles`, `contacts`, `conversations`, `conversation_members`, `messages`, `message_reactions`, `conversation_reads`, `e2ee_config`.
+   - Tables: `profiles`, `contacts`, `conversations`, `conversation_members`, `messages`, `message_reactions`, `conversation_reads`, `e2ee_config`, `caro_games`, `caro_moves`.
    - Security: Row-Level Security (RLS) policies and security-definer helper functions.
    - Storage Buckets: Private `message-attachments` and public `chat-backgrounds` with RLS policies.
    - Realtime Publication: `supabase_realtime` publication for all relevant tables.
    - Envelopes: Database trigger enforcing `e2ee:v1:` ciphertexts on `messages`.
+
+For existing projects that already applied the schema, run only the **Caro** section at the end of `supabase/schema.sql` (from `-- Caro: apply this entire section` through `commit;`) in the SQL Editor as the database owner. The earlier schema setup is not fully rerunnable. New projects running the full schema file already include Caro.
 
 ### 2. Generate E2EE Master Key
 
@@ -158,6 +164,7 @@ The application runs at `http://localhost:3000`.
 │   │   └── UserProfileModal.vue    # Interactive user profile modal with avatar display
 │   ├── composables/
 │   │   ├── useChatRoom.ts          # Supabase realtime and query orchestrator across channels
+│   │   ├── useCaroGame.ts          # Authoritative Caro room RPCs and realtime state
 │   │   ├── useE2ee.ts              # Session key cache, phrase derivation, verifier validation
 │   │   ├── useMessagesState.ts     # Pure message store: optimistic UI, dedup, cursors, ordering
 │   │   ├── useNotification.ts      # Service worker notifications and toast alerts
@@ -166,12 +173,14 @@ The application runs at `http://localhost:3000`.
 │   │   └── useConnectionManager.ts # Exponential backoff state machine for network reconnections
 │   ├── pages/
 │   │   ├── index.vue               # Main chat workspace shell
+│   │   ├── caro.vue                # Invite-link multiplayer Caro board
 │   │   ├── login.vue               # Sign-in and account registration view
 │   │   └── confirm.vue             # Supabase email confirmation callback handler
 │   ├── types/
 │   │   ├── chat.ts                 # Domain interfaces (Profile, Conversation, ChatMessage, etc.)
 │   │   └── notification.ts         # Notification toast and event types
 │   └── utils/
+│       ├── caro.ts                 # Caro board and five-in-a-row helpers
 │       ├── crypto.ts               # WebCrypto AES-GCM-256 + PBKDF2 encryption/decryption utilities
 │       ├── chat.ts                 # Pure helpers (initials, avatar palette, date formatters)
 │       └── sound.ts                # Audio chime generator
