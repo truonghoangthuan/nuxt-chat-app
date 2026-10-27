@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  parseYouTubeInitialData,
-  parseYouTubeApiResponse,
+  parsePipedItems,
   formatDurationSeconds,
   isValidYouTubeVideoId,
   getYouTubeThumbnailProxyUrl,
@@ -11,47 +10,23 @@ import {
 import { formatSystemMessageText } from '~/utils/chat'
 
 describe('youtube utils', () => {
-  it('parses YouTube Data API v3 items into YouTubeSearchResult[]', () => {
-    const raw = {
-      items: [
-        {
-          id: { videoId: 'jfKfPfyJRdk' },
-          snippet: {
-            title: 'lofi hip hop radio',
-            channelTitle: 'Lofi Girl',
-            thumbnails: { medium: { url: 'https://i.ytimg.com/vi/jfKfPfyJRdk/mqdefault.jpg' } },
-          },
-        },
-      ],
-    }
-    expect(parseYouTubeApiResponse(raw)).toEqual([
-      {
-        videoId: 'jfKfPfyJRdk',
-        title: 'lofi hip hop radio',
-        channelTitle: 'Lofi Girl',
-        thumbnail: 'https://i.ytimg.com/vi/jfKfPfyJRdk/mqdefault.jpg',
-      },
+  it('parsePipedItems keeps playable streams and drops live, shorts, non-streams', () => {
+    const out = parsePipedItems([
+      { url: '/watch?v=dQw4w9WgXcQ', type: 'stream', title: 'A', thumbnail: 't', uploaderName: 'U', duration: 213, isShort: false },
+      { url: '/watch?v=E8MZq0Stfi4', type: 'stream', title: 'Live', duration: -1, isShort: false },
+      { url: '/watch?v=aaaaaaaaaaa', type: 'stream', title: 'Short', duration: 30, isShort: true },
+      { url: '/channel/UCx', type: 'channel', title: 'Chan' },
     ])
-  })
-
-  it('extracts videoRenderer items from YouTube initial data JSON or HTML', () => {
-    const mockHtml = `var ytInitialData = {"contents":{"twoColumnSearchResultsRenderer":{"primaryContents":{"sectionListRenderer":{"contents":[{"itemSectionRenderer":{"contents":[{"videoRenderer":{"videoId":"dQw4w9WgXcQ","title":{"runs":[{"text":"Never Gonna Give You Up"}]},"ownerText":{"runs":[{"text":"Rick Astley"}]},"lengthText":{"simpleText":"3:33"},"thumbnail":{"thumbnails":[{"url":"https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"}]}}}]}}]}}}}};</script>`
-    const results = parseYouTubeInitialData(mockHtml)
-    expect(results).toEqual([
+    expect(out).toEqual([
       {
         videoId: 'dQw4w9WgXcQ',
-        title: 'Never Gonna Give You Up',
-        channelTitle: 'Rick Astley',
-        thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+        title: 'A',
+        channelTitle: 'U',
+        thumbnail: 't',
         durationText: '3:33',
       },
     ])
-  })
-
-  it('returns empty array on malformed or empty input', () => {
-    expect(parseYouTubeInitialData('')).toEqual([])
-    expect(parseYouTubeInitialData('not json')).toEqual([])
-    expect(parseYouTubeApiResponse({})).toEqual([])
+    expect(parsePipedItems(null as any)).toEqual([])
   })
 
   it('formats duration seconds as m:ss or h:mm:ss', () => {

@@ -68,11 +68,14 @@ The codebase separates **Supabase/Realtime I/O orchestration** from **pure, test
 │   └── utils/
 │       ├── chat.ts                 # Pure helpers (slugs, backoff math, avatar colors/initials, validation)
 │       ├── crypto.ts               # WebCrypto AES-GCM-256 + PBKDF2 encryption, decryption, base64url helpers
-│       └── youtube.ts              # YouTube Data API & InnerTube search parsers, duration formatting
+│       └── youtube.ts              # KOQC Piped search, streams, VN trending parsers, duration formatting
 ├── server/
 │   └── api/
 │       └── youtube/
-│           └── search.get.ts       # Keyless InnerTube search endpoint with optional YOUTUBE_API_KEY fallback
+│           ├── search.get.ts       # KOQC Piped search endpoint
+│           ├── stream.get.ts       # Proxied KOQC audio stream endpoint with byte-range capping
+│           ├── thumbnail.get.ts    # Proxied KOQC thumbnail endpoint
+│           └── trending.get.ts     # KOQC Piped Vietnam trending endpoint
 ├── scripts/
 │   └── generate-e2ee-config.mjs    # CLI helper generating public.e2ee_config SQL insert
 ├── supabase/
@@ -255,16 +258,13 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - **Keyless Upstream Fallback Discipline:** Server routes querying third-party APIs (such as `/api/youtube/search`) should implement a keyless fallback (e.g. InnerTube POST search) so the application functions out-of-the-box with zero API key configuration, while upgrading to official API keys (`YOUTUBE_API_KEY`) when provided in `.env`.
     - **Composable Mock Completeness:** When adding new methods or subscriptions to `useChatRoom.ts`, page components must guard execution with `typeof fn === 'function'` in lifecycle hooks, and corresponding mock fixtures in `tests/components/indexPage.test.ts` must be updated immediately to prevent `TypeError: <fn> is not a function` during test runs.
 
-32. **Corporate Network Egress, Same-Origin Audio, InnerTube Mobile Clients & Stream Fallback Discipline:**
-    - **Zero Third-Party Client Egress:** On restricted corporate networks, firewalls and DNS filters block client browser requests to `*.youtube.com`, `*.googlevideo.com`, and `*.ytimg.com`. Rich media timelines, modal search results, and persistent playback must never fetch directly from third-party media hosts; all media streams and thumbnails must route through same-origin server endpoints (`/api/youtube/stream`, `/api/youtube/thumbnail`).
+32. **Corporate Network Egress, Same-Origin Audio, KOQC Piped Instance & Stream Discipline:**
+    - **Zero Third-Party Client Egress:** On restricted corporate networks, firewalls and DNS filters block client browser requests to `*.youtube.com`, `*.googlevideo.com`, `*.ytimg.com`, and `*.nhackoqc.xyz`. Rich media timelines, modal search results, and persistent playback must never fetch directly from third-party media hosts; all media streams, thumbnails, search queries, and trending feeds must route through same-origin server endpoints (`/api/youtube/stream`, `/api/youtube/thumbnail`, `/api/youtube/search`, `/api/youtube/trending`).
     - **Native HTML5 `<audio>` over Embedded `<iframe>` Players:** Client-side iframe/script embeds (`window.YT.Player`, `https://www.youtube.com/iframe_api`) depend on unblocked browser connections to third-party domains. Rich audio playback must use native HTML5 media elements (`<audio id="youtube-hidden-player">`) bound to same-origin stream URLs, with standard DOM events (`@timeupdate`, `@loadedmetadata`, `@ended`, `@error`) driving store synchronization and browser autoplay recovery (`unblockAutoplay`).
-    - **Serverless Byte-Range Capping & Multi-Provider Fallback:**
-      - Serverless platforms (e.g. Vercel) enforce strict response payload limits (4.5 MB) and execution timeouts (10s–60s). Stream proxy endpoints must parse incoming `Range` headers, normalize open-ended ranges (`bytes=X-`), and clamp each request to discrete chunks (e.g., 2 MB: `bytes=X-(X+2097151)`). Returning `206 Partial Content` allows native `<audio>` elements to stream continuous long-duration tracks via rapid, sub-300ms chunk requests without hitting serverless timeouts.
-      - **InnerTube Mobile Host & Client Profiles:** Query `https://youtubei.googleapis.com/youtubei/v1/player` (and `search`) instead of `www.youtube.com` to bypass corporate TLS SNI resets. Use modern mobile client profiles (`ANDROID 20.03.35` with `androidSdkVersion: 34`, and `IOS 20.03.02` with `osName: 'iPhone'`) because legacy `ANDROID_VR 1.60.19` is bot-blocked (`LOGIN_REQUIRED`) and `IOS 19.45.4` is rejected with `400 FAILED_PRECONDITION`.
-      - **Upstream User-Agent Coupling:** Upstream `googlevideo.com` stream URLs signed for `c=ANDROID` or `c=IOS` reject generic Desktop Chrome User-Agents with `403 Forbidden`. The server proxy must forward the exact mobile `User-Agent` that resolved the stream.
-      - **SABR Streaming & Muxed MP4 Fallback:** When YouTube SABR experiments withhold direct `adaptiveFormats`, extractors must fall back to progressive muxed `video/mp4` streams (`itag 18`, `videoOnly !== true`) which HTML5 `<audio>` elements play natively.
-      - **Datacenter Bot-Block Fallback (iTunes AAC):** If YouTube hard-blocks datacenter IPs on all InnerTube/Piped/Invidious tiers, `/api/youtube/stream` must resolve the track title (from query param or video metadata) and fall back to the keyless iTunes Search API (`https://itunes.apple.com/search?term=<title>&media=music&entity=song&limit=1`) to stream AAC `audio/mp4` rather than returning `502`.
-      - **Per-Provider Upstream Timeout:** Upstream requests to third-party resolver instances must cap timeout at `<= 3500ms` via `AbortSignal.timeout(3500)` to ensure multi-tier failovers complete before serverless platform execution limits.
+    - **KOQC Piped Media Architecture:**
+      - Sole media source is the Piped instance `https://pipedapi.nhackoqc.xyz` (`PIPED_API`) with media proxy `https://pipedproxy.nhackoqc.xyz` (`PIPED_PROXY`). Search (`filter=videos`), streams, thumbnails, and VN trending are called server-side only with no fallback providers.
+      - Server proxy endpoints parse incoming `Range` headers, normalize open-ended ranges (`bytes=X-`), and clamp each request to discrete chunks (2 MB: `bytes=X-(X+2097151)`). Returning `206 Partial Content` allows native `<audio>` elements to stream continuous long-duration tracks via rapid, sub-300ms chunk requests without hitting serverless timeouts.
+      - Upstream requests to the KOQC instance cap timeout at `<= 3500ms` via `AbortSignal.timeout(3500)` to ensure rapid failure handling.
     - **Edge Thumbnail Caching:** Server thumbnail endpoints (`/api/youtube/thumbnail?v=<id>`) must emit `Cache-Control: public, max-age=86400, s-maxage=86400` so Edge CDNs cache image bytes, shielding upstream quotas and accelerating search and player rendering.
 
 

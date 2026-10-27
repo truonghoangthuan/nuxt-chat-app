@@ -1,5 +1,5 @@
 import { defineEventHandler, getQuery, setResponseHeaders, setResponseStatus } from 'h3'
-import { isValidYouTubeVideoId } from '~/utils/youtube'
+import { isValidYouTubeVideoId, PIPED_PROXY } from '~/utils/youtube'
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const upstream = await fetch(`https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`)
+    const upstream = await fetch(`${PIPED_PROXY}/vi/${videoId}/mqdefault.jpg?host=i.ytimg.com`)
     if (!upstream.ok) {
       setResponseStatus(event, upstream.status)
       return { error: 'Thumbnail unavailable' }

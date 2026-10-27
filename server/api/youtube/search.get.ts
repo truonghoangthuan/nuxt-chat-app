@@ -9,12 +9,7 @@ export default defineEventHandler(async (event) => {
     return { items: [] }
   }
 
-  const config = useRuntimeConfig()
-  const apiKey = (config.youtubeApiKey as string) || process.env.YOUTUBE_API_KEY || ''
-
-  const result = await searchYouTubeVideos(q, {
-    apiKey: apiKey || undefined,
-  })
+  const result = await searchYouTubeVideos(q)
 
   return result
 })
