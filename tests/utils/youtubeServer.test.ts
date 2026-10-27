@@ -167,20 +167,25 @@ describe('server endpoints', () => {
     expect(res).toEqual({ error: 'Invalid video ID' })
   })
 
-  it('stream endpoint falls back to iTunes AAC stream when upstream YouTube stream fails', async () => {
+  it('stream endpoint proxies KOQC audio with capped 206 range', async () => {
     const origFetch = globalThis.fetch
-    globalThis.fetch = vi.fn().mockImplementation(async (input: any) => {
+    const fetchMock = vi.fn().mockImplementation(async (input: any, init?: any) => {
       const url = String(input)
-      if (url.includes('itunes.apple.com/search')) {
+      if (url.includes('/streams/dQw4w9WgXcQ')) {
         return {
           ok: true,
           status: 200,
           json: async () => ({
-            results: [{ previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/mock.m4a' }],
+            audioStreams: [
+              {
+                url: 'https://pipedproxy.example.com/audio.m4a',
+                mimeType: 'audio/mp4',
+              },
+            ],
           }),
         }
       }
-      if (url.includes('audio-ssl.itunes.apple.com')) {
+      if (url === 'https://pipedproxy.example.com/audio.m4a') {
         return new Response(new Uint8Array([1, 2, 3, 4]), {
           status: 206,
           headers: {
@@ -190,16 +195,16 @@ describe('server endpoints', () => {
           },
         })
       }
-      // Simulate all direct YouTube / Piped / Invidious endpoints failing on datacenter IP
-      return { ok: false, status: 403, json: async () => ({}) }
-    }) as any
+      return { ok: false, status: 500 }
+    })
+    globalThis.fetch = fetchMock as any
 
     try {
       const mockEvent = {
-        path: '/api/youtube/stream?v=ZlSx-6UbrmI&title=Em%20Khong%20Quay%20Ve',
+        path: '/api/youtube/stream?v=dQw4w9WgXcQ',
         node: {
           req: {
-            url: '/api/youtube/stream?v=ZlSx-6UbrmI&title=Em%20Khong%20Quay%20Ve',
+            url: '/api/youtube/stream?v=dQw4w9WgXcQ',
             headers: { range: 'bytes=0-1023' },
           },
           res: {
@@ -212,6 +217,113 @@ describe('server endpoints', () => {
       const res = (await streamHandler(mockEvent)) as Response
       expect(res.status).toBe(206)
       expect(res.headers.get('Content-Type')).toBe('audio/mp4')
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://pipedproxy.example.com/audio.m4a',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Range: 'bytes=0-1023' }),
+        }),
+      )
+    } finally {
+      globalThis.fetch = origFetch
+    }
+  })
+
+  it('stream endpoint re-resolves once when cached proxy URL returns 403', async () => {
+    const origFetch = globalThis.fetch
+    let streamsCount = 0
+    let audioCallCount = 0
+    const fetchMock = vi.fn().mockImplementation(async (input: any) => {
+      const url = String(input)
+      if (url.includes('/streams/dQw4w9WgXcr')) {
+        streamsCount++
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            audioStreams: [
+              {
+                url: `https://pipedproxy.example.com/audio-${streamsCount}.m4a`,
+                mimeType: 'audio/mp4',
+              },
+            ],
+          }),
+        }
+      }
+      if (url.includes('pipedproxy.example.com/audio')) {
+        audioCallCount++
+        if (audioCallCount === 1) {
+          return { ok: false, status: 403 }
+        }
+        return new Response(new Uint8Array([1, 2]), {
+          status: 206,
+          headers: { 'content-type': 'audio/mp4', 'content-range': 'bytes 0-1/2' },
+        })
+      }
+      return { ok: false, status: 500 }
+    })
+    globalThis.fetch = fetchMock as any
+
+    try {
+      const mockEvent = {
+        path: '/api/youtube/stream?v=dQw4w9WgXcr',
+        node: {
+          req: { url: '/api/youtube/stream?v=dQw4w9WgXcr', headers: {} },
+          res: { statusCode: 200, setHeader: vi.fn() },
+        },
+      } as any
+
+      const res = (await streamHandler(mockEvent)) as Response
+      expect(res.status).toBe(206)
+      expect(streamsCount).toBe(2)
+    } finally {
+      globalThis.fetch = origFetch
+    }
+  })
+
+  it('stream endpoint returns 502 when KOQC is down', async () => {
+    const origFetch = globalThis.fetch
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 503 }) as any
+
+    try {
+      const mockEvent = {
+        path: '/api/youtube/stream?v=dQw4w9WgXcQ',
+        node: {
+          req: { url: '/api/youtube/stream?v=dQw4w9WgXcQ', headers: {} },
+          res: { statusCode: 200, setHeader: vi.fn() },
+        },
+      } as any
+
+      const res = await streamHandler(mockEvent)
+      expect(res).toEqual({ error: 'Upstream audio stream failed' })
+    } finally {
+      globalThis.fetch = origFetch
+    }
+  })
+
+  it('thumbnail endpoint fetches from KOQC proxy', async () => {
+    const origFetch = globalThis.fetch
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'image/webp' }),
+      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+    })
+    globalThis.fetch = fetchMock as any
+
+    try {
+      const mockEvent = {
+        path: '/api/youtube/thumbnail?v=dQw4w9WgXcQ',
+        node: {
+          req: { url: '/api/youtube/thumbnail?v=dQw4w9WgXcQ' },
+          res: { statusCode: 200, setHeader: vi.fn() },
+        },
+      } as any
+
+      const res = await thumbnailHandler(mockEvent)
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://pipedproxy.nhackoqc.xyz/vi/dQw4w9WgXcQ/mqdefault.jpg?host=i.ytimg.com',
+      )
+      expect(res).toBeInstanceOf(Uint8Array)
     } finally {
       globalThis.fetch = origFetch
     }
