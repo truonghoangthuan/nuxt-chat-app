@@ -30,9 +30,9 @@
 - [x] Run focused tests, all tests, production build, and `git diff --check`.
 - [x] Review final diff independently for SQL/RLS security, participant restrictions, concurrent turns, route lifecycle, and accessibility. Check documented schema upgrade prerequisite.
 
-### 5. Publish (deferred to parent agent; explicitly outside this worktree task)
-- [ ] Commit and push the feature branch; open a concise PR to `master` describing the schema prerequisite, behavior, tests, and limitations.
-- [ ] Verify PR URL and report required/pending checks accurately.
+### 5. Publish
+- [x] Commit and push the feature branch; open a PR to `master` describing the schema prerequisite, behavior, tests, and limitations.
+- [x] Verify the PR URL and checks: GitGuardian and Vercel Preview Comments passed; Vercel deployment is blocked by project access; Supabase Preview was skipped.
 
 ## Implementation verification notes
 
