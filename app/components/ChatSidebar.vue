@@ -717,6 +717,7 @@ function onContactsClick() {
         </div>
       </div>
       <a href="/caro" data-test="play-caro" class="shrink-0 px-4 py-3 border-t border-[var(--ap-glass-border)] text-sm font-semibold text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px]">Play Caro</a>
+      <a href="/chess" data-test="play-chess" class="shrink-0 px-4 py-3 border-t border-[var(--ap-glass-border)] text-sm font-semibold text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px]">Play Chess</a>
     </aside>
   </div>
 </template>

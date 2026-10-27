@@ -834,3 +834,100 @@ begin
 end;
 $$;
 commit;
+
+-- BEGIN CHESS
+-- Apply this entire section independently for existing installations.
+begin;
+create table if not exists public.chess_games (
+  id uuid primary key default gen_random_uuid(),
+  white_id uuid not null references auth.users(id),
+  black_id uuid references auth.users(id),
+  fen text not null default 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+  moves text[] not null default '{}',
+  move_count integer not null default 0 check (move_count >= 0),
+  turn text not null default 'w' check (turn in ('w', 'b')),
+  status text not null default 'waiting' check (status in ('waiting', 'active', 'check', 'checkmate', 'draw')),
+  result text check (result in ('white', 'black', 'stalemate', 'repetition', 'insufficient_material', 'fifty_moves')),
+  created_at timestamptz not null default now(),
+  check (black_id is null or black_id <> white_id),
+  check (cardinality(moves) = move_count),
+  check (
+    (status = 'waiting' and black_id is null and move_count = 0 and turn = 'w' and result is null) or
+    (status in ('active', 'check') and black_id is not null and result is null) or
+    (status = 'checkmate' and black_id is not null and result is not null and result in ('white', 'black')) or
+    (status = 'draw' and black_id is not null and result is not null and result in ('stalemate', 'repetition', 'insufficient_material', 'fifty_moves'))
+  )
+);
+create index if not exists chess_games_white_idx on public.chess_games(white_id);
+create index if not exists chess_games_black_idx on public.chess_games(black_id);
+alter table public.chess_games enable row level security;
+revoke all on public.chess_games from public, anon, authenticated, service_role;
+grant select on public.chess_games to authenticated, service_role;
+drop policy if exists chess_participants on public.chess_games;
+create policy chess_participants on public.chess_games for select to authenticated
+  using (auth.uid() = white_id or auth.uid() = black_id);
+
+create or replace function public.create_chess_game()
+returns public.chess_games language plpgsql security definer set search_path = pg_catalog, public as $$
+declare g public.chess_games; actor uuid := auth.uid();
+begin
+  if actor is null then raise exception 'Sign in to play'; end if;
+  insert into public.chess_games(white_id) values (actor) returning * into g;
+  return g;
+end;
+$$;
+create or replace function public.join_chess_game(p_game_id uuid)
+returns public.chess_games language plpgsql security definer set search_path = pg_catalog, public as $$
+declare g public.chess_games; actor uuid := auth.uid();
+begin
+  if actor is null then raise exception 'Sign in to play'; end if;
+  select * into g from public.chess_games where id = p_game_id for update;
+  if not found then raise exception 'Room unavailable'; end if;
+  -- Idempotent reopen, including finished games; never put the creator in both seats.
+  if actor = g.white_id or actor = g.black_id then return g; end if;
+  if g.status <> 'waiting' or g.black_id is not null then raise exception 'Room unavailable'; end if;
+  update public.chess_games set black_id = actor, status = 'active' where id = p_game_id returning * into g;
+  return g;
+end;
+$$;
+
+-- Only trusted Nitro code may supply engine-derived fields. No browser EXECUTE grant.
+create or replace function public.commit_chess_move(
+  p_game_id uuid, p_actor uuid, p_expected_count integer, p_expected_fen text,
+  p_fen text, p_san text, p_turn text, p_status text, p_result text
+)
+returns public.chess_games language plpgsql security definer set search_path = pg_catalog, public as $$
+declare g public.chess_games;
+begin
+  select * into g from public.chess_games where id = p_game_id for update;
+  if not found then raise exception 'Room unavailable'; end if;
+  if p_actor is null or (p_actor is distinct from g.white_id and p_actor is distinct from g.black_id) then raise exception 'Room unavailable'; end if;
+  if g.status not in ('active', 'check') or g.black_id is null then raise exception 'Game is not active'; end if;
+  if p_actor is distinct from (case when g.turn = 'w' then g.white_id else g.black_id end) then raise exception 'Not your turn'; end if;
+  if p_expected_count is distinct from g.move_count or p_expected_fen is distinct from g.fen then raise exception 'Stale move'; end if;
+  if p_turn is null or p_turn not in ('w', 'b') or p_turn = g.turn
+    or p_san is null or length(p_san) not between 1 and 16
+    or p_fen is null or length(p_fen) not between 15 and 120
+    or p_status is null or p_status not in ('active', 'check', 'checkmate', 'draw') then raise exception 'Invalid move state'; end if;
+  update public.chess_games set fen = p_fen, moves = array_append(g.moves, p_san),
+    move_count = g.move_count + 1, turn = p_turn, status = p_status, result = p_result
+    where id = p_game_id returning * into g;
+  return g;
+end;
+$$;
+revoke all on function public.create_chess_game() from public, anon, authenticated, service_role;
+revoke all on function public.join_chess_game(uuid) from public, anon, authenticated, service_role;
+revoke all on function public.commit_chess_move(uuid, uuid, integer, text, text, text, text, text, text) from public, anon, authenticated, service_role;
+grant execute on function public.create_chess_game() to authenticated;
+grant execute on function public.join_chess_game(uuid) to authenticated;
+grant execute on function public.commit_chess_move(uuid, uuid, integer, text, text, text, text, text, text) to service_role;
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+    and not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'chess_games') then
+    alter publication supabase_realtime add table public.chess_games;
+  end if;
+end;
+$$;
+commit;
+-- END CHESS

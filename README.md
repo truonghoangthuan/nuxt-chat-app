@@ -68,13 +68,13 @@ A modern, resilient, end-to-end encrypted real-time web chat application built w
 1. Create a project at [supabase.com](https://supabase.com).
 2. Navigate to the **SQL Editor** in your Supabase dashboard.
 3. Paste and run the entire contents of [`supabase/schema.sql`](./supabase/schema.sql). This configures:
-   - Tables: `profiles`, `contacts`, `conversations`, `conversation_members`, `messages`, `message_reactions`, `conversation_reads`, `e2ee_config`, `caro_games`, `caro_moves`.
+   - Tables: `profiles`, `contacts`, `conversations`, `conversation_members`, `messages`, `message_reactions`, `conversation_reads`, `e2ee_config`, `caro_games`, `caro_moves`, `chess_games`.
    - Security: Row-Level Security (RLS) policies and security-definer helper functions.
    - Storage Buckets: Private `message-attachments` and public `chat-backgrounds` with RLS policies.
    - Realtime Publication: `supabase_realtime` publication for all relevant tables.
    - Envelopes: Database trigger enforcing `e2ee:v1:` ciphertexts on `messages`.
 
-For existing projects that already applied the schema, run only the **Caro** section at the end of `supabase/schema.sql` (from `-- Caro: apply this entire section` through `commit;`) in the SQL Editor as the database owner. The earlier schema setup is not fully rerunnable. New projects running the full schema file already include Caro.
+For existing projects that already applied the schema, run only the additive **Caro** and/or **Chess** sections at the end of `supabase/schema.sql` as needed, in the SQL Editor as the database owner. Apply the Caro section from `-- Caro: apply this entire section` through `commit;`; apply Chess from `-- BEGIN CHESS` through `-- END CHESS`, including its transaction. The earlier schema setup is not fully rerunnable. New projects running the full schema file already include both games.
 
 ### 2. Generate E2EE Master Key
 
@@ -102,11 +102,13 @@ Copy `.env.example` to `.env` in the root directory:
 cp .env.example .env
 ```
 
-Populate with your Supabase project credentials:
+Populate with your Supabase project credentials. These names are read by `@nuxtjs/supabase`:
 
 ```dotenv
-SUPABASE_URL=https://<your-project-id>.supabase.co
-SUPABASE_KEY=<your-anon-public-key>
+NUXT_PUBLIC_SUPABASE_URL=https://<your-project-id>.supabase.co
+NUXT_PUBLIC_SUPABASE_KEY=<your-anon-public-key>
+# Required only for online Chess; server-side only, never prefix with NUXT_PUBLIC_
+NUXT_SUPABASE_SECRET_KEY=<your-secret-key-or-legacy-service-role-key>
 ```
 
 ---
@@ -150,6 +152,7 @@ The application runs at `http://localhost:3000`.
 │   │   └── css/main.css            # Tailwind CSS v4 design tokens and theme variables
 │   ├── components/
 │   │   ├── ui/                     # shadcn-nuxt accessible UI primitives (dialog, button, etc.)
+│   │   ├── ChessBoard.vue          # Keyboard-accessible chessboard and promotion picker
 │   │   ├── ChatSidebar.vue         # Conversations list, friends roster, unread counters, user status
 │   │   ├── ConnectionBanner.vue    # Network reconnection state banner with retry action
 │   │   ├── ContactsModal.vue       # Friends address book, email lookup, and mutual connection actions
@@ -165,6 +168,7 @@ The application runs at `http://localhost:3000`.
 │   ├── composables/
 │   │   ├── useChatRoom.ts          # Supabase realtime and query orchestrator across channels
 │   │   ├── useCaroGame.ts          # Authoritative Caro room RPCs and realtime state
+│   │   ├── useChessGame.ts         # Invite-room, realtime state and move submission
 │   │   ├── useE2ee.ts              # Session key cache, phrase derivation, verifier validation
 │   │   ├── useMessagesState.ts     # Pure message store: optimistic UI, dedup, cursors, ordering
 │   │   ├── useNotification.ts      # Service worker notifications and toast alerts
@@ -174,18 +178,24 @@ The application runs at `http://localhost:3000`.
 │   ├── pages/
 │   │   ├── index.vue               # Main chat workspace shell
 │   │   ├── caro.vue                # Invite-link multiplayer Caro board
+│   │   ├── chess.vue               # Invite-link online chess board
 │   │   ├── login.vue               # Sign-in and account registration view
 │   │   └── confirm.vue             # Supabase email confirmation callback handler
 │   ├── types/
 │   │   ├── chat.ts                 # Domain interfaces (Profile, Conversation, ChatMessage, etc.)
+│   │   ├── chess.ts                # Chess room and move-state types
 │   │   └── notification.ts         # Notification toast and event types
 │   └── utils/
 │       ├── caro.ts                 # Caro board and five-in-a-row helpers
+│       ├── authRedirect.ts         # Validates local post-auth return paths
 │       ├── crypto.ts               # WebCrypto AES-GCM-256 + PBKDF2 encryption/decryption utilities
 │       ├── chat.ts                 # Pure helpers (initials, avatar palette, date formatters)
 │       └── sound.ts                # Audio chime generator
 ├── public/
 │   └── sw.js                       # Service worker for background desktop notifications
+├── server/
+│   ├── api/chess/move.post.ts      # Authenticated server-authoritative move endpoint
+│   └── utils/chessMove.ts          # Chess rules and persisted move-history validation
 ├── scripts/
 │   └── generate-e2ee-config.mjs    # CLI helper generating public.e2ee_config SQL insert
 ├── supabase/
@@ -193,6 +203,8 @@ The application runs at `http://localhost:3000`.
 └── tests/
     ├── components/                 # Component integration tests
     ├── composables/                # State factory and composable unit tests
+    ├── server/                     # Server route and chess rules tests
+    ├── integration/                # Isolated PostgreSQL/RLS integration checks
     └── utils/                      # Pure helper unit tests
 ```
 
@@ -205,3 +217,26 @@ The application runs at `http://localhost:3000`.
 3. **Idempotent Delivery**: Client-generated UUIDs (`client_id`) protect against duplicate sends during network retries.
 4. **Relational Disambiguation**: PostgREST joins specify explicit foreign key constraints (`author:profiles!messages_user_id_fkey(...)`) to prevent HTTP 300 relationship ambiguity.
 5. **In-Memory Search**: Search runs strictly client-side on decrypted messages in local memory; no search terms or decrypted bodies are ever sent to the server.
+
+### Online Chess
+
+Open **Play Chess** in the sidebar. A signed-in creator plays White; another signed-in user opening the UUID invite link takes Black. Both players can reopen that URL, including after checkmate or a draw. Completed games are read-only; **New room** creates a separate game. No AI, local two-player mode, spectators or clocks are included.
+
+Before enabling Chess:
+
+1. In the Supabase SQL Editor, apply the complete section between `-- BEGIN CHESS` and `-- END CHESS` in [`supabase/schema.sql`](supabase/schema.sql), including its transaction. It is additive and can be applied independently to existing installations; do not rerun unrelated setup. New installations can run the full schema. The section creates participant-only read policies, create/join RPCs, a server-only atomic move RPC, and adds `chess_games` to the existing `supabase_realtime` publication.
+2. Configure `NUXT_PUBLIC_SUPABASE_URL` and `NUXT_PUBLIC_SUPABASE_KEY` as above. Set **`NUXT_SUPABASE_SECRET_KEY`** in the Nuxt server environment to this project's Supabase secret key (or legacy service-role key). Restart the server. Never place this key under `runtimeConfig.public`, in a `NUXT_PUBLIC_*` variable, browser code, or version control. Static-only hosting cannot validate Chess moves; deploy a Nitro server.
+3. Sign in with two distinct accounts, create/copy/open a room link, and verify turn changes in both browsers. A missing server key fails closed with “Chess server is not configured.”
+
+The browser submits only source/destination squares, optional promotion and expected move count. Nitro authenticates the user, reads authoritative state with the server helper, validates through `chess.js`, and commits through a row-locked compare-and-set RPC restricted to `service_role`. Stored SAN history preserves repetition detection after reopening. Draws are automatically adjudicated for stalemate, threefold repetition, insufficient material and the fifty-move rule. Chess moves are not E2EE chat messages; both participants and the server can read them.
+
+Board controls: click/tap a piece then a marked destination, or use arrow keys and Enter/Space. Promotion offers queen, rook, bishop and knight. White stays at the bottom for both players. A connection failure disables moves; use **Reconnect**/**Retry** to fetch authoritative state.
+
+Validation:
+
+```bash
+npm test
+node tests/integration/chess-postgres.mjs
+```
+
+The PostgreSQL integration script requires Docker and a local `postgres:17-alpine` image. It creates/removes an isolated container without host ports or real credentials, checking RLS, grants, simultaneous joins/moves and completed-room reopening. Its minimal `auth.uid()` fixture tests PostgreSQL permissions/transactions, not hosted Supabase JWT verification or Realtime delivery.
