@@ -222,4 +222,51 @@ describe('Music UI components', () => {
       vi.unstubAllGlobals()
     }
   })
+
+  it('does not overwrite search results if trending resolves after user searched', async () => {
+    let resolveTrending: any
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/youtube/trending') {
+        return new Promise((resolve) => {
+          resolveTrending = () => resolve({
+            items: [{ videoId: 'late-trend', title: 'Late Trend', channelTitle: 'Artist', thumbnail: '' }],
+          })
+        })
+      }
+      if (url === '/api/youtube/search') {
+        return Promise.resolve({
+          items: [{ videoId: 'my-search', title: 'My Search Result', channelTitle: 'Artist', thumbnail: '' }],
+        })
+      }
+      return Promise.resolve({ items: [] })
+    })
+    vi.stubGlobal('$fetch', fetchMock)
+
+    try {
+      const wrapper = mount(YouTubeSearchModal, {
+        props: { open: true },
+        attachTo: document.body,
+      })
+
+      await new Promise((r) => setTimeout(r, 20))
+      const input = wrapper.find('[data-test="youtube-search-input"]')
+
+      // User searches before trending completes
+      await input.setValue('fast query')
+      await wrapper.find('form').trigger('submit')
+      await new Promise((r) => setTimeout(r, 20))
+      expect(wrapper.text()).toContain('My Search Result')
+
+      // Now trending finishes late
+      resolveTrending?.()
+      await new Promise((r) => setTimeout(r, 20))
+
+      // Trending must not overwrite search results
+      expect(wrapper.text()).toContain('My Search Result')
+      expect(wrapper.text()).not.toContain('Late Trend')
+      wrapper.unmount()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })

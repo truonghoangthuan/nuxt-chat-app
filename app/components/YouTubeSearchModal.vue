@@ -29,6 +29,8 @@ async function loadTrending() {
 
   try {
     const res = await $fetch<{ items: YouTubeSearchResult[]; error?: string }>('/api/youtube/trending')
+    if (!isTrending.value || !props.open) return
+
     if (res && Array.isArray(res.items)) {
       searchResults.value = res.items
       if (res.items.length === 0) {
@@ -38,9 +40,12 @@ async function loadTrending() {
       searchError.value = res.error
     }
   } catch (err: any) {
+    if (!isTrending.value || !props.open) return
     searchError.value = err?.message || 'Failed to load trending.'
   } finally {
-    isSearching.value = false
+    if (isTrending.value && props.open) {
+      isSearching.value = false
+    }
   }
 }
 
@@ -48,14 +53,15 @@ watch(
   () => props.open,
   async (isOpen) => {
     if (isOpen) {
+      nextTick().then(() => {
+        searchInputRef.value?.focus()
+      })
       if (props.initialResults && props.initialResults.length > 0) {
         searchResults.value = props.initialResults
         isTrending.value = false
       } else {
-        await loadTrending()
+        loadTrending()
       }
-      await nextTick()
-      searchInputRef.value?.focus()
     } else {
       searchQuery.value = ''
       searchError.value = null

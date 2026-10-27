@@ -386,4 +386,35 @@ describe('server endpoints', () => {
       globalThis.fetch = origFetch
     }
   })
+
+  it('trending endpoint sets no-store on error and public cache on success', async () => {
+    const origFetch = globalThis.fetch
+    const setHeaderMock = vi.fn()
+    const mockEvent = {
+      path: '/api/youtube/trending',
+      node: {
+        req: { url: '/api/youtube/trending' },
+        res: { statusCode: 200, setHeader: setHeaderMock },
+      },
+    } as any
+
+    // 1. Error response
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 }) as any
+    const errRes = await trendingHandler(mockEvent)
+    expect(errRes.error).toBeTruthy()
+    expect(setHeaderMock).toHaveBeenCalledWith('Cache-Control', 'no-store, no-cache')
+
+    // 2. Success response
+    setHeaderMock.mockClear()
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [{ url: '/watch?v=trend123456', type: 'stream', title: 'T', duration: 100 }],
+    }) as any
+    const okRes = await trendingHandler(mockEvent)
+    expect(okRes.items).toHaveLength(1)
+    expect(setHeaderMock).toHaveBeenCalledWith('Cache-Control', 'public, max-age=600, s-maxage=600')
+
+    globalThis.fetch = origFetch
+  })
 })
