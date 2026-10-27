@@ -17,9 +17,32 @@ const emit = defineEmits<{
 
 const searchQuery = ref('')
 const isSearching = ref(false)
+const isTrending = ref(false)
 const searchResults = ref<YouTubeSearchResult[]>(props.initialResults || [])
 const searchError = ref<string | null>(null)
 const searchInputRef = ref<HTMLInputElement | null>(null)
+
+async function loadTrending() {
+  isSearching.value = true
+  searchError.value = null
+  isTrending.value = true
+
+  try {
+    const res = await $fetch<{ items: YouTubeSearchResult[]; error?: string }>('/api/youtube/trending')
+    if (res && Array.isArray(res.items)) {
+      searchResults.value = res.items
+      if (res.items.length === 0) {
+        searchError.value = 'No trending videos available.'
+      }
+    } else if (res?.error) {
+      searchError.value = res.error
+    }
+  } catch (err: any) {
+    searchError.value = err?.message || 'Failed to load trending.'
+  } finally {
+    isSearching.value = false
+  }
+}
 
 watch(
   () => props.open,
@@ -27,12 +50,16 @@ watch(
     if (isOpen) {
       if (props.initialResults && props.initialResults.length > 0) {
         searchResults.value = props.initialResults
+        isTrending.value = false
+      } else {
+        await loadTrending()
       }
       await nextTick()
       searchInputRef.value?.focus()
     } else {
       searchQuery.value = ''
       searchError.value = null
+      isTrending.value = false
     }
   },
   { immediate: true },
@@ -43,6 +70,7 @@ watch(
   (newVal) => {
     if (newVal && newVal.length > 0) {
       searchResults.value = newVal
+      isTrending.value = false
     }
   },
 )
@@ -53,6 +81,7 @@ async function executeSearch() {
 
   isSearching.value = true
   searchError.value = null
+  isTrending.value = false
 
   try {
     const res = await $fetch<{ items: YouTubeSearchResult[]; error?: string }>('/api/youtube/search', {
@@ -152,6 +181,14 @@ function handleKeydown(e: KeyboardEvent) {
 
       <!-- Search Results List -->
       <div class="flex-1 overflow-y-auto p-4 space-y-2 min-h-[260px] max-h-[500px]">
+        <div
+          v-if="isTrending && searchResults.length > 0 && !isSearching"
+          data-test="youtube-trending-label"
+          class="px-1 py-1 text-[11px] font-semibold text-[var(--ap-text-muted)] uppercase tracking-wider flex items-center gap-1.5"
+        >
+          <span>Trending in Vietnam</span>
+        </div>
+
         <div v-if="isSearching" class="h-48 flex flex-col items-center justify-center gap-2 text-xs text-[var(--ap-text-muted)]">
           <Loader2 class="w-6 h-6 animate-spin text-blue-500" />
           <span>Searching YouTube...</span>

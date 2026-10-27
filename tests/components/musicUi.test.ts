@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import MusicPlayerBar from '~/components/MusicPlayerBar.vue'
 import YouTubeSearchModal from '~/components/YouTubeSearchModal.vue'
@@ -121,5 +121,105 @@ describe('Music UI components', () => {
       },
     })
     expect(modal.find('img').attributes('src')).toBe('/api/youtube/thumbnail?v=jfKfPfyJRdk')
+  })
+
+  it('loads VN trending when opened with no results', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      items: [
+        {
+          videoId: 'trend-1',
+          title: 'Trending Song 1',
+          channelTitle: 'Artist 1',
+          thumbnail: 'https://example.com/thumb.jpg',
+        },
+      ],
+    })
+    vi.stubGlobal('$fetch', fetchMock)
+
+    try {
+      const wrapper = mount(YouTubeSearchModal, {
+        props: {
+          open: true,
+        },
+      })
+
+      await new Promise((r) => setTimeout(r, 50))
+
+      expect(fetchMock).toHaveBeenCalledWith('/api/youtube/trending')
+      expect(wrapper.find('[data-test="youtube-trending-label"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="youtube-trending-label"]').text()).toContain('Trending in Vietnam')
+      expect(wrapper.findAll('[data-test="youtube-result-item"]')).toHaveLength(1)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('does not fetch trending when initialResults exist', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('$fetch', fetchMock)
+
+    try {
+      const wrapper = mount(YouTubeSearchModal, {
+        props: {
+          open: true,
+          initialResults: [
+            {
+              videoId: 'preset-1',
+              title: 'Preset Song',
+              channelTitle: 'Artist',
+              thumbnail: '',
+            },
+          ],
+        },
+      })
+
+      await new Promise((r) => setTimeout(r, 50))
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-test="youtube-trending-label"]').exists()).toBe(false)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('hides trending label after a typed search', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url === '/api/youtube/trending') {
+        return {
+          items: [
+            { videoId: 'trend-1', title: 'Trend', channelTitle: 'Artist', thumbnail: '' },
+          ],
+        }
+      }
+      if (url === '/api/youtube/search') {
+        return {
+          items: [
+            { videoId: 'searched-1', title: 'Searched', channelTitle: 'Artist', thumbnail: '' },
+          ],
+        }
+      }
+      return { items: [] }
+    })
+    vi.stubGlobal('$fetch', fetchMock)
+
+    try {
+      const wrapper = mount(YouTubeSearchModal, {
+        props: {
+          open: true,
+        },
+      })
+
+      await new Promise((r) => setTimeout(r, 50))
+      expect(wrapper.find('[data-test="youtube-trending-label"]').exists()).toBe(true)
+
+      const input = wrapper.find('[data-test="youtube-search-input"]')
+      await input.setValue('lofi beats')
+      await wrapper.find('form').trigger('submit')
+      await new Promise((r) => setTimeout(r, 50))
+
+      expect(wrapper.find('[data-test="youtube-trending-label"]').exists()).toBe(false)
+      expect(wrapper.text()).toContain('Searched')
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
