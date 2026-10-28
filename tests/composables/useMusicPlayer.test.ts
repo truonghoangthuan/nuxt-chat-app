@@ -152,4 +152,216 @@ describe('useMusicPlayer controller', () => {
     )
     expect(pos).toBe(15)
   })
+
+  it('enqueues track when idle by starting playback immediately and notifying onTrackStarted', () => {
+    const onBroadcast = vi.fn()
+    const onTrackStarted = vi.fn()
+    const ctrl = createMusicController({
+      onBroadcast,
+      onTrackStarted,
+      getCurrentUserId: () => 'user-1',
+      getCurrentUserName: () => 'Alice',
+    })
+    ctrl.stopPlayback(false)
+    ctrl.clearQueue()
+
+    ctrl.enqueue(
+      {
+        videoId: 'v1',
+        title: 'First Song',
+        channelTitle: 'Artist 1',
+        thumbnail: 't1',
+      },
+      'conv-1',
+      'end',
+    )
+
+    expect(ctrl.currentTrack.value?.videoId).toBe('v1')
+    expect(ctrl.queue.value).toEqual([])
+    expect(onTrackStarted).toHaveBeenCalledWith(
+      expect.objectContaining({ videoId: 'v1' }),
+      'conv-1',
+    )
+  })
+
+  it('enqueues track while playing by appending to queue and broadcasting queue op', () => {
+    const onBroadcast = vi.fn()
+    const onTrackStarted = vi.fn()
+    const ctrl = createMusicController({
+      onBroadcast,
+      onTrackStarted,
+      getCurrentUserId: () => 'user-1',
+      getCurrentUserName: () => 'Alice',
+    })
+
+    ctrl.playTrack(
+      { videoId: 'playing-1', title: 'Playing Now', channelTitle: 'Artist', thumbnail: 't' },
+      'conv-1',
+    )
+    onBroadcast.mockClear()
+    onTrackStarted.mockClear()
+
+    ctrl.enqueue(
+      { videoId: 'v2', title: 'Queued Song', channelTitle: 'Artist 2', thumbnail: 't2' },
+      'conv-1',
+      'end',
+    )
+
+    expect(ctrl.currentTrack.value?.videoId).toBe('playing-1')
+    expect(ctrl.queue.value.length).toBe(1)
+    expect(ctrl.queue.value[0].videoId).toBe('v2')
+    expect(ctrl.queue.value[0].addedBy).toBe('Alice')
+    expect(onTrackStarted).not.toHaveBeenCalled()
+    expect(onBroadcast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'queue',
+        conversationId: 'conv-1',
+        queueOp: expect.objectContaining({
+          op: 'add',
+          position: 'end',
+          item: expect.objectContaining({ videoId: 'v2' }),
+        }),
+      }),
+    )
+  })
+
+  it('handles skipToNext: plays next queued track or stops if empty', () => {
+    const onBroadcast = vi.fn()
+    const onTrackStarted = vi.fn()
+    const ctrl = createMusicController({
+      onBroadcast,
+      onTrackStarted,
+      getCurrentUserId: () => 'user-1',
+      getCurrentUserName: () => 'Alice',
+    })
+
+    ctrl.clearQueue()
+    ctrl.playTrack({ videoId: 'v1', title: 'Song 1', channelTitle: 'A1', thumbnail: 't1' }, 'conv-1')
+    ctrl.enqueue({ videoId: 'v2', title: 'Song 2', channelTitle: 'A2', thumbnail: 't2' }, 'conv-1', 'end')
+    expect(ctrl.queue.value.length).toBe(1)
+
+    onTrackStarted.mockClear()
+    ctrl.skipToNext()
+
+    expect(ctrl.currentTrack.value?.videoId).toBe('v2')
+    expect(ctrl.queue.value.length).toBe(0)
+    expect(onTrackStarted).toHaveBeenCalledWith(
+      expect.objectContaining({ videoId: 'v2' }),
+      'conv-1',
+    )
+
+    // Skip again when queue is empty -> stops
+    ctrl.skipToNext()
+    expect(ctrl.currentTrack.value).toBeNull()
+  })
+
+  it('applies remote queue and sync events correctly', () => {
+    const onBroadcast = vi.fn()
+    const ctrl = createMusicController({
+      onBroadcast,
+      getCurrentUserId: () => 'user-me',
+    })
+    ctrl.clearQueue()
+
+    // Remote queue add
+    ctrl.applyRemoteSyncEvent({
+      type: 'queue',
+      senderId: 'user-other',
+      conversationId: 'conv-1',
+      state: null,
+      queueOp: {
+        op: 'add',
+        position: 'end',
+        item: {
+          id: 'q-item-1',
+          videoId: 'vid-remote',
+          title: 'Remote Song',
+          channelTitle: 'Art',
+          thumbnail: 't',
+          addedBy: 'Bob',
+        },
+      },
+    })
+    expect(ctrl.queue.value.length).toBe(1)
+    expect(ctrl.queue.value[0].id).toBe('q-item-1')
+
+    // Remote play with queueItemId removes item from queue
+    ctrl.applyRemoteSyncEvent({
+      type: 'play',
+      senderId: 'user-other',
+      conversationId: 'conv-1',
+      state: {
+        conversationId: 'conv-1',
+        videoId: 'vid-remote',
+        title: 'Remote Song',
+        channelTitle: 'Art',
+        thumbnail: 't',
+        isPlaying: true,
+        positionSec: 0,
+        updatedAt: Date.now(),
+        startedBy: 'Bob',
+        queueItemId: 'q-item-1',
+      },
+    })
+    expect(ctrl.queue.value.length).toBe(0)
+    expect(ctrl.currentTrack.value?.videoId).toBe('vid-remote')
+  })
+
+  it('auto-advances track on handleTrackEnded: leader advances immediately, non-leader waits with fallback', () => {
+    vi.useFakeTimers()
+    try {
+      const onBroadcast = vi.fn()
+      // Alice is the current actor
+      const ctrlAlice = createMusicController({
+        onBroadcast,
+        getCurrentUserId: () => 'user-alice',
+        getCurrentUserName: () => 'Alice',
+      })
+      ctrlAlice.clearQueue()
+      ctrlAlice.playTrack({ videoId: 'v1', title: 'Song 1', channelTitle: 'A1', thumbnail: 't1' }, 'conv-1')
+      ctrlAlice.enqueue({ videoId: 'v2', title: 'Song 2', channelTitle: 'A2', thumbnail: 't2' }, 'conv-1', 'end')
+
+      // As leader (actorId === user-alice), ended advances immediately
+      ctrlAlice.handleTrackEnded()
+      expect(ctrlAlice.currentTrack.value?.videoId).toBe('v2')
+
+      // Now test non-leader (Bob)
+      const ctrlBob = createMusicController({
+        onBroadcast,
+        getCurrentUserId: () => 'user-bob',
+        getCurrentUserName: () => 'Bob',
+      })
+      ctrlBob.clearQueue()
+      // Bob sees currentTrack started by Alice
+      ctrlBob.applyRemoteSyncEvent({
+        type: 'play',
+        senderId: 'user-alice',
+        conversationId: 'conv-1',
+        state: {
+          conversationId: 'conv-1',
+          videoId: 'v2',
+          title: 'Song 2',
+          channelTitle: 'A2',
+          thumbnail: 't2',
+          isPlaying: true,
+          positionSec: 0,
+          updatedAt: Date.now(),
+          startedBy: 'Alice',
+          actorId: 'user-alice',
+        },
+      })
+      // Queue has item 3
+      ctrlBob.enqueue({ videoId: 'v3', title: 'Song 3', channelTitle: 'A3', thumbnail: 't3' }, 'conv-1', 'end')
+
+      // Non-leader handleTrackEnded doesn't advance immediately
+      ctrlBob.handleTrackEnded()
+      expect(ctrlBob.currentTrack.value?.videoId).toBe('v2')
+
+      // Advancing time by 4000ms triggers fallback auto-advance
+      vi.advanceTimersByTime(4000)
+      expect(ctrlBob.currentTrack.value?.videoId).toBe('v3')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
