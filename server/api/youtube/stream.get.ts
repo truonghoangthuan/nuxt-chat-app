@@ -26,18 +26,12 @@ export default defineEventHandler(async (event) => {
   }
 
   let resolved = await resolveYouTubeAudioStream(videoId)
-  let upstream: Response | null = null
+  let upstream: Response | null = resolved ? await fetchStream(resolved.url) : null
 
-  if (resolved) {
-    upstream = await fetchStream(resolved.url)
-
-    // Retry once bypassing cache if upstream URL expired (401/403/404) or failed
-    if (!upstream || upstream.status === 401 || upstream.status === 403 || upstream.status === 404) {
-      resolved = await resolveYouTubeAudioStream(videoId, { bypassCache: true })
-      if (resolved) {
-        upstream = await fetchStream(resolved.url)
-      }
-    }
+  // Retry once bypassing cache on any failure: slow/failed Piped resolve, expired proxy URL, or upstream error
+  if (!resolved || !upstream || (!upstream.ok && upstream.status !== 206)) {
+    resolved = await resolveYouTubeAudioStream(videoId, { bypassCache: true })
+    upstream = resolved ? await fetchStream(resolved.url) : null
   }
 
   if (!resolved || !upstream || (!upstream.ok && upstream.status !== 206)) {

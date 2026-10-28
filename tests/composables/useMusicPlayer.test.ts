@@ -418,3 +418,84 @@ describe('useMusicPlayer controller', () => {
     expect(ctrl.queue.value.length).toBe(0)
   })
 })
+
+describe('useMusicPlayer playback error recovery', () => {
+  const track = { videoId: 'errVid12345', title: 'Err Song', channelTitle: 'C', thumbnail: 't' }
+
+  it('silently reloads the source once after a stream error, then shows Tune in on second error', () => {
+    vi.useFakeTimers()
+    try {
+      const onPlayerAction = vi.fn()
+      const ctrl = createMusicController({ onPlayerAction, getCurrentUserId: () => 'u1' })
+      ctrl.playTrack(track, 'conv-1')
+      onPlayerAction.mockClear()
+
+      ctrl.handlePlaybackError()
+      expect(ctrl.autoplayBlocked.value).toBe(false)
+      vi.advanceTimersByTime(1500)
+      expect(onPlayerAction).toHaveBeenCalledWith('load', expect.objectContaining({ videoId: 'errVid12345' }))
+
+      ctrl.handlePlaybackError()
+      vi.advanceTimersByTime(1500)
+      expect(ctrl.autoplayBlocked.value).toBe(true)
+      expect(onPlayerAction).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('Tune in after a stream error reloads the source at the synced position instead of bare play', () => {
+    vi.useFakeTimers()
+    try {
+      const onPlayerAction = vi.fn()
+      const ctrl = createMusicController({ onPlayerAction, getCurrentUserId: () => 'u1' })
+      ctrl.playTrack(track, 'conv-1')
+      ctrl.handlePlaybackError()
+      vi.advanceTimersByTime(1500)
+      ctrl.handlePlaybackError()
+      onPlayerAction.mockClear()
+
+      vi.advanceTimersByTime(8500)
+      ctrl.unblockAutoplay()
+      expect(ctrl.autoplayBlocked.value).toBe(false)
+      expect(onPlayerAction).toHaveBeenCalledWith(
+        'load',
+        expect.objectContaining({ videoId: 'errVid12345', startSeconds: 10 }),
+      )
+      expect(onPlayerAction).not.toHaveBeenCalledWith('play')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('Tune in without a stream error still does a plain play (autoplay policy block)', () => {
+    const onPlayerAction = vi.fn()
+    const ctrl = createMusicController({ onPlayerAction, getCurrentUserId: () => 'u1' })
+    ctrl.playTrack(track, 'conv-1')
+    onPlayerAction.mockClear()
+
+    ctrl.autoplayBlocked.value = true
+    ctrl.unblockAutoplay()
+    expect(onPlayerAction).toHaveBeenCalledWith('play')
+  })
+
+  it('resets the silent retry budget when a new track loads', () => {
+    vi.useFakeTimers()
+    try {
+      const onPlayerAction = vi.fn()
+      const ctrl = createMusicController({ onPlayerAction, getCurrentUserId: () => 'u1' })
+      ctrl.playTrack(track, 'conv-1')
+      ctrl.handlePlaybackError()
+      vi.advanceTimersByTime(1500)
+
+      ctrl.playTrack({ ...track, videoId: 'nextVid1234' }, 'conv-1')
+      onPlayerAction.mockClear()
+      ctrl.handlePlaybackError()
+      vi.advanceTimersByTime(1500)
+      expect(ctrl.autoplayBlocked.value).toBe(false)
+      expect(onPlayerAction).toHaveBeenCalledWith('load', expect.objectContaining({ videoId: 'nextVid1234' }))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})

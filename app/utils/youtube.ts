@@ -250,9 +250,10 @@ export async function resolveYouTubeAudioStream(
     }
   }
 
+  // Cold Piped extraction for uncached videos often exceeds 3.5s
   const timeoutSignal = () =>
     typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
-      ? AbortSignal.timeout(3500)
+      ? AbortSignal.timeout(8000)
       : undefined
 
   try {

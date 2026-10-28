@@ -73,6 +73,10 @@ export function createMusicController(options: MusicControllerOptions = {}) {
 
   let isApplyingRemoteSync = false
   let fallbackTimer: any = null
+  // Stream error recovery: one silent reload per track, then surface Tune in
+  let errorRetried = false
+  let sourceFailed = false
+  let errorRetryTimer: any = null
 
   function clearFallbackTimer(): void {
     if (fallbackTimer) {
@@ -81,12 +85,51 @@ export function createMusicController(options: MusicControllerOptions = {}) {
     }
   }
 
+  function resetErrorState(): void {
+    errorRetried = false
+    sourceFailed = false
+    if (errorRetryTimer) {
+      clearTimeout(errorRetryTimer)
+      errorRetryTimer = null
+    }
+  }
+
+  // A media element in error state never refetches on play(); re-assign the source at the room position
+  function reloadSource(): void {
+    const track = currentTrack.value
+    if (!track) return
+    sourceFailed = false
+    options.onPlayerAction?.('load', {
+      videoId: track.videoId,
+      title: track.title,
+      startSeconds: computeSyncedPosition(track),
+      autoplay: track.isPlaying,
+    })
+  }
+
+  function handlePlaybackError(): void {
+    const track = currentTrack.value
+    if (!track) return
+    sourceFailed = true
+    if (errorRetried) {
+      autoplayBlocked.value = true
+      return
+    }
+    errorRetried = true
+    const failedVideoId = track.videoId
+    errorRetryTimer = setTimeout(() => {
+      errorRetryTimer = null
+      if (currentTrack.value?.videoId === failedVideoId) reloadSource()
+    }, 1500)
+  }
+
   function playTrackInternal(
     track: YouTubeSearchResult,
     conversationId: string,
     queueItemId?: string,
   ): void {
     clearFallbackTimer()
+    resetErrorState()
     const userId = options.getCurrentUserId?.()
     const userName = options.getCurrentUserName?.() || 'Someone'
 
@@ -323,6 +366,10 @@ export function createMusicController(options: MusicControllerOptions = {}) {
 
   function unblockAutoplay(): void {
     autoplayBlocked.value = false
+    if (sourceFailed) {
+      reloadSource()
+      return
+    }
     options.onPlayerAction?.('play')
   }
 
@@ -365,6 +412,7 @@ export function createMusicController(options: MusicControllerOptions = {}) {
           currentTimeSec.value = syncedPos
 
           if (!isSameVideo) {
+            resetErrorState()
             options.onPlayerAction?.('load', {
               videoId: event.state.videoId,
               title: event.state.title,
@@ -442,6 +490,7 @@ export function createMusicController(options: MusicControllerOptions = {}) {
     setVolume,
     toggleMute,
     unblockAutoplay,
+    handlePlaybackError,
     applyRemoteSyncEvent,
   }
 }

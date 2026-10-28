@@ -281,6 +281,48 @@ describe('server endpoints', () => {
     }
   })
 
+  it('stream endpoint retries resolve once when the first /streams call fails', async () => {
+    const origFetch = globalThis.fetch
+    let streamsCount = 0
+    globalThis.fetch = vi.fn().mockImplementation(async (input: any) => {
+      const url = String(input)
+      if (url.includes('/streams/retryVid123')) {
+        streamsCount++
+        if (streamsCount === 1) throw new Error('TimeoutError')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            audioStreams: [{ url: 'https://pipedproxy.example.com/retry.m4a', mimeType: 'audio/mp4' }],
+          }),
+        }
+      }
+      if (url === 'https://pipedproxy.example.com/retry.m4a') {
+        return new Response(new Uint8Array([1]), {
+          status: 206,
+          headers: { 'content-type': 'audio/mp4', 'content-range': 'bytes 0-0/1' },
+        })
+      }
+      return { ok: false, status: 500 }
+    }) as any
+
+    try {
+      const mockEvent = {
+        path: '/api/youtube/stream?v=retryVid123',
+        node: {
+          req: { url: '/api/youtube/stream?v=retryVid123', headers: {} },
+          res: { statusCode: 200, setHeader: vi.fn() },
+        },
+      } as any
+
+      const res = (await streamHandler(mockEvent)) as Response
+      expect(res.status).toBe(206)
+      expect(streamsCount).toBe(2)
+    } finally {
+      globalThis.fetch = origFetch
+    }
+  })
+
   it('stream endpoint returns 502 when KOQC is down', async () => {
     const origFetch = globalThis.fetch
     globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 503 }) as any
