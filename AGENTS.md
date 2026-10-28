@@ -45,6 +45,7 @@ The codebase separates **Supabase/Realtime I/O orchestration** from **pure, test
 │   │   ├── MessageComposer.vue     # Textarea composer (Enter to send, Shift+Enter newline, typing hook)
 │   │   ├── MessageViewport.vue     # Upward infinite scroll, scroll-lock preservation, new-message pill, E2EE badges
 │   │   ├── MusicPlayerBar.vue      # Persistent synchronized audio player bar (scrubber, play/pause, volume, tune-in)
+│   │   ├── MusicQueuePanel.vue     # Collapsible queue and history panel with drag-and-drop reordering
 │   │   ├── UserAvatar.vue          # Deterministic color badge + 1-2 character initials
 │   │   └── YouTubeSearchModal.vue  # In-app YouTube video search and room track selection modal
 │   ├── composables/
