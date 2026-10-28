@@ -1,5 +1,79 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createMusicController, computeSyncedPosition } from '~/composables/useMusicPlayer'
+import { createMusicController, computeSyncedPosition, applyQueueOp } from '~/composables/useMusicPlayer'
+import type { MusicQueueItem } from '~/types/chat'
+
+describe('applyQueueOp', () => {
+  const itemA: MusicQueueItem = {
+    id: 'item-1',
+    videoId: 'vid-1',
+    title: 'Song 1',
+    channelTitle: 'Artist 1',
+    thumbnail: 't1',
+    addedBy: 'Alice',
+  }
+  const itemB: MusicQueueItem = {
+    id: 'item-2',
+    videoId: 'vid-2',
+    title: 'Song 2',
+    channelTitle: 'Artist 2',
+    thumbnail: 't2',
+    addedBy: 'Bob',
+  }
+  const itemC: MusicQueueItem = {
+    id: 'item-3',
+    videoId: 'vid-3',
+    title: 'Song 3',
+    channelTitle: 'Artist 3',
+    thumbnail: 't3',
+    addedBy: 'Charlie',
+  }
+
+  it('adds item to end and to next position', () => {
+    let q = applyQueueOp([], { op: 'add', item: itemA, position: 'end' })
+    expect(q).toEqual([itemA])
+
+    q = applyQueueOp(q, { op: 'add', item: itemB, position: 'end' })
+    expect(q).toEqual([itemA, itemB])
+
+    q = applyQueueOp(q, { op: 'add', item: itemC, position: 'next' })
+    expect(q).toEqual([itemC, itemA, itemB])
+  })
+
+  it('ignores duplicate id when adding', () => {
+    const q1 = [itemA]
+    const q2 = applyQueueOp(q1, { op: 'add', item: { ...itemA, title: 'Updated Song' }, position: 'end' })
+    expect(q2).toEqual([itemA])
+  })
+
+  it('removes item by id', () => {
+    const q = [itemA, itemB]
+    const res = applyQueueOp(q, { op: 'remove', id: 'item-1' })
+    expect(res).toEqual([itemB])
+
+    const res2 = applyQueueOp(res, { op: 'remove', id: 'item-nonexistent' })
+    expect(res2).toEqual([itemB])
+  })
+
+  it('moves item to new index with clamping', () => {
+    const q = [itemA, itemB, itemC]
+    // Move itemC from index 2 to index 0
+    const res1 = applyQueueOp(q, { op: 'move', id: 'item-3', toIndex: 0 })
+    expect(res1.map(x => x.id)).toEqual(['item-3', 'item-1', 'item-2'])
+
+    // Move with clamped toIndex beyond length
+    const res2 = applyQueueOp(q, { op: 'move', id: 'item-1', toIndex: 99 })
+    expect(res2.map(x => x.id)).toEqual(['item-2', 'item-3', 'item-1'])
+
+    // Move with negative toIndex clamps to 0
+    const res3 = applyQueueOp(q, { op: 'move', id: 'item-2', toIndex: -5 })
+    expect(res3.map(x => x.id)).toEqual(['item-2', 'item-1', 'item-3'])
+  })
+
+  it('clears queue', () => {
+    const q = [itemA, itemB]
+    expect(applyQueueOp(q, { op: 'clear' })).toEqual([])
+  })
+})
 
 describe('useMusicPlayer controller', () => {
   it('starts playing a selected track and broadcasts play event', () => {

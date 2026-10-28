@@ -1,5 +1,5 @@
 import { ref, type Ref } from 'vue'
-import type { MusicPlaybackState, MusicSyncEvent, YouTubeSearchResult } from '~/types/chat'
+import type { MusicPlaybackState, MusicSyncEvent, YouTubeSearchResult, MusicQueueItem, MusicQueueOp } from '~/types/chat'
 
 export function computeSyncedPosition(
   state: MusicPlaybackState,
@@ -10,6 +10,40 @@ export function computeSyncedPosition(
   }
   const elapsed = Math.max(0, (nowMs - state.updatedAt) / 1000)
   return Math.round(state.positionSec + elapsed)
+}
+
+export function applyQueueOp(
+  queue: MusicQueueItem[],
+  op?: MusicQueueOp | null,
+): MusicQueueItem[] {
+  if (!op) return queue
+  switch (op.op) {
+    case 'add': {
+      if (queue.some(item => item.id === op.item.id)) {
+        return queue
+      }
+      if (op.position === 'next') {
+        return [op.item, ...queue]
+      }
+      return [...queue, op.item]
+    }
+    case 'remove':
+      return queue.filter(item => item.id !== op.id)
+    case 'move': {
+      const idx = queue.findIndex(item => item.id === op.id)
+      if (idx === -1) return queue
+      const target = queue[idx]
+      const without = queue.filter((_, i) => i !== idx)
+      const clampedIndex = Math.max(0, Math.min(without.length, op.toIndex))
+      const next = [...without]
+      next.splice(clampedIndex, 0, target)
+      return next
+    }
+    case 'clear':
+      return []
+    default:
+      return queue
+  }
 }
 
 export interface MusicControllerOptions {
