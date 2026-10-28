@@ -2,7 +2,7 @@
 import { ref, watch, nextTick } from 'vue'
 import type { YouTubeSearchResult } from '~/types/chat'
 import { getYouTubeThumbnailProxyUrl } from '~/utils/youtube'
-import { Search, X, Music, Loader2, Play } from '@lucide/vue'
+import { Search, X, Music, Loader2, Play, ListPlus, ListStart } from '@lucide/vue'
 
 const props = defineProps<{
   open: boolean
@@ -13,6 +13,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'select', track: YouTubeSearchResult): void
+  (e: 'queue', track: YouTubeSearchResult, position: 'end' | 'next'): void
 }>()
 
 const searchQuery = ref('')
@@ -21,6 +22,22 @@ const isTrending = ref(false)
 const searchResults = ref<YouTubeSearchResult[]>(props.initialResults || [])
 const searchError = ref<string | null>(null)
 const searchInputRef = ref<HTMLInputElement | null>(null)
+const addedFeedback = ref<Record<string, string>>({})
+
+function handleQueue(e: Event, track: YouTubeSearchResult, position: 'end' | 'next') {
+  e.stopPropagation()
+  emit('queue', track, position)
+  addedFeedback.value[track.videoId] = position === 'next' ? 'Added Next' : 'Added to Queue'
+  setTimeout(() => {
+    delete addedFeedback.value[track.videoId]
+  }, 1800)
+}
+
+function handlePlayNow(e: Event, track: YouTubeSearchResult) {
+  e.stopPropagation()
+  emit('select', track)
+  emit('close')
+}
 
 async function loadTrending() {
   isSearching.value = true
@@ -240,12 +257,46 @@ function handleKeydown(e: KeyboardEvent) {
             </p>
           </div>
 
-          <!-- Play button badge -->
-          <div class="shrink-0 opacity-0 group-hover:opacity-100 transition">
-            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-500 text-white shadow-xs">
-              <Play class="w-3 h-3 fill-current" />
-              <span>Play</span>
+          <!-- Action buttons (Play now, Play next, Add to queue) -->
+          <div class="shrink-0 flex items-center gap-1.5 opacity-90 sm:opacity-0 group-hover:opacity-100 transition">
+            <span
+              v-if="addedFeedback[item.videoId]"
+              class="text-[11px] font-medium text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md"
+            >
+              {{ addedFeedback[item.videoId] }}
             </span>
+            <template v-else>
+              <button
+                type="button"
+                data-test="youtube-play-now"
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-500 hover:bg-blue-600 text-white shadow-xs transition cursor-pointer"
+                title="Play now"
+                @click="handlePlayNow($event, item)"
+              >
+                <Play class="w-3 h-3 fill-current" />
+                <span>Play</span>
+              </button>
+              <button
+                type="button"
+                data-test="youtube-add-next"
+                class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-[var(--ap-text-primary)] border border-[var(--ap-glass-border)] transition cursor-pointer"
+                title="Play next after current song"
+                @click="handleQueue($event, item, 'next')"
+              >
+                <ListStart class="w-3 h-3" />
+                <span class="hidden md:inline">Play Next</span>
+              </button>
+              <button
+                type="button"
+                data-test="youtube-add-queue"
+                class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-[var(--ap-text-primary)] border border-[var(--ap-glass-border)] transition cursor-pointer"
+                title="Add to end of queue"
+                @click="handleQueue($event, item, 'end')"
+              >
+                <ListPlus class="w-3 h-3" />
+                <span class="hidden md:inline">Queue</span>
+              </button>
+            </template>
           </div>
         </div>
       </div>
