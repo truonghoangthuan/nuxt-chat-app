@@ -1201,16 +1201,22 @@ export function useChatRoom() {
     })
   }
 
-  async function sendMusicPlaySystemMessage(trackTitle: string, conversationId?: string): Promise<void> {
+  async function sendMusicPlaySystemMessage(
+    trackOrTitle: YouTubeSearchResult | string,
+    conversationId?: string,
+  ): Promise<void> {
     const targetId = conversationId || activeConversationId.value
     if (!targetId) return
     const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
     const actorName = current?.display_name || 'Someone'
+    const title = typeof trackOrTitle === 'string' ? trackOrTitle : trackOrTitle.title
+    const track = typeof trackOrTitle === 'object' ? trackOrTitle : undefined
     const payload = serializeSystemMessage({
       type: 'system',
       event: 'music_play',
       actorName,
-      detail: trackTitle,
+      detail: title,
+      ...(track ? { track } : {}),
     })
     await sendMessage(payload, undefined, targetId).catch(() => {})
   }

@@ -1,5 +1,5 @@
 import { ref, type Ref } from 'vue'
-import type { MusicPlaybackState, MusicSyncEvent, YouTubeSearchResult } from '~/types/chat'
+import type { MusicPlaybackState, MusicSyncEvent, YouTubeSearchResult, MusicQueueItem, MusicQueueOp } from '~/types/chat'
 
 export function computeSyncedPosition(
   state: MusicPlaybackState,
@@ -12,11 +12,46 @@ export function computeSyncedPosition(
   return Math.round(state.positionSec + elapsed)
 }
 
+export function applyQueueOp(
+  queue: MusicQueueItem[],
+  op?: MusicQueueOp | null,
+): MusicQueueItem[] {
+  if (!op) return queue
+  switch (op.op) {
+    case 'add': {
+      if (queue.some(item => item.id === op.item.id)) {
+        return queue
+      }
+      if (op.position === 'next') {
+        return [op.item, ...queue]
+      }
+      return [...queue, op.item]
+    }
+    case 'remove':
+      return queue.filter(item => item.id !== op.id)
+    case 'move': {
+      const idx = queue.findIndex(item => item.id === op.id)
+      if (idx === -1) return queue
+      const target = queue[idx]
+      const without = queue.filter((_, i) => i !== idx)
+      const clampedIndex = Math.max(0, Math.min(without.length, op.toIndex))
+      const next = [...without]
+      next.splice(clampedIndex, 0, target)
+      return next
+    }
+    case 'clear':
+      return []
+    default:
+      return queue
+  }
+}
+
 export interface MusicControllerOptions {
   onBroadcast?: (event: MusicSyncEvent) => void
   getCurrentUserId?: () => string | undefined
   getCurrentUserName?: () => string | undefined
   onPlayerAction?: (action: 'play' | 'pause' | 'seek' | 'load', payload?: any) => void
+  onTrackStarted?: (track: YouTubeSearchResult, conversationId: string) => void
 }
 
 const globalCurrentTrack = ref<MusicPlaybackState | null>(null)
@@ -25,6 +60,7 @@ const globalDurationSec = ref<number>(0)
 const globalVolume = ref<number>(80)
 const globalIsMuted = ref<boolean>(false)
 const globalAutoplayBlocked = ref<boolean>(false)
+const globalQueue = ref<MusicQueueItem[]>([])
 
 export function createMusicController(options: MusicControllerOptions = {}) {
   const currentTrack: Ref<MusicPlaybackState | null> = globalCurrentTrack
@@ -33,10 +69,24 @@ export function createMusicController(options: MusicControllerOptions = {}) {
   const volume: Ref<number> = globalVolume
   const isMuted: Ref<boolean> = globalIsMuted
   const autoplayBlocked: Ref<boolean> = globalAutoplayBlocked
+  const queue: Ref<MusicQueueItem[]> = globalQueue
 
   let isApplyingRemoteSync = false
+  let fallbackTimer: any = null
 
-  function playTrack(track: YouTubeSearchResult, conversationId: string): void {
+  function clearFallbackTimer(): void {
+    if (fallbackTimer) {
+      clearTimeout(fallbackTimer)
+      fallbackTimer = null
+    }
+  }
+
+  function playTrackInternal(
+    track: YouTubeSearchResult,
+    conversationId: string,
+    queueItemId?: string,
+  ): void {
+    clearFallbackTimer()
     const userId = options.getCurrentUserId?.()
     const userName = options.getCurrentUserName?.() || 'Someone'
 
@@ -51,6 +101,7 @@ export function createMusicController(options: MusicControllerOptions = {}) {
       updatedAt: Date.now(),
       startedBy: userName,
       ...(userId ? { actorId: userId } : {}),
+      ...(queueItemId ? { queueItemId } : {}),
     }
 
     currentTrack.value = newState
@@ -63,13 +114,132 @@ export function createMusicController(options: MusicControllerOptions = {}) {
       startSeconds: 0,
     })
 
+    if (!isApplyingRemoteSync) {
+      options.onTrackStarted?.(track, conversationId)
+      if (options.onBroadcast) {
+        options.onBroadcast({
+          type: 'play',
+          state: newState,
+          senderId: userId || '',
+          conversationId,
+        })
+      }
+    }
+  }
+
+  function playTrack(track: YouTubeSearchResult, conversationId: string): void {
+    playTrackInternal(track, conversationId)
+  }
+
+  function enqueue(
+    track: YouTubeSearchResult,
+    conversationId: string,
+    position: 'end' | 'next' = 'end',
+  ): void {
+    if (!currentTrack.value) {
+      playTrack(track, conversationId)
+      return
+    }
+
+    const id =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : 'q-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)
+
+    const item: MusicQueueItem = {
+      ...track,
+      id,
+      addedBy: options.getCurrentUserName?.() || 'Someone',
+    }
+
+    const op: MusicQueueOp = { op: 'add', item, position }
+    queue.value = applyQueueOp(queue.value, op)
+
     if (options.onBroadcast && !isApplyingRemoteSync) {
       options.onBroadcast({
-        type: 'play',
-        state: newState,
-        senderId: userId || '',
+        type: 'queue',
+        state: currentTrack.value,
+        senderId: options.getCurrentUserId?.() || '',
         conversationId,
+        queueOp: op,
       })
+    }
+  }
+
+  function removeFromQueue(id: string): void {
+    const op: MusicQueueOp = { op: 'remove', id }
+    queue.value = applyQueueOp(queue.value, op)
+
+    if (options.onBroadcast && !isApplyingRemoteSync) {
+      options.onBroadcast({
+        type: 'queue',
+        state: currentTrack.value,
+        senderId: options.getCurrentUserId?.() || '',
+        conversationId: currentTrack.value?.conversationId || '',
+        queueOp: op,
+      })
+    }
+  }
+
+  function moveInQueue(id: string, toIndex: number): void {
+    const op: MusicQueueOp = { op: 'move', id, toIndex }
+    queue.value = applyQueueOp(queue.value, op)
+
+    if (options.onBroadcast && !isApplyingRemoteSync) {
+      options.onBroadcast({
+        type: 'queue',
+        state: currentTrack.value,
+        senderId: options.getCurrentUserId?.() || '',
+        conversationId: currentTrack.value?.conversationId || '',
+        queueOp: op,
+      })
+    }
+  }
+
+  function clearQueue(): void {
+    const op: MusicQueueOp = { op: 'clear' }
+    queue.value = []
+
+    if (options.onBroadcast && !isApplyingRemoteSync) {
+      options.onBroadcast({
+        type: 'queue',
+        state: currentTrack.value,
+        senderId: options.getCurrentUserId?.() || '',
+        conversationId: currentTrack.value?.conversationId || '',
+        queueOp: op,
+      })
+    }
+  }
+
+  function skipToNext(): void {
+    if (queue.value.length > 0) {
+      const nextItem = queue.value[0]
+      queue.value = queue.value.slice(1)
+      const convId = currentTrack.value?.conversationId || ''
+      playTrackInternal(nextItem, convId, nextItem.id)
+    } else {
+      stopPlayback(true)
+    }
+  }
+
+  function handleTrackEnded(): void {
+    if (queue.value.length === 0) {
+      stopPlayback(true)
+      return
+    }
+
+    const currentActor = currentTrack.value?.actorId
+    const currentUserId = options.getCurrentUserId?.()
+    if (currentActor && currentUserId && currentActor === currentUserId) {
+      skipToNext()
+    } else {
+      clearFallbackTimer()
+      const expectedTrackId = currentTrack.value?.videoId
+      fallbackTimer = setTimeout(() => {
+        if (currentTrack.value?.videoId === expectedTrackId && queue.value.length > 0) {
+          skipToNext()
+        }
+      }, 4000)
     }
   }
 
@@ -120,6 +290,7 @@ export function createMusicController(options: MusicControllerOptions = {}) {
   }
 
   function stopPlayback(broadcast = true): void {
+    clearFallbackTimer()
     if (!currentTrack.value) return
     const convId = currentTrack.value.conversationId
     currentTrack.value = null
@@ -162,9 +333,17 @@ export function createMusicController(options: MusicControllerOptions = {}) {
       return
     }
 
+    clearFallbackTimer()
     isApplyingRemoteSync = true
     try {
-      if (event.type === 'stop') {
+      if (event.type === 'queue') {
+        if (currentTrack.value && event.conversationId !== currentTrack.value.conversationId) {
+          return
+        }
+        if (event.queueOp) {
+          queue.value = applyQueueOp(queue.value, event.queueOp)
+        }
+      } else if (event.type === 'stop') {
         if (currentTrack.value && currentTrack.value.conversationId === event.conversationId) {
           currentTrack.value = null
           currentTimeSec.value = 0
@@ -173,6 +352,12 @@ export function createMusicController(options: MusicControllerOptions = {}) {
           options.onPlayerAction?.('pause')
         }
       } else if (event.type === 'play' || event.type === 'sync_state') {
+        if (event.queue) {
+          queue.value = event.queue
+        }
+        if (event.state?.queueItemId) {
+          queue.value = queue.value.filter(item => item.id !== event.state!.queueItemId)
+        }
         if (event.state) {
           const syncedPos = computeSyncedPosition(event.state)
           const isSameVideo = currentTrack.value?.videoId === event.state.videoId
@@ -226,6 +411,7 @@ export function createMusicController(options: MusicControllerOptions = {}) {
               },
               senderId: currentUserId || '',
               conversationId: event.conversationId,
+              queue: queue.value,
             })
           }
         }
@@ -242,7 +428,14 @@ export function createMusicController(options: MusicControllerOptions = {}) {
     volume,
     isMuted,
     autoplayBlocked,
+    queue,
     playTrack,
+    enqueue,
+    removeFromQueue,
+    moveInQueue,
+    clearQueue,
+    skipToNext,
+    handleTrackEnded,
     togglePlayPause,
     seekTo,
     stopPlayback,

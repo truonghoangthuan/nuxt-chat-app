@@ -22,15 +22,24 @@ describe('Music UI components', () => {
         durationSec: 213,
         isMuted: false,
         autoplayBlocked: false,
+        queueCount: 3,
+        isQueueOpen: true,
       },
     })
 
     expect(wrapper.find('[data-test="music-player-bar"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Never Gonna Give You Up')
     expect(wrapper.text()).toContain('Alice')
+    expect(wrapper.find('[data-test="music-queue-count-badge"]').text()).toBe('3')
 
     await wrapper.find('[data-test="music-toggle-play"]').trigger('click')
     expect(wrapper.emitted('toggle-play')).toBeTruthy()
+
+    await wrapper.find('[data-test="music-skip-btn"]').trigger('click')
+    expect(wrapper.emitted('skip')).toBeTruthy()
+
+    await wrapper.find('[data-test="music-queue-toggle"]').trigger('click')
+    expect(wrapper.emitted('toggle-queue')).toBeTruthy()
 
     await wrapper.find('[data-test="music-stop-btn"]').trigger('click')
     expect(wrapper.emitted('stop')).toBeTruthy()
@@ -85,6 +94,54 @@ describe('Music UI components', () => {
     expect(wrapper.emitted('select')?.[0]?.[0]).toEqual(
       expect.objectContaining({ videoId: 'jfKfPfyJRdk' }),
     )
+    expect(wrapper.emitted('close')).toBeTruthy()
+  })
+
+  it('renders Play Now, Add Next, and Add to Queue buttons on search results', async () => {
+    const wrapper = mount(YouTubeSearchModal, {
+      props: {
+        open: true,
+        initialResults: [
+          {
+            videoId: 'track-1',
+            title: 'Test Song',
+            channelTitle: 'Artist',
+            thumbnail: 'thumb.jpg',
+          },
+        ],
+      },
+    })
+
+    const playNowBtn = wrapper.find('[data-test="youtube-play-now"]')
+    const addNextBtn = wrapper.find('[data-test="youtube-add-next"]')
+    const addQueueBtn = wrapper.find('[data-test="youtube-add-queue"]')
+
+    expect(playNowBtn.exists()).toBe(true)
+    expect(addNextBtn.exists()).toBe(true)
+    expect(addQueueBtn.exists()).toBe(true)
+
+    // Add Next emits queue with 'next' and does NOT close
+    await addNextBtn.trigger('click')
+    expect(wrapper.emitted('queue')?.[0]).toEqual([
+      expect.objectContaining({ videoId: 'track-1' }),
+      'next',
+    ])
+    expect(wrapper.emitted('close')).toBeFalsy()
+
+    // Add Queue emits queue with 'end' and does NOT close
+    await addQueueBtn.trigger('click')
+    expect(wrapper.emitted('queue')?.[1]).toEqual([
+      expect.objectContaining({ videoId: 'track-1' }),
+      'end',
+    ])
+    expect(wrapper.emitted('close')).toBeFalsy()
+
+    // Play Now emits select and closes
+    await playNowBtn.trigger('click')
+    expect(wrapper.emitted('select')?.[0]?.[0]).toEqual(
+      expect.objectContaining({ videoId: 'track-1' }),
+    )
+    expect(wrapper.emitted('close')).toBeTruthy()
   })
 
   it('renders proxied thumbnail URLs in MusicPlayerBar and YouTubeSearchModal so browser never hits i.ytimg.com', () => {

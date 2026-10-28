@@ -225,6 +225,7 @@ export interface SystemMessagePayload {
   event: SystemEventType
   actorName: string
   detail?: string
+  track?: YouTubeSearchResult
 }
 
 export interface YouTubeSearchResult {
@@ -234,6 +235,17 @@ export interface YouTubeSearchResult {
   thumbnail: string
   durationText?: string
 }
+
+export interface MusicQueueItem extends YouTubeSearchResult {
+  id: string
+  addedBy: string
+}
+
+export type MusicQueueOp =
+  | { op: 'add'; item: MusicQueueItem; position: 'end' | 'next' }
+  | { op: 'remove'; id: string }
+  | { op: 'move'; id: string; toIndex: number }
+  | { op: 'clear' }
 
 export interface MusicPlaybackState {
   conversationId: string
@@ -246,13 +258,16 @@ export interface MusicPlaybackState {
   updatedAt: number
   startedBy: string
   actorId?: string
+  queueItemId?: string
 }
 
 export interface MusicSyncEvent {
-  type: 'play' | 'pause' | 'seek' | 'stop' | 'request_state' | 'sync_state'
+  type: 'play' | 'pause' | 'seek' | 'stop' | 'request_state' | 'sync_state' | 'queue'
   state: MusicPlaybackState | null
   senderId: string
   conversationId: string
+  queueOp?: MusicQueueOp
+  queue?: MusicQueueItem[]
 }
 
 

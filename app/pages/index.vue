@@ -25,6 +25,7 @@ import ChatBackgroundModal from '~/components/ChatBackgroundModal.vue'
 import ConfettiDictionaryModal from '~/components/ConfettiDictionaryModal.vue'
 import ConfettiOverlay from '~/components/ConfettiOverlay.vue'
 import MusicPlayerBar from '~/components/MusicPlayerBar.vue'
+import MusicQueuePanel from '~/components/MusicQueuePanel.vue'
 import YouTubeSearchModal from '~/components/YouTubeSearchModal.vue'
 import ChangelogModal from '~/components/ChangelogModal.vue'
 import RightUtilityPanel from '~/components/RightUtilityPanel.vue'
@@ -34,6 +35,7 @@ import { usePwaInstall } from '~/composables/usePwaInstall'
 import {
   extractMediaFromMessages,
   extractLinksFromMessages,
+  extractMusicHistory,
   isSystemPayload,
   parseSystemPayload,
 } from '~/utils/chat'
@@ -141,8 +143,13 @@ const isUserProfileModalOpen = ref(false)
 const selectedUserProfile = ref<Profile | null>(null)
 
 const isMusicSearchModalOpen = ref(false)
+const isMusicQueueOpen = ref(false)
 const isUtilityPanelOpen = ref(false)
 const audioPlayerRef = ref<HTMLAudioElement | null>(null)
+
+const musicHistory = computed(() => {
+  return extractMusicHistory(messages.value, 50)
+})
 
 function handleSendQuickReaction(emoji: string) {
   const sentMsgs = messages.value.filter(m => m.status === 'sent' && !m.deleted_at)
@@ -167,7 +174,7 @@ function handleAudioMetadata() {
 }
 
 function handleAudioEnded() {
-  musicStopPlayback(true)
+  musicHandleTrackEnded()
 }
 
 function handleAudioError() {
@@ -214,6 +221,11 @@ const musicPlayer = useMusicPlayer({
   getCurrentUserId: () => currentProfile.value?.id,
   getCurrentUserName: () => currentProfile.value?.display_name,
   onPlayerAction,
+  onTrackStarted: (track, convId) => {
+    if (typeof sendMusicPlaySystemMessage === 'function') {
+      sendMusicPlaySystemMessage(track, convId)
+    }
+  },
 })
 
 const {
@@ -223,7 +235,14 @@ const {
   volume: musicVolume,
   isMuted: musicIsMuted,
   autoplayBlocked: musicAutoplayBlocked,
+  queue: musicQueue,
   playTrack: musicPlayTrack,
+  enqueue: musicEnqueue,
+  removeFromQueue: musicRemoveFromQueue,
+  moveInQueue: musicMoveInQueue,
+  clearQueue: musicClearQueue,
+  skipToNext: musicSkipToNext,
+  handleTrackEnded: musicHandleTrackEnded,
   togglePlayPause: musicTogglePlayPause,
   seekTo: musicSeekTo,
   stopPlayback: musicStopPlayback,
@@ -248,9 +267,11 @@ watch(musicIsMuted, (muted) => {
 async function handleSelectMusicTrack(track: YouTubeSearchResult) {
   if (!activeConversationId.value) return
   musicPlayTrack(track, activeConversationId.value)
-  if (typeof sendMusicPlaySystemMessage === 'function') {
-    await sendMusicPlaySystemMessage(track.title, activeConversationId.value)
-  }
+}
+
+function handleQueueMusicTrack(track: YouTubeSearchResult, position: 'end' | 'next') {
+  if (!activeConversationId.value) return
+  musicEnqueue(track, activeConversationId.value, position)
 }
 
 function handleViewProfile(profile: Profile) {
@@ -1006,6 +1027,8 @@ onUnmounted(() => {
           :duration-sec="musicDurationSec"
           :is-muted="musicIsMuted"
           :autoplay-blocked="musicAutoplayBlocked"
+          :queue-count="musicQueue.length"
+          :is-queue-open="isMusicQueueOpen"
           :conversation-name="musicCurrentTrack?.conversationId !== activeConversationId ? (conversations.find(c => c.id === musicCurrentTrack?.conversationId)?.title || conversations.find(c => c.id === musicCurrentTrack?.conversationId)?.peer?.display_name || undefined) : undefined"
           @toggle-play="musicTogglePlayPause"
           @seek="musicSeekTo"
@@ -1013,6 +1036,23 @@ onUnmounted(() => {
           @stop="musicStopPlayback(true)"
           @unblock-autoplay="musicUnblockAutoplay"
           @open-search="isMusicSearchModalOpen = true"
+          @skip="musicSkipToNext"
+          @toggle-queue="isMusicQueueOpen = !isMusicQueueOpen"
+        />
+
+        <!-- Music Queue & History Collapsible Panel -->
+        <MusicQueuePanel
+          v-if="isMusicQueueOpen && musicCurrentTrack"
+          :open="isMusicQueueOpen"
+          :queue="musicQueue"
+          :history="musicHistory"
+          :current-track="musicCurrentTrack"
+          @close="isMusicQueueOpen = false"
+          @remove="musicRemoveFromQueue"
+          @move="musicMoveInQueue"
+          @clear="musicClearQueue"
+          @play-now="handleSelectMusicTrack"
+          @queue-track="handleQueueMusicTrack"
         />
 
         <!-- Stage Subtabs Navigation (Messages | Media | Links) -->
@@ -1270,6 +1310,7 @@ onUnmounted(() => {
         :conversation-title="activeConversation?.title || activeConversation?.peer?.display_name || undefined"
         @close="isMusicSearchModalOpen = false"
         @select="handleSelectMusicTrack"
+        @queue="handleQueueMusicTrack"
       />
 
     <!-- VSCode Status Bar -->

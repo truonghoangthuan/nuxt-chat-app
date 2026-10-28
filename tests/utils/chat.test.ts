@@ -37,6 +37,7 @@ import {
   parseSystemPayload,
   formatSystemMessageText,
   computeSeenByMessageId,
+  extractMusicHistory,
 } from '~/utils/chat'
 import type { ChatMessage, Conversation, Profile } from '~/types/chat'
 
@@ -961,6 +962,112 @@ describe('Conversation utilities', () => {
       const msgItem = items.find(i => i.type === 'message') as any
       expect(msgItem?.imagePayload?.caption).toBe('Hello @Alice Smith')
       expect(msgItem?.systemPayload).toBeNull()
+    })
+
+    it('extractMusicHistory extracts music history sorted newest first, skipping deleted and capping limit', () => {
+      const messages: ChatMessage[] = [
+        {
+          id: 'm-old',
+          client_id: 'c-old',
+          conversation_id: 'conv-1',
+          user_id: 'u-1',
+          content: JSON.stringify({
+            type: 'system',
+            event: 'music_play',
+            actorName: 'Alice',
+            detail: 'Old Song Title',
+          }),
+          created_at: '2026-10-20T10:00:00Z',
+          status: 'sent',
+        },
+        {
+          id: 'm-regular',
+          client_id: 'c-reg',
+          conversation_id: 'conv-1',
+          user_id: 'u-2',
+          content: 'Just chatting',
+          created_at: '2026-10-20T10:05:00Z',
+          status: 'sent',
+        },
+        {
+          id: 'm-deleted',
+          client_id: 'c-del',
+          conversation_id: 'conv-1',
+          user_id: 'u-1',
+          content: JSON.stringify({
+            type: 'system',
+            event: 'music_play',
+            actorName: 'Alice',
+            detail: 'Deleted Song',
+          }),
+          created_at: '2026-10-20T10:10:00Z',
+          deleted_at: '2026-10-20T10:11:00Z',
+          status: 'sent',
+        },
+        {
+          id: 'm-undecryptable',
+          client_id: 'c-undec',
+          conversation_id: 'conv-1',
+          user_id: 'u-1',
+          content: '🔒 Unable to decrypt this message',
+          encryption: 'undecryptable',
+          created_at: '2026-10-20T10:15:00Z',
+          status: 'sent',
+        },
+        {
+          id: 'm-new',
+          client_id: 'c-new',
+          conversation_id: 'conv-1',
+          user_id: 'u-3',
+          content: JSON.stringify({
+            type: 'system',
+            event: 'music_play',
+            actorName: 'Charlie',
+            detail: 'New Hit Song',
+            track: {
+              videoId: 'vid-new',
+              title: 'New Hit Song',
+              channelTitle: 'Hit Channel',
+              thumbnail: 'thumb-url',
+              durationText: '3:45',
+            },
+          }),
+          created_at: '2026-10-20T10:20:00Z',
+          status: 'sent',
+        },
+      ]
+
+      const history = extractMusicHistory(messages)
+      expect(history.length).toBe(2)
+
+      // Newest first
+      expect(history[0]).toEqual({
+        messageId: 'm-new',
+        title: 'New Hit Song',
+        actorName: 'Charlie',
+        createdAt: '2026-10-20T10:20:00Z',
+        track: {
+          videoId: 'vid-new',
+          title: 'New Hit Song',
+          channelTitle: 'Hit Channel',
+          thumbnail: 'thumb-url',
+          durationText: '3:45',
+        },
+      })
+
+      // Old message without track
+      expect(history[1]).toEqual({
+        messageId: 'm-old',
+        title: 'Old Song Title',
+        actorName: 'Alice',
+        createdAt: '2026-10-20T10:00:00Z',
+        track: undefined,
+      })
+
+      // Limit check
+      const limited = extractMusicHistory(messages, 1)
+      expect(limited.length).toBe(1)
+      expect(limited[0].messageId).toBe('m-new')
     })
   })
 })

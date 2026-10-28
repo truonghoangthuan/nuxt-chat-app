@@ -12,6 +12,7 @@ import type {
   ExtractedMediaItem,
   ExtractedLinkItem,
   SystemMessagePayload,
+  YouTubeSearchResult,
 } from '~/types/chat'
 import { isImagePayload, parseImagePayload } from '~/utils/image'
 
@@ -869,6 +870,49 @@ export function computeSeenByMessageId(params: {
   }
 
   return result
+}
+
+export interface MusicHistoryEntry {
+  messageId: string
+  title: string
+  actorName: string
+  createdAt: string
+  track?: YouTubeSearchResult
+}
+
+export function extractMusicHistory(
+  messages: ChatMessage[],
+  limit = 50,
+): MusicHistoryEntry[] {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return []
+  }
+
+  const eligible: MusicHistoryEntry[] = []
+  for (const msg of messages) {
+    if (msg.deleted_at || msg.encryption === 'undecryptable') {
+      continue
+    }
+
+    const payload = parseSystemPayload(msg.content)
+    if (payload && payload.type === 'system' && payload.event === 'music_play') {
+      eligible.push({
+        messageId: msg.id || msg.client_id,
+        title: payload.track?.title || payload.detail || 'Unknown Song',
+        actorName: payload.actorName || 'Someone',
+        createdAt: msg.created_at,
+        track: payload.track,
+      })
+    }
+  }
+
+  eligible.sort((a, b) => {
+    const diff = Date.parse(b.createdAt) - Date.parse(a.createdAt)
+    if (diff !== 0) return diff
+    return b.messageId.localeCompare(a.messageId)
+  })
+
+  return eligible.slice(0, Math.max(0, limit))
 }
 
 
