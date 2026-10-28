@@ -22,12 +22,15 @@ describe('Music UI components', () => {
         durationSec: 213,
         isMuted: false,
         autoplayBlocked: false,
+        queueCount: 3,
+        isQueueOpen: true,
       },
     })
 
     expect(wrapper.find('[data-test="music-player-bar"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Never Gonna Give You Up')
     expect(wrapper.text()).toContain('Alice')
+    expect(wrapper.find('[data-test="music-queue-count-badge"]').text()).toBe('3')
 
     await wrapper.find('[data-test="music-toggle-play"]').trigger('click')
     expect(wrapper.emitted('toggle-play')).toBeTruthy()
