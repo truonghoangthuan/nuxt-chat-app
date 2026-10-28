@@ -32,6 +32,12 @@ describe('Music UI components', () => {
     await wrapper.find('[data-test="music-toggle-play"]').trigger('click')
     expect(wrapper.emitted('toggle-play')).toBeTruthy()
 
+    await wrapper.find('[data-test="music-skip-btn"]').trigger('click')
+    expect(wrapper.emitted('skip')).toBeTruthy()
+
+    await wrapper.find('[data-test="music-queue-toggle"]').trigger('click')
+    expect(wrapper.emitted('toggle-queue')).toBeTruthy()
+
     await wrapper.find('[data-test="music-stop-btn"]').trigger('click')
     expect(wrapper.emitted('stop')).toBeTruthy()
   })

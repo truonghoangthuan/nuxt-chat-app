@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { MusicPlaybackState } from '~/types/chat'
 import { formatDurationSeconds, getYouTubeThumbnailProxyUrl } from '~/utils/youtube'
-import { Play, Pause, Square, Volume2, VolumeX, Music, Volume1 } from '@lucide/vue'
+import { Play, Pause, Square, Volume2, VolumeX, Music, Volume1, SkipForward, ListMusic } from '@lucide/vue'
 
 const props = defineProps<{
   track: MusicPlaybackState | null
@@ -11,6 +11,8 @@ const props = defineProps<{
   isMuted?: boolean
   autoplayBlocked?: boolean
   conversationName?: string
+  queueCount?: number
+  isQueueOpen?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -20,6 +22,8 @@ const emit = defineEmits<{
   (e: 'stop'): void
   (e: 'unblock-autoplay'): void
   (e: 'open-search'): void
+  (e: 'skip'): void
+  (e: 'toggle-queue'): void
 }>()
 
 const formattedCurrentTime = computed(() => formatDurationSeconds(props.currentTimeSec))
@@ -110,6 +114,17 @@ function handleSeekInput(e: Event) {
           <Play v-else class="w-3.5 h-3.5 fill-current ml-0.5" />
         </button>
 
+        <!-- Skip / Next Button -->
+        <button
+          type="button"
+          data-test="music-skip-btn"
+          class="p-1.5 rounded-full text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+          title="Skip to next song"
+          @click="emit('skip')"
+        >
+          <SkipForward class="w-3.5 h-3.5 fill-current" />
+        </button>
+
         <!-- Stop Button -->
         <button
           type="button"
@@ -140,7 +155,7 @@ function handleSeekInput(e: Event) {
       </div>
     </div>
 
-    <!-- Right: Volume & New Song button -->
+    <!-- Right: Volume & Queue & New Song button -->
     <div class="flex items-center gap-2 shrink-0">
       <button
         type="button"
@@ -150,6 +165,29 @@ function handleSeekInput(e: Event) {
       >
         <VolumeX v-if="isMuted" class="w-4 h-4 text-red-500" />
         <Volume2 v-else class="w-4 h-4" />
+      </button>
+
+      <!-- Queue & History Toggle -->
+      <button
+        type="button"
+        data-test="music-queue-toggle"
+        class="relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition cursor-pointer border"
+        :class="isQueueOpen
+          ? 'bg-blue-500 text-white border-blue-500 shadow-xs'
+          : 'bg-black/5 dark:bg-white/10 text-[var(--ap-text-primary)] hover:bg-black/10 dark:hover:bg-white/15 border-[var(--ap-glass-border)]'"
+        title="Toggle Queue & History"
+        @click="emit('toggle-queue')"
+      >
+        <ListMusic class="w-3.5 h-3.5" />
+        <span class="hidden sm:inline">Queue</span>
+        <span
+          v-if="queueCount && queueCount > 0"
+          data-test="music-queue-count-badge"
+          class="px-1.5 py-0.2 rounded-full text-[9px] font-bold"
+          :class="isQueueOpen ? 'bg-white text-blue-600' : 'bg-blue-500 text-white'"
+        >
+          {{ queueCount }}
+        </span>
       </button>
 
       <button
