@@ -32,6 +32,10 @@ export default defineNuxtConfig({
   vite: {
     plugins: [tailwindcss()],
   },
+  nitro: {
+    // Stream proxy may wait 2x 8s Piped resolves; Vercel Hobby allows up to 60s
+    vercel: { functions: { maxDuration: 60 } },
+  },
   supabase: {
     redirectOptions: {
       login: '/login',

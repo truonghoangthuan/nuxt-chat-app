@@ -178,7 +178,7 @@ function handleAudioEnded() {
 }
 
 function handleAudioError() {
-  musicAutoplayBlocked.value = true
+  musicHandlePlaybackError()
 }
 
 function onPlayerAction(action: 'play' | 'pause' | 'seek' | 'load', payload?: any) {
@@ -249,6 +249,7 @@ const {
   setVolume: musicSetVolume,
   toggleMute: musicToggleMute,
   unblockAutoplay: musicUnblockAutoplay,
+  handlePlaybackError: musicHandlePlaybackError,
   applyRemoteSyncEvent: musicApplyRemoteSyncEvent,
 } = musicPlayer
 
