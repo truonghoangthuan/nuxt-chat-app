@@ -62,6 +62,11 @@ function handleDrop(e: DragEvent, dropIndex: number) {
   draggedIndex.value = null
 }
 
+function handlePlayFromQueue(item: MusicQueueItem) {
+  emit('remove', item.id)
+  emit('play-now', item)
+}
+
 function formatRelativeTime(isoString: string): string {
   try {
     const date = new Date(isoString)
@@ -214,7 +219,7 @@ function formatRelativeTime(isoString: string): string {
               type="button"
               data-test="queue-move-up"
               :disabled="index === 0"
-              class="p-1 rounded text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] disabled:opacity-20 hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+              class="p-1 rounded text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] disabled:opacity-20 disabled:cursor-not-allowed hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
               title="Move up"
               @click="emit('move', item.id, Math.max(0, index - 1))"
             >
@@ -226,7 +231,7 @@ function formatRelativeTime(isoString: string): string {
               type="button"
               data-test="queue-move-down"
               :disabled="index === queue.length - 1"
-              class="p-1 rounded text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] disabled:opacity-20 hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+              class="p-1 rounded text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] disabled:opacity-20 disabled:cursor-not-allowed hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
               title="Move down"
               @click="emit('move', item.id, Math.min(queue.length - 1, index + 1))"
             >
@@ -239,7 +244,7 @@ function formatRelativeTime(isoString: string): string {
               data-test="queue-play-now"
               class="p-1 rounded text-blue-500 hover:bg-blue-500/10 transition cursor-pointer"
               title="Play immediately"
-              @click="emit('play-now', item)"
+              @click="handlePlayFromQueue(item)"
             >
               <Play class="w-3.5 h-3.5 fill-current" />
             </button>

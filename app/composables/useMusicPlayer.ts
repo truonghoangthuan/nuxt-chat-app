@@ -290,6 +290,7 @@ export function createMusicController(options: MusicControllerOptions = {}) {
   }
 
   function stopPlayback(broadcast = true): void {
+    clearFallbackTimer()
     if (!currentTrack.value) return
     const convId = currentTrack.value.conversationId
     currentTrack.value = null
@@ -336,6 +337,9 @@ export function createMusicController(options: MusicControllerOptions = {}) {
     isApplyingRemoteSync = true
     try {
       if (event.type === 'queue') {
+        if (currentTrack.value && event.conversationId !== currentTrack.value.conversationId) {
+          return
+        }
         if (event.queueOp) {
           queue.value = applyQueueOp(queue.value, event.queueOp)
         }
@@ -396,20 +400,15 @@ export function createMusicController(options: MusicControllerOptions = {}) {
           options.onPlayerAction?.('seek', event.state.positionSec)
         }
       } else if (event.type === 'request_state') {
-        if (
-          (currentTrack.value && currentTrack.value.conversationId === event.conversationId) ||
-          queue.value.length > 0
-        ) {
+        if (currentTrack.value && currentTrack.value.conversationId === event.conversationId) {
           if (options.onBroadcast) {
             options.onBroadcast({
               type: 'sync_state',
-              state: currentTrack.value
-                ? {
-                    ...currentTrack.value,
-                    positionSec: currentTimeSec.value,
-                    updatedAt: Date.now(),
-                  }
-                : null,
+              state: {
+                ...currentTrack.value,
+                positionSec: currentTimeSec.value,
+                updatedAt: Date.now(),
+              },
               senderId: currentUserId || '',
               conversationId: event.conversationId,
               queue: queue.value,

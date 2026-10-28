@@ -65,6 +65,11 @@ describe('MusicQueuePanel.vue', () => {
     await items[0].find('[data-test="queue-remove"]').trigger('click')
     expect(wrapper.emitted('remove')?.[0]).toEqual(['q-1'])
 
+    // Play now from queue removes item and emits play-now
+    await items[1].find('[data-test="queue-play-now"]').trigger('click')
+    expect(wrapper.emitted('remove')?.[1]).toEqual(['q-2'])
+    expect(wrapper.emitted('play-now')?.[0]?.[0]).toEqual(sampleQueue[1])
+
     // Clear queue
     await wrapper.find('[data-test="queue-clear"]').trigger('click')
     expect(wrapper.emitted('clear')).toBeTruthy()

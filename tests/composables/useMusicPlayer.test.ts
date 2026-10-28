@@ -364,4 +364,57 @@ describe('useMusicPlayer controller', () => {
       vi.useRealTimers()
     }
   })
+
+  it('does not reply to request_state for a different conversation (prevents room hijack)', () => {
+    const onBroadcast = vi.fn()
+    const ctrl = createMusicController({
+      onBroadcast,
+      getCurrentUserId: () => 'user-me',
+    })
+    ctrl.clearQueue()
+    ctrl.playTrack({ videoId: 'v1', title: 'Song', channelTitle: 'A', thumbnail: '' }, 'conv-A')
+    ctrl.enqueue({ videoId: 'v2', title: 'Song 2', channelTitle: 'A', thumbnail: '' }, 'conv-A', 'end')
+    onBroadcast.mockClear()
+
+    // Request comes in for conv-B
+    ctrl.applyRemoteSyncEvent({
+      type: 'request_state',
+      senderId: 'user-other',
+      conversationId: 'conv-B',
+      state: null,
+    })
+
+    expect(onBroadcast).not.toHaveBeenCalled()
+  })
+
+  it('ignores remote queue ops for a different conversation', () => {
+    const onBroadcast = vi.fn()
+    const ctrl = createMusicController({
+      onBroadcast,
+      getCurrentUserId: () => 'user-me',
+    })
+    ctrl.clearQueue()
+    ctrl.playTrack({ videoId: 'v1', title: 'Song', channelTitle: 'A', thumbnail: '' }, 'conv-A')
+
+    ctrl.applyRemoteSyncEvent({
+      type: 'queue',
+      senderId: 'user-other',
+      conversationId: 'conv-B', // Different conversation
+      state: null,
+      queueOp: {
+        op: 'add',
+        position: 'end',
+        item: {
+          id: 'q-diff-room',
+          videoId: 'v-diff',
+          title: 'Different Room Song',
+          channelTitle: 'A',
+          thumbnail: '',
+          addedBy: 'Bob',
+        },
+      },
+    })
+
+    expect(ctrl.queue.value.length).toBe(0)
+  })
 })
