@@ -72,7 +72,7 @@ describe('Music UI components', () => {
     expect(wrapper.emitted('unblock-autoplay')).toBeTruthy()
   })
 
-  it('renders YouTubeSearchModal and emits select when a result is clicked', async () => {
+  it('renders YouTubeSearchModal result rows without a whole-row play action', async () => {
     const wrapper = mount(YouTubeSearchModal, {
       props: {
         open: true,
@@ -91,10 +91,8 @@ describe('Music UI components', () => {
     const item = wrapper.find('[data-test="youtube-result-item"]')
     expect(item.exists()).toBe(true)
     await item.trigger('click')
-    expect(wrapper.emitted('select')?.[0]?.[0]).toEqual(
-      expect.objectContaining({ videoId: 'jfKfPfyJRdk' }),
-    )
-    expect(wrapper.emitted('close')).toBeTruthy()
+    expect(wrapper.emitted('select')).toBeFalsy()
+    expect(wrapper.emitted('close')).toBeFalsy()
   })
 
   it('renders Play Now, Add Next, and Add to Queue buttons on search results', async () => {
