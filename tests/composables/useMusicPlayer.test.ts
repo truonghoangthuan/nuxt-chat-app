@@ -498,4 +498,14 @@ describe('useMusicPlayer playback error recovery', () => {
       vi.useRealTimers()
     }
   })
+
+  it('preserves addedBy user as startedBy when auto-advancing queue via skipToNext', () => {
+    const player = createMusicController({
+      getCurrentUserName: () => 'TriggerUser',
+    })
+    player.playTrack({ videoId: 'v1', title: 'Song 1', channelTitle: 'Artist 1' }, 'conv-1')
+    player.enqueue({ videoId: 'v2', title: 'Song 2', channelTitle: 'Artist 2', addedBy: 'SongAdder' } as any, 'conv-1')
+    player.skipToNext()
+    expect(player.currentTrack.value?.startedBy).toBe('SongAdder')
+  })
 })

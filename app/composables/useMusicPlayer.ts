@@ -127,11 +127,12 @@ export function createMusicController(options: MusicControllerOptions = {}) {
     track: YouTubeSearchResult,
     conversationId: string,
     queueItemId?: string,
+    startedByOverride?: string,
   ): void {
     clearFallbackTimer()
     resetErrorState()
     const userId = options.getCurrentUserId?.()
-    const userName = options.getCurrentUserName?.() || 'Someone'
+    const userName = startedByOverride || options.getCurrentUserName?.() || 'Someone'
 
     const newState: MusicPlaybackState = {
       conversationId,
@@ -192,7 +193,7 @@ export function createMusicController(options: MusicControllerOptions = {}) {
     const item: MusicQueueItem = {
       ...track,
       id,
-      addedBy: options.getCurrentUserName?.() || 'Someone',
+      addedBy: (track as any).addedBy || options.getCurrentUserName?.() || 'Someone',
     }
 
     const op: MusicQueueOp = { op: 'add', item, position }
@@ -259,7 +260,7 @@ export function createMusicController(options: MusicControllerOptions = {}) {
       const nextItem = queue.value[0]
       queue.value = queue.value.slice(1)
       const convId = currentTrack.value?.conversationId || ''
-      playTrackInternal(nextItem, convId, nextItem.id)
+      playTrackInternal(nextItem, convId, nextItem.id, nextItem.addedBy)
     } else {
       stopPlayback(true)
     }

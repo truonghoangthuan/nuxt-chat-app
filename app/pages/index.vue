@@ -225,7 +225,8 @@ const musicPlayer = useMusicPlayer({
   onPlayerAction,
   onTrackStarted: (track, convId) => {
     if (typeof sendMusicPlaySystemMessage === 'function') {
-      sendMusicPlaySystemMessage(track, convId)
+      const startedBy = (track as any)?.addedBy || musicCurrentTrack.value?.startedBy
+      sendMusicPlaySystemMessage(track, convId, startedBy)
     }
   },
 })
