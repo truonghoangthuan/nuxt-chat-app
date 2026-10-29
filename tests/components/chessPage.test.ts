@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, config } from '@vue/test-utils'
 import { reactive } from 'vue'
+
+config.global.stubs = { ...config.global.stubs, NuxtLink: true }
 import ChessPage from '~/pages/chess.vue'
 import ChatSidebar from '~/components/ChatSidebar.vue'
 import { backend, room, roomId } from '../helpers/chessBackend'
@@ -49,5 +51,12 @@ describe('Chess page', () => {
     wrapper.unmount()
     wrapper = mount(ChatSidebar, { props: { unreadCounts: {}, onlineFriends: [], currentUser: null, isDark: false, connectionStatus: 'connected', isOpenMobile: false } })
     expect(wrapper.get('[data-test="play-chess"]').attributes('href')).toBe('/chess')
+  })
+
+  it('navigates back to chat via NuxtLink without full page reload', () => {
+    wrapper = mount(ChessPage)
+    const backLink = wrapper.get('[data-test="back-to-chat"]')
+    expect(backLink.attributes('to')).toBe('/')
+    expect(backLink.attributes('href')).toBeUndefined()
   })
 })

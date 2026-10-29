@@ -54,10 +54,10 @@ onMounted(() => { initTheme?.(); void openFromLink() })
     <div class="mx-auto max-w-3xl space-y-6">
       <header class="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <a href="/" class="text-sm text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] inline-flex items-center gap-1.5 transition-colors">
+          <NuxtLink to="/" data-test="back-to-chat" class="text-sm text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] inline-flex items-center gap-1.5 transition-colors">
             <ChevronLeft class="size-4" aria-hidden="true" />
             <span>Back to chat</span>
-          </a>
+          </NuxtLink>
           <h1 class="text-3xl font-semibold mt-3">Caro</h1>
           <p class="text-sm text-[var(--ap-text-secondary)] mt-2">Two players. Five in a row. Your next move.</p>
         </div>
