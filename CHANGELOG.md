@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Reaction Reactor Tooltip**: Hovering a reaction pill in `MessageViewport.vue` now shows who reacted ("You" for the current user, member display names otherwise).
+
 ## [0.8.0] - 2026-10-29
 
 ### Added
