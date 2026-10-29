@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- **Reaction Reactor Tooltip**: Hovering a reaction pill in `MessageViewport.vue` now shows who reacted ("You" for the current user, member display names otherwise).
+- **Reaction Reactor Popover**: Hovering (or focusing) a reaction pill in `MessageViewport.vue` now opens a styled popover listing who reacted, with avatars ("You" for the current user).
 
 ## [0.8.0] - 2026-10-29
 
