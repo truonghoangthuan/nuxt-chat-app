@@ -81,7 +81,7 @@ onUnmounted(() => {
     >
       <div
         data-test="confetti-dictionary-modal"
-        class="w-full max-w-md rounded-2xl border border-black/10 dark:border-white/15 bg-white/95 dark:bg-[#161824]/95 backdrop-blur-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh] text-[var(--ap-text-primary)]"
+        class="messenger-dialog-surface w-full max-w-md rounded-2xl border border-black/10 dark:border-white/15 bg-white/95 dark:bg-[#161824]/95 backdrop-blur-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh] text-[var(--ap-text-primary)]"
       >
         <div class="px-5 py-4 border-b border-black/5 dark:border-white/5 flex items-center justify-between shrink-0">
           <div class="flex items-center gap-2.5">

@@ -1,0 +1,296 @@
+/* Opt-in messenger personality. Color mode remains independent of UI theme. */
+html[data-theme="telegram"] {
+  --ap-bg: #edf0f4;
+  --ap-canvas: #edf0f4;
+  --ap-sidebar: #ffffff;
+  --ap-stage: #ffffff;
+  --ap-glass: #f1f3f5;
+  --ap-glass-border: #e1e7ec;
+  --ap-glass-hover: #edf2f5;
+  --ap-blue: #287fb7;
+  --ap-blue-gradient: linear-gradient(135deg, #3695cf, #287fb7);
+  --ap-text-primary: #17212b;
+  --ap-text-secondary: #526574;
+  --ap-text-muted: #657988;
+  --tg-wallpaper: #dce7d7;
+  --tg-pattern: #8ba98b24;
+  --tg-incoming: #ffffff;
+  --tg-outgoing: #e4f4dc;
+  --tg-selected: #287fb7;
+}
+
+/* Keep semantic aliases above the later html.dark defaults in specificity. */
+html.dark[data-theme="telegram"],
+html[data-theme="telegram"] {
+  --background: var(--ap-canvas);
+  --foreground: var(--ap-text-primary);
+  --card: var(--ap-stage);
+  --card-foreground: var(--ap-text-primary);
+  --popover: var(--ap-stage);
+  --popover-foreground: var(--ap-text-primary);
+  --primary: var(--ap-blue);
+  --secondary: var(--ap-glass);
+  --secondary-foreground: var(--ap-text-primary);
+  --muted: var(--ap-glass);
+  --muted-foreground: var(--ap-text-secondary);
+  --accent: var(--ap-glass-hover);
+  --accent-foreground: var(--ap-blue);
+  --border: var(--ap-glass-border);
+  --input: var(--ap-glass-border);
+  --ring: var(--ap-blue);
+  --sidebar: var(--ap-sidebar);
+  --sidebar-foreground: var(--ap-text-primary);
+  --sidebar-primary: var(--ap-blue);
+  --sidebar-accent: var(--ap-glass-hover);
+  --sidebar-accent-foreground: var(--ap-blue);
+  --sidebar-border: var(--ap-glass-border);
+  --sidebar-ring: var(--ap-blue);
+}
+
+html.dark[data-theme="telegram"] {
+  --ap-bg: #0e1621;
+  --ap-canvas: #0e1621;
+  --ap-sidebar: #17212b;
+  --ap-stage: #17212b;
+  --ap-glass: #202e3b;
+  --ap-glass-border: #293a49;
+  --ap-glass-hover: #243545;
+  --ap-blue: #70b4e0;
+  --ap-text-primary: #ecf2f7;
+  --ap-text-secondary: #b1c3d1;
+  --ap-text-muted: #92a9ba;
+  --tg-wallpaper: #101c28;
+  --tg-pattern: #617b9224;
+  --tg-incoming: #203140;
+  --tg-outgoing: #2b5270;
+  --tg-selected: #2b638c;
+}
+
+html[data-theme="telegram"] body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background-image: none;
+}
+
+html[data-theme="telegram"] .chat-workspace {
+  padding: 0;
+  gap: 0;
+}
+
+html[data-theme="telegram"] [data-test="chat-stage-main"] {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+html[data-theme="telegram"] .chat-sidebar {
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  border: 0;
+  border-right: 1px solid var(--ap-glass-border);
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+html[data-theme="telegram"] .chat-sidebar-header {
+  height: 60px;
+  background: var(--ap-sidebar);
+}
+
+html[data-theme="telegram"] .chat-sidebar-header button {
+  width: 30px;
+  height: 30px;
+}
+
+html[data-theme="telegram"] [data-test="conversation-search-input"] {
+  height: 38px;
+  background: var(--ap-glass);
+  border-color: transparent;
+  font-size: 13px;
+}
+
+html[data-theme="telegram"] .chat-conversation {
+  min-height: 74px;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+html[data-theme="telegram"] .chat-conversation[aria-current="true"] {
+  background: var(--tg-selected);
+  color: #ffffff;
+  --ap-text-primary: #ffffff;
+  --ap-text-secondary: #edf7ff;
+  --ap-text-muted: #e2f1fc;
+}
+
+html[data-theme="telegram"] .chat-conversation-title {
+  color: var(--ap-text-primary);
+  font-size: 14px;
+}
+
+html[data-theme="telegram"] .chat-conversation-preview {
+  color: var(--ap-text-muted);
+  font-size: 12px;
+}
+
+html[data-theme="telegram"] .chat-conversation-time {
+  color: var(--ap-text-muted);
+  font-family: inherit;
+}
+
+html[data-theme="telegram"] .chat-group-avatar {
+  width: 44px;
+  height: 44px;
+}
+
+html[data-theme="telegram"] .chat-conversation[aria-current="true"] .chat-group-avatar {
+  color: #ffffff;
+  background: #ffffff26;
+  border-color: #ffffff40;
+}
+
+html[data-theme="telegram"] .chat-stage-header {
+  min-height: 64px;
+  background: var(--ap-stage);
+  backdrop-filter: none;
+}
+
+html[data-theme="telegram"] .chat-stage-header button {
+  box-shadow: none;
+}
+
+/* A single default wallpaper belongs to the stage, not the scroll area or dock.
+   Custom conversation backgrounds keep the existing continuous image + scrim. */
+html[data-theme="telegram"] .chat-timeline-stage:not([data-custom-background]) {
+  background-color: var(--tg-wallpaper);
+  background-image: radial-gradient(ellipse at 5% 0%, var(--tg-pattern), transparent 55%),
+    radial-gradient(ellipse at 100% 90%, var(--tg-pattern), transparent 65%);
+}
+
+html[data-theme="telegram"] .chat-timeline {
+  padding: 20px max(24px, calc((100% - 800px) / 2));
+}
+
+html[data-theme="telegram"] .chat-message-column {
+  max-width: min(78%, 520px);
+}
+
+html[data-theme="telegram"] .chat-message-bubble {
+  background: var(--tg-incoming);
+  color: var(--ap-text-primary);
+  border: 1px solid transparent;
+  border-radius: 12px 12px 12px 4px;
+  padding: 8px 12px;
+  box-shadow: 0 1px 2px #102b3920;
+  backdrop-filter: none;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+html[data-theme="telegram"] .chat-message-bubble[data-direction="outgoing"] {
+  background: var(--tg-outgoing);
+  border-radius: 12px 12px 4px 12px;
+}
+
+html[data-theme="telegram"] .chat-reply-quote {
+  color: var(--ap-text-secondary);
+  border-left-color: var(--ap-blue);
+  background: var(--ap-glass);
+  border-radius: 4px;
+}
+
+html[data-theme="telegram"] .chat-reply-quote > span {
+  color: var(--ap-blue);
+}
+
+/* Rich outgoing content must not inherit white-on-purple assumptions. */
+html[data-theme="telegram"] .chat-message-bubble [data-test="image-caption"],
+html[data-theme="telegram"] .chat-message-bubble [data-test^="deleted-tombstone-"],
+html[data-theme="telegram"] .chat-message-bubble [data-test^="undecryptable-"],
+html[data-theme="telegram"] .chat-message-bubble [data-test^="edited-badge-"],
+html[data-theme="telegram"] .chat-message-bubble [data-test^="legacy-badge-"] {
+  color: var(--ap-text-secondary);
+}
+
+html[data-theme="telegram"] .chat-message-bubble [data-test="link-token"] {
+  color: var(--ap-blue);
+}
+
+html[data-theme="telegram"] .chat-message-bubble [data-test="mention-token"],
+html[data-theme="telegram"] .chat-message-bubble [data-test="code-token"] {
+  color: var(--ap-text-primary);
+  background: var(--ap-glass);
+  border-color: var(--ap-glass-border);
+}
+
+html[data-theme="telegram"] .chat-composer {
+  padding: 0 24px 22px;
+}
+
+html[data-theme="telegram"] .chat-composer-width {
+  max-width: 800px;
+}
+
+html[data-theme="telegram"] .chat-composer-deck {
+  margin-right: 62px;
+  min-height: 54px;
+  padding: 8px;
+  gap: 6px;
+  border: 1px solid var(--ap-glass-border);
+  border-radius: 14px;
+  background: var(--ap-stage);
+  box-shadow: 0 2px 8px #102b3918;
+  backdrop-filter: none;
+}
+
+html[data-theme="telegram"] .chat-composer-deck textarea {
+  min-width: 0;
+  font-size: 14px;
+}
+
+html[data-theme="telegram"] .chat-composer-send {
+  position: absolute;
+  right: -62px;
+  bottom: 0;
+  width: 54px;
+  height: 54px;
+  background: var(--tg-selected);
+  box-shadow: 0 2px 6px #102b3920;
+}
+
+html[data-theme="telegram"] .chat-composer-send:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+html[data-theme="telegram"] .chat-composer-send svg {
+  width: 22px;
+  height: 22px;
+}
+
+html[data-theme="telegram"] .messenger-dialog-surface {
+  background: var(--ap-stage);
+  border-color: var(--ap-glass-border);
+  backdrop-filter: none;
+}
+
+html[data-theme="telegram"] .profile-settings-surface {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+html[data-theme="telegram"] .auth-story,
+html[data-theme="telegram"] .auth-panel {
+  background: var(--ap-stage);
+  box-shadow: none;
+}
+
+@media (max-width: 767px) {
+  html[data-theme="telegram"] .chat-timeline { padding: 16px 10px; }
+  html[data-theme="telegram"] .chat-composer { padding: 0 10px 14px; }
+  html[data-theme="telegram"] .chat-message-column { max-width: 82%; }
+  html[data-theme="telegram"] .chat-composer-deck { margin-right: 50px; gap: 2px; padding: 6px; min-height: 46px; }
+  html[data-theme="telegram"] .chat-composer-send { right: -50px; width: 44px; height: 46px; }
+  html[data-theme="telegram"] .chat-stage-header { padding: 0 10px; gap: 6px; }
+}

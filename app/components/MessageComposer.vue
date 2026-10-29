@@ -366,7 +366,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative z-10 p-4 bg-transparent shrink-0">
+  <div class="chat-composer relative z-10 p-4 bg-transparent shrink-0">
     <!-- Hidden file input for images -->
     <input
       ref="fileInputRef"
@@ -378,7 +378,7 @@ onUnmounted(() => {
       @change="handleFileChange"
     />
 
-    <div class="max-w-[65ch] mx-auto w-full relative">
+    <div class="chat-composer-width max-w-[65ch] mx-auto w-full relative">
       <!-- Typing Indicator -->
       <div class="h-5 mb-1 px-3 flex items-center">
         <span
@@ -531,7 +531,7 @@ onUnmounted(() => {
       <!-- Apple Floating Frosted Pill Dock -->
       <div
         data-test="composer-deck"
-        class="relative bg-black/[0.04] dark:bg-white/8 hover:bg-black/[0.06] dark:hover:bg-white/10 backdrop-blur-2xl border border-black/[0.08] dark:border-white/15 shadow-xl p-1.5 flex items-center gap-2 transition-all focus-within:bg-black/[0.06] dark:focus-within:bg-white/12 focus-within:ring-2 focus-within:ring-blue-500/40 focus-within:border-blue-500/50 focus-within:shadow-[0_4px_24px_rgba(0,122,255,0.12)]"
+        class="chat-composer-deck relative bg-black/[0.04] dark:bg-white/8 hover:bg-black/[0.06] dark:hover:bg-white/10 backdrop-blur-2xl border border-black/[0.08] dark:border-white/15 shadow-xl p-1.5 flex items-center gap-2 transition-all focus-within:bg-black/[0.06] dark:focus-within:bg-white/12 focus-within:ring-2 focus-within:ring-blue-500/40 focus-within:border-blue-500/50 focus-within:shadow-[0_4px_24px_rgba(0,122,255,0.12)]"
         :class="uiTheme === 'vscode' ? 'rounded-none border-x-0 border-b-0 border-t border-[#3c3c3c]' : (uiTheme === 'yahoo' ? 'rounded-[3px] border-[#b5a8c9] dark:border-[#3b235a]' : 'rounded-full')"
         @dragover.prevent
         @drop.prevent="handleDrop"
@@ -598,7 +598,7 @@ onUnmounted(() => {
         <button
           type="button"
           :disabled="disabled || (!content.trim() && pendingAttachments.length === 0)"
-          class="w-8 h-8 rounded-full bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/30 transition-all active:scale-90 shrink-0 cursor-pointer disabled:opacity-40"
+          class="chat-composer-send w-8 h-8 rounded-full bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/30 transition-all active:scale-90 shrink-0 cursor-pointer disabled:opacity-40"
           title="Send message"
           aria-label="Send message"
           @click="handleSend"

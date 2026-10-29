@@ -283,7 +283,7 @@ function onContactsClick() {
     <!-- Unified Apple Messages Sidebar (260px) -->
     <aside
       aria-label="Channel and Friends Directory"
-      class="fixed inset-y-0 left-0 z-40 w-64 md:w-64 flex flex-col bg-[var(--ap-sidebar)] backdrop-blur-2xl md:rounded-2xl border-r md:border border-[var(--ap-glass-border)] shadow-xl shrink-0 overflow-hidden transition-transform duration-200 ease-in-out md:static md:translate-x-0"
+      class="chat-sidebar fixed inset-y-0 left-0 z-40 w-64 md:w-64 flex flex-col bg-[var(--ap-sidebar)] backdrop-blur-2xl md:rounded-2xl border-r md:border border-[var(--ap-glass-border)] shadow-xl shrink-0 overflow-hidden transition-transform duration-200 ease-in-out md:static md:translate-x-0"
       :class="isOpenMobile ? 'translate-x-0' : '-translate-x-full'"
     >
       <!-- Header Bar with Quick Actions -->
@@ -400,11 +400,11 @@ function onContactsClick() {
       </div>
 
       <!-- Header Bar with Quick Actions -->
-      <div v-else class="h-12 px-3.5 flex items-center justify-between border-b border-[var(--ap-glass-border)] shrink-0 bg-white/5 dark:bg-white/[0.02]">
+      <div v-else class="chat-sidebar-header h-12 px-3.5 flex items-center justify-between border-b border-[var(--ap-glass-border)] shrink-0 bg-white/5 dark:bg-white/[0.02]">
         <!-- Title & Playful Brand -->
         <div class="flex items-center gap-1.5">
-          <span class="text-xs font-bold text-[var(--ap-text-primary)] tracking-tight">Messages</span>
-          <span class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[9.5px] font-bold bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/25 shadow-xs">
+          <span class="text-xs font-bold text-[var(--ap-text-primary)] tracking-tight">{{ uiTheme === 'telegram' ? 'All chats' : 'Messages' }}</span>
+          <span v-if="uiTheme !== 'telegram'" class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[9.5px] font-bold bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/25 shadow-xs">
             ✨ Chaos
           </span>
         </div>
@@ -520,7 +520,8 @@ function onContactsClick() {
               :key="conv.id"
               type="button"
               :data-test="`conversation-item-${conv.id}`"
-              class="w-full flex items-center px-2.5 py-2 rounded-xl text-[13.5px] transition-all group cursor-pointer text-left active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+              class="chat-conversation w-full flex items-center px-2.5 py-2 rounded-xl text-[13.5px] transition-all group cursor-pointer text-left active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+              :aria-current="activeId === conv.id ? 'true' : undefined"
               :class="activeId === conv.id ? 'bg-purple-600/15 dark:bg-purple-600/25 border border-purple-500/35 text-purple-900 dark:text-white font-medium shadow-xs shadow-purple-500/10' : 'text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'"
               @click="onConversationClick(conv.id)"
             >
@@ -535,12 +536,13 @@ function onContactsClick() {
                   :avatar-color="getPeerForConv(conv)?.avatar_color"
                   :avatar-url="getPeerForConv(conv)?.avatar_url"
                   :show-online="isPeerOnline(conv)"
-                  size="sm"
+                  :shape="uiTheme === 'telegram' ? 'circle' : 'squircle'"
+                  :size="uiTheme === 'telegram' ? 'lg' : 'sm'"
                 />
                 <!-- Group Avatar -->
                 <div
                   v-else
-                  class="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-500 dark:text-blue-400 flex items-center justify-center font-bold text-xs select-none shrink-0"
+                  class="chat-group-avatar w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-500 dark:text-blue-400 flex items-center justify-center font-bold text-xs select-none shrink-0"
                   :title="getConvTitle(conv)"
                 >
                   <Users class="size-4" aria-hidden="true" />
@@ -551,7 +553,7 @@ function onContactsClick() {
                   <!-- Row 1: Title & Timestamp -->
                   <div class="flex items-center justify-between gap-1.5">
                     <span
-                      class="truncate text-[13px] font-medium"
+                      class="chat-conversation-title truncate text-[13px] font-medium"
                       :class="activeId === conv.id ? 'text-blue-900 dark:text-white' : 'text-[var(--ap-text-primary)]'"
                     >
                       {{ getConvTitle(conv) }}
@@ -559,7 +561,7 @@ function onContactsClick() {
                     <span
                       v-if="formatConversationTime(conv)"
                       :data-test="`conversation-time-${conv.id}`"
-                      class="text-[11px] text-[var(--fp-text-muted)] text-[var(--ap-text-muted)] shrink-0 font-normal font-mono"
+                      class="chat-conversation-time text-[11px] text-[var(--fp-text-muted)] text-[var(--ap-text-muted)] shrink-0 font-normal font-mono"
                     >
                       {{ formatConversationTime(conv) }}
                     </span>
@@ -568,7 +570,7 @@ function onContactsClick() {
                   <!-- Row 2: Subtitle & Badges -->
                   <div class="flex items-center justify-between gap-1.5 mt-0.5">
                     <span
-                      class="truncate text-[11px]"
+                      class="chat-conversation-preview truncate text-[11px]"
                       :class="[
                         activeId === conv.id ? 'text-blue-700/80 dark:text-blue-200/70' : 'text-[var(--ap-text-muted)]',
                         { italic: conv.lastMessage?.deleted_at }

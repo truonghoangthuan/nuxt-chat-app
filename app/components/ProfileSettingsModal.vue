@@ -111,7 +111,7 @@ function handleSave() {
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-md"
       @click.self="handleClose"
     >
-      <div class="w-full max-w-md rounded-2xl border border-black/10 dark:border-white/15 bg-white/95 dark:bg-[#161824]/95 backdrop-blur-2xl shadow-2xl p-6 text-[var(--ap-text-primary)]">
+      <div class="messenger-dialog-surface profile-settings-surface w-full max-w-md rounded-2xl border border-black/10 dark:border-white/15 bg-white/95 dark:bg-[#161824]/95 backdrop-blur-2xl shadow-2xl p-6 text-[var(--ap-text-primary)]">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-[16px] font-semibold text-[var(--ap-text-primary)] tracking-tight">
             Profile Settings
@@ -254,7 +254,7 @@ function handleSave() {
               </button>
             </div>
 
-            <div class="grid grid-cols-3 gap-2 pt-1">
+            <div class="grid grid-cols-2 gap-2 pt-1">
               <!-- Default (Apple Fluid) -->
               <button
                 type="button"
@@ -306,6 +306,24 @@ function handleSave() {
                 <div>
                   <div class="text-xs font-semibold">Yahoo!</div>
                   <div class="text-[10px] text-[var(--ap-text-muted)] leading-tight">Classic IM</div>
+                </div>
+              </button>
+              <!-- Telegram-inspired messenger -->
+              <button
+                type="button"
+                data-test="theme-option-telegram"
+                :aria-pressed="uiTheme === 'telegram'"
+                class="p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer active:scale-95"
+                :class="uiTheme === 'telegram' ? 'bg-blue-500/15 border-blue-500 text-blue-900 dark:text-white ring-1 ring-blue-500' : 'bg-black/[0.03] dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10'"
+                @click="setUiTheme('telegram')"
+              >
+                <div class="flex items-center justify-between w-full mb-1">
+                  <MessageCircle class="size-4 text-blue-500 dark:text-blue-400" />
+                  <span v-if="uiTheme === 'telegram'" class="text-[10px] text-blue-600 dark:text-blue-400 font-bold">Active</span>
+                </div>
+                <div>
+                  <div class="text-xs font-semibold">Telegram</div>
+                  <div class="text-[10px] text-[var(--ap-text-muted)] leading-tight">Clean messenger</div>
                 </div>
               </button>
             </div>

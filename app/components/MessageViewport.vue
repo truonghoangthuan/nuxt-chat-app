@@ -381,7 +381,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative flex-1 flex flex-col min-h-0 bg-transparent overflow-hidden">
+  <div class="chat-timeline-stage relative flex-1 flex flex-col min-h-0 bg-transparent overflow-hidden" :data-custom-background="backgroundStyle ? 'true' : undefined">
     <!-- Chat Background Layer & Adaptive Contrast Scrim -->
     <div
       v-if="backgroundStyle"
@@ -459,7 +459,7 @@ onUnmounted(() => {
     <!-- Messages Scroll Container with custom-scroll -->
     <div
       ref="viewportRef"
-      class="flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-3 custom-scroll"
+      class="chat-timeline flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-3 custom-scroll"
       @scroll="handleScroll"
       @load.capture="onViewportImageLoad"
     >
@@ -590,7 +590,7 @@ onUnmounted(() => {
           >{{ item.message.author?.display_name || 'Friend' }} ({{ formatTime(item.message.created_at) }}):</span>
 
           <!-- Recipient Avatar (rendered at the bottom of the cluster in default theme) -->
-          <template v-if="uiTheme === 'default' && !item.isSender">
+          <template v-if="(uiTheme === 'default' || uiTheme === 'telegram') && !item.isSender">
             <div
               v-if="item.isLastInGroup"
               data-test="recipient-avatar-trigger"
@@ -601,6 +601,7 @@ onUnmounted(() => {
                 :display-name="item.message.author?.display_name || 'Friend'"
                 :avatar-color="item.message.author?.avatar_color"
                 :avatar-url="item.message.author?.avatar_url"
+                :shape="uiTheme === 'telegram' ? 'circle' : 'squircle'"
                 size="md"
               />
             </div>
@@ -664,7 +665,7 @@ onUnmounted(() => {
 
           <!-- Message Column (Header + Bubble + Delivery States + Reactions) -->
           <div
-            class="flex flex-col min-w-0 max-w-[85%] sm:max-w-[75%] md:max-w-[70%]"
+            class="chat-message-column flex flex-col min-w-0 max-w-[85%] sm:max-w-[75%] md:max-w-[70%]"
             :class="item.isSender ? 'items-end' : 'items-start'"
           >
             <!-- Group Sender Header -->
@@ -713,7 +714,8 @@ onUnmounted(() => {
               <!-- Message Bubble Container -->
               <div
                 :data-test="`message-bubble-${item.message.id}`"
-                class="relative text-[13.5px] leading-relaxed break-words transition-all"
+                class="chat-message-bubble relative text-[13.5px] leading-relaxed break-words transition-all"
+                :data-direction="item.isSender ? 'outgoing' : 'incoming'"
                 :class="[
                   uiTheme === 'vscode'
                     ? 'px-1 py-0.5 text-xs text-[var(--ap-text-primary)] rounded-none shadow-none font-mono'
@@ -731,7 +733,7 @@ onUnmounted(() => {
               <div
                 v-if="item.message.reply_to_id"
                 :data-test="`reply-quote-${item.message.id}`"
-                class="mb-2 px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 truncate max-w-full backdrop-blur-xs"
+                class="chat-reply-quote mb-2 px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 truncate max-w-full backdrop-blur-xs"
                 :class="item.isSender ? 'bg-white/15 border-l-2 border-white/70 text-white/90' : 'bg-black/5 dark:bg-white/5 border-l-2 border-blue-500 dark:border-blue-400 text-[var(--ap-text-secondary)]'"
               >
                 <span class="font-semibold shrink-0" :class="item.isSender ? 'text-white' : 'text-blue-600 dark:text-blue-300'">
