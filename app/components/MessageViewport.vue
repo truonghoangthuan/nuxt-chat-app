@@ -82,14 +82,14 @@ const copiedCodeMessageId = ref<string | null>(null)
 const activePinnedIndex = ref(0)
 const highlightedMessageId = ref<string | null>(null)
 
-function reactorNames(userIds: string[]): string {
-  return userIds
-    .map(id =>
-      id === props.currentUserId
-        ? 'You'
-        : props.members.find(m => m.id === id)?.display_name || 'Someone',
-    )
-    .join(', ')
+function reactorsOf(userIds: string[]) {
+  return userIds.map((id) => {
+    if (id === props.currentUserId) {
+      return { id, name: 'You', avatarName: props.currentDisplayName || 'You', color: undefined, url: undefined }
+    }
+    const m = props.members.find(x => x.id === id)
+    return { id, name: m?.display_name || 'Someone', avatarName: m?.display_name || '?', color: m?.avatar_color, url: m?.avatar_url }
+  })
 }
 
 const seenByMap = computed(() =>
@@ -1021,12 +1021,14 @@ onUnmounted(() => {
               class="mt-1 flex items-center flex-wrap gap-1.5"
               :class="item.isSender ? 'justify-end' : 'justify-start'"
             >
-              <button
+              <div
                 v-for="summary in summarizeReactions(item.message.reactions, currentUserId)"
                 :key="summary.emoji"
+                class="relative group"
+              >
+              <button
                 type="button"
                 :data-test="`reaction-pill-${item.message.id}-${summary.emoji}`"
-                :title="reactorNames(summary.userIds)"
                 class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono border transition-all cursor-pointer shadow-xs backdrop-blur-md"
                 :class="summary.reactedByMe ? 'bg-blue-500/20 border-blue-400/50 text-blue-700 dark:text-blue-200 font-semibold' : 'bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border-black/10 dark:border-white/10 text-[var(--ap-text-primary)]'"
                 @click="emit('toggleReaction', { messageId: item.message.id, emoji: summary.emoji })"
@@ -1034,6 +1036,24 @@ onUnmounted(() => {
                 <span>{{ summary.emoji }}</span>
                 <span>{{ summary.count }}</span>
               </button>
+              <div
+                :data-test="`reaction-popover-${item.message.id}-${summary.emoji}`"
+                role="tooltip"
+                class="pointer-events-none absolute bottom-full z-30 mb-2 hidden min-w-[140px] max-w-[220px] rounded-xl border border-black/10 bg-white/95 p-2 text-xs shadow-xl backdrop-blur-xl group-hover:block group-focus-within:block dark:border-white/15 dark:bg-[#161824]/95"
+                :class="item.isSender ? 'right-0' : 'left-0'"
+              >
+                <div class="mb-1.5 flex items-center gap-1.5 border-b border-black/10 pb-1.5 text-[var(--ap-text-muted)] dark:border-white/10">
+                  <span class="text-base leading-none">{{ summary.emoji }}</span>
+                  <span>{{ summary.count }} {{ summary.count === 1 ? 'reaction' : 'reactions' }}</span>
+                </div>
+                <ul class="max-h-40 space-y-1 overflow-hidden">
+                  <li v-for="r in reactorsOf(summary.userIds)" :key="r.id" class="flex items-center gap-2 text-[var(--ap-text-primary)]">
+                    <UserAvatar :display-name="r.avatarName" :avatar-color="r.color" :avatar-url="r.url" size="xs" />
+                    <span class="truncate">{{ r.name }}</span>
+                  </li>
+                </ul>
+              </div>
+              </div>
             </div>
           </div>
         </div>
