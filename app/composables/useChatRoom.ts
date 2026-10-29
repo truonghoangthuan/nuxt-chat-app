@@ -503,6 +503,22 @@ export function useChatRoom() {
     }
   }
 
+  let pendingReadOnActiveConv = false
+
+  function isWindowActive(): boolean {
+    if (typeof document === 'undefined') return true
+    const isVisible = document.visibilityState === 'visible'
+    const isFocused = typeof document.hasFocus === 'function' ? document.hasFocus() : true
+    return isVisible && isFocused
+  }
+
+  function onWindowActive(): void {
+    if (isWindowActive() && pendingReadOnActiveConv && activeConversationId.value) {
+      pendingReadOnActiveConv = false
+      markConversationRead(activeConversationId.value, true)
+    }
+  }
+
   async function markConversationRead(conversationId: string, immediate = true): Promise<void> {
     const current = authProfile.currentProfile.value
     const nowIso = new Date().toISOString()
@@ -948,7 +964,11 @@ export function useChatRoom() {
             targetConv.updated_at = decryptedRow.created_at
           }
           if (convId === activeConversationId.value) {
-            markConversationRead(convId, false)
+            if (isWindowActive()) {
+              markConversationRead(convId, false)
+            } else {
+              pendingReadOnActiveConv = true
+            }
           }
         },
       )
@@ -1891,6 +1911,10 @@ export function useChatRoom() {
     if (typeof window !== 'undefined') {
       window.addEventListener('online', onOnline)
       window.addEventListener('offline', onOffline)
+      window.addEventListener('focus', onWindowActive)
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onWindowActive)
     }
   }
 
@@ -1927,6 +1951,10 @@ export function useChatRoom() {
     if (typeof window !== 'undefined') {
       window.removeEventListener('online', onOnline)
       window.removeEventListener('offline', onOffline)
+      window.removeEventListener('focus', onWindowActive)
+    }
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', onWindowActive)
     }
     connectionManager.dispose()
     typingTracker.clearAll()
