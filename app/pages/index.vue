@@ -711,6 +711,7 @@ async function handleSaveProfile(payload: {
   displayName: string
   avatarColor: string
   avatarUrl: string
+  bankQrUrl?: string | null
   confettiEnabled?: boolean
   onSuccess?: () => void
   onError?: (message: string) => void
@@ -719,7 +720,7 @@ async function handleSaveProfile(payload: {
     confettiEnabled.value = payload.confettiEnabled
     setConfettiEnabled(payload.confettiEnabled)
   }
-  const result = await updateProfile(payload.displayName, payload.avatarColor, payload.avatarUrl)
+  const result = await updateProfile(payload.displayName, payload.avatarColor, payload.avatarUrl, payload.bankQrUrl)
   if (result.error || !result.profile) {
     payload.onError?.(result.error || 'Failed to update profile')
   } else {

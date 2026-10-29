@@ -15,6 +15,7 @@ create table if not exists public.profiles (
 
 alter table public.profiles add column if not exists email text;
 alter table public.profiles add column if not exists avatar_url text;
+alter table public.profiles add column if not exists bank_qr_url text;
 
 create unique index if not exists profiles_email_lower_idx on public.profiles (lower(email)) where email is not null and email <> '';
 

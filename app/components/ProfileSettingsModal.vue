@@ -24,6 +24,7 @@ const emit = defineEmits<{
       displayName: string
       avatarColor: string
       avatarUrl: string
+      bankQrUrl?: string | null
       confettiEnabled: boolean
       onSuccess: () => void
       onError: (message: string) => void
@@ -34,6 +35,7 @@ const emit = defineEmits<{
 const displayName = ref(props.profile?.display_name || '')
 const avatarColor = ref<string>(props.profile?.avatar_color || AVATAR_PALETTE[0])
 const avatarUrl = ref(props.profile?.avatar_url || '')
+const bankQrUrl = ref(props.profile?.bank_qr_url || '')
 const confettiEnabled = ref(getConfettiEnabled())
 const error = ref<string | null>(null)
 const isSubmitting = ref(false)
@@ -59,6 +61,7 @@ watch(
       displayName.value = prof.display_name
       avatarColor.value = prof.avatar_color || AVATAR_PALETTE[0]
       avatarUrl.value = prof.avatar_url || ''
+      bankQrUrl.value = prof.bank_qr_url || ''
       confettiEnabled.value = getConfettiEnabled()
       error.value = null
       isSubmitting.value = false
@@ -91,6 +94,7 @@ function handleSave() {
     displayName: displayName.value.trim(),
     avatarColor: avatarColor.value,
     avatarUrl: avatarUrl.value.trim(),
+    bankQrUrl: bankQrUrl.value.trim() || null,
     confettiEnabled: confettiEnabled.value,
     onSuccess: () => {
       isSubmitting.value = false
@@ -208,6 +212,21 @@ function handleSave() {
             />
             <p class="mt-1 text-[11px] text-[var(--ap-text-muted)]">Optional. Leave blank to use your initials.</p>
             <p v-if="avatarUrl && !isValidAvatarUrl(avatarUrl)" class="mt-1 text-xs text-rose-500 dark:text-rose-400">Enter a valid HTTP or HTTPS URL.</p>
+          </div>
+
+          <!-- Bank QR Code URL -->
+          <div>
+            <label for="bank-qr-url" class="block text-xs font-semibold text-[var(--ap-text-secondary)] mb-1.5">Bank QR Code URL</label>
+            <input
+              id="bank-qr-url"
+              v-model="bankQrUrl"
+              data-test="bank-qr-url"
+              type="url"
+              maxlength="2048"
+              placeholder="https://example.com/bank-qr.png"
+              class="w-full h-10 px-3.5 text-xs rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/8 text-[var(--ap-text-primary)] placeholder-[var(--ap-text-muted)] focus:outline-none focus:bg-black/8 dark:focus:bg-white/12 focus:ring-1 focus:ring-blue-500/50 transition-colors"
+            />
+            <p class="mt-1 text-[11px] text-[var(--ap-text-muted)]">Optional. Friends can view your payment QR in your profile.</p>
           </div>
 
           <!-- Avatar Color Swatches -->

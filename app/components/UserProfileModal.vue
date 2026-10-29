@@ -56,6 +56,12 @@ function onKeyDown(e: KeyboardEvent) {
   }
 }
 
+function openQrInNewTab(url?: string | null) {
+  if (url && typeof window !== 'undefined') {
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+}
+
 watch(
   () => props.isOpen,
   (open) => {
@@ -180,6 +186,26 @@ onUnmounted(() => {
             <Check v-if="copiedId" class="w-3.5 h-3.5 text-emerald-500" />
             <Copy v-else class="w-3.5 h-3.5" />
           </button>
+        </div>
+
+        <!-- Bank QR Code Field -->
+        <div
+          v-if="profile.bank_qr_url"
+          data-test="user-bank-qr"
+          class="p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/5 flex flex-col items-center gap-2"
+        >
+          <span class="text-[10.5px] uppercase font-mono tracking-wider text-[var(--ap-text-muted)] self-start">
+            Bank QR Code
+          </span>
+          <div class="w-44 h-44 rounded-xl overflow-hidden bg-white p-2 shadow-xs border border-black/10 flex items-center justify-center">
+            <img
+              :src="profile.bank_qr_url"
+              alt="Bank QR Code"
+              class="w-full h-full object-contain cursor-pointer hover:scale-105 transition-transform"
+              @click="openQrInNewTab(profile.bank_qr_url)"
+            />
+          </div>
+          <span class="text-[10px] text-[var(--ap-text-muted)]">Click QR to open in full size</span>
         </div>
       </div>
 

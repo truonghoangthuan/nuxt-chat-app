@@ -82,6 +82,7 @@ export function useAuthProfile() {
     displayName: string,
     avatarColor: string,
     avatarUrl = '',
+    bankQrUrl: string | null | undefined = undefined,
   ): Promise<{ profile: Profile | null; error: string | null }> {
     const cleanName = displayName.trim()
     if (!isValidDisplayName(cleanName)) {
@@ -126,6 +127,7 @@ export function useAuthProfile() {
       display_name: cleanName,
       avatar_color: avatarColor,
       avatar_url: cleanAvatarUrl || null,
+      bank_qr_url: bankQrUrl !== undefined ? bankQrUrl : (currentProfile.value?.bank_qr_url || null),
     }
 
     const { data, error } = await supabase

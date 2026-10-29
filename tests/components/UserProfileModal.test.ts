@@ -21,6 +21,23 @@ describe('UserProfileModal', () => {
     expect(wrapper.find('[data-test="user-profile-modal"]').exists()).toBe(false)
   })
 
+  it('renders bank QR code section when profile has bank_qr_url', () => {
+    const wrapper = mount(UserProfileModal, {
+      props: {
+        isOpen: true,
+        profile: {
+          id: 'u-1',
+          display_name: 'Tam',
+          email: 'tam@example.com',
+          avatar_color: 'bg-emerald-500',
+          bank_qr_url: 'https://example.com/qr.png',
+        },
+      },
+    })
+    expect(wrapper.find('[data-test="user-bank-qr"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="user-bank-qr"] img').attributes('src')).toBe('https://example.com/qr.png')
+  })
+
   it('renders profile information with display name, email, avatar, and online status', () => {
     const wrapper = mount(UserProfileModal, {
       props: {
