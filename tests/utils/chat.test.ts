@@ -936,6 +936,45 @@ describe('Conversation utilities', () => {
       expect(msgItem?.systemPayload).toBeNull()
     })
 
+    it('buildMessageTimeline pre-computes mentionSegments and captionMentionSegments', () => {
+      const imgContent = JSON.stringify({
+        type: 'images',
+        images: [{ path: 'a.enc', mimeType: 'image/png', width: 10, height: 10, size: 50 }],
+        caption: 'Look at this @Bob https://example.com',
+      })
+      const items = buildMessageTimeline(
+        [
+          {
+            id: 'm-1',
+            client_id: 'c-1',
+            conversation_id: 'conv-1',
+            user_id: 'u-1',
+            content: 'Hello @Bob check `code`',
+            created_at: '2026-10-20T10:00:00Z',
+            status: 'sent',
+          },
+          {
+            id: 'm-2',
+            client_id: 'c-2',
+            conversation_id: 'conv-1',
+            user_id: 'u-1',
+            content: imgContent,
+            created_at: '2026-10-20T10:01:00Z',
+            status: 'sent',
+          },
+        ],
+        new Date('2026-10-20T12:00:00Z'),
+        {
+          currentDisplayName: 'Bob',
+          memberDisplayNames: ['Bob'],
+        },
+      )
+      expect(items[0].mentionSegments).toBeDefined()
+      expect(items[0].mentionSegments?.some(s => s.isMention && s.text === '@Bob')).toBe(true)
+      expect(items[1].captionMentionSegments).toBeDefined()
+      expect(items[1].captionMentionSegments?.some(s => s.isMention && s.text === '@Bob')).toBe(true)
+    })
+
     it('extractMusicHistory extracts music history sorted newest first, skipping deleted and capping limit', () => {
       const messages: ChatMessage[] = [
         {

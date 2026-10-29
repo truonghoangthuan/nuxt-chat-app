@@ -210,6 +210,7 @@ const timelineItems = computed(() =>
     currentUserId: props.currentUserId,
     currentDisplayName: props.currentDisplayName,
     isGroup: isGroupComputed.value,
+    memberDisplayNames: memberDisplayNames.value,
   }),
 )
 
@@ -812,7 +813,7 @@ onUnmounted(() => {
                   :class="item.isSender ? 'text-white' : 'text-[var(--ap-text-primary)]'"
                 >
                   <template
-                    v-for="(seg, sIdx) in tokenizeMessageMentions(item.imagePayload.caption, currentDisplayName, memberDisplayNames)"
+                    v-for="(seg, sIdx) in (item.captionMentionSegments || tokenizeMessageMentions(item.imagePayload.caption, currentDisplayName, memberDisplayNames))"
                     :key="sIdx"
                   >
                     <span
@@ -901,7 +902,7 @@ onUnmounted(() => {
               <!-- Standard Text Message Content -->
               <div v-else class="whitespace-pre-wrap break-words">
                 <template
-                  v-for="(seg, sIdx) in tokenizeMessageMentions(item.message.content, currentDisplayName, memberDisplayNames)"
+                  v-for="(seg, sIdx) in (item.mentionSegments || tokenizeMessageMentions(item.message.content, currentDisplayName, memberDisplayNames))"
                   :key="sIdx"
                 >
                   <span

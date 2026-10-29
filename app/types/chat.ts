@@ -169,6 +169,8 @@ export interface TimelineMessageItem {
   isMentioningMe?: boolean
   imagePayload?: ImageMessagePayload | null
   systemPayload?: SystemMessagePayload | null
+  mentionSegments?: MentionSegment[]
+  captionMentionSegments?: MentionSegment[]
 }
 
 export interface TypingUser {

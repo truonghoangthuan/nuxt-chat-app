@@ -350,6 +350,7 @@ export function buildMessageTimeline(
     currentUserId?: string
     currentDisplayName?: string | null
     isGroup?: boolean
+    memberDisplayNames?: string[]
   },
 ): TimelineMessageItem[] {
   const lastReadMs = options?.lastReadAt ? Date.parse(options.lastReadAt) : Number.NaN
@@ -367,6 +368,15 @@ export function buildMessageTimeline(
         systemPayload = parseSystemPayload(msg.content)
       }
     }
+
+    const isStandardText = !msg.deleted_at && msg.encryption !== 'undecryptable' && typeof msg.content === 'string' && !imagePayload && !systemPayload
+    const mentionSegments = isStandardText
+      ? tokenizeMessageMentions(msg.content, options?.currentDisplayName, options?.memberDisplayNames)
+      : []
+
+    const captionMentionSegments = imagePayload?.caption
+      ? tokenizeMessageMentions(imagePayload.caption, options?.currentDisplayName, options?.memberDisplayNames)
+      : []
 
     const currDate = new Date(msg.created_at)
     const currTimeMs = currDate.getTime()
@@ -460,6 +470,8 @@ export function buildMessageTimeline(
       isMentioningMe,
       imagePayload,
       systemPayload,
+      mentionSegments,
+      captionMentionSegments,
     }
   })
 }
