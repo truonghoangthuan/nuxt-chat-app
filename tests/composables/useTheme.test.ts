@@ -1,10 +1,84 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { useTheme } from '~/composables/useTheme'
 
 describe('useTheme', () => {
   beforeEach(() => {
     localStorage.clear()
     document.documentElement.className = ''
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('initializes the DOM when persisted preferences cannot be read', () => {
+    const theme = useTheme()
+    theme.initTheme()
+    theme.toggleTheme()
+    theme.setUiTheme('telegram')
+    document.documentElement.className = ''
+    delete document.documentElement.dataset.theme
+    vi.stubGlobal('localStorage', {
+      getItem: () => { throw new DOMException('Storage access denied', 'SecurityError') },
+    })
+
+    expect(() => theme.initTheme()).not.toThrow()
+    expect(theme.isDark.value).toBe(false)
+    expect(theme.uiTheme.value).toBe('telegram')
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+    expect(document.documentElement.dataset.theme).toBe('telegram')
+    expect(document.documentElement.classList.contains('theme-telegram')).toBe(true)
+  })
+
+  it.each(['SecurityError', 'QuotaExceededError'])('updates visible themes when persistence throws %s', (name) => {
+    const theme = useTheme()
+    theme.initTheme()
+    vi.stubGlobal('localStorage', {
+      setItem: () => { throw new DOMException('Cannot persist preferences', name) },
+    })
+
+    expect(() => theme.toggleTheme()).not.toThrow()
+    expect(theme.isDark.value).toBe(false)
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+    expect(() => theme.setUiTheme('telegram')).not.toThrow()
+    expect(theme.uiTheme.value).toBe('telegram')
+    expect(document.documentElement.dataset.theme).toBe('telegram')
+    expect(document.documentElement.classList.contains('theme-telegram')).toBe(true)
+    expect(document.documentElement.classList.contains('theme-default')).toBe(false)
+  })
+
+  it('keeps theme operations working when accessing localStorage itself throws', () => {
+    const theme = useTheme()
+    theme.initTheme()
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')!
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get: () => { throw new DOMException('Storage access denied', 'SecurityError') },
+    })
+    try {
+      expect(() => theme.initTheme()).not.toThrow()
+      expect(() => theme.toggleTheme()).not.toThrow()
+      expect(() => theme.setUiTheme('telegram')).not.toThrow()
+      expect(theme.isDark.value).toBe(false)
+      expect(document.documentElement.classList.contains('dark')).toBe(false)
+      expect(document.documentElement.dataset.theme).toBe('telegram')
+    } finally {
+      Object.defineProperty(globalThis, 'localStorage', descriptor)
+    }
+  })
+
+  it('supports unavailable storage without losing in-memory preferences', () => {
+    const theme = useTheme()
+    theme.initTheme()
+    vi.stubGlobal('localStorage', undefined)
+    expect(() => theme.toggleTheme()).not.toThrow()
+    expect(() => theme.setUiTheme('vscode')).not.toThrow()
+    expect(() => theme.initTheme()).not.toThrow()
+    expect(theme.isDark.value).toBe(false)
+    expect(theme.uiTheme.value).toBe('vscode')
+    expect(document.documentElement.dataset.theme).toBe('vscode')
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
 
   it('defaults to dark mode and toggles to light mode with localStorage persistence', () => {
