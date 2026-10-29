@@ -136,6 +136,45 @@ describe('IndexPage (app/pages/index.vue)', () => {
     mockChatRoomState.onlineFriends.value = []
   })
 
+  it.each(['play', 'pause', 'nexttrack', 'seekto'])(
+    'keeps workspace hydration and cleanup working when Media Session action %s is unsupported',
+    async (unsupportedAction) => {
+      const errors: unknown[] = []
+      const setActionHandler = vi.fn((action: string) => {
+        if (action === unsupportedAction) throw new DOMException('Unsupported action', 'NotSupportedError')
+      })
+      const mediaSession = { setActionHandler, metadata: null, playbackState: 'none' }
+      vi.stubGlobal('navigator', { mediaSession })
+      const unsubscribe = vi.fn()
+      mockChatRoomState.onMusicSync.mockReturnValueOnce(unsubscribe)
+      let wrapper: ReturnType<typeof mount> | undefined
+      try {
+        wrapper = mount(IndexPage, { global: { config: { errorHandler: error => errors.push(error) } } })
+        await flushPromises()
+
+        expect(errors).toEqual([])
+        for (const action of ['play', 'pause', 'nexttrack', 'seekto']) {
+          expect(setActionHandler).toHaveBeenCalledWith(action, expect.any(Function))
+        }
+        expect(mockChatRoomState.initializeChat).toHaveBeenCalledOnce()
+
+        wrapper.unmount()
+        wrapper = undefined
+        expect(errors).toEqual([])
+        for (const action of ['play', 'pause', 'nexttrack', 'seekto']) {
+          expect(setActionHandler).toHaveBeenCalledWith(action, null)
+        }
+        expect(mediaSession.metadata).toBeNull()
+        expect(mediaSession.playbackState).toBe('none')
+        expect(unsubscribe).toHaveBeenCalledOnce()
+        expect(mockChatRoomState.cleanupChat).toHaveBeenCalledOnce()
+      } finally {
+        wrapper?.unmount()
+        vi.unstubAllGlobals()
+      }
+    },
+  )
+
   it('mounts workspace and sidebar directly without E2eeGate', async () => {
     mockE2eeState.status.value = 'locked'
     const wrapper = mount(IndexPage)

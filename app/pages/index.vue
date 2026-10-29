@@ -324,22 +324,34 @@ function handleMediaSessionSeekTo(details: MediaSessionActionDetails) {
   if (typeof details.seekTime === 'number') musicSeekTo(details.seekTime)
 }
 
+function setMediaSessionActionHandler(
+  mediaSession: MediaSession,
+  action: MediaSessionAction,
+  handler: MediaSessionActionHandler | null,
+) {
+  try {
+    mediaSession.setActionHandler(action, handler)
+  } catch {
+    // Individual actions may be unsupported even when Media Session is available.
+  }
+}
+
 function setupMediaSessionHandlers() {
   const mediaSession = getMediaSession()
   if (!mediaSession) return
-  mediaSession.setActionHandler('play', handleMediaSessionPlay)
-  mediaSession.setActionHandler('pause', handleMediaSessionPause)
-  mediaSession.setActionHandler('nexttrack', handleMediaSessionNextTrack)
-  mediaSession.setActionHandler('seekto', handleMediaSessionSeekTo)
+  setMediaSessionActionHandler(mediaSession, 'play', handleMediaSessionPlay)
+  setMediaSessionActionHandler(mediaSession, 'pause', handleMediaSessionPause)
+  setMediaSessionActionHandler(mediaSession, 'nexttrack', handleMediaSessionNextTrack)
+  setMediaSessionActionHandler(mediaSession, 'seekto', handleMediaSessionSeekTo)
 }
 
 function teardownMediaSessionHandlers() {
   const mediaSession = getMediaSession()
   if (!mediaSession) return
-  mediaSession.setActionHandler('play', null)
-  mediaSession.setActionHandler('pause', null)
-  mediaSession.setActionHandler('nexttrack', null)
-  mediaSession.setActionHandler('seekto', null)
+  setMediaSessionActionHandler(mediaSession, 'play', null)
+  setMediaSessionActionHandler(mediaSession, 'pause', null)
+  setMediaSessionActionHandler(mediaSession, 'nexttrack', null)
+  setMediaSessionActionHandler(mediaSession, 'seekto', null)
   mediaSession.metadata = null
   mediaSession.playbackState = 'none'
 }
