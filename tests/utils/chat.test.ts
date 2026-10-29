@@ -37,6 +37,7 @@ import {
   formatSystemMessageText,
   computeSeenByMessageId,
   extractMusicHistory,
+  isDuplicateKeyError,
 } from '~/utils/chat'
 import type { ChatMessage, Conversation, Profile } from '~/types/chat'
 
@@ -1079,6 +1080,21 @@ describe('Conversation utilities', () => {
       const limited = extractMusicHistory(messages, 1)
       expect(limited.length).toBe(1)
       expect(limited[0].messageId).toBe('m-new')
+    })
+  })
+
+  describe('isDuplicateKeyError', () => {
+    it('returns true for Postgres 23505 code', () => {
+      expect(isDuplicateKeyError({ code: '23505' })).toBe(true)
+    })
+    it('returns true for duplicate key or unique constraint in error message', () => {
+      expect(isDuplicateKeyError({ message: 'duplicate key value violates unique constraint' })).toBe(true)
+      expect(isDuplicateKeyError({ message: 'UNIQUE constraint failed' })).toBe(true)
+    })
+    it('returns false for null, undefined, or unrelated errors', () => {
+      expect(isDuplicateKeyError(null)).toBe(false)
+      expect(isDuplicateKeyError(undefined)).toBe(false)
+      expect(isDuplicateKeyError({ code: '42P01', message: 'relation does not exist' })).toBe(false)
     })
   })
 })

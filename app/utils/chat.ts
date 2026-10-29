@@ -916,6 +916,10 @@ export function extractMusicHistory(
   return eligible.slice(0, Math.max(0, limit))
 }
 
-
-
+export function isDuplicateKeyError(error: any): boolean {
+  if (!error) return false
+  if (error.code === '23505') return true
+  const msg = String(error.message || '').toLowerCase()
+  return msg.includes('duplicate key') || msg.includes('unique constraint')
+}
 

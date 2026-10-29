@@ -30,6 +30,7 @@ import {
   isSystemPayload,
   parseSystemPayload,
   CHAT_BACKGROUND_PRESETS,
+  isDuplicateKeyError,
 } from '~/utils/chat'
 import { isEncryptedEnvelope, encryptContent, decryptContent } from '~/utils/crypto'
 import { createMessagesStore } from '~/composables/useMessagesState'
@@ -79,13 +80,7 @@ import {
 } from '~/utils/image'
 
 export const PAGE_SIZE = 40
-
-export function isDuplicateKeyError(error: any): boolean {
-  if (!error) return false
-  if (error.code === '23505') return true
-  const msg = String(error.message || '').toLowerCase()
-  return msg.includes('duplicate key') || msg.includes('unique constraint')
-}
+export { isDuplicateKeyError }
 
 export async function decryptMessageRow<
   T extends {

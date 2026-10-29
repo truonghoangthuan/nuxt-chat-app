@@ -8,7 +8,7 @@ import type {
 } from '~/types/chat'
 import { validateImageFiles, resizeImage } from '~/utils/image'
 import { encryptBinary, encryptContent } from '~/utils/crypto'
-import { isDuplicateKeyError } from '~/composables/useChatRoom'
+import { isDuplicateKeyError } from '~/utils/chat'
 
 export interface ChatMediaUploadOptions {
   supabase: any
