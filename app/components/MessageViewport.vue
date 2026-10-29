@@ -82,6 +82,16 @@ const copiedCodeMessageId = ref<string | null>(null)
 const activePinnedIndex = ref(0)
 const highlightedMessageId = ref<string | null>(null)
 
+function reactorNames(userIds: string[]): string {
+  return userIds
+    .map(id =>
+      id === props.currentUserId
+        ? 'You'
+        : props.members.find(m => m.id === id)?.display_name || 'Someone',
+    )
+    .join(', ')
+}
+
 const seenByMap = computed(() =>
   computeSeenByMessageId({
     messages: props.messages,
@@ -1016,6 +1026,7 @@ onUnmounted(() => {
                 :key="summary.emoji"
                 type="button"
                 :data-test="`reaction-pill-${item.message.id}-${summary.emoji}`"
+                :title="reactorNames(summary.userIds)"
                 class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono border transition-all cursor-pointer shadow-xs backdrop-blur-md"
                 :class="summary.reactedByMe ? 'bg-blue-500/20 border-blue-400/50 text-blue-700 dark:text-blue-200 font-semibold' : 'bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border-black/10 dark:border-white/10 text-[var(--ap-text-primary)]'"
                 @click="emit('toggleReaction', { messageId: item.message.id, emoji: summary.emoji })"
