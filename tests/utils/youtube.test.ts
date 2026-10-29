@@ -29,10 +29,20 @@ describe('youtube utils', () => {
     expect(parsePipedItems(null as any)).toEqual([])
   })
 
+  it.each([NaN, Infinity, -Infinity])('drops Piped streams with non-finite duration %s', (duration) => {
+    expect(parsePipedItems([
+      { url: '/watch?v=dQw4w9WgXcQ', type: 'stream', title: 'Invalid', duration },
+    ])).toEqual([])
+  })
+
   it('formats duration seconds as m:ss or h:mm:ss', () => {
     expect(formatDurationSeconds(0)).toBe('0:00')
     expect(formatDurationSeconds(65)).toBe('1:05')
     expect(formatDurationSeconds(3661)).toBe('1:01:01')
+  })
+
+  it.each([NaN, Infinity, -Infinity])('formats non-finite duration %s as zero', (seconds) => {
+    expect(formatDurationSeconds(seconds)).toBe('0:00')
   })
 
   it('formats music_play system message', () => {
