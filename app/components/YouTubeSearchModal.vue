@@ -125,11 +125,6 @@ async function executeSearch() {
   }
 }
 
-function handleSelect(track: YouTubeSearchResult) {
-  emit('select', track)
-  emit('close')
-}
-
 function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') {
     emit('close')
@@ -230,8 +225,7 @@ function handleKeydown(e: KeyboardEvent) {
           v-for="item in searchResults"
           :key="item.videoId"
           data-test="youtube-result-item"
-          class="group flex items-center gap-3 p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer border border-transparent hover:border-[var(--ap-glass-border)]"
-          @click="handleSelect(item)"
+          class="group flex items-center gap-3 p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition border border-transparent hover:border-[var(--ap-glass-border)]"
         >
           <!-- Thumbnail with hover play overlay -->
           <div class="relative w-20 h-12 rounded-lg overflow-hidden shrink-0 bg-black/20">
@@ -269,17 +263,17 @@ function handleKeydown(e: KeyboardEvent) {
               <button
                 type="button"
                 data-test="youtube-play-now"
-                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-500 hover:bg-blue-600 text-white shadow-xs transition cursor-pointer"
-                title="Play now"
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-transparent hover:bg-black/5 dark:hover:bg-white/10 text-[var(--ap-text-secondary)] border border-[var(--ap-glass-border)] transition cursor-pointer"
+                title="Phát ngay – sẽ dừng bài đang phát trong phòng"
                 @click="handlePlayNow($event, item)"
               >
-                <Play class="w-3 h-3 fill-current" />
-                <span>Play</span>
+                <Play class="w-3 h-3" />
+                <span class="hidden md:inline">Play</span>
               </button>
               <button
                 type="button"
                 data-test="youtube-add-next"
-                class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-[var(--ap-text-primary)] border border-[var(--ap-glass-border)] transition cursor-pointer"
+                class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition cursor-pointer"
                 title="Play next after current song"
                 @click="handleQueue($event, item, 'next')"
               >
@@ -289,12 +283,12 @@ function handleKeydown(e: KeyboardEvent) {
               <button
                 type="button"
                 data-test="youtube-add-queue"
-                class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-[var(--ap-text-primary)] border border-[var(--ap-glass-border)] transition cursor-pointer"
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-500 hover:bg-blue-600 text-white shadow-xs transition cursor-pointer"
                 title="Add to end of queue"
                 @click="handleQueue($event, item, 'end')"
               >
                 <ListPlus class="w-3 h-3" />
-                <span class="hidden md:inline">Queue</span>
+                <span>Queue</span>
               </button>
             </template>
           </div>
