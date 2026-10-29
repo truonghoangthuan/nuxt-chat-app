@@ -7,6 +7,7 @@ export interface Profile {
   display_name: string
   avatar_color: string
   avatar_url?: string | null
+  bank_qr_url?: string | null
   created_at?: string
 }
 

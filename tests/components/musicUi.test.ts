@@ -72,6 +72,38 @@ describe('Music UI components', () => {
     expect(wrapper.emitted('unblock-autoplay')).toBeTruthy()
   })
 
+  it('renders Join button when not tuned in and emits join and leave', async () => {
+    const wrapper = mount(MusicPlayerBar, {
+      props: {
+        track: {
+          conversationId: 'conv-1',
+          videoId: 'dQw4w9WgXcQ',
+          title: 'Test Song',
+          channelTitle: 'Artist',
+          thumbnail: '',
+          isPlaying: true,
+          positionSec: 10,
+          updatedAt: Date.now(),
+          startedBy: 'Alice',
+        },
+        currentTimeSec: 10,
+        durationSec: 120,
+        isTunedIn: false,
+      },
+    })
+
+    const joinBtn = wrapper.find('[data-test="music-join-btn"]')
+    expect(joinBtn.exists()).toBe(true)
+    await joinBtn.trigger('click')
+    expect(wrapper.emitted('join')).toBeTruthy()
+
+    await wrapper.setProps({ isTunedIn: true })
+    const leaveBtn = wrapper.find('[data-test="music-leave-btn"]')
+    expect(leaveBtn.exists()).toBe(true)
+    await leaveBtn.trigger('click')
+    expect(wrapper.emitted('leave')).toBeTruthy()
+  })
+
   it('renders YouTubeSearchModal result rows without a whole-row play action', async () => {
     const wrapper = mount(YouTubeSearchModal, {
       props: {

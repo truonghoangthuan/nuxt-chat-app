@@ -225,7 +225,8 @@ const musicPlayer = useMusicPlayer({
   onPlayerAction,
   onTrackStarted: (track, convId) => {
     if (typeof sendMusicPlaySystemMessage === 'function') {
-      sendMusicPlaySystemMessage(track, convId)
+      const startedBy = (track as any)?.addedBy || musicCurrentTrack.value?.startedBy
+      sendMusicPlaySystemMessage(track, convId, startedBy)
     }
   },
 })
@@ -237,7 +238,11 @@ const {
   volume: musicVolume,
   isMuted: musicIsMuted,
   autoplayBlocked: musicAutoplayBlocked,
+  isTunedIn: musicIsTunedIn,
   queue: musicQueue,
+  switchConversation: musicSwitchConversation,
+  joinSession: musicJoinSession,
+  leaveSession: musicLeaveSession,
   playTrack: musicPlayTrack,
   enqueue: musicEnqueue,
   removeFromQueue: musicRemoveFromQueue,
@@ -265,6 +270,10 @@ watch(musicIsMuted, (muted) => {
   if (audioPlayerRef.value) {
     audioPlayerRef.value.muted = muted
   }
+})
+
+watch(activeConversationId, (newConvId) => {
+  musicSwitchConversation(newConvId)
 })
 
 function getMediaSession(): MediaSession | null {
@@ -380,6 +389,12 @@ const lightboxInitialIndex = ref(0)
 const activeStageTab = ref<'messages' | 'media' | 'links'>('messages')
 const mediaCount = computed(() => extractMediaFromMessages(messages.value).length)
 const linksCount = computed(() => extractLinksFromMessages(messages.value).length)
+
+const totalOtherUnreads = computed(() => {
+  return Object.entries(unreadCounts.value || {}).reduce((sum, [id, count]) => {
+    return id !== activeConversationId.value ? sum + (Number(count) || 0) : sum
+  }, 0)
+})
 
 const isConfettiActive = ref(false)
 const confettiBurstKey = ref(0)
@@ -705,6 +720,7 @@ async function handleSaveProfile(payload: {
   displayName: string
   avatarColor: string
   avatarUrl: string
+  bankQrUrl?: string | null
   confettiEnabled?: boolean
   onSuccess?: () => void
   onError?: (message: string) => void
@@ -713,7 +729,7 @@ async function handleSaveProfile(payload: {
     confettiEnabled.value = payload.confettiEnabled
     setConfettiEnabled(payload.confettiEnabled)
   }
-  const result = await updateProfile(payload.displayName, payload.avatarColor, payload.avatarUrl)
+  const result = await updateProfile(payload.displayName, payload.avatarColor, payload.avatarUrl, payload.bankQrUrl)
   if (result.error || !result.profile) {
     payload.onError?.(result.error || 'Failed to update profile')
   } else {
@@ -943,11 +959,18 @@ onUnmounted(() => {
           <div class="flex items-center gap-3 min-w-0">
             <button
               type="button"
-              class="md:hidden p-1.5 rounded-full text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer"
+              class="md:hidden p-1.5 rounded-full text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer relative"
               aria-label="Open mobile navigation"
               @click="isMobileSidebarOpen = true"
             >
               <Menu class="w-5 h-5 text-[var(--ap-text-secondary)]" />
+              <span
+                v-if="totalOtherUnreads > 0"
+                class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center border-2 border-[var(--ap-stage)]"
+                data-test="mobile-unread-badge"
+              >
+                {{ totalOtherUnreads > 99 ? '99+' : totalOtherUnreads }}
+              </span>
             </button>
 
             <div class="min-w-0 flex items-center gap-2.5">
@@ -1125,6 +1148,7 @@ onUnmounted(() => {
           :duration-sec="musicDurationSec"
           :is-muted="musicIsMuted"
           :autoplay-blocked="musicAutoplayBlocked"
+          :is-tuned-in="musicIsTunedIn"
           :queue-count="musicQueue.length"
           :is-queue-open="isMusicQueueOpen"
           :conversation-name="musicCurrentTrack?.conversationId !== activeConversationId ? (conversations.find(c => c.id === musicCurrentTrack?.conversationId)?.title || conversations.find(c => c.id === musicCurrentTrack?.conversationId)?.peer?.display_name || undefined) : undefined"
@@ -1136,6 +1160,8 @@ onUnmounted(() => {
           @open-search="isMusicSearchModalOpen = true"
           @skip="musicSkipToNext"
           @toggle-queue="isMusicQueueOpen = !isMusicQueueOpen"
+          @join="musicJoinSession"
+          @leave="musicLeaveSession"
         />
 
         <!-- Music Queue & History Collapsible Panel -->

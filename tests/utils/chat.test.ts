@@ -14,6 +14,7 @@ import {
   REACTION_EMOJIS,
   isValidReactionEmoji,
   summarizeReactions,
+  formatReactionAuthors,
   extractActiveMentionQuery,
   applyMentionAutocomplete,
   doesMessageMentionUser,
@@ -188,6 +189,18 @@ describe('chat utils', () => {
         reactedByMe: false,
       },
     ])
+  })
+
+  it('formatReactionAuthors formats list of member names including You and handles unknown authors', () => {
+    const members = [
+      { id: 'u1', display_name: 'Alice', avatar_color: 'bg-red-500' },
+      { id: 'u2', display_name: 'Bob', avatar_color: 'bg-blue-500' },
+    ] as any[]
+    expect(formatReactionAuthors(['u1'], members, 'u1')).toBe('You')
+    expect(formatReactionAuthors(['u1', 'u2'], members, 'u1')).toBe('You, Bob')
+    expect(formatReactionAuthors(['u2'], members, 'u1')).toBe('Bob')
+    expect(formatReactionAuthors(['u3'], members, 'u1')).toBe('Someone')
+    expect(formatReactionAuthors([], members, 'u1')).toBe('')
   })
 
   it('forces isCompact to false when a consecutive message is a quote-reply (reply_to_id is set)', () => {

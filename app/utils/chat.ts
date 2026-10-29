@@ -76,6 +76,37 @@ export function summarizeReactions(
   return summaries
 }
 
+export function formatReactionAuthors(
+  userIds: string[],
+  members: Profile[] = [],
+  currentUserId?: string,
+): string {
+  if (!userIds || userIds.length === 0) return ''
+  const memberMap = new Map<string, string>()
+  for (const m of members) {
+    if (m?.id) {
+      memberMap.set(m.id, m.display_name || 'Someone')
+    }
+  }
+
+  const names: string[] = []
+  let hasMe = false
+
+  for (const id of userIds) {
+    if (currentUserId && id === currentUserId) {
+      hasMe = true
+    } else {
+      names.push(memberMap.get(id) || 'Someone')
+    }
+  }
+
+  if (hasMe) {
+    names.unshift('You')
+  }
+
+  return names.join(', ')
+}
+
 export function getAvatarInitials(displayName: string): string {
   const clean = displayName.trim()
   if (!clean) return '?'

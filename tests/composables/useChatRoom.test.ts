@@ -2308,4 +2308,75 @@ describe('useChatRoom contacts and conversations', () => {
     await room.initializeChat()
     expect(capturedReadsInIds).toEqual([group.id])
   })
+
+  it('suppresses automatic markConversationRead on incoming message when document is not focused', async () => {
+    mockSupabase.auth.getUser = vi.fn().mockResolvedValue({
+      data: { user: { id: 'u-alice', email: 'alice@example.com' } },
+      error: null,
+    })
+    let insertCallback: any = null
+    mockSupabase.channel = vi.fn().mockImplementation((channelName: string) => {
+      const channelObj: any = {
+        on: vi.fn().mockImplementation((event: string, filter: any, cb: any) => {
+          if (event === 'postgres_changes' && filter?.table === 'messages' && filter?.event === 'INSERT') {
+            insertCallback = cb
+          }
+          return channelObj
+        }),
+        subscribe: vi.fn().mockImplementation((cb?: any) => {
+          if (cb) cb('SUBSCRIBED')
+          return channelObj
+        }),
+        send: vi.fn(),
+        track: vi.fn().mockResolvedValue('ok'),
+      }
+      return channelObj
+    })
+
+    const room = useChatRoom()
+    await room.initializeChat()
+    const group = await room.createGroup('Focus Test', ['u-bob'])
+    await room.selectConversation(group.id)
+
+    // Mock document.hasFocus = false and visibilityState = 'hidden'
+    const origHasFocus = document.hasFocus
+    const origVisibilityState = Object.getOwnPropertyDescriptor(document, 'visibilityState')
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+    document.hasFocus = () => false
+
+    // Record initial read timestamp from conversation creation
+    const initialRead = room.activeConversationReads.value['u-alice']
+
+    // Wait 10ms so next timestamp is distinctly different
+    await new Promise(r => setTimeout(r, 15))
+
+    const encrypted = await encryptContent(testKey, 'Background message', group.id)
+    await insertCallback({
+      new: {
+        id: 'msg-bg-1',
+        client_id: 'c-bg-1',
+        conversation_id: group.id,
+        user_id: 'u-bob',
+        content: encrypted,
+        created_at: new Date().toISOString(),
+      },
+    })
+
+    // Expect markConversationRead NOT to have been called for alice while unfocused
+    expect(room.activeConversationReads.value['u-alice']).toBe(initialRead)
+
+    // Restore focus and trigger window focus / visibilitychange
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    document.hasFocus = () => true
+    window.dispatchEvent(new Event('focus'))
+
+    // Now it should be updated to a newer timestamp
+    expect(room.activeConversationReads.value['u-alice']).not.toBe(initialRead)
+
+    // Cleanup
+    document.hasFocus = origHasFocus
+    if (origVisibilityState) {
+      Object.defineProperty(document, 'visibilityState', origVisibilityState)
+    }
+  })
 })

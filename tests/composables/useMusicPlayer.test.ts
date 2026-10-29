@@ -498,4 +498,33 @@ describe('useMusicPlayer playback error recovery', () => {
       vi.useRealTimers()
     }
   })
+
+  it('preserves addedBy user as startedBy when auto-advancing queue via skipToNext', () => {
+    const player = createMusicController({
+      getCurrentUserName: () => 'TriggerUser',
+    })
+    player.playTrack({ videoId: 'v1', title: 'Song 1', channelTitle: 'Artist 1' }, 'conv-1')
+    player.enqueue({ videoId: 'v2', title: 'Song 2', channelTitle: 'Artist 2', addedBy: 'SongAdder' } as any, 'conv-1')
+    player.skipToNext()
+    expect(player.currentTrack.value?.startedBy).toBe('SongAdder')
+  })
+
+  it('isolates music state per conversation and allows joining and leaving session locally', () => {
+    const player = createMusicController()
+    player.switchConversation('conv-A')
+    player.playTrack({ videoId: 'v1', title: 'Song A' }, 'conv-A')
+    expect(player.currentTrack.value?.title).toBe('Song A')
+
+    // Switch to conv-B
+    player.switchConversation('conv-B')
+    expect(player.currentTrack.value).toBeNull()
+
+    // Leave session locally in conv-A
+    player.switchConversation('conv-A')
+    expect(player.isTunedIn.value).toBe(true)
+    player.leaveSession()
+    expect(player.isTunedIn.value).toBe(false)
+    // verify room track is still present
+    expect(player.currentTrack.value?.title).toBe('Song A')
+  })
 })
