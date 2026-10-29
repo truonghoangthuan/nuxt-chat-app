@@ -1720,7 +1720,11 @@ export function useChatRoom() {
           if (existing) {
             revokeCreatedBlobs()
             pendingImageFiles.delete(clientId)
-            messagesStore.markMessageSent(clientId, existing.id, existing.created_at)
+            messagesStore.markMessageSent(clientId, {
+              ...existing,
+              content: payloadJson,
+              encryption: 'e2ee',
+            })
             return true
           }
         }
@@ -1731,7 +1735,11 @@ export function useChatRoom() {
       if (data) {
         revokeCreatedBlobs()
         pendingImageFiles.delete(clientId)
-        messagesStore.markMessageSent(clientId, data.id, data.created_at)
+        messagesStore.markMessageSent(clientId, {
+          ...data,
+          content: payloadJson,
+          encryption: 'e2ee',
+        })
         return true
       }
 
