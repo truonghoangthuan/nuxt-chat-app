@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createNotificationManager } from '~/composables/useNotification'
 import type { ChatMessage } from '~/types/chat'
 
@@ -6,6 +6,89 @@ describe('useNotification composable', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     localStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it.each(['nuxt-chat-sound-enabled', 'nuxt-chat-desktop-enabled'])(
+    'uses defaults for a failed read of %s while restoring the other preference',
+    (failedKey) => {
+      vi.stubGlobal('localStorage', {
+        getItem: vi.fn((key: string) => {
+          if (key === failedKey) throw new DOMException('Storage blocked', 'SecurityError')
+          return 'false'
+        }),
+      })
+
+      const manager = createNotificationManager()
+      expect(manager.soundEnabled.value).toBe(failedKey === 'nuxt-chat-sound-enabled')
+      expect(manager.desktopEnabled.value).toBe(failedKey === 'nuxt-chat-desktop-enabled')
+    },
+  )
+
+  it('initializes when accessing localStorage itself throws', () => {
+    vi.spyOn(globalThis, 'localStorage', 'get').mockImplementation(() => {
+      throw new DOMException('Storage blocked', 'SecurityError')
+    })
+
+    const manager = createNotificationManager()
+    expect(manager.soundEnabled.value).toBe(true)
+    expect(manager.desktopEnabled.value).toBe(true)
+  })
+
+  it.each(['write', 'access'])(
+    'keeps notification toggles and delivery gating usable after a storage %s failure',
+    (failure) => {
+      const playSound = vi.fn()
+      const notificationConstructor = vi.fn()
+      const manager = createNotificationManager({
+        playSound,
+        notificationConstructor,
+        notificationApi: { permission: 'granted', requestPermission: vi.fn() },
+        serviceWorkerRegistration: null,
+        isDocumentVisible: () => false,
+      })
+      if (failure === 'write') {
+        vi.stubGlobal('localStorage', {
+          setItem: vi.fn(() => { throw new DOMException('Storage full', 'QuotaExceededError') }),
+        })
+      } else {
+        vi.spyOn(globalThis, 'localStorage', 'get').mockImplementation(() => {
+          throw new DOMException('Storage blocked', 'SecurityError')
+        })
+      }
+
+      expect(() => manager.toggleSound()).not.toThrow()
+      expect(() => manager.toggleDesktop()).not.toThrow()
+      expect(manager.soundEnabled.value).toBe(false)
+      expect(manager.desktopEnabled.value).toBe(false)
+      const message = { id: 'm-storage', conversation_id: 'other', user_id: 'peer', content: 'Hello' }
+      manager.notifyIncomingMessage({ message, activeConversationId: 'active' })
+      expect(playSound).not.toHaveBeenCalled()
+      expect(notificationConstructor).not.toHaveBeenCalled()
+
+      expect(() => manager.toggleSound()).not.toThrow()
+      expect(() => manager.toggleDesktop()).not.toThrow()
+      expect(manager.soundEnabled.value).toBe(true)
+      expect(manager.desktopEnabled.value).toBe(true)
+      manager.notifyIncomingMessage({ message, activeConversationId: 'active' })
+      expect(playSound).toHaveBeenCalledTimes(1)
+      expect(notificationConstructor).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it('works without localStorage', () => {
+    vi.stubGlobal('localStorage', undefined)
+    const manager = createNotificationManager()
+    expect(manager.soundEnabled.value).toBe(true)
+    expect(manager.desktopEnabled.value).toBe(true)
+    manager.toggleSound()
+    manager.toggleDesktop()
+    expect(manager.soundEnabled.value).toBe(false)
+    expect(manager.desktopEnabled.value).toBe(false)
   })
 
   it('initializes default settings and allows toggling sound and desktop', () => {

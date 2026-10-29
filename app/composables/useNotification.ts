@@ -49,16 +49,15 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
     return path
   }
 
-  const getInitialSound = (): boolean => {
-    if (typeof localStorage === 'undefined') return true
-    const val = localStorage.getItem(STORAGE_KEY_SOUND)
-    return val !== 'false'
-  }
-
-  const getInitialDesktop = (): boolean => {
-    if (typeof localStorage === 'undefined') return true
-    const val = localStorage.getItem(STORAGE_KEY_DESKTOP)
-    return val !== 'false'
+  const getInitialPreference = (key: string): boolean => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        return localStorage.getItem(key) !== 'false'
+      }
+    } catch {
+      // Storage is optional; keep notifications available for this session.
+    }
+    return true
   }
 
   const getInitialPermission = (): NotificationPermission => {
@@ -71,23 +70,29 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
     return 'default'
   }
 
-  const soundEnabled = ref(getInitialSound())
-  const desktopEnabled = ref(getInitialDesktop())
+  const soundEnabled = ref(getInitialPreference(STORAGE_KEY_SOUND))
+  const desktopEnabled = ref(getInitialPreference(STORAGE_KEY_DESKTOP))
   const permission = ref<NotificationPermission>(getInitialPermission())
   const toasts = ref<NotificationToastItem[]>([])
 
+  const persistPreference = (key: string, enabled: boolean) => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(key, String(enabled))
+      }
+    } catch {
+      // Keep the in-memory preference even when persistence is blocked or full.
+    }
+  }
+
   const toggleSound = () => {
     soundEnabled.value = !soundEnabled.value
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY_SOUND, String(soundEnabled.value))
-    }
+    persistPreference(STORAGE_KEY_SOUND, soundEnabled.value)
   }
 
   const toggleDesktop = () => {
     desktopEnabled.value = !desktopEnabled.value
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY_DESKTOP, String(desktopEnabled.value))
-    }
+    persistPreference(STORAGE_KEY_DESKTOP, desktopEnabled.value)
   }
 
   const requestPermission = async (): Promise<NotificationPermission> => {
