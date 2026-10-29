@@ -455,6 +455,7 @@ describe('Chat UI components', () => {
     const reactionPill = wrapper.find('[data-test="reaction-pill-m-1-👍"]')
     expect(reactionPill.exists()).toBe(true)
     expect(reactionPill.text()).toContain('1')
+    expect(reactionPill.attributes('title')).toBe('👍 reacted by You')
     await reactionPill.trigger('click')
     expect(wrapper.emitted('toggleReaction')?.[0]).toEqual([{ messageId: 'm-1', emoji: '👍' }])
 
