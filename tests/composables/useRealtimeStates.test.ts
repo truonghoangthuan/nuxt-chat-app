@@ -43,6 +43,86 @@ describe('realtime state managers', () => {
     expect(online.map(u => u.display_name)).toEqual(['Alice', 'Bob'])
   })
 
+  it.each([
+    ['disposed', false], ['disposed', true], ['disposed', 'reject'],
+    ['connected', false], ['connected', true], ['connected', 'reject'],
+    ['disconnected', false], ['disconnected', true], ['disconnected', 'reject'],
+  ] as const)('ignores a stale %s attempt completing with %s', async (transition, outcome) => {
+    let finishAttempt!: (success: boolean) => void
+    let rejectAttempt!: (error: Error) => void
+    const reconnect = vi.fn(() => new Promise<boolean>((resolve, reject) => {
+      finishAttempt = resolve
+      rejectAttempt = reject
+    }))
+    const manager = createConnectionManager(reconnect)
+    manager.handleDisconnect()
+    const pending = manager.retryNow()
+
+    if (transition === 'disposed') manager.dispose()
+    if (transition === 'connected') manager.handleConnected()
+    if (transition === 'disconnected') manager.handleDisconnect()
+    const expectedState = {
+      status: manager.status.value,
+      attempt: manager.attempt.value,
+      nextRetryMs: manager.nextRetryMs.value,
+    }
+
+    if (outcome === 'reject') rejectAttempt(new Error('Connection failed'))
+    else finishAttempt(outcome)
+    await pending
+
+    expect({
+      status: manager.status.value,
+      attempt: manager.attempt.value,
+      nextRetryMs: manager.nextRetryMs.value,
+    }).toEqual(expectedState)
+    expect(vi.getTimerCount()).toBe(transition === 'disconnected' ? 2 : 0)
+    if (transition !== 'disconnected') {
+      await vi.advanceTimersByTimeAsync(10000)
+      expect(reconnect).toHaveBeenCalledTimes(1)
+    }
+    manager.dispose()
+  })
+
+  it.each([false, true])('ignores an older manual retry completing with %s', async (outcome) => {
+    let finishAttempt!: (success: boolean) => void
+    const reconnect = vi.fn()
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => {
+        finishAttempt = resolve
+      }))
+      .mockResolvedValue(false)
+    const manager = createConnectionManager(reconnect)
+    manager.handleDisconnect()
+    const pending = manager.retryNow()
+    await manager.retryNow()
+    expect(manager.attempt.value).toBe(1)
+    expect(manager.nextRetryMs.value).toBe(2000)
+
+    finishAttempt(outcome)
+    await pending
+
+    expect(manager.status.value).toBe('reconnecting')
+    expect(manager.attempt.value).toBe(1)
+    expect(manager.nextRetryMs.value).toBe(2000)
+    expect(vi.getTimerCount()).toBe(2)
+    manager.dispose()
+  })
+
+  it('allows an explicit new retry after disposing the previous cycle', async () => {
+    const reconnect = vi.fn().mockResolvedValue(false)
+    const manager = createConnectionManager(reconnect)
+    manager.handleDisconnect()
+    manager.dispose()
+
+    await manager.retryNow()
+
+    expect(reconnect).toHaveBeenCalledTimes(1)
+    expect(manager.attempt.value).toBe(1)
+    expect(manager.nextRetryMs.value).toBe(2000)
+    expect(vi.getTimerCount()).toBe(2)
+    manager.dispose()
+  })
+
   it('schedules exponential backoff on disconnect, ticks nextRetryMs every second, and resets on connect or retryNow', async () => {
     const attempts: number[] = []
     const manager = createConnectionManager(() => {
