@@ -2,18 +2,28 @@
 import { computed } from 'vue'
 import type { MusicPlaybackState } from '~/types/chat'
 import { formatDurationSeconds, getYouTubeThumbnailProxyUrl } from '~/utils/youtube'
-import { Play, Pause, Square, Volume2, VolumeX, Music, Volume1, SkipForward, ListMusic } from '@lucide/vue'
+import { Play, Pause, Square, Volume2, VolumeX, Music, Volume1, SkipForward, ListMusic, Headphones, LogOut } from '@lucide/vue'
 
-const props = defineProps<{
-  track: MusicPlaybackState | null
-  currentTimeSec: number
-  durationSec: number
-  isMuted?: boolean
-  autoplayBlocked?: boolean
-  conversationName?: string
-  queueCount?: number
-  isQueueOpen?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    track: MusicPlaybackState | null
+    currentTimeSec: number
+    durationSec: number
+    isMuted?: boolean
+    autoplayBlocked?: boolean
+    conversationName?: string
+    queueCount?: number
+    isQueueOpen?: boolean
+    isTunedIn?: boolean
+  }>(),
+  {
+    isMuted: false,
+    autoplayBlocked: false,
+    queueCount: 0,
+    isQueueOpen: false,
+    isTunedIn: true,
+  },
+)
 
 const emit = defineEmits<{
   (e: 'toggle-play'): void
@@ -24,6 +34,8 @@ const emit = defineEmits<{
   (e: 'open-search'): void
   (e: 'skip'): void
   (e: 'toggle-queue'): void
+  (e: 'join'): void
+  (e: 'leave'): void
 }>()
 
 const formattedCurrentTime = computed(() => formatDurationSeconds(props.currentTimeSec))
@@ -88,9 +100,22 @@ function handleSeekInput(e: Event) {
     <!-- Center: Playback Controls & Progress Bar -->
     <div class="flex-1 flex flex-col items-center justify-center max-w-md px-2 min-w-0">
       <div class="flex items-center gap-2">
+        <!-- Not Tuned In: Join Button -->
+        <button
+          v-if="!isTunedIn"
+          type="button"
+          data-test="music-join-btn"
+          class="px-2.5 py-1 rounded-full bg-blue-500 hover:bg-blue-600 text-white font-semibold transition flex items-center gap-1 cursor-pointer shadow-xs text-xs"
+          title="Join room music session"
+          @click="emit('join')"
+        >
+          <Headphones class="w-3.5 h-3.5" />
+          <span>Join</span>
+        </button>
+
         <!-- Autoplay Blocked Banner / Tune In Button -->
         <button
-          v-if="autoplayBlocked"
+          v-else-if="autoplayBlocked"
           type="button"
           data-test="music-unblock-btn"
           class="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold border border-amber-500/30 hover:bg-amber-500/30 transition flex items-center gap-1 cursor-pointer"
@@ -134,6 +159,18 @@ function handleSeekInput(e: Event) {
           @click="emit('stop')"
         >
           <Square class="w-3.5 h-3.5" />
+        </button>
+
+        <!-- Leave Button -->
+        <button
+          v-if="isTunedIn"
+          type="button"
+          data-test="music-leave-btn"
+          class="p-1.5 rounded-full text-[var(--ap-text-secondary)] hover:text-amber-500 hover:bg-amber-500/10 transition cursor-pointer"
+          title="Leave room audio locally (keeps playing for friends)"
+          @click="emit('leave')"
+        >
+          <LogOut class="w-3.5 h-3.5" />
         </button>
       </div>
 

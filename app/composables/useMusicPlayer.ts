@@ -54,6 +54,14 @@ export interface MusicControllerOptions {
   onTrackStarted?: (track: YouTubeSearchResult, conversationId: string) => void
 }
 
+export interface ConversationMusicSession {
+  track: MusicPlaybackState | null
+  queue: MusicQueueItem[]
+}
+
+const globalSessions = ref<Record<string, ConversationMusicSession>>({})
+const globalActiveConversationId = ref<string | null>(null)
+const globalIsTunedIn = ref<boolean>(true)
 const globalCurrentTrack = ref<MusicPlaybackState | null>(null)
 const globalCurrentTimeSec = ref<number>(0)
 const globalDurationSec = ref<number>(0)
@@ -63,6 +71,9 @@ const globalAutoplayBlocked = ref<boolean>(false)
 const globalQueue = ref<MusicQueueItem[]>([])
 
 export function createMusicController(options: MusicControllerOptions = {}) {
+  const sessions: Ref<Record<string, ConversationMusicSession>> = globalSessions
+  const activeConversationId: Ref<string | null> = globalActiveConversationId
+  const isTunedIn: Ref<boolean> = globalIsTunedIn
   const currentTrack: Ref<MusicPlaybackState | null> = globalCurrentTrack
   const currentTimeSec: Ref<number> = globalCurrentTimeSec
   const durationSec: Ref<number> = globalDurationSec
@@ -123,6 +134,53 @@ export function createMusicController(options: MusicControllerOptions = {}) {
     }, 1500)
   }
 
+  function switchConversation(conversationId: string | null): void {
+    if (activeConversationId.value === conversationId) return
+
+    if (activeConversationId.value && isTunedIn.value) {
+      options.onPlayerAction?.('pause')
+    }
+
+    activeConversationId.value = conversationId
+    isTunedIn.value = true
+
+    if (conversationId) {
+      if (!sessions.value[conversationId]) {
+        sessions.value[conversationId] = { track: null, queue: [] }
+      }
+      currentTrack.value = sessions.value[conversationId].track
+      queue.value = sessions.value[conversationId].queue
+    } else {
+      currentTrack.value = null
+      queue.value = []
+    }
+  }
+
+  function leaveSession(): void {
+    isTunedIn.value = false
+    options.onPlayerAction?.('pause')
+  }
+
+  function joinSession(conversationId?: string): void {
+    if (conversationId && conversationId !== activeConversationId.value) {
+      switchConversation(conversationId)
+    }
+    isTunedIn.value = true
+    const track = currentTrack.value
+    if (track) {
+      const syncedPos = computeSyncedPosition(track)
+      options.onPlayerAction?.('load', {
+        videoId: track.videoId,
+        title: track.title,
+        startSeconds: syncedPos,
+        autoplay: track.isPlaying,
+      })
+      if (track.isPlaying) {
+        options.onPlayerAction?.('play')
+      }
+    }
+  }
+
   function playTrackInternal(
     track: YouTubeSearchResult,
     conversationId: string,
@@ -148,9 +206,17 @@ export function createMusicController(options: MusicControllerOptions = {}) {
       ...(queueItemId ? { queueItemId } : {}),
     }
 
+    if (conversationId) {
+      if (!sessions.value[conversationId]) {
+        sessions.value[conversationId] = { track: null, queue: [] }
+      }
+      sessions.value[conversationId].track = newState
+    }
+
     currentTrack.value = newState
     currentTimeSec.value = 0
     autoplayBlocked.value = false
+    isTunedIn.value = true
 
     options.onPlayerAction?.('load', {
       videoId: track.videoId,
@@ -172,6 +238,9 @@ export function createMusicController(options: MusicControllerOptions = {}) {
   }
 
   function playTrack(track: YouTubeSearchResult, conversationId: string): void {
+    if (conversationId && activeConversationId.value !== conversationId) {
+      activeConversationId.value = conversationId
+    }
     playTrackInternal(track, conversationId)
   }
 
@@ -198,6 +267,12 @@ export function createMusicController(options: MusicControllerOptions = {}) {
 
     const op: MusicQueueOp = { op: 'add', item, position }
     queue.value = applyQueueOp(queue.value, op)
+    if (conversationId) {
+      if (!sessions.value[conversationId]) {
+        sessions.value[conversationId] = { track: currentTrack.value, queue: [] }
+      }
+      sessions.value[conversationId].queue = queue.value
+    }
 
     if (options.onBroadcast && !isApplyingRemoteSync) {
       options.onBroadcast({
@@ -213,6 +288,10 @@ export function createMusicController(options: MusicControllerOptions = {}) {
   function removeFromQueue(id: string): void {
     const op: MusicQueueOp = { op: 'remove', id }
     queue.value = applyQueueOp(queue.value, op)
+    const convId = currentTrack.value?.conversationId || activeConversationId.value
+    if (convId && sessions.value[convId]) {
+      sessions.value[convId].queue = queue.value
+    }
 
     if (options.onBroadcast && !isApplyingRemoteSync) {
       options.onBroadcast({
@@ -228,6 +307,10 @@ export function createMusicController(options: MusicControllerOptions = {}) {
   function moveInQueue(id: string, toIndex: number): void {
     const op: MusicQueueOp = { op: 'move', id, toIndex }
     queue.value = applyQueueOp(queue.value, op)
+    const convId = currentTrack.value?.conversationId || activeConversationId.value
+    if (convId && sessions.value[convId]) {
+      sessions.value[convId].queue = queue.value
+    }
 
     if (options.onBroadcast && !isApplyingRemoteSync) {
       options.onBroadcast({
@@ -243,6 +326,10 @@ export function createMusicController(options: MusicControllerOptions = {}) {
   function clearQueue(): void {
     const op: MusicQueueOp = { op: 'clear' }
     queue.value = []
+    const convId = currentTrack.value?.conversationId || activeConversationId.value
+    if (convId && sessions.value[convId]) {
+      sessions.value[convId].queue = []
+    }
 
     if (options.onBroadcast && !isApplyingRemoteSync) {
       options.onBroadcast({
@@ -336,8 +423,13 @@ export function createMusicController(options: MusicControllerOptions = {}) {
   function stopPlayback(broadcast = true): void {
     clearFallbackTimer()
     if (!currentTrack.value) return
-    const convId = currentTrack.value.conversationId
+    const convId = currentTrack.value.conversationId || activeConversationId.value
+    if (convId && sessions.value[convId]) {
+      sessions.value[convId].track = null
+      sessions.value[convId].queue = []
+    }
     currentTrack.value = null
+    queue.value = []
     currentTimeSec.value = 0
     durationSec.value = 0
     autoplayBlocked.value = false
@@ -381,10 +473,21 @@ export function createMusicController(options: MusicControllerOptions = {}) {
       return
     }
 
+    const eventConvId = event.conversationId
+    if (eventConvId) {
+      if (!sessions.value[eventConvId]) {
+        sessions.value[eventConvId] = { track: null, queue: [] }
+      }
+    }
+    const isActiveRoom = !eventConvId || !activeConversationId.value || eventConvId === activeConversationId.value
+
     clearFallbackTimer()
     isApplyingRemoteSync = true
     try {
       if (event.type === 'queue') {
+        if (eventConvId && sessions.value[eventConvId] && event.queueOp) {
+          sessions.value[eventConvId].queue = applyQueueOp(sessions.value[eventConvId].queue, event.queueOp)
+        }
         if (currentTrack.value && event.conversationId !== currentTrack.value.conversationId) {
           return
         }
@@ -392,6 +495,10 @@ export function createMusicController(options: MusicControllerOptions = {}) {
           queue.value = applyQueueOp(queue.value, event.queueOp)
         }
       } else if (event.type === 'stop') {
+        if (eventConvId && sessions.value[eventConvId]) {
+          sessions.value[eventConvId].track = null
+          sessions.value[eventConvId].queue = []
+        }
         if (currentTrack.value && currentTrack.value.conversationId === event.conversationId) {
           currentTrack.value = null
           currentTimeSec.value = 0
@@ -400,35 +507,59 @@ export function createMusicController(options: MusicControllerOptions = {}) {
           options.onPlayerAction?.('pause')
         }
       } else if (event.type === 'play' || event.type === 'sync_state') {
-        if (event.queue) {
-          queue.value = event.queue
+        if (eventConvId && sessions.value[eventConvId]) {
+          if (event.queue) {
+            sessions.value[eventConvId].queue = event.queue
+          }
+          if (event.state?.queueItemId) {
+            sessions.value[eventConvId].queue = sessions.value[eventConvId].queue.filter(item => item.id !== event.state!.queueItemId)
+          }
+          if (event.state) {
+            sessions.value[eventConvId].track = event.state
+          }
         }
-        if (event.state?.queueItemId) {
-          queue.value = queue.value.filter(item => item.id !== event.state!.queueItemId)
-        }
-        if (event.state) {
-          const syncedPos = computeSyncedPosition(event.state)
-          const isSameVideo = currentTrack.value?.videoId === event.state.videoId
-          currentTrack.value = event.state
-          currentTimeSec.value = syncedPos
 
-          if (!isSameVideo) {
-            resetErrorState()
-            options.onPlayerAction?.('load', {
-              videoId: event.state.videoId,
-              title: event.state.title,
-              startSeconds: syncedPos,
-              autoplay: event.state.isPlaying,
-            })
-          } else if (event.state.isPlaying) {
-            options.onPlayerAction?.('seek', syncedPos)
-            options.onPlayerAction?.('play')
-          } else {
-            options.onPlayerAction?.('seek', syncedPos)
-            options.onPlayerAction?.('pause')
+        if (isActiveRoom) {
+          if (event.queue) {
+            queue.value = event.queue
+          }
+          if (event.state?.queueItemId) {
+            queue.value = queue.value.filter(item => item.id !== event.state!.queueItemId)
+          }
+          if (event.state) {
+            const syncedPos = computeSyncedPosition(event.state)
+            const isSameVideo = currentTrack.value?.videoId === event.state.videoId
+            currentTrack.value = event.state
+            currentTimeSec.value = syncedPos
+
+            if (isTunedIn.value) {
+              if (!isSameVideo) {
+                resetErrorState()
+                options.onPlayerAction?.('load', {
+                  videoId: event.state.videoId,
+                  title: event.state.title,
+                  startSeconds: syncedPos,
+                  autoplay: event.state.isPlaying,
+                })
+              } else if (event.state.isPlaying) {
+                options.onPlayerAction?.('seek', syncedPos)
+                options.onPlayerAction?.('play')
+              } else {
+                options.onPlayerAction?.('seek', syncedPos)
+                options.onPlayerAction?.('pause')
+              }
+            }
           }
         }
       } else if (event.type === 'pause') {
+        if (eventConvId && sessions.value[eventConvId]?.track && sessions.value[eventConvId].track?.videoId === event.state?.videoId) {
+          sessions.value[eventConvId].track = {
+            ...sessions.value[eventConvId].track!,
+            isPlaying: false,
+            positionSec: event.state?.positionSec ?? 0,
+            updatedAt: Date.now(),
+          }
+        }
         if (currentTrack.value && currentTrack.value.videoId === event.state?.videoId) {
           currentTrack.value = {
             ...currentTrack.value,
@@ -436,9 +567,18 @@ export function createMusicController(options: MusicControllerOptions = {}) {
             positionSec: event.state?.positionSec ?? currentTimeSec.value,
             updatedAt: Date.now(),
           }
-          options.onPlayerAction?.('pause')
+          if (isTunedIn.value) {
+            options.onPlayerAction?.('pause')
+          }
         }
       } else if (event.type === 'seek') {
+        if (eventConvId && sessions.value[eventConvId]?.track && event.state) {
+          sessions.value[eventConvId].track = {
+            ...sessions.value[eventConvId].track!,
+            positionSec: event.state.positionSec,
+            updatedAt: Date.now(),
+          }
+        }
         if (currentTrack.value && event.state) {
           currentTimeSec.value = event.state.positionSec
           currentTrack.value = {
@@ -446,21 +586,26 @@ export function createMusicController(options: MusicControllerOptions = {}) {
             positionSec: event.state.positionSec,
             updatedAt: Date.now(),
           }
-          options.onPlayerAction?.('seek', event.state.positionSec)
+          if (isTunedIn.value) {
+            options.onPlayerAction?.('seek', event.state.positionSec)
+          }
         }
       } else if (event.type === 'request_state') {
-        if (currentTrack.value && currentTrack.value.conversationId === event.conversationId) {
+        const targetConv = event.conversationId
+        const sessionTrack = targetConv && sessions.value[targetConv] ? sessions.value[targetConv].track : currentTrack.value
+        const sessionQueue = targetConv && sessions.value[targetConv] ? sessions.value[targetConv].queue : queue.value
+        if (sessionTrack && sessionTrack.conversationId === event.conversationId) {
           if (options.onBroadcast) {
             options.onBroadcast({
               type: 'sync_state',
               state: {
-                ...currentTrack.value,
-                positionSec: currentTimeSec.value,
+                ...sessionTrack,
+                positionSec: targetConv === activeConversationId.value ? currentTimeSec.value : computeSyncedPosition(sessionTrack),
                 updatedAt: Date.now(),
               },
               senderId: currentUserId || '',
               conversationId: event.conversationId,
-              queue: queue.value,
+              queue: sessionQueue || [],
             })
           }
         }
@@ -471,6 +616,9 @@ export function createMusicController(options: MusicControllerOptions = {}) {
   }
 
   return {
+    sessions,
+    activeConversationId,
+    isTunedIn,
     currentTrack,
     currentTimeSec,
     durationSec,
@@ -478,6 +626,9 @@ export function createMusicController(options: MusicControllerOptions = {}) {
     isMuted,
     autoplayBlocked,
     queue,
+    switchConversation,
+    joinSession,
+    leaveSession,
     playTrack,
     enqueue,
     removeFromQueue,

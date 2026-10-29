@@ -238,7 +238,11 @@ const {
   volume: musicVolume,
   isMuted: musicIsMuted,
   autoplayBlocked: musicAutoplayBlocked,
+  isTunedIn: musicIsTunedIn,
   queue: musicQueue,
+  switchConversation: musicSwitchConversation,
+  joinSession: musicJoinSession,
+  leaveSession: musicLeaveSession,
   playTrack: musicPlayTrack,
   enqueue: musicEnqueue,
   removeFromQueue: musicRemoveFromQueue,
@@ -266,6 +270,10 @@ watch(musicIsMuted, (muted) => {
   if (audioPlayerRef.value) {
     audioPlayerRef.value.muted = muted
   }
+})
+
+watch(activeConversationId, (newConvId) => {
+  musicSwitchConversation(newConvId)
 })
 
 function getMediaSession(): MediaSession | null {
@@ -1140,6 +1148,7 @@ onUnmounted(() => {
           :duration-sec="musicDurationSec"
           :is-muted="musicIsMuted"
           :autoplay-blocked="musicAutoplayBlocked"
+          :is-tuned-in="musicIsTunedIn"
           :queue-count="musicQueue.length"
           :is-queue-open="isMusicQueueOpen"
           :conversation-name="musicCurrentTrack?.conversationId !== activeConversationId ? (conversations.find(c => c.id === musicCurrentTrack?.conversationId)?.title || conversations.find(c => c.id === musicCurrentTrack?.conversationId)?.peer?.display_name || undefined) : undefined"
@@ -1151,6 +1160,8 @@ onUnmounted(() => {
           @open-search="isMusicSearchModalOpen = true"
           @skip="musicSkipToNext"
           @toggle-queue="isMusicQueueOpen = !isMusicQueueOpen"
+          @join="musicJoinSession"
+          @leave="musicLeaveSession"
         />
 
         <!-- Music Queue & History Collapsible Panel -->
