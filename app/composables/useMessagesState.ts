@@ -11,9 +11,10 @@ export function createMessagesStore() {
     const tB = Date.parse(b.created_at)
     if (!Number.isNaN(tA) && !Number.isNaN(tB)) {
       if (tA !== tB) return tA - tB
-      if (a.created_at.length === b.created_at.length) {
-        const timeComp = a.created_at.localeCompare(b.created_at)
-        if (timeComp !== 0) return timeComp
+      const fracA = (a.created_at.match(/\.(\d+)/)?.[1] || '').padEnd(6, '0').slice(0, 6)
+      const fracB = (b.created_at.match(/\.(\d+)/)?.[1] || '').padEnd(6, '0').slice(0, 6)
+      if (fracA !== fracB) {
+        return fracA.localeCompare(fracB)
       }
       return a.id.localeCompare(b.id)
     }

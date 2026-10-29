@@ -56,7 +56,7 @@ onMounted(() => { initTheme(); void openFromLink() })
     <div class="chess-shell">
       <header class="chess-header">
         <div>
-          <a href="/" class="back-link"><ChevronLeft :size="14" aria-hidden="true" /> Back to chat</a>
+          <NuxtLink to="/" data-test="back-to-chat" class="back-link"><ChevronLeft :size="14" aria-hidden="true" /> Back to chat</NuxtLink>
           <h1>Chess</h1>
         </div>
         <div class="header-actions">

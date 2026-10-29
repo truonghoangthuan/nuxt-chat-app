@@ -350,6 +350,7 @@ export function buildMessageTimeline(
     currentUserId?: string
     currentDisplayName?: string | null
     isGroup?: boolean
+    memberDisplayNames?: string[]
   },
 ): TimelineMessageItem[] {
   const lastReadMs = options?.lastReadAt ? Date.parse(options.lastReadAt) : Number.NaN
@@ -367,6 +368,15 @@ export function buildMessageTimeline(
         systemPayload = parseSystemPayload(msg.content)
       }
     }
+
+    const isStandardText = !msg.deleted_at && msg.encryption !== 'undecryptable' && typeof msg.content === 'string' && !imagePayload && !systemPayload
+    const mentionSegments = isStandardText
+      ? tokenizeMessageMentions(msg.content, options?.currentDisplayName, options?.memberDisplayNames)
+      : []
+
+    const captionMentionSegments = imagePayload?.caption
+      ? tokenizeMessageMentions(imagePayload.caption, options?.currentDisplayName, options?.memberDisplayNames)
+      : []
 
     const currDate = new Date(msg.created_at)
     const currTimeMs = currDate.getTime()
@@ -460,6 +470,8 @@ export function buildMessageTimeline(
       isMentioningMe,
       imagePayload,
       systemPayload,
+      mentionSegments,
+      captionMentionSegments,
     }
   })
 }
@@ -751,17 +763,6 @@ export function extractLinksFromMessages(messages: ChatMessage[]): ExtractedLink
   return items
 }
 
-const CONFETTI_KEYWORD_REGEX = /(?<=^|[^\p{L}\p{N}_])(congratulations?|rõ\s+ràng|ok|cool)(?=$|[^\p{L}\p{N}_])/iu
-
-export function shouldTriggerConfetti(content: string): boolean {
-  if (!content || typeof content !== 'string') return false
-  const text = isImagePayload(content)
-    ? (parseImagePayload(content)?.caption || '')
-    : content
-  if (!text.trim()) return false
-  return CONFETTI_KEYWORD_REGEX.test(text)
-}
-
 export function serializeSystemMessage(payload: SystemMessagePayload): string {
   return JSON.stringify(payload)
 }
@@ -915,6 +916,10 @@ export function extractMusicHistory(
   return eligible.slice(0, Math.max(0, limit))
 }
 
-
-
+export function isDuplicateKeyError(error: any): boolean {
+  if (!error) return false
+  if (error.code === '23505') return true
+  const msg = String(error.message || '').toLowerCase()
+  return msg.includes('duplicate key') || msg.includes('unique constraint')
+}
 

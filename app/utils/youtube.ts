@@ -221,7 +221,17 @@ interface CachedStream {
   expiresAt: number
 }
 
+export const MAX_STREAM_CACHE_ENTRIES = 100
+
 const streamUrlCache = new Map<string, CachedStream>()
+
+export function clearStreamUrlCache(): void {
+  streamUrlCache.clear()
+}
+
+export function getStreamUrlCacheSize(): number {
+  return streamUrlCache.size
+}
 
 export interface ResolveAudioOptions {
   fetchFn?: typeof fetch
@@ -245,8 +255,11 @@ export async function resolveYouTubeAudioStream(
   const now = Date.now()
   if (!options.bypassCache) {
     const cached = streamUrlCache.get(cleanId)
-    if (cached && cached.expiresAt > now) {
-      return { url: cached.url, mimeType: cached.mimeType }
+    if (cached) {
+      if (cached.expiresAt > now) {
+        return { url: cached.url, mimeType: cached.mimeType }
+      }
+      streamUrlCache.delete(cleanId)
     }
   }
 
@@ -269,6 +282,21 @@ export async function resolveYouTubeAudioStream(
       ]
       const best = extractBestAudioFormat(formats)
       if (best) {
+        if (streamUrlCache.size >= MAX_STREAM_CACHE_ENTRIES) {
+          for (const [key, entry] of streamUrlCache) {
+            if (entry.expiresAt <= now) {
+              streamUrlCache.delete(key)
+            }
+          }
+        }
+        while (streamUrlCache.size >= MAX_STREAM_CACHE_ENTRIES) {
+          const oldestKey = streamUrlCache.keys().next().value
+          if (oldestKey !== undefined) {
+            streamUrlCache.delete(oldestKey)
+          } else {
+            break
+          }
+        }
         streamUrlCache.set(cleanId, { ...best, expiresAt: now + 10 * 60 * 1000 })
         return best
       }

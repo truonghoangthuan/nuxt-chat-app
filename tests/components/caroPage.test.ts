@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, config } from '@vue/test-utils'
 import { reactive } from 'vue'
+
+config.global.stubs = { ...config.global.stubs, NuxtLink: true }
 import CaroPage from '~/pages/caro.vue'
 import ChatSidebar from '~/components/ChatSidebar.vue'
 import { backend, room } from '../helpers/caroBackend'
@@ -84,5 +86,12 @@ describe('Caro page and entry point', () => {
     wrapper = mount(ChatSidebar, { props: { unreadCounts: {}, onlineFriends: [], currentUser: null, isDark: false, connectionStatus: 'connected', isOpenMobile: false } })
     expect(wrapper.get('[data-test="play-caro"]').attributes('href')).toBe('/caro')
     expect(wrapper.get('[data-test="play-caro"]').text()).toContain('Play Caro')
+  })
+
+  it('navigates back to chat via NuxtLink without full page reload', () => {
+    wrapper = mount(CaroPage)
+    const backLink = wrapper.get('[data-test="back-to-chat"]')
+    expect(backLink.attributes('to')).toBe('/')
+    expect(backLink.attributes('href')).toBeUndefined()
   })
 })

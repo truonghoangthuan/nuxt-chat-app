@@ -31,13 +31,13 @@ import {
   extractMediaFromMessages,
   extractDomainFromUrl,
   extractLinksFromMessages,
-  shouldTriggerConfetti,
   serializeSystemMessage,
   isSystemPayload,
   parseSystemPayload,
   formatSystemMessageText,
   computeSeenByMessageId,
   extractMusicHistory,
+  isDuplicateKeyError,
 } from '~/utils/chat'
 import type { ChatMessage, Conversation, Profile } from '~/types/chat'
 
@@ -830,33 +830,6 @@ describe('Conversation utilities', () => {
     })
   })
 
-  describe('shouldTriggerConfetti', () => {
-    it('returns true when message contains congratulation, rõ ràng, ok, or cool as whole word/phrase case-insensitively', () => {
-      expect(shouldTriggerConfetti('congratulation!')).toBe(true)
-      expect(shouldTriggerConfetti('Big CONGRATULATIONS team')).toBe(true)
-      expect(shouldTriggerConfetti('Quá rõ ràng luôn bạn ơi')).toBe(true)
-      expect(shouldTriggerConfetti('ok bro')).toBe(true)
-      expect(shouldTriggerConfetti('OK!')).toBe(true)
-      expect(shouldTriggerConfetti('That sounds cool.')).toBe(true)
-      expect(
-        shouldTriggerConfetti(
-          JSON.stringify({
-            type: 'images',
-            images: [{ path: 'a', mimeType: 'image/png', width: 10, height: 10, size: 10 }],
-            caption: 'Rõ ràng nhé!',
-          }),
-        ),
-      ).toBe(true)
-    })
-
-    it('returns false for partial word matches or unrelated text', () => {
-      expect(shouldTriggerConfetti('I read a book and ate a cookie')).toBe(false)
-      expect(shouldTriggerConfetti('Look at the cooler')).toBe(false)
-      expect(shouldTriggerConfetti('Hello world')).toBe(false)
-      expect(shouldTriggerConfetti('')).toBe(false)
-    })
-  })
-
   describe('SystemMessagePayload helpers & computeSeenByMessageId', () => {
     it('serializes, detects, parses, and formats system activity and buzz payloads', () => {
       const renameRaw = serializeSystemMessage({
@@ -964,6 +937,45 @@ describe('Conversation utilities', () => {
       expect(msgItem?.systemPayload).toBeNull()
     })
 
+    it('buildMessageTimeline pre-computes mentionSegments and captionMentionSegments', () => {
+      const imgContent = JSON.stringify({
+        type: 'images',
+        images: [{ path: 'a.enc', mimeType: 'image/png', width: 10, height: 10, size: 50 }],
+        caption: 'Look at this @Bob https://example.com',
+      })
+      const items = buildMessageTimeline(
+        [
+          {
+            id: 'm-1',
+            client_id: 'c-1',
+            conversation_id: 'conv-1',
+            user_id: 'u-1',
+            content: 'Hello @Bob check `code`',
+            created_at: '2026-10-20T10:00:00Z',
+            status: 'sent',
+          },
+          {
+            id: 'm-2',
+            client_id: 'c-2',
+            conversation_id: 'conv-1',
+            user_id: 'u-1',
+            content: imgContent,
+            created_at: '2026-10-20T10:01:00Z',
+            status: 'sent',
+          },
+        ],
+        new Date('2026-10-20T12:00:00Z'),
+        {
+          currentDisplayName: 'Bob',
+          memberDisplayNames: ['Bob'],
+        },
+      )
+      expect(items[0].mentionSegments).toBeDefined()
+      expect(items[0].mentionSegments?.some(s => s.isMention && s.text === '@Bob')).toBe(true)
+      expect(items[1].captionMentionSegments).toBeDefined()
+      expect(items[1].captionMentionSegments?.some(s => s.isMention && s.text === '@Bob')).toBe(true)
+    })
+
     it('extractMusicHistory extracts music history sorted newest first, skipping deleted and capping limit', () => {
       const messages: ChatMessage[] = [
         {
@@ -1068,6 +1080,21 @@ describe('Conversation utilities', () => {
       const limited = extractMusicHistory(messages, 1)
       expect(limited.length).toBe(1)
       expect(limited[0].messageId).toBe('m-new')
+    })
+  })
+
+  describe('isDuplicateKeyError', () => {
+    it('returns true for Postgres 23505 code', () => {
+      expect(isDuplicateKeyError({ code: '23505' })).toBe(true)
+    })
+    it('returns true for duplicate key or unique constraint in error message', () => {
+      expect(isDuplicateKeyError({ message: 'duplicate key value violates unique constraint' })).toBe(true)
+      expect(isDuplicateKeyError({ message: 'UNIQUE constraint failed' })).toBe(true)
+    })
+    it('returns false for null, undefined, or unrelated errors', () => {
+      expect(isDuplicateKeyError(null)).toBe(false)
+      expect(isDuplicateKeyError(undefined)).toBe(false)
+      expect(isDuplicateKeyError({ code: '42P01', message: 'relation does not exist' })).toBe(false)
     })
   })
 })

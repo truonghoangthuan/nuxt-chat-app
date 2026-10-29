@@ -204,4 +204,13 @@ describe('Confetti dictionary helpers (app/utils/confetti.ts)', () => {
     expect(matchesConfettiDictionary('Let us SHIP IT today', dict)).toBe(true)
     expect(matchesConfettiDictionary('Just a normal message', dict)).toBe(false)
   })
+
+  it('enforces unicode word boundaries and does not match substrings inside normal words', () => {
+    expect(matchesConfettiDictionary('I read a book and ate a cookie', ['ok'])).toBe(false)
+    expect(matchesConfettiDictionary('Look at the token', ['ok'])).toBe(false)
+    expect(matchesConfettiDictionary('smoke and jokes', ['ok'])).toBe(false)
+    expect(matchesConfettiDictionary('Are you ok?', ['ok'])).toBe(true)
+    expect(matchesConfettiDictionary('OK!', ['ok'])).toBe(true)
+    expect(matchesConfettiDictionary('ok bro', ['ok'])).toBe(true)
+  })
 })

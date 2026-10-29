@@ -1,9 +1,12 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   searchYouTubeVideos,
   resolveYouTubeAudioStream,
   fetchPipedTrending,
   PIPED_API,
+  clearStreamUrlCache,
+  getStreamUrlCacheSize,
+  MAX_STREAM_CACHE_ENTRIES,
 } from '~/utils/youtube'
 import streamHandler from '../../server/api/youtube/stream.get'
 import thumbnailHandler from '../../server/api/youtube/thumbnail.get'
@@ -133,6 +136,36 @@ describe('resolveYouTubeAudioStream', () => {
       bypassCache: true,
     })
     expect(res).toBeNull()
+  })
+
+  it('bounds stream cache at MAX_STREAM_CACHE_ENTRIES and evicts oldest', async () => {
+    clearStreamUrlCache()
+    expect(getStreamUrlCacheSize()).toBe(0)
+
+    const fetchFn = vi.fn().mockImplementation((url: string) => {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          audioStreams: [
+            { url: `https://pipedproxy.example.com/audio-${url}.m4a`, mimeType: 'audio/mp4' },
+          ],
+        }),
+      })
+    })
+
+    // Insert MAX_STREAM_CACHE_ENTRIES items
+    for (let i = 0; i < MAX_STREAM_CACHE_ENTRIES; i++) {
+      const vid = `vid${String(i).padStart(8, '0')}`
+      await resolveYouTubeAudioStream(vid, { fetchFn: fetchFn as any })
+    }
+    expect(getStreamUrlCacheSize()).toBe(MAX_STREAM_CACHE_ENTRIES)
+
+    // Insert 1 more item - cache size must not exceed limit
+    await resolveYouTubeAudioStream('vidoverflow1', { fetchFn: fetchFn as any })
+    expect(getStreamUrlCacheSize()).toBe(MAX_STREAM_CACHE_ENTRIES)
+
+    clearStreamUrlCache()
+    expect(getStreamUrlCacheSize()).toBe(0)
   })
 })
 
@@ -365,6 +398,7 @@ describe('server endpoints', () => {
       const res = await thumbnailHandler(mockEvent)
       expect(fetchMock).toHaveBeenCalledWith(
         'https://pipedproxy.nhackoqc.xyz/vi/dQw4w9WgXcQ/mqdefault.jpg?host=i.ytimg.com',
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
       )
       expect(res).toBeInstanceOf(Uint8Array)
     } finally {

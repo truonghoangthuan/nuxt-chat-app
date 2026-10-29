@@ -972,6 +972,9 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
     expect(room.messages.value).toHaveLength(1)
     expect(room.messages.value[0].status).toBe('sent')
     expect(room.messages.value[0].id).toBe('msg-srv-img-1')
+    const sentPayload = JSON.parse(room.messages.value[0].content)
+    expect(sentPayload.images[0].path).toMatch(/^channels\/ch-general\//)
+    expect(sentPayload.images[0].path).not.toContain('blob:')
   })
 
   it('sendImages embeds caption into optimistic message and final encrypted payload', async () => {

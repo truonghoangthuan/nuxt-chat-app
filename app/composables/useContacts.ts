@@ -1,13 +1,8 @@
 import type { Ref } from 'vue'
 import type { Contact, Profile } from '~/types/chat'
-import { isValidEmail } from '~/utils/chat'
+import { isValidEmail, isDuplicateKeyError } from '~/utils/chat'
 
-export function isDuplicateKeyError(error: any): boolean {
-  if (!error) return false
-  if (error.code === '23505') return true
-  const msg = String(error.message || '').toLowerCase()
-  return msg.includes('duplicate key') || msg.includes('unique constraint')
-}
+export { isDuplicateKeyError }
 
 export interface ContactsActionsDeps {
   supabase: any

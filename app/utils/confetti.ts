@@ -500,17 +500,23 @@ export function sanitizeConfettiWords(words: string[]): string[] {
   return result
 }
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 export function matchesConfettiDictionary(
   text: string | null | undefined,
   dictionary: string[] | null | undefined,
 ): boolean {
   if (!text || !dictionary || dictionary.length === 0) return false
-  const haystack = text.toLowerCase()
+  const clean = text.trim()
+  if (!clean) return false
   for (const entry of dictionary) {
     const needle = normalizeConfettiWord(entry)
-    if (needle && haystack.includes(needle)) {
-      return true
-    }
+    if (!needle) continue
+    const escaped = escapeRegex(needle)
+    const regex = new RegExp(`(?<=^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, 'iu')
+    if (regex.test(clean)) return true
   }
   return false
 }
