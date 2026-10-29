@@ -12,6 +12,33 @@ describe('sound utility', () => {
     expect(() => playNotificationChime(null)).not.toThrow()
   })
 
+  it('uses a gain ceiling of 0.5 for louder audible notification', () => {
+    const mockGain = {
+      gain: {
+        setValueAtTime: vi.fn(),
+        exponentialRampToValueAtTime: vi.fn(),
+      },
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+    }
+    const mockCtx = {
+      state: 'running',
+      currentTime: 10,
+      createGain: vi.fn(() => mockGain),
+      createOscillator: vi.fn(() => ({
+        type: 'sine',
+        frequency: { setValueAtTime: vi.fn() },
+        connect: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn(),
+      })),
+      destination: {},
+    } as any
+
+    playNotificationChime(mockCtx)
+    expect(mockGain.gain.setValueAtTime).toHaveBeenCalledWith(0.5, 10)
+  })
+
   it('creates oscillator and gain nodes and schedules audio parameters', () => {
     const mockGainNode = {
       gain: {

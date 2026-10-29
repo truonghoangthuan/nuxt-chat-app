@@ -61,7 +61,7 @@ export function playNotificationChime(customContext?: AudioContext | null): void
 
     const now = ctx.currentTime
     const gainNode = ctx.createGain()
-    gainNode.gain.setValueAtTime(0.15, now)
+    gainNode.gain.setValueAtTime(0.5, now)
     gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.35)
     gainNode.connect(ctx.destination)
 

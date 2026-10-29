@@ -381,6 +381,12 @@ const activeStageTab = ref<'messages' | 'media' | 'links'>('messages')
 const mediaCount = computed(() => extractMediaFromMessages(messages.value).length)
 const linksCount = computed(() => extractLinksFromMessages(messages.value).length)
 
+const totalOtherUnreads = computed(() => {
+  return Object.entries(unreadCounts.value || {}).reduce((sum, [id, count]) => {
+    return id !== activeConversationId.value ? sum + (Number(count) || 0) : sum
+  }, 0)
+})
+
 const isConfettiActive = ref(false)
 const confettiBurstKey = ref(0)
 const confettiEnabled = ref(getConfettiEnabled())
@@ -943,11 +949,18 @@ onUnmounted(() => {
           <div class="flex items-center gap-3 min-w-0">
             <button
               type="button"
-              class="md:hidden p-1.5 rounded-full text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer"
+              class="md:hidden p-1.5 rounded-full text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer relative"
               aria-label="Open mobile navigation"
               @click="isMobileSidebarOpen = true"
             >
               <Menu class="w-5 h-5 text-[var(--ap-text-secondary)]" />
+              <span
+                v-if="totalOtherUnreads > 0"
+                class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center border-2 border-[var(--ap-stage)]"
+                data-test="mobile-unread-badge"
+              >
+                {{ totalOtherUnreads > 99 ? '99+' : totalOtherUnreads }}
+              </span>
             </button>
 
             <div class="min-w-0 flex items-center gap-2.5">

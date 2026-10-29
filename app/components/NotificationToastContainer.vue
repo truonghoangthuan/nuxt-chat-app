@@ -26,7 +26,7 @@ function handleClick(toast: NotificationToastItem) {
 <template>
   <div
     v-if="toasts && toasts.length > 0"
-    class="fixed top-4 right-4 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-3 sm:px-0"
+    class="fixed top-3 inset-x-3 sm:inset-x-auto sm:right-4 sm:w-96 z-50 flex flex-col gap-2.5 pointer-events-none"
     role="region"
     aria-live="polite"
     aria-label="Notifications"
