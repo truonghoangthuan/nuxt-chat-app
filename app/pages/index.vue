@@ -165,12 +165,14 @@ function handleAudioTimeUpdate() {
   if (audioPlayerRef.value) {
     musicCurrentTimeSec.value = Math.floor(audioPlayerRef.value.currentTime || 0)
   }
+  updateMediaSessionPositionState()
 }
 
 function handleAudioMetadata() {
   if (audioPlayerRef.value && Number.isFinite(audioPlayerRef.value.duration) && audioPlayerRef.value.duration > 0) {
     musicDurationSec.value = Math.floor(audioPlayerRef.value.duration)
   }
+  updateMediaSessionPositionState()
 }
 
 function handleAudioEnded() {
@@ -263,6 +265,85 @@ watch(musicIsMuted, (muted) => {
     audioPlayerRef.value.muted = muted
   }
 })
+
+function getMediaSession(): MediaSession | null {
+  if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return null
+  return navigator.mediaSession
+}
+
+function updateMediaSessionMetadata() {
+  const mediaSession = getMediaSession()
+  if (!mediaSession) return
+  const track = musicCurrentTrack.value
+  if (!track) {
+    mediaSession.metadata = null
+    mediaSession.playbackState = 'none'
+    return
+  }
+  try {
+    mediaSession.metadata = new MediaMetadata({
+      title: track.title,
+      artist: track.channelTitle || track.startedBy || '',
+      artwork: track.thumbnail ? [{ src: track.thumbnail, sizes: '480x360', type: 'image/jpeg' }] : [],
+    })
+  } catch {
+    // Browser may not support MediaMetadata despite exposing mediaSession
+  }
+  mediaSession.playbackState = track.isPlaying ? 'playing' : 'paused'
+}
+
+function updateMediaSessionPositionState() {
+  const mediaSession = getMediaSession()
+  if (!mediaSession?.setPositionState) return
+  if (!musicCurrentTrack.value || !Number.isFinite(musicDurationSec.value) || musicDurationSec.value <= 0) return
+  try {
+    mediaSession.setPositionState({
+      duration: musicDurationSec.value,
+      playbackRate: 1,
+      position: Math.min(musicCurrentTimeSec.value, musicDurationSec.value),
+    })
+  } catch {
+    // Browser may reject position state while src is still loading
+  }
+}
+
+function handleMediaSessionPlay() {
+  if (musicCurrentTrack.value && !musicCurrentTrack.value.isPlaying) musicTogglePlayPause()
+}
+
+function handleMediaSessionPause() {
+  if (musicCurrentTrack.value?.isPlaying) musicTogglePlayPause()
+}
+
+function handleMediaSessionNextTrack() {
+  musicSkipToNext()
+}
+
+function handleMediaSessionSeekTo(details: MediaSessionActionDetails) {
+  if (typeof details.seekTime === 'number') musicSeekTo(details.seekTime)
+}
+
+function setupMediaSessionHandlers() {
+  const mediaSession = getMediaSession()
+  if (!mediaSession) return
+  mediaSession.setActionHandler('play', handleMediaSessionPlay)
+  mediaSession.setActionHandler('pause', handleMediaSessionPause)
+  mediaSession.setActionHandler('nexttrack', handleMediaSessionNextTrack)
+  mediaSession.setActionHandler('seekto', handleMediaSessionSeekTo)
+}
+
+function teardownMediaSessionHandlers() {
+  const mediaSession = getMediaSession()
+  if (!mediaSession) return
+  mediaSession.setActionHandler('play', null)
+  mediaSession.setActionHandler('pause', null)
+  mediaSession.setActionHandler('nexttrack', null)
+  mediaSession.setActionHandler('seekto', null)
+  mediaSession.metadata = null
+  mediaSession.playbackState = 'none'
+}
+
+watch(musicCurrentTrack, updateMediaSessionMetadata, { immediate: true, deep: false })
 
 async function handleSelectMusicTrack(track: YouTubeSearchResult) {
   if (!activeConversationId.value) return
@@ -649,6 +730,8 @@ onMounted(async () => {
     navigator.serviceWorker.addEventListener('message', handleSwMessage)
   }
 
+  setupMediaSessionHandlers()
+
   if (typeof onMusicSync === 'function') {
     unsubMusicSync = onMusicSync((event) => {
       musicApplyRemoteSyncEvent(event)
@@ -661,6 +744,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   cleanupPwaInstall()
+  teardownMediaSessionHandlers()
   if (unsubMusicSync) {
     unsubMusicSync()
     unsubMusicSync = null
