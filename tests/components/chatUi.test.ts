@@ -294,6 +294,37 @@ describe('Chat UI components', () => {
     expect(document.documentElement.dataset.theme).toBe('yahoo')
   })
 
+  it('Settings selects Telegram immediately, preserves color mode, and can switch back', async () => {
+    const ProfileSettingsModal = (await import('~/components/ProfileSettingsModal.vue')).default
+    const { useTheme } = await import('~/composables/useTheme')
+    const theme = useTheme()
+    localStorage.clear()
+    theme.initTheme()
+    const wrapper = mount(ProfileSettingsModal, {
+      props: { isOpen: true, profile: { id: 'u-1', display_name: 'Alice', avatar_color: '#0284c7' } },
+    })
+    try {
+      const option = wrapper.get('[data-test="theme-option-telegram"]')
+      expect(option.attributes('aria-pressed')).toBe('false')
+      await option.trigger('click')
+      expect(theme.uiTheme.value).toBe('telegram')
+      expect(theme.isDark.value).toBe(true)
+      expect(option.attributes('aria-pressed')).toBe('true')
+      expect(option.text()).toContain('Active')
+      expect(localStorage.getItem('nuxt-chat-ui-theme')).toBe('telegram')
+      await wrapper.get('[data-test="theme-mode-toggle"]').trigger('click')
+      expect(theme.isDark.value).toBe(false)
+      expect(theme.uiTheme.value).toBe('telegram')
+      await wrapper.get('[data-test="theme-option-default"]').trigger('click')
+      expect(theme.uiTheme.value).toBe('default')
+      expect(theme.isDark.value).toBe(false)
+    } finally {
+      wrapper.unmount()
+      localStorage.clear()
+      theme.initTheme()
+    }
+  })
+
   it('ChatSidebar switches structural chrome for vscode and yahoo themes while keeping conversation hooks', async () => {
     const { useTheme } = await import('~/composables/useTheme')
     const { setUiTheme } = useTheme()

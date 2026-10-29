@@ -121,7 +121,7 @@ function setMode(signUp: boolean) {
     </section>
 
     <!-- Right Auth Form Card -->
-    <section class="flex min-h-[calc(100vh-1.5rem)] flex-col justify-center rounded-2xl border border-[var(--ap-glass-border)] bg-[var(--ap-stage)] backdrop-blur-2xl px-5 py-8 sm:px-10 lg:min-h-[calc(100vh-2rem)] lg:px-10 shadow-xl">
+    <section class="auth-panel flex min-h-[calc(100vh-1.5rem)] flex-col justify-center rounded-2xl border border-[var(--ap-glass-border)] bg-[var(--ap-stage)] backdrop-blur-2xl px-5 py-8 sm:px-10 lg:min-h-[calc(100vh-2rem)] lg:px-10 shadow-xl">
       <div class="mx-auto w-full max-w-[360px]">
         <div class="mb-6 flex items-center gap-3 lg:hidden">
           <div class="brand-mark flex size-9 items-center justify-center rounded-xl bg-blue-500 text-xs font-bold text-white shadow-md shadow-blue-500/30">FC</div>

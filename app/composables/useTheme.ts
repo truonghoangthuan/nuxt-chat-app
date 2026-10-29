@@ -1,7 +1,7 @@
 import { ref, type Ref } from 'vue'
 
-export type AppUiTheme = 'default' | 'vscode' | 'yahoo'
-export const VALID_UI_THEMES: AppUiTheme[] = ['default', 'vscode', 'yahoo']
+export type AppUiTheme = 'default' | 'vscode' | 'yahoo' | 'telegram'
+export const VALID_UI_THEMES: AppUiTheme[] = ['default', 'vscode', 'yahoo', 'telegram']
 
 const testDarkRef = ref<boolean>(true)
 const testUiThemeRef = ref<AppUiTheme>('default')

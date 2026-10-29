@@ -97,7 +97,7 @@ onUnmounted(() => {
 
     <!-- Centered Card -->
     <div
-      class="relative w-full max-w-sm rounded-3xl bg-white/95 dark:bg-[#161824]/95 backdrop-blur-2xl border border-black/10 dark:border-white/10 shadow-2xl p-6 overflow-hidden flex flex-col gap-5 z-10 transition-all text-[var(--ap-text-primary)]"
+      class="messenger-dialog-surface relative w-full max-w-sm rounded-3xl bg-white/95 dark:bg-[#161824]/95 backdrop-blur-2xl border border-black/10 dark:border-white/10 shadow-2xl p-6 overflow-hidden flex flex-col gap-5 z-10 transition-all text-[var(--ap-text-primary)]"
       @click.stop
     >
       <!-- Close Button -->

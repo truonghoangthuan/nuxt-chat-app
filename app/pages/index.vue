@@ -684,7 +684,7 @@ onUnmounted(() => {
 
 <template>
   <div
-    class="h-dvh flex overflow-hidden bg-[var(--ap-canvas)] transition-colors animate-page-enter"
+    class="chat-workspace h-dvh flex overflow-hidden bg-[var(--ap-canvas)] transition-colors animate-page-enter"
     :class="uiTheme === 'vscode' ? 'p-0 pb-6 gap-0' : (uiTheme === 'yahoo' ? 'p-2 md:p-2.5 md:gap-2.5' : 'p-2 md:p-3 md:gap-3')"
   >
     <!-- In-App Notification Toasts -->
@@ -843,7 +843,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Frosted Stage Header (56px) -->
-        <header class="h-14 px-4 md:px-6 border-b border-[var(--ap-glass-border)] flex items-center justify-between gap-4 shrink-0 bg-[var(--ap-stage)] backdrop-blur-md">
+        <header class="chat-stage-header h-14 px-4 md:px-6 border-b border-[var(--ap-glass-border)] flex items-center justify-between gap-4 shrink-0 bg-[var(--ap-stage)] backdrop-blur-md">
           <div class="flex items-center gap-3 min-w-0">
             <button
               type="button"
@@ -867,6 +867,7 @@ onUnmounted(() => {
                     :avatar-color="activeConversation.peer?.avatar_color"
                     :avatar-url="activeConversation.peer?.avatar_url"
                     :show-online="onlineFriends.some(f => f.id === activeConversation?.peer?.id)"
+                    :shape="uiTheme === 'telegram' ? 'circle' : 'squircle'"
                     size="sm"
                   />
                   <div class="min-w-0 flex items-center gap-2">

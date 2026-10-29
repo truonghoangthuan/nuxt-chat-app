@@ -45,7 +45,7 @@ onBeforeUnmount(() => {
       @click.self="emit('close')"
     >
       <div
-        class="w-full max-w-lg max-h-[85vh] flex flex-col rounded-2xl border border-black/10 dark:border-white/15 bg-white/95 dark:bg-[#161824]/95 backdrop-blur-2xl shadow-2xl text-[var(--ap-text-primary)] overflow-hidden"
+        class="messenger-dialog-surface w-full max-w-lg max-h-[85vh] flex flex-col rounded-2xl border border-black/10 dark:border-white/15 bg-white/95 dark:bg-[#161824]/95 backdrop-blur-2xl shadow-2xl text-[var(--ap-text-primary)] overflow-hidden"
       >
         <!-- Modal Header -->
         <div class="p-5 pb-4 border-b border-black/5 dark:border-white/10 flex items-start justify-between gap-3 shrink-0">
