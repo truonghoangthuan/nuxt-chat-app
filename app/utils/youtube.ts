@@ -4,7 +4,7 @@ export const PIPED_API = 'https://pipedapi.nhackoqc.xyz'
 export const PIPED_PROXY = 'https://pipedproxy.nhackoqc.xyz'
 
 export function formatDurationSeconds(seconds: number): string {
-  if (!seconds || Number.isNaN(seconds) || seconds < 0) {
+  if (!seconds || !Number.isFinite(seconds) || seconds < 0) {
     return '0:00'
   }
   const total = Math.floor(seconds)
@@ -116,7 +116,7 @@ export function parsePipedItems(items: any[]): YouTubeSearchResult[] {
 
   const results: YouTubeSearchResult[] = []
   for (const item of items) {
-    if (!item || item.type !== 'stream' || item.isShort || typeof item.duration !== 'number' || item.duration <= 0) {
+    if (!item || item.type !== 'stream' || item.isShort || typeof item.duration !== 'number' || !Number.isFinite(item.duration) || item.duration <= 0) {
       continue
     }
 
