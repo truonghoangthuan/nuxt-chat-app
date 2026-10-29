@@ -31,7 +31,6 @@ import {
   extractMediaFromMessages,
   extractDomainFromUrl,
   extractLinksFromMessages,
-  shouldTriggerConfetti,
   serializeSystemMessage,
   isSystemPayload,
   parseSystemPayload,
@@ -827,33 +826,6 @@ describe('Conversation utilities', () => {
         url: 'https://github.com/truonghoangthuan/nuxt-chat-app',
         domain: 'github.com',
       })
-    })
-  })
-
-  describe('shouldTriggerConfetti', () => {
-    it('returns true when message contains congratulation, rõ ràng, ok, or cool as whole word/phrase case-insensitively', () => {
-      expect(shouldTriggerConfetti('congratulation!')).toBe(true)
-      expect(shouldTriggerConfetti('Big CONGRATULATIONS team')).toBe(true)
-      expect(shouldTriggerConfetti('Quá rõ ràng luôn bạn ơi')).toBe(true)
-      expect(shouldTriggerConfetti('ok bro')).toBe(true)
-      expect(shouldTriggerConfetti('OK!')).toBe(true)
-      expect(shouldTriggerConfetti('That sounds cool.')).toBe(true)
-      expect(
-        shouldTriggerConfetti(
-          JSON.stringify({
-            type: 'images',
-            images: [{ path: 'a', mimeType: 'image/png', width: 10, height: 10, size: 10 }],
-            caption: 'Rõ ràng nhé!',
-          }),
-        ),
-      ).toBe(true)
-    })
-
-    it('returns false for partial word matches or unrelated text', () => {
-      expect(shouldTriggerConfetti('I read a book and ate a cookie')).toBe(false)
-      expect(shouldTriggerConfetti('Look at the cooler')).toBe(false)
-      expect(shouldTriggerConfetti('Hello world')).toBe(false)
-      expect(shouldTriggerConfetti('')).toBe(false)
     })
   })
 

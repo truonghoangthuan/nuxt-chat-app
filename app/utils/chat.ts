@@ -751,17 +751,6 @@ export function extractLinksFromMessages(messages: ChatMessage[]): ExtractedLink
   return items
 }
 
-const CONFETTI_KEYWORD_REGEX = /(?<=^|[^\p{L}\p{N}_])(congratulations?|rõ\s+ràng|ok|cool)(?=$|[^\p{L}\p{N}_])/iu
-
-export function shouldTriggerConfetti(content: string): boolean {
-  if (!content || typeof content !== 'string') return false
-  const text = isImagePayload(content)
-    ? (parseImagePayload(content)?.caption || '')
-    : content
-  if (!text.trim()) return false
-  return CONFETTI_KEYWORD_REGEX.test(text)
-}
-
 export function serializeSystemMessage(payload: SystemMessagePayload): string {
   return JSON.stringify(payload)
 }
