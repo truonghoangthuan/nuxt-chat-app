@@ -11,7 +11,9 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const upstream = await fetch(`${PIPED_PROXY}/vi/${videoId}/mqdefault.jpg?host=i.ytimg.com`)
+    const upstream = await fetch(`${PIPED_PROXY}/vi/${videoId}/mqdefault.jpg?host=i.ytimg.com`, {
+      signal: AbortSignal.timeout(5000),
+    })
     if (!upstream.ok) {
       setResponseStatus(event, upstream.status)
       return { error: 'Thumbnail unavailable' }

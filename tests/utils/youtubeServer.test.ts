@@ -398,6 +398,7 @@ describe('server endpoints', () => {
       const res = await thumbnailHandler(mockEvent)
       expect(fetchMock).toHaveBeenCalledWith(
         'https://pipedproxy.nhackoqc.xyz/vi/dQw4w9WgXcQ/mqdefault.jpg?host=i.ytimg.com',
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
       )
       expect(res).toBeInstanceOf(Uint8Array)
     } finally {
