@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-29
+
+### Added
+- **Media Session API for Background & Lock-Screen Playback**:
+  - Registered `navigator.mediaSession` metadata (title, artist, thumbnail artwork) and `playbackState`, synced automatically whenever the active track or play/pause state changes.
+  - Wired `play`, `pause`, `nexttrack`, and `seekto` action handlers to the existing music controller (`musicTogglePlayPause`, `musicSkipToNext`, `musicSeekTo`), enabling lock-screen and notification-shade playback controls on Android/iOS PWA installs.
+  - Reported scrubber position via `setPositionState` on every `timeupdate`/`loadedmetadata`, keeping the OS-level progress bar in sync with the shared room playback.
+  - Prevents Android Chrome from freezing the backgrounded tab during music playback (previously caused "nghe nhạc tự tắt khi khoá máy" on mobile installs), with handlers cleanly registered on mount and torn down on unmount.
+
+### Fixed
+- **Music Playback Stopping on Lock/Background (Mobile PWA)**: Backgrounding the app or locking the screen while a track was playing silently paused or killed playback because the browser had no signal that an active media session was in progress. Registering the Media Session API gives Android/iOS the same background-audio signal native music apps rely on.
+
 ## [0.7.0] - 2026-10-27
 
 ### Added
