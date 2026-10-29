@@ -318,6 +318,30 @@ describe('useMessagesState', () => {
     expect(store.messages.value.map(m => m.id)).toEqual(['m-micro-earlier', 'm-micro-later'])
   })
 
+  it('correctly sorts messages differing in microseconds even with different ISO timezone formatting (+00:00 vs Z)', () => {
+    const store = createMessagesStore()
+    store.setInitialHistory([
+      {
+        id: 'z-micro-earlier',
+        client_id: 'c-micro-earlier',
+        conversation_id: 'conv-1',
+        user_id: alice.id,
+        content: 'Earlier by microseconds',
+        created_at: '2026-10-18T10:00:00.123456Z',
+      },
+      {
+        id: 'a-micro-later',
+        client_id: 'c-micro-later',
+        conversation_id: 'conv-1',
+        user_id: alice.id,
+        content: 'Later by microseconds',
+        created_at: '2026-10-18T10:00:00.123789+00:00',
+      },
+    ])
+
+    expect(store.messages.value.map(m => m.id)).toEqual(['z-micro-earlier', 'a-micro-later'])
+  })
+
   it('reconciles pending optimistic messages to sent during mergeGapMessages', () => {
     const store = createMessagesStore()
     store.addOptimisticMessage({
