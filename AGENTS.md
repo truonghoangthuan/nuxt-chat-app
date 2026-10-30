@@ -279,6 +279,16 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - Embedded reply quotes and rich previews rendered inside bubbles must cap width (`max-w-[420px] w-full min-w-0`), apply `min-w-0 flex-1 truncate` on text children, and support click-to-jump (`@click="jumpToMessage"`) to the referenced message.
     - Interactive pill toolbars/popovers (such as reaction breakdown tooltips) must isolate hover boundaries using Tailwind named groups (`group/pill` on the pill container, `group-hover/pill:block` on the popover) to prevent hovering one pill from expanding popovers across sibling elements.
 
+35. **Music Room Action Notices & Skip/Play Deduplication Discipline:**
+    - **Milestone Chat Activity Notices:** Playback control actions (play, pause, stop, skip) are displayed in chat as system activity pills by dispatching encrypted `public.messages` with `SystemMessagePayload` (`event: 'music_play' | 'music_pause' | 'music_stop' | 'music_skip'`).
+    - **Initiator-Only Dispatch:** Receiver clients processing remote Realtime Broadcast sync events (`music_sync`) must NEVER emit system notice messages; only user-initiated local UI or Media Session actions dispatch notices.
+    - **Skip vs. Play Notice Deduplication:** In `useMusicPlayer`, track transitions internally invoke `onTrackStarted`. When advancing tracks via next/skip controls, flag skipping state (`isSkippingTrack = true`) during execution to suppress redundant `"started playing"` notices when a `"skipped to next song"` pill is already queued.
+    - **Action Debounce:** Play/pause toggle and playback action triggers must be debounced (>= 1000ms) to prevent activity notice flooding from rapid user clicks.
+
+36. **Profile Asset Upload, Instant Preview & Data-URL Storage Fallback:**
+    - **Asset Input & Removal Discipline:** User profile asset inputs (such as Bank QR codes or custom avatars) must provide file selection with type and size validation (`validateImageFile`, JPEG/PNG/WebP/GIF <= 5MB), instant local object URL preview (`URL.createObjectURL`), and an explicit "Remove" action setting the field to `null`.
+    - **Resilient Supabase Storage Fallback:** Assets upload to Supabase Storage (`profile-media`). If the storage bucket is missing, unmigrated, or returns an upload error, fallback to client-side base64 Data URL encoding (`FileReader.readAsDataURL`) before persisting the profile. Profile saves must never fail due to unprovisioned storage infrastructure.
+
 
 ## 5. Testing Standards
 
