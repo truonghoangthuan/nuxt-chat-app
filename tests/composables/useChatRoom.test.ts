@@ -2250,6 +2250,41 @@ describe('useChatRoom contacts and conversations', () => {
     expect(createdAfterRemove).toBe(true)
   })
 
+  it('discards stale typing channel setup if active conversation changes while removal is pending', async () => {
+    let resolveRemoval: () => void = () => {}
+    mockSupabase.removeChannel = vi.fn().mockImplementation(() => {
+      return new Promise<void>((resolve) => {
+        resolveRemoval = resolve
+      })
+    })
+
+    const channelsCreated: string[] = []
+    const origChannel = mockSupabase.channel
+    mockSupabase.channel = vi.fn().mockImplementation((name: string, ...args: any[]) => {
+      channelsCreated.push(name)
+      return origChannel ? origChannel(name, ...args) : { on: vi.fn().mockReturnThis(), subscribe: vi.fn() }
+    })
+
+    const room = useChatRoom()
+    // Select first conversation to establish initial typingChannel
+    await room.selectConversation('conv-first')
+    expect(channelsCreated).toContain('typing:conv-first')
+
+    // Start selecting second conversation, triggering async removeChannel on typing:conv-first
+    const selectSecond = room.selectConversation('conv-second')
+
+    // Rapidly switch activeConversationId to conv-third before removal completes
+    room.activeConversationId.value = 'conv-third'
+
+    // Let removal complete and flush microtasks
+    resolveRemoval()
+    await selectSecond
+    await new Promise(r => setTimeout(r, 20))
+
+    // typing:conv-second should NOT have been allocated because activeConversationId became conv-third
+    expect(channelsCreated).not.toContain('typing:conv-second')
+  })
+
   it('sendBuzz emits an encrypted system message with event buzz', async () => {
     const room = useChatRoom()
     const group = await room.createGroup('Buzz Group', ['u-bob'])

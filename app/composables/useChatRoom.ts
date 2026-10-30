@@ -841,6 +841,7 @@ export function useChatRoom() {
       presenceChannel = null
       await removeRealtimeChannel(prev)
     }
+    if (isDisposed) return
 
     const current = authProfile.currentProfile.value
     if (!current) return
@@ -877,6 +878,7 @@ export function useChatRoom() {
       dbChangesChannel = null
       await removeRealtimeChannel(prev)
     }
+    if (isDisposed) return
 
     dbChangesChannel = supabase
       .channel('chat:db_changes')
@@ -1262,6 +1264,9 @@ export function useChatRoom() {
       const prev = typingChannel
       typingChannel = null
       await removeRealtimeChannel(prev)
+    }
+    if (isDisposed || activeConversationId.value !== conversationId) {
+      return
     }
 
     typingTracker.clearAll()
