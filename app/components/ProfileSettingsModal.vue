@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import type { Profile } from '~/types/chat'
-import { AVATAR_PALETTE, isValidDisplayName, isValidAvatarColor, isValidAvatarUrl } from '~/utils/chat'
+import { AVATAR_PALETTE, isValidDisplayName, isValidAvatarColor, isValidAvatarUrl, validateImageFile } from '~/utils/chat'
 import { getConfettiEnabled, setConfettiEnabled } from '~/utils/confetti'
 import { useTheme, type AppUiTheme } from '~/composables/useTheme'
 import UserAvatar from '~/components/UserAvatar.vue'
 import Input from '~/components/ui/Input.vue'
 import Button from '~/components/ui/Button.vue'
-import { Sun, Moon, Laptop, Code2, MessageCircle } from '@lucide/vue'
+import { Sun, Moon, Laptop, Code2, MessageCircle, Upload } from '@lucide/vue'
 
 const props = defineProps<{
   isOpen: boolean
@@ -35,7 +35,11 @@ const emit = defineEmits<{
 const displayName = ref(props.profile?.display_name || '')
 const avatarColor = ref<string>(props.profile?.avatar_color || AVATAR_PALETTE[0])
 const avatarUrl = ref(props.profile?.avatar_url || '')
-const bankQrUrl = ref(props.profile?.bank_qr_url || '')
+const bankQrPreviewUrl = ref<string | null>(props.profile?.bank_qr_url || null)
+const selectedBankQrFile = ref<File | null>(null)
+const bankQrFileInput = ref<HTMLInputElement | null>(null)
+const isQrRemoved = ref(false)
+const qrUploadError = ref<string | null>(null)
 const confettiEnabled = ref(getConfettiEnabled())
 const error = ref<string | null>(null)
 const isSubmitting = ref(false)
@@ -54,6 +58,50 @@ async function copyUserId() {
   }
 }
 
+function triggerBankQrFileInput() {
+  bankQrFileInput.value?.click()
+}
+
+function onBankQrFileSelected(e: Event) {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  const validation = validateImageFile(file)
+  if (!validation.valid) {
+    qrUploadError.value = validation.error || 'Invalid image file.'
+    target.value = ''
+    return
+  }
+
+  qrUploadError.value = null
+  selectedBankQrFile.value = file
+  isQrRemoved.value = false
+  if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+    bankQrPreviewUrl.value = URL.createObjectURL(file)
+  }
+  target.value = ''
+}
+
+function removeBankQr() {
+  bankQrPreviewUrl.value = null
+  selectedBankQrFile.value = null
+  isQrRemoved.value = true
+  qrUploadError.value = null
+  if (bankQrFileInput.value) {
+    bankQrFileInput.value.value = ''
+  }
+}
+
+async function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 watch(
   () => [props.isOpen, props.profile] as const,
   ([open, prof]) => {
@@ -61,7 +109,10 @@ watch(
       displayName.value = prof.display_name
       avatarColor.value = prof.avatar_color || AVATAR_PALETTE[0]
       avatarUrl.value = prof.avatar_url || ''
-      bankQrUrl.value = prof.bank_qr_url || ''
+      bankQrPreviewUrl.value = prof.bank_qr_url || null
+      selectedBankQrFile.value = null
+      isQrRemoved.value = false
+      qrUploadError.value = null
       confettiEnabled.value = getConfettiEnabled()
       error.value = null
       isSubmitting.value = false
@@ -77,24 +128,69 @@ const isValid = computed(() => {
 function handleClose() {
   if (isSubmitting.value) return
   error.value = null
+  qrUploadError.value = null
   isSubmitting.value = false
   emit('close')
 }
 
-function handleSave() {
+async function handleSave() {
   error.value = null
+  qrUploadError.value = null
   if (!isValid.value) {
     error.value = 'Display name must be 1–40 characters and use a valid palette color.'
     return
   }
 
-  setConfettiEnabled(confettiEnabled.value)
   isSubmitting.value = true
+
+  let resolvedBankQrUrl: string | null = props.profile?.bank_qr_url || null
+
+  if (isQrRemoved.value) {
+    resolvedBankQrUrl = null
+  } else if (selectedBankQrFile.value) {
+    try {
+      let uploadedPublicUrl: string | null = null
+      try {
+        if (typeof useSupabaseClient === 'function') {
+          const supabase = useSupabaseClient()
+          if (supabase?.storage) {
+            const file = selectedBankQrFile.value
+            const ext = file.name ? file.name.split('.').pop() || 'png' : 'png'
+            const filePath = `bank-qr/${props.profile?.id || 'user'}-${Date.now()}.${ext}`
+            const { error: uploadErr } = await supabase.storage
+              .from('profile-media')
+              .upload(filePath, file, { contentType: file.type, upsert: true })
+
+            if (!uploadErr) {
+              const { data: pubData } = supabase.storage.from('profile-media').getPublicUrl(filePath)
+              if (pubData?.publicUrl) {
+                uploadedPublicUrl = pubData.publicUrl
+              }
+            }
+          }
+        }
+      } catch {
+        // Fallback to base64 Data URL
+      }
+
+      if (uploadedPublicUrl) {
+        resolvedBankQrUrl = uploadedPublicUrl
+      } else {
+        resolvedBankQrUrl = await readFileAsDataUrl(selectedBankQrFile.value)
+      }
+    } catch (err: any) {
+      isSubmitting.value = false
+      error.value = err?.message || 'Failed to process bank QR image.'
+      return
+    }
+  }
+
+  setConfettiEnabled(confettiEnabled.value)
   emit('save', {
     displayName: displayName.value.trim(),
     avatarColor: avatarColor.value,
     avatarUrl: avatarUrl.value.trim(),
-    bankQrUrl: bankQrUrl.value.trim() || null,
+    bankQrUrl: resolvedBankQrUrl,
     confettiEnabled: confettiEnabled.value,
     onSuccess: () => {
       isSubmitting.value = false
@@ -214,19 +310,84 @@ function handleSave() {
             <p v-if="avatarUrl && !isValidAvatarUrl(avatarUrl)" class="mt-1 text-xs text-rose-500 dark:text-rose-400">Enter a valid HTTP or HTTPS URL.</p>
           </div>
 
-          <!-- Bank QR Code URL -->
+          <!-- Bank QR Code Upload & Preview -->
           <div>
-            <label for="bank-qr-url" class="block text-xs font-semibold text-[var(--ap-text-secondary)] mb-1.5">Bank QR Code URL</label>
+            <label class="block text-xs font-semibold text-[var(--ap-text-secondary)] mb-1.5">Bank QR Code</label>
             <input
-              id="bank-qr-url"
-              v-model="bankQrUrl"
-              data-test="bank-qr-url"
-              type="url"
-              maxlength="2048"
-              placeholder="https://example.com/bank-qr.png"
-              class="w-full h-10 px-3.5 text-xs rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/8 text-[var(--ap-text-primary)] placeholder-[var(--ap-text-muted)] focus:outline-none focus:bg-black/8 dark:focus:bg-white/12 focus:ring-1 focus:ring-blue-500/50 transition-colors"
+              ref="bankQrFileInput"
+              data-test="bank-qr-file-input"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              class="hidden"
+              @change="onBankQrFileSelected"
             />
-            <p class="mt-1 text-[11px] text-[var(--ap-text-muted)]">Optional. Friends can view your payment QR in your profile.</p>
+
+            <!-- Preview State -->
+            <div
+              v-if="bankQrPreviewUrl"
+              data-test="bank-qr-preview"
+              class="p-3 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/10 dark:border-white/10 flex items-center justify-between gap-3"
+            >
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-14 h-14 rounded-xl overflow-hidden bg-white p-1 border border-black/10 shadow-xs flex items-center justify-center shrink-0">
+                  <img
+                    :src="bankQrPreviewUrl"
+                    alt="Bank QR Code"
+                    class="w-full h-full object-contain"
+                  />
+                </div>
+                <div class="min-w-0">
+                  <div class="text-xs font-semibold text-[var(--ap-text-primary)] truncate">
+                    Bank QR Code
+                  </div>
+                  <div class="text-[11px] text-[var(--ap-text-muted)]">
+                    Ready for payment
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  data-test="bank-qr-upload-btn"
+                  class="px-2.5 py-1.5 rounded-xl text-xs font-medium bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition-colors cursor-pointer"
+                  @click="triggerBankQrFileInput"
+                >
+                  Change
+                </button>
+                <button
+                  type="button"
+                  data-test="bank-qr-remove-btn"
+                  class="px-2.5 py-1.5 rounded-xl text-xs font-medium text-rose-500 hover:text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                  @click="removeBankQr"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+
+            <!-- Empty / Upload State -->
+            <div
+              v-else
+              class="p-4 rounded-2xl border border-dashed border-black/15 dark:border-white/15 bg-black/[0.02] dark:dark:bg-white/[0.02] flex flex-col items-center justify-center text-center gap-2 hover:border-blue-500/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-all cursor-pointer"
+              @click="triggerBankQrFileInput"
+            >
+              <button
+                type="button"
+                data-test="bank-qr-upload-btn"
+                class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium bg-blue-500/15 hover:bg-blue-500/25 text-blue-600 dark:text-blue-400 transition-colors pointer-events-none"
+              >
+                <Upload class="w-3.5 h-3.5" />
+                <span>Upload QR Code Image</span>
+              </button>
+              <p class="text-[11px] text-[var(--ap-text-muted)]">
+                PNG, JPG or WebP up to 5MB. Friends can view your payment QR in your profile.
+              </p>
+            </div>
+
+            <p v-if="qrUploadError" class="mt-1 text-xs text-rose-500 dark:text-rose-400">
+              {{ qrUploadError }}
+            </p>
           </div>
 
           <!-- Avatar Color Swatches -->

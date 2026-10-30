@@ -221,7 +221,15 @@ export interface ExtractedLinkItem {
   userId: string
 }
 
-export type SystemEventType = 'buzz' | 'group_rename' | 'background_change' | 'background_reset' | 'music_play'
+export type SystemEventType =
+  | 'buzz'
+  | 'group_rename'
+  | 'background_change'
+  | 'background_reset'
+  | 'music_play'
+  | 'music_pause'
+  | 'music_stop'
+  | 'music_skip'
 
 export interface SystemMessagePayload {
   type: 'system'
