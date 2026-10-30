@@ -104,10 +104,12 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
    - In `selectChannel(channelId)`, always check `if (activeChannelId.value !== channelId) return` after awaiting the history query so stale responses from rapid channel switching are discarded.
    - Always pass `channelId` to `messagesStore.setInitialHistory(chronological, channelId)` so pending (`sending` / `failed`) or newly arrived confirmed messages from a previous channel never bleed into the newly selected channel.
    - In `handleIncomingRealtimeMessage`, messages for non-active channels must only increment `unreadCounts[row.channel_id]` and must not be appended to `messagesStore`.
+   - **Async Channel Teardown & Re-creation Race Guards:** Channel removal via `supabase.removeChannel(ch)` is asynchronous. When tearing down and recreating conversation channels (typing, presence, database changes), always await channel removal before instantiating replacement channels, and verify `if (isDisposed || activeConversationId.value !== conversationId) return` immediately after awaiting channel removal to prevent stale channel bindings from rapid conversation switching.
 
 4. **Deterministic Message Ordering & Cursor Pagination:**
    - Confirmed messages (`status === 'sent'`) are deduplicated by both `id` and `client_id` and sorted by `(created_at ASC, id ASC)`. Pending messages (`sending` / `failed`) stay appended at the end.
    - History pagination (`loadOlderMessages`) fetches `PAGE_SIZE = 40` rows using composite cursor comparison `created_at.lt."<ts>",and(created_at.eq."<ts>",id.lt."<id>")` ordered by `created_at DESC, id DESC`, reverses the page, and prepends via `prependHistoryPage`.
+   - **Bounded Unread History Ordering:** When querying unread messages with `.limit(N)` (e.g., initial unread sync), always sort by `created_at DESC, id DESC` and `.reverse()` the retrieved rows before populating the store. Sorting ascending with a limit truncates the newest messages when history exceeds the limit.
 
 5. **Vitest / SSR State Fallback:**
    - Composables that use Nuxt's `useState` (`useAuthProfile.ts`, `useTheme.ts`) must guard `typeof useState !== 'undefined'` and fall back to a module-scoped `ref` so unit tests run directly in Vitest without requiring the full Nuxt runtime.
@@ -267,6 +269,15 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
       - Server proxy endpoints parse incoming `Range` headers, normalize open-ended ranges (`bytes=X-`), and clamp each request to discrete chunks (2 MB: `bytes=X-(X+2097151)`). Returning `206 Partial Content` allows native `<audio>` elements to stream continuous long-duration tracks via rapid, sub-300ms chunk requests without hitting serverless timeouts.
       - Upstream requests to the KOQC instance cap timeout at `<= 3500ms` via `AbortSignal.timeout(3500)` to ensure rapid failure handling.
     - **Edge Thumbnail Caching:** Server thumbnail endpoints (`/api/youtube/thumbnail?v=<id>`) must emit `Cache-Control: public, max-age=86400, s-maxage=86400` so Edge CDNs cache image bytes, shielding upstream quotas and accelerating search and player rendering.
+
+33. **Decrypted Attachment Object URL Bounding & LRU Eviction:**
+    - Any in-memory cache holding decrypted binary blobs as `blob:` URLs (`URL.createObjectURL(blob)`) must be strictly bounded (e.g., `MAX_CACHED_ATTACHMENTS = 50`) using Least Recently Used (LRU) eviction.
+    - When an attachment entry is evicted or the cache is cleared, the cache manager MUST invoke `URL.revokeObjectURL(url)` to release browser heap memory and GPU textures, preventing gradual memory leaks during long-running chat sessions.
+
+34. **Message Bubble Flex Child Truncation & Reply Quote Discipline:**
+    - Message bubble containers must specify `min-w-0 max-w-full` so nested flex children cannot expand bubbles beyond viewport or stage boundaries.
+    - Embedded reply quotes and rich previews rendered inside bubbles must cap width (`max-w-[420px] w-full min-w-0`), apply `min-w-0 flex-1 truncate` on text children, and support click-to-jump (`@click="jumpToMessage"`) to the referenced message.
+    - Interactive pill toolbars/popovers (such as reaction breakdown tooltips) must isolate hover boundaries using Tailwind named groups (`group/pill` on the pill container, `group-hover/pill:block` on the popover) to prevent hovering one pill from expanding popovers across sibling elements.
 
 
 ## 5. Testing Standards
