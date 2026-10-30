@@ -550,12 +550,12 @@ export function createMusicController(options: MusicControllerOptions = {}) {
                   autoplay: event.state.isPlaying,
                 })
               } else if (event.state.isPlaying) {
-                if (event.type === 'seek' || drift > 2) {
+                if (drift > 2) {
                   options.onPlayerAction?.('seek', syncedPos)
                 }
                 options.onPlayerAction?.('play')
               } else {
-                if (event.type === 'seek' || drift > 2) {
+                if (drift > 2) {
                   options.onPlayerAction?.('seek', syncedPos)
                 }
                 options.onPlayerAction?.('pause')

@@ -356,10 +356,4 @@ describe('Music UI components', () => {
       vi.unstubAllGlobals()
     }
   })
-
-  it('loads stream URL without dead title parameter', () => {
-    const videoId = 'dQw4w9WgXcQ'
-    const expectedSrc = `/api/youtube/stream?v=${encodeURIComponent(videoId)}`
-    expect(expectedSrc).not.toContain('&title=')
-  })
 })
