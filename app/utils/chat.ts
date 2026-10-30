@@ -695,6 +695,23 @@ export function validateBackgroundFile(file: { type: string; size: number }): { 
   return { valid: true }
 }
 
+export function validateImageFile(
+  file: { type: string; size: number },
+  maxBytes = 5 * 1024 * 1024,
+): { valid: boolean; error?: string } {
+  if (!file) {
+    return { valid: false, error: 'File is required.' }
+  }
+  const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+  if (!allowed.includes(file.type)) {
+    return { valid: false, error: 'Only PNG, JPEG, WebP, or GIF images are supported.' }
+  }
+  if (file.size > maxBytes) {
+    return { valid: false, error: 'Image file size must be 5MB or less.' }
+  }
+  return { valid: true }
+}
+
 export function resolveChatBackgroundStyle(backgroundUrl?: string | null): Record<string, string> | null {
   if (!backgroundUrl || typeof backgroundUrl !== 'string') return null
   const trimmed = backgroundUrl.trim()

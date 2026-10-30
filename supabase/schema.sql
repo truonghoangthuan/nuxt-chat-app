@@ -696,6 +696,35 @@ create policy "Authenticated users can delete chat backgrounds"
     and public.can_access_conversation(public.storage_conversation_id(name))
   );
 
+-- Storage Bucket for public profile media (avatars, bank QR codes)
+insert into storage.buckets (id, name, public)
+values ('profile-media', 'profile-media', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Authenticated users can upload profile media" on storage.objects;
+create policy "Authenticated users can upload profile media"
+  on storage.objects for insert
+  to authenticated
+  with check (bucket_id = 'profile-media');
+
+drop policy if exists "Anyone can view profile media" on storage.objects;
+create policy "Anyone can view profile media"
+  on storage.objects for select
+  to authenticated, anon
+  using (bucket_id = 'profile-media');
+
+drop policy if exists "Authenticated users can update profile media" on storage.objects;
+create policy "Authenticated users can update profile media"
+  on storage.objects for update
+  to authenticated
+  using (bucket_id = 'profile-media');
+
+drop policy if exists "Authenticated users can delete profile media" on storage.objects;
+create policy "Authenticated users can delete profile media"
+  on storage.objects for delete
+  to authenticated
+  using (bucket_id = 'profile-media');
+
 -- ============================================================================
 -- 9. Realtime Publication
 -- ============================================================================

@@ -27,6 +27,7 @@ import {
   highlightTextSegments,
   escapeRegExp,
   validateBackgroundFile,
+  validateImageFile,
   resolveChatBackgroundStyle,
   CHAT_BACKGROUND_PRESETS,
   extractMediaFromMessages,
@@ -708,6 +709,14 @@ describe('Conversation utilities', () => {
       expect(validateBackgroundFile({ type: 'image/png', size: 1024 } as any)).toEqual({ valid: true })
       expect(validateBackgroundFile({ type: 'application/pdf', size: 1024 } as any).valid).toBe(false)
       expect(validateBackgroundFile({ type: 'image/jpeg', size: 6 * 1024 * 1024 } as any).valid).toBe(false)
+    })
+
+    it('validates supported image types within size limit with validateImageFile', () => {
+      expect(validateImageFile({ type: 'image/png', size: 1024 * 1024 })).toEqual({ valid: true })
+      expect(validateImageFile({ type: 'image/jpeg', size: 2 * 1024 * 1024 })).toEqual({ valid: true })
+      expect(validateImageFile({ type: 'image/webp', size: 500 * 1024 })).toEqual({ valid: true })
+      expect(validateImageFile({ type: 'application/pdf', size: 100 }).valid).toBe(false)
+      expect(validateImageFile({ type: 'image/png', size: 6 * 1024 * 1024 }).valid).toBe(false)
     })
 
     it('resolves preset styles and custom URLs correctly', () => {
