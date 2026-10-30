@@ -185,6 +185,23 @@ describe('useChatRoom realtime message routing & profile caching', () => {
     expect(fetchProfile).toHaveBeenCalledTimes(1)
   })
 
+  it('returns cached profile for inactive channel without calling fetchProfile', async () => {
+    const cache = new Map<string, Profile>()
+    cache.set('u-bob', { id: 'u-bob', email: 'b@b.c', display_name: 'Bob', avatar_color: '#7c3aed' })
+    const fetchProfile = vi.fn().mockResolvedValue(undefined)
+
+    const author = await resolveMessageAuthor({
+      userId: 'u-bob',
+      channelId: 'ch-other',
+      activeChannelId: 'ch-general',
+      profilesCache: cache,
+      fetchProfile,
+    })
+
+    expect(author?.display_name).toBe('Bob')
+    expect(fetchProfile).not.toHaveBeenCalled()
+  })
+
   it('propagates realtime profile updates to cache, messagesStore, and onlineFriends', () => {
     const cache = new Map<string, Profile>()
     const store = createMessagesStore()

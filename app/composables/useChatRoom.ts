@@ -349,14 +349,14 @@ export async function resolveMessageAuthor(params: {
     params.profilesCache.set(params.existingAuthor.id, params.existingAuthor)
     return params.existingAuthor
   }
+  const cached = params.profilesCache.get(params.userId)
+  if (cached) {
+    return cached
+  }
   const targetId = params.conversationId || params.channelId
   const activeId = params.activeConversationId !== undefined ? params.activeConversationId : params.activeChannelId
   if (targetId && activeId && targetId !== activeId) {
     return undefined
-  }
-  const cached = params.profilesCache.get(params.userId)
-  if (cached) {
-    return cached
   }
   const fetched = await params.fetchProfile(params.userId)
   if (fetched) {
