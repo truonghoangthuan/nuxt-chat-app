@@ -886,6 +886,40 @@ describe('Conversation utilities', () => {
       )
     })
 
+    it('formats music_pause, music_stop, and music_skip system messages', () => {
+      expect(formatSystemMessageText({
+        type: 'system',
+        event: 'music_pause',
+        actorName: 'Hà Anh Tuấn',
+        detail: 'COOLKID - SAU CƠN MƯA (ft. RHYDER)',
+      })).toBe('Hà Anh Tuấn paused playback 🎵 COOLKID - SAU CƠN MƯA (ft. RHYDER)')
+
+      expect(formatSystemMessageText({
+        type: 'system',
+        event: 'music_pause',
+        actorName: 'Hà Anh Tuấn',
+      })).toBe('Hà Anh Tuấn paused playback')
+
+      expect(formatSystemMessageText({
+        type: 'system',
+        event: 'music_stop',
+        actorName: 'Hà Anh Tuấn',
+      })).toBe('Hà Anh Tuấn stopped playback')
+
+      expect(formatSystemMessageText({
+        type: 'system',
+        event: 'music_skip',
+        actorName: 'Hà Anh Tuấn',
+        detail: 'COOLKID - SAU CƠN MƯA (ft. RHYDER)',
+      })).toBe('Hà Anh Tuấn skipped to next song 🎵 COOLKID - SAU CƠN MƯA (ft. RHYDER)')
+
+      expect(formatSystemMessageText({
+        type: 'system',
+        event: 'music_skip',
+        actorName: 'Hà Anh Tuấn',
+      })).toBe('Hà Anh Tuấn skipped to next song')
+    })
+
     it('invokes JSON.parse only once during parseSystemPayload', () => {
       const jsonSpy = vi.spyOn(JSON, 'parse')
       const payloadStr = JSON.stringify({ type: 'system', event: 'buzz', actorName: 'Dan' })

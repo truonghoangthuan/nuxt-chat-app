@@ -829,6 +829,12 @@ export function formatSystemMessageText(payload: SystemMessagePayload): string {
       return `${payload.actorName} reset the chat wallpaper`
     case 'music_play':
       return `${payload.actorName} started playing 🎵 ${payload.detail || 'a track'}`
+    case 'music_pause':
+      return `${payload.actorName} paused playback${payload.detail ? ` 🎵 ${payload.detail}` : ''}`
+    case 'music_stop':
+      return `${payload.actorName} stopped playback`
+    case 'music_skip':
+      return `${payload.actorName} skipped to next song${payload.detail ? ` 🎵 ${payload.detail}` : ''}`
     default:
       return `${payload.actorName} updated the conversation`
   }
