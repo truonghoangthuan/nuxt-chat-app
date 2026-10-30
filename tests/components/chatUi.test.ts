@@ -240,6 +240,36 @@ describe('Chat UI components', () => {
     expect(wrapper.emitted('close')).toBeTruthy()
   })
 
+  it('ProfileSettingsModal allows uploading and removing a bank QR image', async () => {
+    const ProfileSettingsModal = (await import('~/components/ProfileSettingsModal.vue')).default
+    const wrapper = mount(ProfileSettingsModal, {
+      props: {
+        isOpen: true,
+        profile: {
+          id: 'u-1',
+          display_name: 'Alice',
+          avatar_color: '#0284c7',
+          bank_qr_url: 'https://example.com/existing-qr.png',
+        },
+      },
+    })
+
+    // Should render existing preview
+    expect(wrapper.find('[data-test="bank-qr-preview"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="bank-qr-preview"] img').attributes('src')).toBe('https://example.com/existing-qr.png')
+
+    // Click remove button
+    await wrapper.find('[data-test="bank-qr-remove-btn"]').trigger('click')
+    expect(wrapper.find('[data-test="bank-qr-preview"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="bank-qr-upload-btn"]').exists()).toBe(true)
+
+    // Submit form
+    await wrapper.find('form').trigger('submit')
+    const saveEvents = wrapper.emitted('save')
+    expect(saveEvents).toBeTruthy()
+    expect(saveEvents?.[0][0].bankQrUrl).toBeNull()
+  })
+
   it('ProfileSettingsModal displays user email, user id, and created date', async () => {
     const ProfileSettingsModal = (await import('~/components/ProfileSettingsModal.vue')).default
     const wrapper = mount(ProfileSettingsModal, {
