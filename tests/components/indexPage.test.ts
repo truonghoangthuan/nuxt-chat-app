@@ -69,6 +69,7 @@ const mockChatRoomState = {
   onMusicSync: vi.fn(),
   broadcastMusicSync: vi.fn(),
   sendMusicPlaySystemMessage: vi.fn(),
+  sendMusicActionSystemMessage: vi.fn(),
 }
 
 const mockAuthProfileState = {

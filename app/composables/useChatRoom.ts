@@ -1238,6 +1238,25 @@ export function useChatRoom() {
     })
   }
 
+  async function sendMusicActionSystemMessage(
+    event: 'music_play' | 'music_pause' | 'music_stop' | 'music_skip',
+    detail?: string,
+    conversationId?: string,
+    actorNameOverride?: string,
+  ): Promise<void> {
+    const targetId = conversationId || activeConversationId.value
+    if (!targetId) return
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    const actorName = actorNameOverride || current?.display_name || 'Someone'
+    const payload = serializeSystemMessage({
+      type: 'system',
+      event,
+      actorName,
+      ...(detail ? { detail } : {}),
+    })
+    await sendMessage(payload, undefined, targetId).catch(() => {})
+  }
+
   async function sendMusicPlaySystemMessage(
     trackOrTitle: YouTubeSearchResult | string,
     conversationId?: string,
@@ -2067,5 +2086,6 @@ export function useChatRoom() {
     onMusicSync,
     broadcastMusicSync,
     sendMusicPlaySystemMessage,
+    sendMusicActionSystemMessage,
   }
 }

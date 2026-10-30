@@ -2464,4 +2464,24 @@ describe('useChatRoom contacts and conversations', () => {
       Object.defineProperty(document, 'visibilityState', origVisibilityState)
     }
   })
+
+  it('sendMusicActionSystemMessage dispatches encrypted system payloads for pause, stop, and skip', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Music Room', ['u-bob'])
+
+    await room.sendMusicActionSystemMessage('music_pause', 'Track Title', group.id)
+    const messages = room.messages.value
+    const pauseMsg = messages[messages.length - 1]
+    expect(pauseMsg.content).toContain('"event":"music_pause"')
+    expect(pauseMsg.content).toContain('"detail":"Track Title"')
+
+    await room.sendMusicActionSystemMessage('music_stop', undefined, group.id)
+    const stopMsg = room.messages.value[room.messages.value.length - 1]
+    expect(stopMsg.content).toContain('"event":"music_stop"')
+
+    await room.sendMusicActionSystemMessage('music_skip', 'Next Track Title', group.id)
+    const skipMsg = room.messages.value[room.messages.value.length - 1]
+    expect(skipMsg.content).toContain('"event":"music_skip"')
+    expect(skipMsg.content).toContain('"detail":"Next Track Title"')
+  })
 })

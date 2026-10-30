@@ -113,6 +113,7 @@ const {
   onMusicSync,
   broadcastMusicSync,
   sendMusicPlaySystemMessage,
+  sendMusicActionSystemMessage,
 } = useChatRoom()
 
 const { currentProfile, updateProfile, signOut } = useAuthProfile()
@@ -234,6 +235,8 @@ function onPlayerAction(action: 'play' | 'pause' | 'seek' | 'load', payload?: an
   }
 }
 
+let isSkippingTrack = false
+
 const musicPlayer = useMusicPlayer({
   onBroadcast: (event) => {
     if (typeof broadcastMusicSync === 'function') {
@@ -244,6 +247,10 @@ const musicPlayer = useMusicPlayer({
   getCurrentUserName: () => currentProfile.value?.display_name,
   onPlayerAction,
   onTrackStarted: (track, convId) => {
+    if (isSkippingTrack) {
+      isSkippingTrack = false
+      return
+    }
     if (typeof sendMusicPlaySystemMessage === 'function') {
       const startedBy = (track as any)?.addedBy || musicCurrentTrack.value?.startedBy
       sendMusicPlaySystemMessage(track, convId, startedBy)
@@ -337,16 +344,59 @@ function updateMediaSessionPositionState() {
   }
 }
 
+let lastMusicNoticeTime = 0
+function canSendMusicNotice(): boolean {
+  const now = Date.now()
+  if (now - lastMusicNoticeTime < 1000) return false
+  lastMusicNoticeTime = now
+  return true
+}
+
+function handleMusicTogglePlayPause() {
+  if (musicCurrentTrack.value?.isPlaying) {
+    const convId = musicCurrentTrack.value?.conversationId || activeConversationId.value
+    const title = musicCurrentTrack.value?.title
+    if (canSendMusicNotice() && typeof sendMusicActionSystemMessage === 'function') {
+      sendMusicActionSystemMessage('music_pause', title, convId)
+    }
+  }
+  musicTogglePlayPause()
+}
+
+function handleMusicStopPlayback() {
+  const convId = musicCurrentTrack.value?.conversationId || activeConversationId.value
+  if (canSendMusicNotice() && typeof sendMusicActionSystemMessage === 'function') {
+    sendMusicActionSystemMessage('music_stop', undefined, convId)
+  }
+  musicStopPlayback(true)
+}
+
+function handleMusicSkipToNext() {
+  const convId = musicCurrentTrack.value?.conversationId || activeConversationId.value
+  if (musicQueue.value.length > 0) {
+    const nextTitle = musicQueue.value[0]?.title
+    isSkippingTrack = true
+    if (canSendMusicNotice() && typeof sendMusicActionSystemMessage === 'function') {
+      sendMusicActionSystemMessage('music_skip', nextTitle, convId)
+    }
+  } else {
+    if (canSendMusicNotice() && typeof sendMusicActionSystemMessage === 'function') {
+      sendMusicActionSystemMessage('music_stop', undefined, convId)
+    }
+  }
+  musicSkipToNext()
+}
+
 function handleMediaSessionPlay() {
   if (musicCurrentTrack.value && !musicCurrentTrack.value.isPlaying) musicTogglePlayPause()
 }
 
 function handleMediaSessionPause() {
-  if (musicCurrentTrack.value?.isPlaying) musicTogglePlayPause()
+  if (musicCurrentTrack.value?.isPlaying) handleMusicTogglePlayPause()
 }
 
 function handleMediaSessionNextTrack() {
-  musicSkipToNext()
+  handleMusicSkipToNext()
 }
 
 function handleMediaSessionSeekTo(details: MediaSessionActionDetails) {
@@ -1172,13 +1222,13 @@ onUnmounted(() => {
           :queue-count="musicQueue.length"
           :is-queue-open="isMusicQueueOpen"
           :conversation-name="musicCurrentTrack?.conversationId !== activeConversationId ? (conversations.find(c => c.id === musicCurrentTrack?.conversationId)?.title || conversations.find(c => c.id === musicCurrentTrack?.conversationId)?.peer?.display_name || undefined) : undefined"
-          @toggle-play="musicTogglePlayPause"
+          @toggle-play="handleMusicTogglePlayPause"
           @seek="musicSeekTo"
           @toggle-mute="musicToggleMute"
-          @stop="musicStopPlayback(true)"
+          @stop="handleMusicStopPlayback"
           @unblock-autoplay="musicUnblockAutoplay"
           @open-search="isMusicSearchModalOpen = true"
-          @skip="musicSkipToNext"
+          @skip="handleMusicSkipToNext"
           @toggle-queue="isMusicQueueOpen = !isMusicQueueOpen"
           @join="musicJoinSession"
           @leave="musicLeaveSession"
