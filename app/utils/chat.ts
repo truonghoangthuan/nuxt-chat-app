@@ -798,22 +798,12 @@ export function serializeSystemMessage(payload: SystemMessagePayload): string {
   return JSON.stringify(payload)
 }
 
-export function isSystemPayload(content?: string | null): boolean {
-  if (!content || typeof content !== 'string') return false
+export function parseSystemPayload(content?: string | null): SystemMessagePayload | null {
+  if (!content || typeof content !== 'string') return null
   const trimmed = content.trim()
-  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return false
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return null
   try {
     const parsed = JSON.parse(trimmed)
-    return Boolean(parsed && parsed.type === 'system' && parsed.event && parsed.actorName)
-  } catch {
-    return false
-  }
-}
-
-export function parseSystemPayload(content?: string | null): SystemMessagePayload | null {
-  if (!content || !isSystemPayload(content)) return null
-  try {
-    const parsed = JSON.parse(content.trim())
     if (parsed && parsed.type === 'system' && parsed.event && parsed.actorName) {
       return parsed as SystemMessagePayload
     }
@@ -821,6 +811,10 @@ export function parseSystemPayload(content?: string | null): SystemMessagePayloa
   } catch {
     return null
   }
+}
+
+export function isSystemPayload(content?: string | null): boolean {
+  return parseSystemPayload(content) !== null
 }
 
 export function formatSystemMessageText(payload: SystemMessagePayload): string {
