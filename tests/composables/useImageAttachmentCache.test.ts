@@ -171,4 +171,18 @@ describe('useImageAttachmentCache', () => {
       cache.getOrFetchImage('path/nokey.enc', 'image/jpeg', 'ch-1', null as any, mockSupabase)
     ).rejects.toThrow('Decryption key is required')
   })
+
+  it('evicts oldest blob URL and calls revokeObjectURL when cache exceeds capacity', async () => {
+    const cache = useImageAttachmentCache()
+    const urls: string[] = []
+
+    for (let i = 1; i <= 51; i++) {
+      const url = await cache.getOrFetchImage(`path/${i}.enc`, 'image/jpeg', 'ch-1', fakeKey, mockSupabase)
+      urls.push(url)
+    }
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith(urls[0])
+    expect(cache.getCachedUrl('path/1.enc')).toBeUndefined()
+    expect(cache.getCachedUrl('path/51.enc')).toBe(urls[50])
+  })
 })
