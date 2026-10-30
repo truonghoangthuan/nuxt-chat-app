@@ -883,4 +883,33 @@ describe('IndexPage (app/pages/index.vue)', () => {
 
     expect(changelogModal.props('isOpen')).toBe(true)
   })
+
+  it('defers setting currentTime on audio load until metadata loaded', async () => {
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+    const audio = wrapper.find<HTMLAudioElement>('#youtube-hidden-player').element
+    // Simulate readyState 0 (HAVE_NOTHING) throwing InvalidStateError on currentTime assignment
+    Object.defineProperty(audio, 'readyState', { value: 0, configurable: true })
+    let currentTimeAssigned = 0
+    Object.defineProperty(audio, 'currentTime', {
+      get: () => currentTimeAssigned,
+      set: (val: number) => {
+        if (audio.readyState === 0) throw new DOMException('The element is not ready', 'InvalidStateError')
+        currentTimeAssigned = val
+      },
+      configurable: true,
+    })
+    const playSpy = vi.spyOn(audio, 'play').mockResolvedValue(undefined)
+
+    const vm = wrapper.vm as any
+    expect(() => {
+      vm.onPlayerAction?.('load', { videoId: 'test1234567', startSeconds: 45, autoplay: true })
+    }).not.toThrow()
+    expect(playSpy).toHaveBeenCalled()
+
+    Object.defineProperty(audio, 'readyState', { value: 2, configurable: true })
+    Object.defineProperty(audio, 'duration', { value: 180, configurable: true })
+    await wrapper.find('#youtube-hidden-player').trigger('loadedmetadata')
+    expect(audio.currentTime).toBe(45)
+  })
 })
