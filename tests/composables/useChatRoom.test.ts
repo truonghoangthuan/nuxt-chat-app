@@ -2225,6 +2225,31 @@ describe('useChatRoom contacts and conversations', () => {
     expect(capturedOrderOptions?.ascending).toBe(false)
   })
 
+  it('removes and waits for old dbChangesChannel before creating a replacement', async () => {
+    let removePromiseFinished = false
+    mockSupabase.removeChannel = vi.fn().mockImplementation(async () => {
+      await new Promise(r => setTimeout(r, 20))
+      removePromiseFinished = true
+    })
+
+    let createdAfterRemove = false
+    const origChannel = mockSupabase.channel
+    mockSupabase.channel = vi.fn().mockImplementation((name: string, ...args: any[]) => {
+      if (name === 'chat:db_changes' && mockSupabase.removeChannel.mock.calls.length > 0) {
+        createdAfterRemove = removePromiseFinished
+      }
+      return origChannel ? origChannel(name, ...args) : { on: vi.fn().mockReturnThis(), subscribe: vi.fn() }
+    })
+
+    const room = useChatRoom()
+    await room.initializeChat()
+    // Second initialization triggers teardown of previous dbChangesChannel
+    await room.initializeChat()
+
+    expect(mockSupabase.removeChannel).toHaveBeenCalled()
+    expect(createdAfterRemove).toBe(true)
+  })
+
   it('sendBuzz emits an encrypted system message with event buzz', async () => {
     const room = useChatRoom()
     const group = await room.createGroup('Buzz Group', ['u-bob'])

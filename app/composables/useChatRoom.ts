@@ -826,9 +826,20 @@ export function useChatRoom() {
     }
   }
 
-  function setupPresenceSubscription(): void {
+  async function removeRealtimeChannel(ch: RealtimeChannel | null): Promise<void> {
+    if (!ch) return
+    try {
+      await supabase.removeChannel(ch)
+    } catch {
+      // Ignore removal errors
+    }
+  }
+
+  async function setupPresenceSubscription(): Promise<void> {
     if (presenceChannel) {
-      supabase.removeChannel(presenceChannel)
+      const prev = presenceChannel
+      presenceChannel = null
+      await removeRealtimeChannel(prev)
     }
 
     const current = authProfile.currentProfile.value
@@ -860,9 +871,11 @@ export function useChatRoom() {
       })
   }
 
-  function setupDbChangesSubscription(): void {
+  async function setupDbChangesSubscription(): Promise<void> {
     if (dbChangesChannel) {
-      supabase.removeChannel(dbChangesChannel)
+      const prev = dbChangesChannel
+      dbChangesChannel = null
+      await removeRealtimeChannel(prev)
     }
 
     dbChangesChannel = supabase
@@ -1244,9 +1257,11 @@ export function useChatRoom() {
     await sendMessage(payload, undefined, targetId).catch(() => {})
   }
 
-  function setupTypingSubscription(conversationId: string): void {
+  async function setupTypingSubscription(conversationId: string): Promise<void> {
     if (typingChannel) {
-      supabase.removeChannel(typingChannel)
+      const prev = typingChannel
+      typingChannel = null
+      await removeRealtimeChannel(prev)
     }
 
     typingTracker.clearAll()
@@ -1907,8 +1922,8 @@ export function useChatRoom() {
     await loadConversationReadsAndUnreads()
     if (isDisposed) return
 
-    setupPresenceSubscription()
-    setupDbChangesSubscription()
+    await setupPresenceSubscription()
+    await setupDbChangesSubscription()
 
     if (typeof window !== 'undefined') {
       window.addEventListener('online', onOnline)
@@ -1947,9 +1962,18 @@ export function useChatRoom() {
     isDisposed = true
     pendingImageFiles.clear()
     readDebouncer.cancelAll()
-    if (presenceChannel) supabase.removeChannel(presenceChannel)
-    if (dbChangesChannel) supabase.removeChannel(dbChangesChannel)
-    if (typingChannel) supabase.removeChannel(typingChannel)
+    if (presenceChannel) {
+      removeRealtimeChannel(presenceChannel)
+      presenceChannel = null
+    }
+    if (dbChangesChannel) {
+      removeRealtimeChannel(dbChangesChannel)
+      dbChangesChannel = null
+    }
+    if (typingChannel) {
+      removeRealtimeChannel(typingChannel)
+      typingChannel = null
+    }
     if (typeof window !== 'undefined') {
       window.removeEventListener('online', onOnline)
       window.removeEventListener('offline', onOffline)
