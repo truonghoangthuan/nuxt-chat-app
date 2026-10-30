@@ -2354,6 +2354,42 @@ describe('Chat UI components', () => {
     expect(jumpSpy).toHaveBeenCalledWith('message-m-parent')
     jumpSpy.mockRestore()
   })
+
+  it('MessageViewport reaction popover uses group/pill scoping to prevent multi-popover cascade', () => {
+    const wrapper = mount(MessageViewport, {
+      props: {
+        channelId: 'ch-1',
+        currentUserId: 'u-1',
+        messages: [
+          {
+            id: 'm-multi-react',
+            client_id: 'c-multi',
+            channel_id: 'ch-1',
+            user_id: 'u-2',
+            content: 'High-five everyone',
+            created_at: '2026-10-30T02:00:00Z',
+            status: 'sent',
+            author: { id: 'u-2', display_name: 'Alice', avatar_color: '#0284c7' },
+            reactions: [
+              { id: 'r1', message_id: 'm-multi-react', user_id: 'u-1', emoji: '❤️' },
+              { id: 'r2', message_id: 'm-multi-react', user_id: 'u-2', emoji: '👍' },
+              { id: 'r3', message_id: 'm-multi-react', user_id: 'u-3', emoji: '🎉' },
+            ],
+          },
+        ],
+      },
+    })
+
+    // The wrapper around the reaction pill must have group/pill
+    const pillWrappers = wrapper.findAll('.relative.group\\/pill')
+    expect(pillWrappers.length).toBe(3)
+
+    // Popover must use group-hover/pill:block instead of generic group-hover:block
+    const popover = wrapper.find('[data-test="reaction-popover-m-multi-react-❤️"]')
+    expect(popover.exists()).toBe(true)
+    expect(popover.classes()).toContain('group-hover/pill:block')
+    expect(popover.classes()).not.toContain('group-hover:block')
+  })
 })
 
 

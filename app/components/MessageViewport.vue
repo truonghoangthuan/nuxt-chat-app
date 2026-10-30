@@ -1026,7 +1026,7 @@ onUnmounted(() => {
               <div
                 v-for="summary in summarizeReactions(item.message.reactions, currentUserId)"
                 :key="summary.emoji"
-                class="relative group"
+                class="relative group/pill"
               >
               <button
                 type="button"
@@ -1042,7 +1042,7 @@ onUnmounted(() => {
               <div
                 :data-test="`reaction-popover-${item.message.id}-${summary.emoji}`"
                 role="tooltip"
-                class="pointer-events-none absolute bottom-full z-30 mb-2 hidden min-w-[140px] max-w-[220px] rounded-xl border border-black/10 bg-white/95 p-2 text-xs shadow-xl backdrop-blur-xl group-hover:block group-focus-within:block dark:border-white/15 dark:bg-[#161824]/95"
+                class="pointer-events-none absolute bottom-full z-30 mb-2 hidden min-w-[140px] max-w-[220px] rounded-xl border border-black/10 bg-white/95 p-2 text-xs shadow-xl backdrop-blur-xl group-hover/pill:block group-focus-within/pill:block dark:border-white/15 dark:bg-[#161824]/95"
                 :class="item.isSender ? 'right-0' : 'left-0'"
               >
                 <div class="mb-1.5 flex items-center gap-1.5 border-b border-black/10 pb-1.5 text-[var(--ap-text-muted)] dark:border-white/10">
