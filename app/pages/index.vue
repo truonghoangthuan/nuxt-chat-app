@@ -161,6 +161,8 @@ function handleSendQuickReaction(emoji: string) {
   }
 }
 
+let pendingAudioSeekSec = 0
+
 function handleAudioTimeUpdate() {
   if (audioPlayerRef.value) {
     musicCurrentTimeSec.value = Math.floor(audioPlayerRef.value.currentTime || 0)
@@ -169,8 +171,18 @@ function handleAudioTimeUpdate() {
 }
 
 function handleAudioMetadata() {
-  if (audioPlayerRef.value && Number.isFinite(audioPlayerRef.value.duration) && audioPlayerRef.value.duration > 0) {
-    musicDurationSec.value = Math.floor(audioPlayerRef.value.duration)
+  if (audioPlayerRef.value) {
+    if (pendingAudioSeekSec > 0) {
+      try {
+        audioPlayerRef.value.currentTime = pendingAudioSeekSec
+      } catch {
+        // Ignore seek error
+      }
+      pendingAudioSeekSec = 0
+    }
+    if (Number.isFinite(audioPlayerRef.value.duration) && audioPlayerRef.value.duration > 0) {
+      musicDurationSec.value = Math.floor(audioPlayerRef.value.duration)
+    }
   }
   updateMediaSessionPositionState()
 }
@@ -192,7 +204,15 @@ function onPlayerAction(action: 'play' | 'pause' | 'seek' | 'load', payload?: an
     if (action === 'load' && payload?.videoId) {
       const titleParam = payload.title ? `&title=${encodeURIComponent(payload.title)}` : ''
       audio.src = `/api/youtube/stream?v=${encodeURIComponent(payload.videoId)}${titleParam}`
-      audio.currentTime = payload.startSeconds || 0
+      pendingAudioSeekSec = payload.startSeconds || 0
+      if (audio.readyState >= 1 && pendingAudioSeekSec > 0) {
+        try {
+          audio.currentTime = pendingAudioSeekSec
+          pendingAudioSeekSec = 0
+        } catch {
+          // Defer to loadedmetadata
+        }
+      }
       audio.volume = Math.max(0, Math.min(1, musicVolume.value / 100))
       audio.muted = !!musicIsMuted.value
       if (payload.autoplay !== false) {

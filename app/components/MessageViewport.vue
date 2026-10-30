@@ -726,7 +726,7 @@ onUnmounted(() => {
               <!-- Message Bubble Container -->
               <div
                 :data-test="`message-bubble-${item.message.id}`"
-                class="chat-message-bubble relative text-[13.5px] leading-relaxed break-words transition-all"
+                class="chat-message-bubble relative text-[13.5px] leading-relaxed break-words transition-all min-w-0 max-w-full"
                 :data-direction="item.isSender ? 'outgoing' : 'incoming'"
                 :class="[
                   uiTheme === 'vscode'
@@ -745,13 +745,14 @@ onUnmounted(() => {
               <div
                 v-if="item.message.reply_to_id"
                 :data-test="`reply-quote-${item.message.id}`"
-                class="chat-reply-quote mb-2 px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 truncate max-w-full backdrop-blur-xs"
+                class="chat-reply-quote mb-2 px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 max-w-[420px] w-full min-w-0 backdrop-blur-xs cursor-pointer select-none hover:opacity-85 transition-opacity"
                 :class="item.isSender ? 'bg-white/15 border-l-2 border-white/70 text-white/90' : 'bg-black/5 dark:bg-white/5 border-l-2 border-blue-500 dark:border-blue-400 text-[var(--ap-text-secondary)]'"
+                @click="item.message.reply_to_id && jumpToMessage(item.message.reply_to_id)"
               >
                 <span class="font-semibold shrink-0" :class="item.isSender ? 'text-white' : 'text-blue-600 dark:text-blue-300'">
                   @{{ item.message.reply_to?.author?.display_name || 'Friend' }}
                 </span>
-                <span class="truncate italic">
+                <span class="truncate italic min-w-0 flex-1">
                   {{ item.message.reply_to?.deleted_at ? 'Original message was deleted' : (item.message.reply_to?.encryption === 'undecryptable' ? '🔒 Unable to decrypt this message' : (isImagePayload(item.message.reply_to?.content) ? formatImageMessageSummary(parseImagePayload(item.message.reply_to?.content)?.images.length || 1) : (parseStickerPayload(item.message.reply_to?.content) ? `[Sticker] ${parseStickerPayload(item.message.reply_to?.content)!.emoji} ${parseStickerPayload(item.message.reply_to?.content)!.label}` : (item.message.reply_to?.content || 'Message')))) }}
                 </span>
               </div>
@@ -1025,7 +1026,7 @@ onUnmounted(() => {
               <div
                 v-for="summary in summarizeReactions(item.message.reactions, currentUserId)"
                 :key="summary.emoji"
-                class="relative group"
+                class="relative group/pill"
               >
               <button
                 type="button"
@@ -1041,7 +1042,7 @@ onUnmounted(() => {
               <div
                 :data-test="`reaction-popover-${item.message.id}-${summary.emoji}`"
                 role="tooltip"
-                class="pointer-events-none absolute bottom-full z-30 mb-2 hidden min-w-[140px] max-w-[220px] rounded-xl border border-black/10 bg-white/95 p-2 text-xs shadow-xl backdrop-blur-xl group-hover:block group-focus-within:block dark:border-white/15 dark:bg-[#161824]/95"
+                class="pointer-events-none absolute bottom-full z-30 mb-2 hidden min-w-[140px] max-w-[220px] rounded-xl border border-black/10 bg-white/95 p-2 text-xs shadow-xl backdrop-blur-xl group-hover/pill:block group-focus-within/pill:block dark:border-white/15 dark:bg-[#161824]/95"
                 :class="item.isSender ? 'right-0' : 'left-0'"
               >
                 <div class="mb-1.5 flex items-center gap-1.5 border-b border-black/10 pb-1.5 text-[var(--ap-text-muted)] dark:border-white/10">

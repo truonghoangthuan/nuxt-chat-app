@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { isImagePayload } from '~/utils/image'
 import {
   getAvatarInitials,
@@ -884,6 +884,16 @@ describe('Conversation utilities', () => {
       expect(formatSystemMessageText(parseSystemPayload(buzzRaw)!)).toBe(
         '⚡ Charlie buzzed the chat!',
       )
+    })
+
+    it('invokes JSON.parse only once during parseSystemPayload', () => {
+      const jsonSpy = vi.spyOn(JSON, 'parse')
+      const payloadStr = JSON.stringify({ type: 'system', event: 'buzz', actorName: 'Dan' })
+
+      const parsed = parseSystemPayload(payloadStr)
+      expect(parsed?.actorName).toBe('Dan')
+      expect(jsonSpy).toHaveBeenCalledTimes(1)
+      jsonSpy.mockRestore()
     })
 
     it('computes per-message seen-by profiles for the latest non-deleted message each peer has read', () => {

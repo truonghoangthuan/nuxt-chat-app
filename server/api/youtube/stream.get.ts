@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
 
   async function fetchStream(url: string) {
     return await fetch(url, {
-      signal: AbortSignal.timeout(3500),
+      signal: AbortSignal.timeout(15000),
       headers: {
         Range: rangeHeader,
       },

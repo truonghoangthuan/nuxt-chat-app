@@ -185,6 +185,23 @@ describe('useChatRoom realtime message routing & profile caching', () => {
     expect(fetchProfile).toHaveBeenCalledTimes(1)
   })
 
+  it('returns cached profile for inactive channel without calling fetchProfile', async () => {
+    const cache = new Map<string, Profile>()
+    cache.set('u-bob', { id: 'u-bob', email: 'b@b.c', display_name: 'Bob', avatar_color: '#7c3aed' })
+    const fetchProfile = vi.fn().mockResolvedValue(undefined)
+
+    const author = await resolveMessageAuthor({
+      userId: 'u-bob',
+      channelId: 'ch-other',
+      activeChannelId: 'ch-general',
+      profilesCache: cache,
+      fetchProfile,
+    })
+
+    expect(author?.display_name).toBe('Bob')
+    expect(fetchProfile).not.toHaveBeenCalled()
+  })
+
   it('propagates realtime profile updates to cache, messagesStore, and onlineFriends', () => {
     const cache = new Map<string, Profile>()
     const store = createMessagesStore()
@@ -2120,6 +2137,8 @@ describe('useChatRoom contacts and conversations', () => {
     let capturedInKey = ''
     let capturedInValues: any[] = []
     let capturedLimit: number | null = null
+    let capturedOrderCol = ''
+    let capturedOrderOptions: any = null
 
     const origFrom = mockSupabase.from
     mockSupabase.from = vi.fn((table: string) => {
@@ -2141,7 +2160,11 @@ describe('useChatRoom contacts and conversations', () => {
                   capturedInValues = inVals
                   return chain
                 }),
-                order: vi.fn().mockImplementation(() => chain),
+                order: vi.fn().mockImplementation((col: string, options: any) => {
+                  capturedOrderCol = col
+                  capturedOrderOptions = options
+                  return chain
+                }),
                 limit: vi.fn().mockImplementation((lim: number) => {
                   capturedLimit = lim
                   return Promise.resolve({ data: [], error: null })
@@ -2198,6 +2221,68 @@ describe('useChatRoom contacts and conversations', () => {
     expect(capturedInKey).toBe('conversation_id')
     expect(capturedInValues).toEqual(['conv-101'])
     expect(capturedLimit).toBe(1000)
+    expect(capturedOrderCol).toBe('created_at')
+    expect(capturedOrderOptions?.ascending).toBe(false)
+  })
+
+  it('removes and waits for old dbChangesChannel before creating a replacement', async () => {
+    let removePromiseFinished = false
+    mockSupabase.removeChannel = vi.fn().mockImplementation(async () => {
+      await new Promise(r => setTimeout(r, 20))
+      removePromiseFinished = true
+    })
+
+    let createdAfterRemove = false
+    const origChannel = mockSupabase.channel
+    mockSupabase.channel = vi.fn().mockImplementation((name: string, ...args: any[]) => {
+      if (name === 'chat:db_changes' && mockSupabase.removeChannel.mock.calls.length > 0) {
+        createdAfterRemove = removePromiseFinished
+      }
+      return origChannel ? origChannel(name, ...args) : { on: vi.fn().mockReturnThis(), subscribe: vi.fn() }
+    })
+
+    const room = useChatRoom()
+    await room.initializeChat()
+    // Second initialization triggers teardown of previous dbChangesChannel
+    await room.initializeChat()
+
+    expect(mockSupabase.removeChannel).toHaveBeenCalled()
+    expect(createdAfterRemove).toBe(true)
+  })
+
+  it('discards stale typing channel setup if active conversation changes while removal is pending', async () => {
+    let resolveRemoval: () => void = () => {}
+    mockSupabase.removeChannel = vi.fn().mockImplementation(() => {
+      return new Promise<void>((resolve) => {
+        resolveRemoval = resolve
+      })
+    })
+
+    const channelsCreated: string[] = []
+    const origChannel = mockSupabase.channel
+    mockSupabase.channel = vi.fn().mockImplementation((name: string, ...args: any[]) => {
+      channelsCreated.push(name)
+      return origChannel ? origChannel(name, ...args) : { on: vi.fn().mockReturnThis(), subscribe: vi.fn() }
+    })
+
+    const room = useChatRoom()
+    // Select first conversation to establish initial typingChannel
+    await room.selectConversation('conv-first')
+    expect(channelsCreated).toContain('typing:conv-first')
+
+    // Start selecting second conversation, triggering async removeChannel on typing:conv-first
+    const selectSecond = room.selectConversation('conv-second')
+
+    // Rapidly switch activeConversationId to conv-third before removal completes
+    room.activeConversationId.value = 'conv-third'
+
+    // Let removal complete and flush microtasks
+    resolveRemoval()
+    await selectSecond
+    await new Promise(r => setTimeout(r, 20))
+
+    // typing:conv-second should NOT have been allocated because activeConversationId became conv-third
+    expect(channelsCreated).not.toContain('typing:conv-second')
   })
 
   it('sendBuzz emits an encrypted system message with event buzz', async () => {

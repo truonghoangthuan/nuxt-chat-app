@@ -37,6 +37,8 @@ function resolveDefaultSupabase(): any {
   return null
 }
 
+export const MAX_CACHED_ATTACHMENTS = 50
+
 export function createImageAttachmentCache(): ImageAttachmentCache {
   const cachedUrls = new Map<string, string>()
   const inFlight = new Map<string, Promise<string>>()
@@ -47,7 +49,12 @@ export function createImageAttachmentCache(): ImageAttachmentCache {
   }
 
   function getCachedUrl(path: string): string | undefined {
-    return cachedUrls.get(path)
+    const cached = cachedUrls.get(path)
+    if (cached !== undefined) {
+      cachedUrls.delete(path)
+      cachedUrls.set(path, cached)
+    }
+    return cached
   }
 
   async function getOrFetchImage(
@@ -67,6 +74,8 @@ export function createImageAttachmentCache(): ImageAttachmentCache {
 
     const cached = cachedUrls.get(path)
     if (cached) {
+      cachedUrls.delete(path)
+      cachedUrls.set(path, cached)
       return cached
     }
 
@@ -103,6 +112,23 @@ export function createImageAttachmentCache(): ImageAttachmentCache {
           objectUrl = URL.createObjectURL(blob)
         } else {
           objectUrl = `blob:${path}`
+        }
+
+        while (cachedUrls.size >= MAX_CACHED_ATTACHMENTS) {
+          const oldestKey = cachedUrls.keys().next().value
+          if (oldestKey) {
+            const oldUrl = cachedUrls.get(oldestKey)
+            if (oldUrl && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+              try {
+                URL.revokeObjectURL(oldUrl)
+              } catch {
+                // Ignore revocation errors
+              }
+            }
+            cachedUrls.delete(oldestKey)
+          } else {
+            break
+          }
         }
 
         cachedUrls.set(path, objectUrl)

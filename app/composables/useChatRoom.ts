@@ -349,14 +349,14 @@ export async function resolveMessageAuthor(params: {
     params.profilesCache.set(params.existingAuthor.id, params.existingAuthor)
     return params.existingAuthor
   }
+  const cached = params.profilesCache.get(params.userId)
+  if (cached) {
+    return cached
+  }
   const targetId = params.conversationId || params.channelId
   const activeId = params.activeConversationId !== undefined ? params.activeConversationId : params.activeChannelId
   if (targetId && activeId && targetId !== activeId) {
     return undefined
-  }
-  const cached = params.profilesCache.get(params.userId)
-  if (cached) {
-    return cached
   }
   const fetched = await params.fetchProfile(params.userId)
   if (fetched) {
@@ -591,7 +591,7 @@ export function useChatRoom() {
       if (convIds.length > 0 && typeof query.in === 'function') {
         query = query.in('conversation_id', convIds)
       }
-      query = query.order('created_at', { ascending: true })
+      query = query.order('created_at', { ascending: false })
       if (typeof query.limit === 'function') {
         query = query.limit(1000)
       }
@@ -599,7 +599,8 @@ export function useChatRoom() {
       let { data: recentMessages } = await query
 
       if (recentMessages) {
-        const decryptedRecent = await decryptMessageRows(recentMessages as any, e2ee.key.value)
+        const chronologicalRecent = [...recentMessages].reverse()
+        const decryptedRecent = await decryptMessageRows(chronologicalRecent as any, e2ee.key.value)
         const snapshot = computeUnreadSnapshot({
           messages: decryptedRecent as any,
           lastReadByConversation: map,
@@ -825,10 +826,22 @@ export function useChatRoom() {
     }
   }
 
-  function setupPresenceSubscription(): void {
-    if (presenceChannel) {
-      supabase.removeChannel(presenceChannel)
+  async function removeRealtimeChannel(ch: RealtimeChannel | null): Promise<void> {
+    if (!ch) return
+    try {
+      await supabase.removeChannel(ch)
+    } catch {
+      // Ignore removal errors
     }
+  }
+
+  async function setupPresenceSubscription(): Promise<void> {
+    if (presenceChannel) {
+      const prev = presenceChannel
+      presenceChannel = null
+      await removeRealtimeChannel(prev)
+    }
+    if (isDisposed) return
 
     const current = authProfile.currentProfile.value
     if (!current) return
@@ -859,10 +872,13 @@ export function useChatRoom() {
       })
   }
 
-  function setupDbChangesSubscription(): void {
+  async function setupDbChangesSubscription(): Promise<void> {
     if (dbChangesChannel) {
-      supabase.removeChannel(dbChangesChannel)
+      const prev = dbChangesChannel
+      dbChangesChannel = null
+      await removeRealtimeChannel(prev)
     }
+    if (isDisposed) return
 
     dbChangesChannel = supabase
       .channel('chat:db_changes')
@@ -1243,9 +1259,14 @@ export function useChatRoom() {
     await sendMessage(payload, undefined, targetId).catch(() => {})
   }
 
-  function setupTypingSubscription(conversationId: string): void {
+  async function setupTypingSubscription(conversationId: string): Promise<void> {
     if (typingChannel) {
-      supabase.removeChannel(typingChannel)
+      const prev = typingChannel
+      typingChannel = null
+      await removeRealtimeChannel(prev)
+    }
+    if (isDisposed || activeConversationId.value !== conversationId) {
+      return
     }
 
     typingTracker.clearAll()
@@ -1906,8 +1927,8 @@ export function useChatRoom() {
     await loadConversationReadsAndUnreads()
     if (isDisposed) return
 
-    setupPresenceSubscription()
-    setupDbChangesSubscription()
+    await setupPresenceSubscription()
+    await setupDbChangesSubscription()
 
     if (typeof window !== 'undefined') {
       window.addEventListener('online', onOnline)
@@ -1946,9 +1967,18 @@ export function useChatRoom() {
     isDisposed = true
     pendingImageFiles.clear()
     readDebouncer.cancelAll()
-    if (presenceChannel) supabase.removeChannel(presenceChannel)
-    if (dbChangesChannel) supabase.removeChannel(dbChangesChannel)
-    if (typingChannel) supabase.removeChannel(typingChannel)
+    if (presenceChannel) {
+      removeRealtimeChannel(presenceChannel)
+      presenceChannel = null
+    }
+    if (dbChangesChannel) {
+      removeRealtimeChannel(dbChangesChannel)
+      dbChangesChannel = null
+    }
+    if (typingChannel) {
+      removeRealtimeChannel(typingChannel)
+      typingChannel = null
+    }
     if (typeof window !== 'undefined') {
       window.removeEventListener('online', onOnline)
       window.removeEventListener('offline', onOffline)

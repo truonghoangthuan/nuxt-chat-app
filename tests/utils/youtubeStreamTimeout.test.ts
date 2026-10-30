@@ -49,14 +49,14 @@ describe('audio proxy timeouts', () => {
         completed = true
         return result
       })
-      await vi.advanceTimersByTimeAsync(3500)
-      if (retryStalls) await vi.advanceTimersByTimeAsync(3500)
+      await vi.advanceTimersByTimeAsync(15000)
+      if (retryStalls) await vi.advanceTimersByTimeAsync(15000)
       expect(completed).toBe(true)
       const result = await pending
       expect(signals).toHaveLength(2)
       expect(signals[0]).not.toBe(signals[1])
       expect(signals[0].aborted).toBe(true)
-      expect(timeoutSpy.mock.calls.filter(([delay]) => delay === 3500)).toHaveLength(2)
+      expect(timeoutSpy.mock.calls.filter(([delay]) => delay === 15000)).toHaveLength(2)
       expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/streams/'))).toHaveLength(2)
       if (retryStalls) {
         expect(signals[1].aborted).toBe(true)
