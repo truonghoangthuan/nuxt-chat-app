@@ -71,12 +71,11 @@ describe('youtube utils', () => {
     )
   })
 
-  it('normalizes and caps open-ended HTTP Range headers to maxChunkBytes', () => {
-    expect(normalizeStreamRangeHeader(undefined, 2097152)).toBe('bytes=0-2097151')
-    expect(normalizeStreamRangeHeader('bytes=0-', 2097152)).toBe('bytes=0-2097151')
-    expect(normalizeStreamRangeHeader('bytes=1048576-', 2097152)).toBe('bytes=1048576-3145727')
-    expect(normalizeStreamRangeHeader('bytes=0-1023', 2097152)).toBe('bytes=0-1023')
-    expect(normalizeStreamRangeHeader('bytes=0-9999999', 2097152)).toBe('bytes=0-2097151')
+  it('preserves open-ended range requests without truncating to 2MB', () => {
+    expect(normalizeStreamRangeHeader('bytes=0-')).toBe('bytes=0-')
+    expect(normalizeStreamRangeHeader('bytes=2097152-')).toBe('bytes=2097152-')
+    expect(normalizeStreamRangeHeader('bytes=0-1023')).toBe('bytes=0-1023')
+    expect(normalizeStreamRangeHeader(undefined)).toBe('bytes=0-')
   })
 
   it('prefers audio/mp4 (m4a) over audio/webm when extracting best audio format', () => {

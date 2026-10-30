@@ -262,6 +262,55 @@ describe('server endpoints', () => {
     }
   })
 
+  it('forwards open-ended range to upstream without 2MB clamp', async () => {
+    const origFetch = globalThis.fetch
+    const fetchMock = vi.fn().mockImplementation(async (input: any) => {
+      const url = String(input)
+      if (url.includes('/streams/dQw4w9WgXcQ')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            audioStreams: [{ url: 'https://pipedproxy.example.com/audio.m4a', mimeType: 'audio/mp4' }],
+          }),
+        }
+      }
+      if (url === 'https://pipedproxy.example.com/audio.m4a') {
+        return new Response(new Uint8Array([1, 2, 3]), {
+          status: 206,
+          headers: { 'content-type': 'audio/mp4', 'content-range': 'bytes 0-2/3', 'content-length': '3' },
+        })
+      }
+      return { ok: false, status: 500 }
+    })
+    globalThis.fetch = fetchMock as any
+
+    try {
+      const mockEvent = {
+        path: '/api/youtube/stream?v=dQw4w9WgXcQ',
+        node: {
+          req: {
+            url: '/api/youtube/stream?v=dQw4w9WgXcQ',
+            headers: { range: 'bytes=0-' },
+            on: vi.fn(),
+          },
+          res: { statusCode: 200, setHeader: vi.fn() },
+        },
+      } as any
+
+      const res = (await streamHandler(mockEvent)) as Response
+      expect(res.status).toBe(206)
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://pipedproxy.example.com/audio.m4a',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Range: 'bytes=0-' }),
+        }),
+      )
+    } finally {
+      globalThis.fetch = origFetch
+    }
+  })
+
   it('stream endpoint re-resolves once when cached proxy URL returns 403', async () => {
     const origFetch = globalThis.fetch
     let streamsCount = 0
