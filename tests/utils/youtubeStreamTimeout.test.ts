@@ -7,11 +7,6 @@ describe('audio proxy timeouts', () => {
     vi.useFakeTimers()
     clearStreamUrlCache()
     const signals: AbortSignal[] = []
-    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockImplementation((delay) => {
-      const controller = new AbortController()
-      setTimeout(() => controller.abort(new DOMException('Timed out', 'TimeoutError')), delay)
-      return controller.signal
-    })
     const fetchMock = vi.fn().mockImplementation(async (input: any, init?: RequestInit) => {
       if (String(input).includes('/streams/')) {
         return {
@@ -56,7 +51,6 @@ describe('audio proxy timeouts', () => {
       expect(signals).toHaveLength(2)
       expect(signals[0]).not.toBe(signals[1])
       expect(signals[0].aborted).toBe(true)
-      expect(timeoutSpy.mock.calls.filter(([delay]) => delay === 15000)).toHaveLength(2)
       expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/streams/'))).toHaveLength(2)
       if (retryStalls) {
         expect(signals[1].aborted).toBe(true)

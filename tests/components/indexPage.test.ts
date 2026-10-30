@@ -906,11 +906,12 @@ describe('IndexPage (app/pages/index.vue)', () => {
     expect(() => {
       vm.onPlayerAction?.('load', { videoId: 'test1234567', startSeconds: 45, autoplay: true })
     }).not.toThrow()
-    expect(playSpy).toHaveBeenCalled()
+    expect(playSpy).not.toHaveBeenCalled()
 
     Object.defineProperty(audio, 'readyState', { value: 2, configurable: true })
     Object.defineProperty(audio, 'duration', { value: 180, configurable: true })
     await wrapper.find('#youtube-hidden-player').trigger('loadedmetadata')
     expect(audio.currentTime).toBe(45)
+    expect(playSpy).toHaveBeenCalled()
   })
 })
