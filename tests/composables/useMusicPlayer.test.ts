@@ -527,4 +527,95 @@ describe('useMusicPlayer playback error recovery', () => {
     // verify room track is still present
     expect(player.currentTrack.value?.title).toBe('Song A')
   })
+
+  it('does not seek on remote sync when drift is within 2 seconds threshold', () => {
+    const onPlayerAction = vi.fn()
+    const ctrl = createMusicController({
+      onPlayerAction,
+      getCurrentUserId: () => 'user-listener',
+    })
+    ctrl.currentTimeSec.value = 50
+    ctrl.currentTrack.value = {
+      conversationId: 'conv-1',
+      videoId: 'v1',
+      title: 'Song',
+      channelTitle: 'Artist',
+      thumbnail: '',
+      isPlaying: true,
+      positionSec: 50,
+      updatedAt: Date.now(),
+      startedBy: 'DJ',
+      actorId: 'user-dj',
+    }
+
+    ctrl.applyRemoteSyncEvent({
+      type: 'sync_state',
+      senderId: 'user-dj',
+      conversationId: 'conv-1',
+      state: {
+        conversationId: 'conv-1',
+        videoId: 'v1',
+        title: 'Song',
+        channelTitle: 'Artist',
+        thumbnail: '',
+        isPlaying: true,
+        positionSec: 51,
+        updatedAt: Date.now(),
+        startedBy: 'DJ',
+        actorId: 'user-dj',
+      },
+    })
+
+    // Within threshold: should not seek, avoids buffer flush
+    expect(onPlayerAction).not.toHaveBeenCalledWith('seek', expect.any(Number))
+  })
+
+  it('resets errorRetried flag on successful playback progress via resetPlaybackError', () => {
+    const onPlayerAction = vi.fn()
+    const ctrl = createMusicController({ onPlayerAction, getCurrentUserId: () => 'u1' })
+    ctrl.playTrack({ videoId: 'errVid', title: 'Song', channelTitle: 'A', thumbnail: '' }, 'conv-1')
+
+    ctrl.handlePlaybackError()
+    expect(ctrl.autoplayBlocked.value).toBe(false)
+
+    // Progress reset
+    ;(ctrl as any).resetPlaybackError?.()
+
+    // Subsequent error should retry again instead of locking immediately
+    ctrl.handlePlaybackError()
+    expect(ctrl.autoplayBlocked.value).toBe(false)
+  })
+
+  it('does not broadcast stop when non-leader track reaches end and queue is empty', () => {
+    const onBroadcast = vi.fn()
+    const ctrl = createMusicController({
+      onBroadcast,
+      getCurrentUserId: () => 'listener-1',
+    })
+    ctrl.clearQueue()
+    ctrl.applyRemoteSyncEvent({
+      type: 'play',
+      senderId: 'dj-1',
+      conversationId: 'conv-1',
+      state: {
+        conversationId: 'conv-1',
+        videoId: 'v1',
+        title: 'Song',
+        channelTitle: 'Artist',
+        thumbnail: '',
+        isPlaying: true,
+        positionSec: 0,
+        updatedAt: Date.now(),
+        startedBy: 'DJ',
+        actorId: 'dj-1',
+      },
+    })
+
+    onBroadcast.mockClear()
+    ctrl.handleTrackEnded()
+
+    // Should stop locally without broadcasting stop event to room
+    expect(onBroadcast).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'stop' }))
+    expect(ctrl.currentTrack.value).toBeNull()
+  })
 })
