@@ -2303,6 +2303,57 @@ describe('Chat UI components', () => {
     expect(mentionSpan.exists()).toBe(true)
     expect(mentionSpan.text()).toBe('@Alice Wonderland')
   })
+
+  it('MessageViewport reply quote has min-w-0, truncates long URLs, and jumps to parent on click', async () => {
+    const wrapper = mount(MessageViewport, {
+      props: {
+        channelId: 'ch-1',
+        currentUserId: 'u-1',
+        messages: [
+          {
+            id: 'm-parent',
+            client_id: 'c-parent',
+            channel_id: 'ch-1',
+            user_id: 'u-2',
+            content: 'Event link: https://event-planner-pi-olive.vercel.app/e/3300?join=d9d176bbd997407a9f0019f4aea11f2e&ts=123456789',
+            created_at: '2026-10-30T01:00:00Z',
+            status: 'sent',
+            author: { id: 'u-2', display_name: 'Vua hải tặc', avatar_color: '#0284c7' },
+          },
+          {
+            id: 'm-reply',
+            client_id: 'c-reply',
+            channel_id: 'ch-1',
+            user_id: 'u-2',
+            content: 'Nhớ tuần sau có hẹn nha @all',
+            reply_to_id: 'm-parent',
+            reply_to: {
+              id: 'm-parent',
+              user_id: 'u-2',
+              content: 'Event link: https://event-planner-pi-olive.vercel.app/e/3300?join=d9d176bbd997407a9f0019f4aea11f2e&ts=123456789',
+              author: { id: 'u-2', display_name: 'Vua hải tặc', avatar_color: '#0284c7' },
+            },
+            created_at: '2026-10-30T01:01:00Z',
+            status: 'sent',
+            author: { id: 'u-2', display_name: 'Vua hải tặc', avatar_color: '#0284c7' },
+          },
+        ],
+      },
+    })
+
+    const quote = wrapper.find('[data-test="reply-quote-m-reply"]')
+    expect(quote.exists()).toBe(true)
+    expect(quote.classes()).toContain('cursor-pointer')
+    expect(quote.classes()).toContain('max-w-[420px]')
+    const quoteTextSpan = quote.find('span.truncate.italic')
+    expect(quoteTextSpan.classes()).toContain('min-w-0')
+    expect(quoteTextSpan.classes()).toContain('flex-1')
+
+    const jumpSpy = vi.spyOn(document, 'getElementById')
+    await quote.trigger('click')
+    expect(jumpSpy).toHaveBeenCalledWith('message-m-parent')
+    jumpSpy.mockRestore()
+  })
 })
 
 
