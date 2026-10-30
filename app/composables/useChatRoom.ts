@@ -591,7 +591,7 @@ export function useChatRoom() {
       if (convIds.length > 0 && typeof query.in === 'function') {
         query = query.in('conversation_id', convIds)
       }
-      query = query.order('created_at', { ascending: true })
+      query = query.order('created_at', { ascending: false })
       if (typeof query.limit === 'function') {
         query = query.limit(1000)
       }
@@ -599,7 +599,8 @@ export function useChatRoom() {
       let { data: recentMessages } = await query
 
       if (recentMessages) {
-        const decryptedRecent = await decryptMessageRows(recentMessages as any, e2ee.key.value)
+        const chronologicalRecent = [...recentMessages].reverse()
+        const decryptedRecent = await decryptMessageRows(chronologicalRecent as any, e2ee.key.value)
         const snapshot = computeUnreadSnapshot({
           messages: decryptedRecent as any,
           lastReadByConversation: map,

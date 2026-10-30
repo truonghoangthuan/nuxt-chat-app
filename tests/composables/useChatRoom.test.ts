@@ -2137,6 +2137,8 @@ describe('useChatRoom contacts and conversations', () => {
     let capturedInKey = ''
     let capturedInValues: any[] = []
     let capturedLimit: number | null = null
+    let capturedOrderCol = ''
+    let capturedOrderOptions: any = null
 
     const origFrom = mockSupabase.from
     mockSupabase.from = vi.fn((table: string) => {
@@ -2158,7 +2160,11 @@ describe('useChatRoom contacts and conversations', () => {
                   capturedInValues = inVals
                   return chain
                 }),
-                order: vi.fn().mockImplementation(() => chain),
+                order: vi.fn().mockImplementation((col: string, options: any) => {
+                  capturedOrderCol = col
+                  capturedOrderOptions = options
+                  return chain
+                }),
                 limit: vi.fn().mockImplementation((lim: number) => {
                   capturedLimit = lim
                   return Promise.resolve({ data: [], error: null })
@@ -2215,6 +2221,8 @@ describe('useChatRoom contacts and conversations', () => {
     expect(capturedInKey).toBe('conversation_id')
     expect(capturedInValues).toEqual(['conv-101'])
     expect(capturedLimit).toBe(1000)
+    expect(capturedOrderCol).toBe('created_at')
+    expect(capturedOrderOptions?.ascending).toBe(false)
   })
 
   it('sendBuzz emits an encrypted system message with event buzz', async () => {
