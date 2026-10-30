@@ -32,27 +32,23 @@ export function getYouTubeThumbnailProxyUrl(videoId: string, fallbackThumbnail =
   return fallbackThumbnail
 }
 
-export function normalizeStreamRangeHeader(
-  rangeHeader: string | undefined,
-  maxChunkBytes: number = 2 * 1024 * 1024,
-): string {
+export function normalizeStreamRangeHeader(rangeHeader: string | undefined): string {
   if (!rangeHeader || typeof rangeHeader !== 'string') {
-    return `bytes=0-${maxChunkBytes - 1}`
+    return 'bytes=0-'
   }
   const match = rangeHeader.trim().match(/^bytes=(\d+)-(\d*)$/)
   if (!match) {
-    return `bytes=0-${maxChunkBytes - 1}`
+    return 'bytes=0-'
   }
   const start = parseInt(match[1], 10)
   if (Number.isNaN(start) || start < 0) {
-    return `bytes=0-${maxChunkBytes - 1}`
+    return 'bytes=0-'
   }
   const requestedEnd = match[2] ? parseInt(match[2], 10) : undefined
-  const maxEnd = start + maxChunkBytes - 1
-  const end = requestedEnd !== undefined && !Number.isNaN(requestedEnd) && requestedEnd >= start
-    ? Math.min(requestedEnd, maxEnd)
-    : maxEnd
-  return `bytes=${start}-${end}`
+  if (requestedEnd !== undefined && !Number.isNaN(requestedEnd) && requestedEnd >= start) {
+    return `bytes=${start}-${requestedEnd}`
+  }
+  return `bytes=${start}-`
 }
 
 export function extractBestAudioFormat(formats: any[]): { url: string; mimeType: string } | null {

@@ -134,6 +134,10 @@ export function createMusicController(options: MusicControllerOptions = {}) {
     }, 1500)
   }
 
+  function resetPlaybackError(): void {
+    resetErrorState()
+  }
+
   function switchConversation(conversationId: string | null): void {
     if (activeConversationId.value === conversationId) return
 
@@ -355,7 +359,10 @@ export function createMusicController(options: MusicControllerOptions = {}) {
 
   function handleTrackEnded(): void {
     if (queue.value.length === 0) {
-      stopPlayback(true)
+      const currentActor = currentTrack.value?.actorId
+      const currentUserId = options.getCurrentUserId?.()
+      const isLeader = Boolean(currentActor && currentUserId && currentActor === currentUserId)
+      stopPlayback(isLeader)
       return
     }
 
@@ -529,6 +536,7 @@ export function createMusicController(options: MusicControllerOptions = {}) {
           if (event.state) {
             const syncedPos = computeSyncedPosition(event.state)
             const isSameVideo = currentTrack.value?.videoId === event.state.videoId
+            const drift = Math.abs(currentTimeSec.value - syncedPos)
             currentTrack.value = event.state
             currentTimeSec.value = syncedPos
 
@@ -542,10 +550,14 @@ export function createMusicController(options: MusicControllerOptions = {}) {
                   autoplay: event.state.isPlaying,
                 })
               } else if (event.state.isPlaying) {
-                options.onPlayerAction?.('seek', syncedPos)
+                if (drift > 2) {
+                  options.onPlayerAction?.('seek', syncedPos)
+                }
                 options.onPlayerAction?.('play')
               } else {
-                options.onPlayerAction?.('seek', syncedPos)
+                if (drift > 2) {
+                  options.onPlayerAction?.('seek', syncedPos)
+                }
                 options.onPlayerAction?.('pause')
               }
             }
@@ -643,6 +655,7 @@ export function createMusicController(options: MusicControllerOptions = {}) {
     toggleMute,
     unblockAutoplay,
     handlePlaybackError,
+    resetPlaybackError,
     applyRemoteSyncEvent,
   }
 }

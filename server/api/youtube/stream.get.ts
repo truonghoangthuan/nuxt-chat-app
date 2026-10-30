@@ -17,13 +17,42 @@ export default defineEventHandler(async (event) => {
   const incomingRange = getRequestHeader(event, 'range')
   const rangeHeader = normalizeStreamRangeHeader(incomingRange)
 
+  const clientController = new AbortController()
+  event.node?.req?.on?.('close', () => {
+    clientController.abort()
+  })
+
   async function fetchStream(url: string) {
-    return await fetch(url, {
-      signal: AbortSignal.timeout(15000),
-      headers: {
-        Range: rangeHeader,
-      },
-    }).catch(() => null)
+    if (clientController.signal.aborted) return null
+
+    const fetchController = new AbortController()
+    const onClientClose = () => fetchController.abort()
+    clientController.signal.addEventListener('abort', onClientClose, { once: true })
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      fetchController.abort()
+    }, 10000)
+
+    try {
+      const response = await fetch(url, {
+        signal: fetchController.signal,
+        headers: {
+          Range: rangeHeader,
+        },
+      })
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+      }
+      return response
+    } catch {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+      }
+      clientController.signal.removeEventListener('abort', onClientClose)
+      return null
+    }
   }
 
   let resolved = await resolveYouTubeAudioStream(videoId)

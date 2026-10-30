@@ -163,10 +163,14 @@ function handleSendQuickReaction(emoji: string) {
 }
 
 let pendingAudioSeekSec = 0
+let pendingAudioAutoplay = false
 
 function handleAudioTimeUpdate() {
   if (audioPlayerRef.value) {
     musicCurrentTimeSec.value = Math.floor(audioPlayerRef.value.currentTime || 0)
+    if (!audioPlayerRef.value.paused) {
+      musicResetPlaybackError?.()
+    }
   }
   updateMediaSessionPositionState()
 }
@@ -180,6 +184,11 @@ function handleAudioMetadata() {
         // Ignore seek error
       }
       pendingAudioSeekSec = 0
+      if (pendingAudioAutoplay && audioPlayerRef.value.paused) {
+        audioPlayerRef.value.play()?.catch(() => {
+          musicAutoplayBlocked.value = true
+        })
+      }
     }
     if (Number.isFinite(audioPlayerRef.value.duration) && audioPlayerRef.value.duration > 0) {
       musicDurationSec.value = Math.floor(audioPlayerRef.value.duration)
@@ -203,20 +212,13 @@ function onPlayerAction(action: 'play' | 'pause' | 'seek' | 'load', payload?: an
 
   try {
     if (action === 'load' && payload?.videoId) {
-      const titleParam = payload.title ? `&title=${encodeURIComponent(payload.title)}` : ''
-      audio.src = `/api/youtube/stream?v=${encodeURIComponent(payload.videoId)}${titleParam}`
+      audio.src = `/api/youtube/stream?v=${encodeURIComponent(payload.videoId)}`
       pendingAudioSeekSec = payload.startSeconds || 0
-      if (audio.readyState >= 1 && pendingAudioSeekSec > 0) {
-        try {
-          audio.currentTime = pendingAudioSeekSec
-          pendingAudioSeekSec = 0
-        } catch {
-          // Defer to loadedmetadata
-        }
-      }
+      pendingAudioAutoplay = payload.autoplay !== false
       audio.volume = Math.max(0, Math.min(1, musicVolume.value / 100))
       audio.muted = !!musicIsMuted.value
-      if (payload.autoplay !== false) {
+      // If starting with offset, defer play until metadata sets currentTime to prevent duplicate byte 0 fetch
+      if (pendingAudioAutoplay && pendingAudioSeekSec <= 0) {
         audio.play()?.catch(() => {
           musicAutoplayBlocked.value = true
         })
@@ -284,6 +286,7 @@ const {
   toggleMute: musicToggleMute,
   unblockAutoplay: musicUnblockAutoplay,
   handlePlaybackError: musicHandlePlaybackError,
+  resetPlaybackError: musicResetPlaybackError,
   applyRemoteSyncEvent: musicApplyRemoteSyncEvent,
 } = musicPlayer
 
