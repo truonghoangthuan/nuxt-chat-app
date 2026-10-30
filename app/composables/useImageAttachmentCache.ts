@@ -43,6 +43,7 @@ export function createImageAttachmentCache(): ImageAttachmentCache {
   const cachedUrls = new Map<string, string>()
   const inFlight = new Map<string, Promise<string>>()
   const decrypting = ref<Record<string, boolean>>({})
+  let generation = 0
 
   function isDecrypting(path: string): boolean {
     return Boolean(decrypting.value[path])
@@ -86,6 +87,7 @@ export function createImageAttachmentCache(): ImageAttachmentCache {
 
     decrypting.value = { ...decrypting.value, [path]: true }
 
+    const requestGeneration = generation
     const promise = (async () => {
       try {
         const client = supabaseClient || resolveDefaultSupabase()
@@ -105,6 +107,9 @@ export function createImageAttachmentCache(): ImageAttachmentCache {
         const encryptedBytes = new Uint8Array(buffer)
 
         const decryptedBytes = await decryptBinary(resolvedKey, encryptedBytes, channelId)
+        if (requestGeneration !== generation) {
+          throw new Error('Attachment request was invalidated')
+        }
 
         const blob = new Blob([decryptedBytes], { type: mimeType })
         let objectUrl: string
@@ -134,10 +139,12 @@ export function createImageAttachmentCache(): ImageAttachmentCache {
         cachedUrls.set(path, objectUrl)
         return objectUrl
       } finally {
-        inFlight.delete(path)
-        const next = { ...decrypting.value }
-        delete next[path]
-        decrypting.value = next
+        if (requestGeneration === generation) {
+          inFlight.delete(path)
+          const next = { ...decrypting.value }
+          delete next[path]
+          decrypting.value = next
+        }
       }
     })()
 
@@ -146,6 +153,7 @@ export function createImageAttachmentCache(): ImageAttachmentCache {
   }
 
   function revokeAllUrls(): void {
+    generation++
     if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
       for (const url of cachedUrls.values()) {
         try {
