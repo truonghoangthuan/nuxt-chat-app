@@ -888,7 +888,7 @@ describe('IndexPage (app/pages/index.vue)', () => {
   it('defers setting currentTime on audio load until metadata loaded', async () => {
     const wrapper = mount(IndexPage)
     await flushPromises()
-    const audio = wrapper.find<HTMLAudioElement>('#youtube-hidden-player').element
+    const audio = wrapper.find<HTMLVideoElement>('#youtube-media-player').element
     // Simulate readyState 0 (HAVE_NOTHING) throwing InvalidStateError on currentTime assignment
     Object.defineProperty(audio, 'readyState', { value: 0, configurable: true })
     let currentTimeAssigned = 0
@@ -910,8 +910,75 @@ describe('IndexPage (app/pages/index.vue)', () => {
 
     Object.defineProperty(audio, 'readyState', { value: 2, configurable: true })
     Object.defineProperty(audio, 'duration', { value: 180, configurable: true })
-    await wrapper.find('#youtube-hidden-player').trigger('loadedmetadata')
+    await wrapper.find('#youtube-media-player').trigger('loadedmetadata')
     expect(audio.currentTime).toBe(45)
     expect(playSpy).toHaveBeenCalled()
+  })
+
+  it('toggles isVideoPipOpen and switches media source when watch button is clicked', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    vm.handleSelectMusicTrack({
+      videoId: 'dQw4w9WgXcQ',
+      title: 'Never Gonna Give You Up',
+      channelTitle: 'Rick Astley',
+      thumbnail: '',
+      durationText: '3:33',
+    })
+    await wrapper.vm.$nextTick()
+
+    const media = wrapper.find<HTMLVideoElement>('#youtube-media-player').element
+    expect(media.src).toContain('/api/youtube/stream?v=dQw4w9WgXcQ')
+    expect(media.src).not.toContain('type=video')
+
+    const playerBar = wrapper.findComponent({ name: 'MusicPlayerBar' })
+    expect(playerBar.exists()).toBe(true)
+
+    await playerBar.vm.$emit('toggle-pip')
+    await wrapper.vm.$nextTick()
+
+    const pipEl = wrapper.find<HTMLElement>('[data-test="video-pip-container"]')
+    expect(pipEl.exists()).toBe(true)
+    expect(pipEl.element.style.display).not.toBe('none')
+    expect(media.src).toContain('type=video')
+
+    // Close pip
+    await playerBar.vm.$emit('toggle-pip')
+    await wrapper.vm.$nextTick()
+    expect(pipEl.element.style.display).toBe('none')
+    expect(media.src).not.toContain('type=video')
+  })
+
+  it('gracefully falls back to audio-only stream when video error occurs in PiP mode', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-1'
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    vm.handleSelectMusicTrack({
+      videoId: 'dQw4w9WgXcQ',
+      title: 'Never Gonna Give You Up',
+      channelTitle: 'Rick Astley',
+      thumbnail: '',
+      durationText: '3:33',
+    })
+    await wrapper.vm.$nextTick()
+
+    const playerBar = wrapper.findComponent({ name: 'MusicPlayerBar' })
+    await playerBar.vm.$emit('toggle-pip')
+    await wrapper.vm.$nextTick()
+    const pipEl = wrapper.find<HTMLElement>('[data-test="video-pip-container"]')
+    expect(pipEl.element.style.display).not.toBe('none')
+
+    const mediaEl = wrapper.find('#youtube-media-player')
+    await mediaEl.trigger('error')
+    await wrapper.vm.$nextTick()
+
+    expect(pipEl.element.style.display).toBe('none')
+    const media = mediaEl.element as HTMLVideoElement
+    expect(media.src).not.toContain('type=video')
   })
 })

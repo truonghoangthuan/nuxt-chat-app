@@ -10,9 +10,11 @@ const props = withDefaults(
     currentTimeSec: number
     durationSec: number
     isMuted?: boolean
+    isOpen?: boolean
   }>(),
   {
     isMuted: false,
+    isOpen: true,
   },
 )
 
@@ -74,7 +76,7 @@ function handleSeekInput(e: Event) {
 
 <template>
   <div
-    v-if="track"
+    v-show="track && isOpen"
     data-test="video-pip-container"
     class="fixed z-30 flex flex-col bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl overflow-hidden transition-all duration-150 select-none"
     :class="isExpanded ? 'w-[440px]' : 'w-80'"
@@ -91,8 +93,8 @@ function handleSeekInput(e: Event) {
     >
       <div class="flex items-center gap-1.5 min-w-0 mr-2">
         <GripHorizontal class="w-3.5 h-3.5 text-slate-400 shrink-0" />
-        <span class="text-[11px] font-medium truncate" :title="track.title">
-          {{ track.title }}
+        <span class="text-[11px] font-medium truncate" :title="track?.title || ''">
+          {{ track?.title || '' }}
         </span>
       </div>
 
@@ -135,7 +137,7 @@ function handleSeekInput(e: Event) {
             class="p-1.5 rounded-full bg-blue-500 hover:bg-blue-600 text-white transition"
             @click="emit('toggle-play')"
           >
-            <Pause v-if="track.isPlaying" class="w-3 h-3 fill-current" />
+            <Pause v-if="track?.isPlaying" class="w-3 h-3 fill-current" />
             <Play v-else class="w-3 h-3 fill-current ml-0.5" />
           </button>
 
