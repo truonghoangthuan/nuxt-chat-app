@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, useId } from 'vue'
 import type { ChatMessage } from '~/types/chat'
 import { filterMessagesByKeyword } from '~/utils/chat'
 import { Search, ChevronUp, ChevronDown, X } from '@lucide/vue'
@@ -18,6 +18,11 @@ const emit = defineEmits<{
 const inputRef = ref<HTMLInputElement | null>(null)
 const currentIndex = ref(0)
 const senderId = ref('')
+const fromDate = ref('')
+const throughDate = ref('')
+const dateErrorId = useId()
+const invalidDateRange = computed(() => Boolean(fromDate.value && throughDate.value
+  && Number(fromDate.value.replaceAll('-', '')) > Number(throughDate.value.replaceAll('-', ''))))
 
 const senders = computed(() => {
   const names = new Map<string, string>()
@@ -37,20 +42,29 @@ const senders = computed(() => {
 const results = computed(() =>
   filterMessagesByKeyword(props.messages, props.modelValue)
     .filter((message) => !senderId.value || message.user_id === senderId.value)
+    .filter((message) => {
+      if (!fromDate.value && !throughDate.value) return true
+      const date = new Date(message.created_at)
+      if (!Number.isFinite(date.getTime())) return false
+      // Native date inputs and message timestamps must use the same local calendar.
+      const day = date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate()
+      return (!fromDate.value || day >= Number(fromDate.value.replaceAll('-', '')))
+        && (!throughDate.value || day <= Number(throughDate.value.replaceAll('-', '')))
+    })
 )
 
 watch(
-  [() => props.modelValue, senderId, () => results.value.map((message) => message.id)],
-  ([query, sender, ids], [oldQuery, oldSender, oldIds]) => {
+  [() => props.modelValue, senderId, fromDate, throughDate, () => results.value.map((message) => message.id)],
+  ([query, sender, from, through, ids], [oldQuery, oldSender, oldFrom, oldThrough, oldIds]) => {
+    const filtersChanged = query !== oldQuery || sender !== oldSender
+      || from !== oldFrom || through !== oldThrough
     const previousId = oldIds[currentIndex.value]
-    const preservedIndex = query === oldQuery && sender === oldSender
-      ? ids.indexOf(previousId)
-      : -1
+    const preservedIndex = !filtersChanged ? ids.indexOf(previousId) : -1
     if (preservedIndex >= 0) {
       currentIndex.value = preservedIndex
       return
     }
-    currentIndex.value = query !== oldQuery || sender !== oldSender
+    currentIndex.value = filtersChanged
       ? 0
       : Math.min(currentIndex.value, Math.max(0, ids.length - 1))
     if (ids.length > 0) {
@@ -148,7 +162,7 @@ onMounted(() => {
     >
       <X class="w-3.5 h-3.5" />
     </button>
-    <div class="flex basis-full items-center gap-2 min-w-0 border-t border-black/5 dark:border-white/10 pt-1">
+    <div class="flex basis-full flex-wrap items-center gap-2 min-w-0 border-t border-black/5 dark:border-white/10 pt-1">
       <select
         v-model="senderId"
         data-test="search-sender"
@@ -158,7 +172,34 @@ onMounted(() => {
         <option value="">All senders</option>
         <option v-for="sender in senders" :key="sender.id" :value="sender.id">{{ sender.name }}</option>
       </select>
-      <span class="text-[10px] text-[var(--ap-text-muted)]">Loaded messages only</span>
+      <label class="flex items-center gap-1 min-w-0 text-[var(--ap-text-secondary)]">
+        From
+        <input
+          v-model="fromDate"
+          type="date"
+          data-test="search-from-date"
+          aria-label="From date (local time)"
+          :aria-invalid="invalidDateRange || undefined"
+          :aria-describedby="invalidDateRange ? dateErrorId : undefined"
+          class="min-w-0 w-32 rounded-md bg-[var(--ap-stage)] text-[var(--ap-text-primary)] [color-scheme:light] dark:[color-scheme:dark] px-1 py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+        />
+      </label>
+      <label class="flex items-center gap-1 min-w-0 text-[var(--ap-text-secondary)]">
+        Through
+        <input
+          v-model="throughDate"
+          type="date"
+          data-test="search-through-date"
+          aria-label="Through date (local time)"
+          :aria-invalid="invalidDateRange || undefined"
+          :aria-describedby="invalidDateRange ? dateErrorId : undefined"
+          class="min-w-0 w-32 rounded-md bg-[var(--ap-stage)] text-[var(--ap-text-primary)] [color-scheme:light] dark:[color-scheme:dark] px-1 py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+        />
+      </label>
+      <span class="text-[10px] text-[var(--ap-text-muted)]">Loaded messages only · Local time</span>
+      <p v-if="invalidDateRange" :id="dateErrorId" role="alert" class="basis-full text-[var(--ap-text-primary)]">
+        From date must be on or before through date.
+      </p>
     </div>
   </div>
 </template>

@@ -25,6 +25,107 @@ describe('MessageSearchBar', () => {
     },
   ]
 
+  it('narrows keyword matches to inclusive local days and combines with sender', async () => {
+    const localTime = (day: number, hour: number, minute = 0) =>
+      new Date(2026, 9, day, hour, minute).toISOString()
+    const wrapper = mount(MessageSearchBar, {
+      props: {
+        messages: [
+          { ...sampleMessages[0], id: 'before', created_at: localTime(21, 23, 59) },
+          { ...sampleMessages[0], id: 'start', created_at: localTime(22, 0) },
+          { ...sampleMessages[1], id: 'end', created_at: localTime(22, 23, 59) },
+          { ...sampleMessages[1], id: 'after', created_at: localTime(23, 0) },
+        ],
+        modelValue: 'apples',
+      },
+    })
+    const from = wrapper.get('[data-test="search-from-date"]')
+    const through = wrapper.get('[data-test="search-through-date"]')
+    expect(from.attributes('type')).toBe('date')
+    expect(from.attributes('aria-label')).toBe('From date (local time)')
+    expect(through.attributes('aria-label')).toBe('Through date (local time)')
+    await from.setValue('2026-10-22')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 3')
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['start'])
+    await through.setValue('2026-10-22')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 2')
+    await wrapper.get('[data-test="search-next-btn"]').trigger('click')
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['end'])
+    await wrapper.get('[data-test="search-sender"]').setValue('u-2')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 1')
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['end'])
+    await from.setValue('')
+    await wrapper.get('[data-test="search-sender"]').setValue('')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 3')
+    await through.setValue('')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 4')
+    expect(wrapper.text()).toContain('Local time')
+    wrapper.unmount()
+  })
+
+  it('resets on changed bounds even with identical matches and preserves live selection', async () => {
+    const wrapper = mount(MessageSearchBar, {
+      props: { messages: sampleMessages, modelValue: 'apples' },
+    })
+    await wrapper.get('[data-test="search-next-btn"]').trigger('click')
+    await wrapper.get('[data-test="search-from-date"]').setValue('2026-01-01')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 2')
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['msg-1'])
+    await wrapper.get('[data-test="search-input"]').trigger('keydown', { key: 'Enter' })
+    const older = { ...sampleMessages[0], id: 'older' }
+    await wrapper.setProps({ messages: [older, ...sampleMessages] })
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('3 of 3')
+    await wrapper.get('[data-test="search-through-date"]').setValue('2026-12-31')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 3')
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['older'])
+    wrapper.unmount()
+  })
+
+  it('explains reversed ranges accessibly and restores matches when corrected', async () => {
+    const wrapper = mount(MessageSearchBar, {
+      props: { messages: sampleMessages, modelValue: 'apples' },
+    })
+    const from = wrapper.get('[data-test="search-from-date"]')
+    const through = wrapper.get('[data-test="search-through-date"]')
+    await from.setValue('2026-10-23')
+    await through.setValue('2026-10-22')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('No results')
+    const error = wrapper.get('[role="alert"]')
+    expect(error.text()).toBe('From date must be on or before through date.')
+    expect(from.attributes('aria-invalid')).toBe('true')
+    expect(through.attributes('aria-invalid')).toBe('true')
+    expect(from.attributes('aria-describedby')).toBe(error.attributes('id'))
+    expect(through.attributes('aria-describedby')).toBe(error.attributes('id'))
+    await through.trigger('keydown', { key: 'Escape' })
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    await from.setValue('2026-10-21')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(from.attributes('aria-invalid')).toBeUndefined()
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 2')
+    wrapper.unmount()
+  })
+
+  it('keeps caption privacy exclusions and rejects invalid timestamps only when bounded', async () => {
+    const wrapper = mount(MessageSearchBar, {
+      props: {
+        messages: [
+          { ...sampleMessages[0], id: 'invalid', created_at: 'invalid' },
+          { ...sampleMessages[1], id: 'caption', content: JSON.stringify({ type: 'images', images: [], caption: 'Apples photo' }) },
+          { ...sampleMessages[1], id: 'deleted', deleted_at: '2026-11-01T00:00:00Z' },
+          { ...sampleMessages[1], id: 'locked', encryption: 'undecryptable' },
+        ],
+        modelValue: 'apples',
+      },
+    })
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 2')
+    await wrapper.get('[data-test="search-from-date"]').setValue('2026-01-01')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 1')
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['caption'])
+    await wrapper.get('[data-test="search-from-date"]').setValue('')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 2')
+    wrapper.unmount()
+  })
+
   it('renders input and updates counter as user types', async () => {
     const wrapper = mount(MessageSearchBar, {
       props: {
