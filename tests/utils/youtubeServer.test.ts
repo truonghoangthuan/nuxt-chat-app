@@ -425,6 +425,56 @@ describe('server endpoints', () => {
     }
   })
 
+  it('resolves and streams video/mp4 when query type is video', async () => {
+    const origFetch = globalThis.fetch
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('/streams/')) {
+        return {
+          ok: true,
+          json: async () => ({
+            videoStreams: [
+              {
+                url: 'https://pipedproxy.example.com/video.mp4',
+                mimeType: 'video/mp4',
+                videoOnly: false,
+                bitrate: 500000,
+              },
+            ],
+          }),
+        }
+      }
+      if (url.includes('pipedproxy.example.com/video.mp4')) {
+        return new Response(new Uint8Array([1, 2, 3, 4]), {
+          status: 206,
+          headers: {
+            'content-type': 'video/mp4',
+            'content-range': 'bytes 0-3/4',
+            'content-length': '4',
+          },
+        })
+      }
+      return new Response(null, { status: 404 })
+    })
+
+    globalThis.fetch = fetchMock as any
+
+    try {
+      const mockEvent = {
+        path: '/api/youtube/stream?v=dQw4w9WgXcQ&type=video',
+        node: {
+          req: { url: '/api/youtube/stream?v=dQw4w9WgXcQ&type=video', headers: { range: 'bytes=0-' } },
+          res: { statusCode: 200, setHeader: vi.fn() },
+        },
+      } as any
+
+      const response: any = await streamHandler(mockEvent)
+      expect(response.status).toBe(206)
+      expect(response.headers.get('content-type')).toBe('video/mp4')
+    } finally {
+      globalThis.fetch = origFetch
+    }
+  })
+
   it('thumbnail endpoint fetches from KOQC proxy', async () => {
     const origFetch = globalThis.fetch
     const fetchMock = vi.fn().mockResolvedValue({
