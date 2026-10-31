@@ -63,6 +63,8 @@ A modern, resilient, end-to-end encrypted real-time web chat application built w
 
 ## Prerequisites & Supabase Setup
 
+Use a Node.js release supported by Nuxt 4.6.3: **22.22.3+ on Node 22**, **24.15.0+ on Node 24**, or **26+**. Install the locked dependency graph with `npm ci`. Older Node 20 releases are not supported by this Nuxt version.
+
 ### 1. Database Schema & RLS
 
 1. Create a project at [supabase.com](https://supabase.com).
