@@ -303,3 +303,112 @@ export async function resolveYouTubeAudioStream(
 
   return null
 }
+
+export function extractBestVideoStream(formats: any[]): { url: string; mimeType: string } | null {
+  if (!Array.isArray(formats) || formats.length === 0) return null
+
+  const muxedVideoFormats = formats.filter((f) => {
+    if (!f || typeof f.url !== 'string' || !/^https?:\/\//.test(f.url)) return false
+    if (f.videoOnly === true) return false
+    const type = String(f.mimeType || f.type || '').toLowerCase()
+    return type.startsWith('video/mp4') || type.startsWith('video/')
+  })
+
+  if (muxedVideoFormats.length === 0) return null
+
+  // Sort by bitrate / quality descending, preferring MP4
+  const sorted = [...muxedVideoFormats].sort((a, b) => {
+    const aType = String(a.mimeType || a.type || '').toLowerCase()
+    const bType = String(b.mimeType || b.type || '').toLowerCase()
+    const aIsMp4 = aType.includes('mp4')
+    const bIsMp4 = bType.includes('mp4')
+
+    if (aIsMp4 && !bIsMp4) return -1
+    if (!aIsMp4 && bIsMp4) return 1
+
+    const aBitrate = Number(a.bitrate || 0)
+    const bBitrate = Number(b.bitrate || 0)
+    return bBitrate - aBitrate
+  })
+
+  const best = sorted[0]
+  return {
+    url: best.url,
+    mimeType: 'video/mp4',
+  }
+}
+
+const videoStreamUrlCache = new Map<string, CachedStream>()
+
+export function clearVideoStreamUrlCache(): void {
+  videoStreamUrlCache.clear()
+}
+
+export async function resolveYouTubeVideoStream(
+  videoId: string,
+  options: ResolveAudioOptions = {},
+): Promise<{ url: string; mimeType: string } | null> {
+  const cleanId = typeof videoId === 'string' ? videoId.trim() : ''
+  if (!isValidYouTubeVideoId(cleanId)) {
+    return null
+  }
+
+  const myFetch = options.fetchFn || (typeof fetch !== 'undefined' ? fetch : undefined)
+  if (!myFetch) {
+    return null
+  }
+
+  const now = Date.now()
+  if (!options.bypassCache) {
+    const cached = videoStreamUrlCache.get(cleanId)
+    if (cached) {
+      if (cached.expiresAt > now) {
+        return { url: cached.url, mimeType: cached.mimeType }
+      }
+      videoStreamUrlCache.delete(cleanId)
+    }
+  }
+
+  const timeoutSignal = () =>
+    typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+      ? AbortSignal.timeout(8000)
+      : undefined
+
+  try {
+    const resp = await myFetch(`${PIPED_API}/streams/${encodeURIComponent(cleanId)}`, {
+      signal: timeoutSignal(),
+    })
+
+    if (resp.ok) {
+      const data = await resp.json()
+      const formats = [
+        ...(data?.videoStreams || []).filter((v: any) => v && v.videoOnly === false),
+      ]
+      const best = extractBestVideoStream(formats)
+      if (best) {
+        if (videoStreamUrlCache.size >= MAX_STREAM_CACHE_ENTRIES) {
+          for (const [key, entry] of videoStreamUrlCache) {
+            if (entry.expiresAt <= now) {
+              videoStreamUrlCache.delete(key)
+            }
+          }
+        }
+        while (videoStreamUrlCache.size >= MAX_STREAM_CACHE_ENTRIES) {
+          const oldestKey = videoStreamUrlCache.keys().next().value
+          if (oldestKey !== undefined) {
+            videoStreamUrlCache.delete(oldestKey)
+          } else {
+            break
+          }
+        }
+        videoStreamUrlCache.set(cleanId, { ...best, expiresAt: now + 10 * 60 * 1000 })
+        return best
+      }
+    }
+  } catch {
+    // Upstream failure
+  }
+
+  return null
+}
+
