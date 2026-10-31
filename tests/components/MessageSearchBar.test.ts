@@ -44,6 +44,114 @@ describe('MessageSearchBar', () => {
     expect(counter.text()).toContain('1 of 2')
   })
 
+  it('narrows keyword matches by sender and restores all senders', async () => {
+    const wrapper = mount(MessageSearchBar, {
+      props: { messages: sampleMessages, modelValue: 'apples' },
+    })
+    const sender = wrapper.get('[data-test="search-sender"]')
+    expect(sender.attributes('aria-label')).toBe('Filter by sender')
+    await sender.setValue('u-2')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 1')
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['msg-2'])
+    expect(wrapper.get('[data-test="search-next-btn"]').attributes('disabled')).toBeDefined()
+    await sender.setValue('')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 2')
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['msg-1'])
+    expect(wrapper.text()).toContain('Loaded messages only')
+    wrapper.unmount()
+  })
+
+  it('keeps selection stable across history arrivals and clamps after deletion', async () => {
+    const wrapper = mount(MessageSearchBar, {
+      props: { messages: sampleMessages, modelValue: 'apples' },
+    })
+    await wrapper.get('[data-test="search-next-btn"]').trigger('click')
+    const older = { ...sampleMessages[0], id: 'older', client_id: 'older' }
+    await wrapper.setProps({ messages: [older, ...sampleMessages] })
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('3 of 3')
+    expect(wrapper.emitted('jump')).toHaveLength(1)
+    await wrapper.setProps({ messages: [older, sampleMessages[0]] })
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('2 of 2')
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['msg-1'])
+    await wrapper.setProps({ messages: [] })
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('No results')
+    await wrapper.get('[data-test="search-input"]').trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('jump')).toHaveLength(2)
+    wrapper.unmount()
+  })
+
+  it('retains a selected sender when their last loaded message disappears', async () => {
+    const wrapper = mount(MessageSearchBar, {
+      props: { messages: sampleMessages, modelValue: 'apples' },
+    })
+    await wrapper.get('[data-test="search-sender"]').setValue('u-2')
+    await wrapper.setProps({ messages: [sampleMessages[0]] })
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('No results')
+    expect(wrapper.find('option[value="u-2"]').exists()).toBe(true)
+    expect((wrapper.get('select').element as HTMLSelectElement).value).toBe('u-2')
+    wrapper.unmount()
+  })
+
+  it('keeps equal display names as distinct sender IDs and labels unknown senders', async () => {
+    const author = { id: 'u-1', email: '', display_name: 'Sam', avatar_color: '#000' }
+    const wrapper = mount(MessageSearchBar, {
+      props: {
+        messages: [
+          { ...sampleMessages[0], author },
+          { ...sampleMessages[1], author: { ...author, id: 'u-2' } },
+          { ...sampleMessages[0], id: 'unknown', user_id: 'u-3' },
+        ],
+        modelValue: 'apples',
+      },
+    })
+    const options = wrapper.findAll('option')
+    expect(options.filter(option => option.text() === 'Sam')).toHaveLength(2)
+    expect(wrapper.get('option[value="u-3"]').text()).toBe('u-3')
+    await wrapper.get('select').setValue('u-2')
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['msg-2'])
+    wrapper.unmount()
+  })
+
+  it('filters locally decrypted captions but excludes deleted and undecryptable rows', async () => {
+    const wrapper = mount(MessageSearchBar, {
+      props: {
+        messages: [
+          sampleMessages[0],
+          { ...sampleMessages[1], id: 'deleted', deleted_at: '2026-11-01T00:00:00Z' },
+          { ...sampleMessages[1], id: 'locked', encryption: 'undecryptable' },
+          { ...sampleMessages[1], id: 'caption', content: JSON.stringify({ type: 'images', images: [], caption: 'Apples photo' }) },
+        ],
+        modelValue: 'apples',
+      },
+    })
+    await wrapper.get('select').setValue('u-2')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 1')
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['caption'])
+    await wrapper.setProps({ modelValue: '  ' })
+    expect(wrapper.find('[data-test="search-count"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="search-next-btn"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('select').trigger('keydown', { key: 'Escape' })
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('resets on keyword changes and preserves Enter and Shift+Enter wraparound', async () => {
+    const wrapper = mount(MessageSearchBar, {
+      props: { messages: sampleMessages, modelValue: 'apples' },
+    })
+    const input = wrapper.get('[data-test="search-input"]')
+    await input.trigger('keydown', { key: 'Enter', shiftKey: true })
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['msg-2'])
+    await input.trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['msg-1'])
+    await wrapper.setProps({ modelValue: 'oranges' })
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 1')
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['msg-2'])
+    await wrapper.setProps({ messages: sampleMessages.map(message => ({ ...message, content: 'changed' })) })
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('No results')
+    wrapper.unmount()
+  })
+
   it('cycles through results with next and prev buttons', async () => {
     const wrapper = mount(MessageSearchBar, {
       props: {

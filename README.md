@@ -38,7 +38,7 @@ A modern, resilient, end-to-end encrypted real-time web chat application built w
 - **Pinned Messages**: Pin important messages per conversation via atomic `toggle_pin_message` RPC.
 - **Replies & Mentions**: Quoted message previews with click-to-scroll navigation and `@mention` highlighting.
 - **Message Editing & Soft Deletes**: Inline edit tracking (`(edited)` badge) and soft-deletion tombstones (`deleted_at`).
-- **In-Memory Decrypted Search**: Real-time client-side keyword search over decrypted chat history with match highlighting (`<mark>`) without leaking plaintext over the network.
+- **In-Memory Decrypted Search**: Real-time client-side keyword search over decrypted chat history with match highlighting (`<mark>`) without leaking plaintext over the network. Use **All senders** to narrow keyword matches to a friend; Enter / Shift+Enter cycles matches and Escape closes search. Only loaded messages (including decrypted attachment captions) are searched; load older history to extend the search. Sender filters stay in memory and reset when switching conversations or reopening search.
 
 ### Encrypted Attachments & Customization
 - **Encrypted Media Grid**: Upload and view encrypted images stored in a private Supabase storage bucket (`message-attachments`) with automatic client-side blob caching.

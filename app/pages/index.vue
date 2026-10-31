@@ -1180,17 +1180,10 @@ onUnmounted(() => {
               <Music class="w-4 h-4 text-purple-500 dark:text-purple-400" />
             </button>
 
-            <!-- Search Bar or Toggle Button -->
-            <MessageSearchBar
-              v-if="isSearchOpen"
-              :messages="messages"
-              v-model="searchQuery"
-              @jump="handleJumpSearchResult"
-              @close="handleCloseSearch"
-            />
+            <!-- Search Toggle Button -->
             <button
-              v-else
               type="button"
+              :aria-expanded="isSearchOpen"
               data-test="open-search-btn"
               title="Search messages (Cmd+F)"
               class="p-1.5 rounded-full bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/12 border border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition-all active:scale-90 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
@@ -1241,6 +1234,16 @@ onUnmounted(() => {
             </div>
           </div>
         </header>
+
+        <div v-if="isSearchOpen" class="px-4 md:px-6 py-2 shrink-0 bg-[var(--ap-stage)] border-b border-[var(--ap-glass-border)]">
+          <MessageSearchBar
+            :key="activeConversationId || activeChannelId || 'search'"
+            :messages="messages"
+            v-model="searchQuery"
+            @jump="handleJumpSearchResult"
+            @close="handleCloseSearch"
+          />
+        </div>
 
         <!-- Persistent Music Player Bar -->
         <MusicPlayerBar
