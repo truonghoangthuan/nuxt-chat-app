@@ -45,6 +45,37 @@ describe('Music UI components', () => {
     expect(wrapper.emitted('stop')).toBeTruthy()
   })
 
+  it('renders Watch Video button and emits toggle-pip when clicked', async () => {
+    const wrapper = mount(MusicPlayerBar, {
+      props: {
+        track: {
+          conversationId: 'conv-1',
+          videoId: 'dQw4w9WgXcQ',
+          title: 'Video Track',
+          channelTitle: 'Artist',
+          thumbnail: '',
+          isPlaying: true,
+          positionSec: 10,
+          updatedAt: Date.now(),
+          startedBy: 'Alice',
+        },
+        currentTimeSec: 10,
+        durationSec: 120,
+        isVideoPipOpen: false,
+      },
+    })
+
+    const watchBtn = wrapper.find('[data-test="music-toggle-pip"]')
+    expect(watchBtn.exists()).toBe(true)
+    expect(watchBtn.text()).toContain('Watch')
+
+    await watchBtn.trigger('click')
+    expect(wrapper.emitted('toggle-pip')).toBeTruthy()
+
+    await wrapper.setProps({ isVideoPipOpen: true })
+    expect(watchBtn.classes()).toContain('bg-blue-500')
+  })
+
   it('shows Tune In button when browser autoplay is blocked', async () => {
     const wrapper = mount(MusicPlayerBar, {
       props: {
