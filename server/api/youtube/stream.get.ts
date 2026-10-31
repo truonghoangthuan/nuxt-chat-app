@@ -3,11 +3,13 @@ import {
   isValidYouTubeVideoId,
   normalizeStreamRangeHeader,
   resolveYouTubeAudioStream,
+  resolveYouTubeVideoStream,
 } from '~/utils/youtube'
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const videoId = typeof query.v === 'string' ? query.v.trim() : ''
+  const isVideo = query.type === 'video'
 
   if (!isValidYouTubeVideoId(videoId)) {
     setResponseStatus(event, 400)
@@ -55,22 +57,25 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  let resolved = await resolveYouTubeAudioStream(videoId)
+  const resolveStream = isVideo ? resolveYouTubeVideoStream : resolveYouTubeAudioStream
+  const defaultMime = isVideo ? 'video/mp4' : 'audio/mp4'
+
+  let resolved = await resolveStream(videoId)
   let upstream: Response | null = resolved ? await fetchStream(resolved.url) : null
 
-  // Retry once bypassing cache on any failure: slow/failed Piped resolve, expired proxy URL, or upstream error
+  // Retry once bypassing cache on any failure
   if (!resolved || !upstream || (!upstream.ok && upstream.status !== 206)) {
-    resolved = await resolveYouTubeAudioStream(videoId, { bypassCache: true })
+    resolved = await resolveStream(videoId, { bypassCache: true })
     upstream = resolved ? await fetchStream(resolved.url) : null
   }
 
   if (!resolved || !upstream || (!upstream.ok && upstream.status !== 206)) {
     setResponseStatus(event, upstream?.status || 502)
-    return { error: 'Upstream audio stream failed' }
+    return { error: isVideo ? 'Upstream video stream failed' : 'Upstream audio stream failed' }
   }
 
   const headers = new Headers()
-  headers.set('Content-Type', upstream.headers.get('content-type') || resolved.mimeType || 'audio/mp4')
+  headers.set('Content-Type', upstream.headers.get('content-type') || resolved.mimeType || defaultMime)
   headers.set('Accept-Ranges', 'bytes')
   headers.set('Cache-Control', 'public, max-age=3600')
 

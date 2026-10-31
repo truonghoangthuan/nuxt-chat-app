@@ -6,6 +6,7 @@ import {
   getYouTubeThumbnailProxyUrl,
   normalizeStreamRangeHeader,
   extractBestAudioFormat,
+  extractBestVideoStream,
 } from '~/utils/youtube'
 import { formatSystemMessageText } from '~/utils/chat'
 
@@ -98,6 +99,31 @@ describe('youtube utils', () => {
     expect(picked).toEqual({
       url: 'https://v.example/muxed18.mp4',
       mimeType: 'audio/mp4',
+    })
+  })
+
+  describe('extractBestVideoStream', () => {
+    it('extracts best muxed video/mp4 stream and ignores video-only streams', () => {
+      const formats = [
+        { mimeType: 'video/mp4; codecs="avc1.64001F"', url: 'https://v.example/video1080.mp4', videoOnly: true, quality: '1080p' },
+        { mimeType: 'video/mp4; codecs="avc1.42001E, mp4a.40.2"', url: 'https://v.example/video360.mp4', videoOnly: false, quality: '360p', itag: 18, bitrate: 500000 },
+        { mimeType: 'video/webm; codecs="vp9"', url: 'https://v.example/video720.webm', videoOnly: true, quality: '720p' },
+      ]
+      const best = extractBestVideoStream(formats)
+      expect(best).toEqual({
+        url: 'https://v.example/video360.mp4',
+        mimeType: 'video/mp4',
+      })
+    })
+
+    it('returns null when no muxed video stream exists', () => {
+      const formats = [
+        { mimeType: 'video/mp4', url: 'https://v.example/video-only.mp4', videoOnly: true },
+        { mimeType: 'audio/mp4', url: 'https://a.example/audio.mp4', videoOnly: false },
+      ]
+      expect(extractBestVideoStream(formats)).toBeNull()
+      expect(extractBestVideoStream([])).toBeNull()
+      expect(extractBestVideoStream(null as any)).toBeNull()
     })
   })
 })

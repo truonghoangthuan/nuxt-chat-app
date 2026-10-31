@@ -27,6 +27,7 @@ import ConfettiOverlay from '~/components/ConfettiOverlay.vue'
 import MusicPlayerBar from '~/components/MusicPlayerBar.vue'
 import MusicQueuePanel from '~/components/MusicQueuePanel.vue'
 import YouTubeSearchModal from '~/components/YouTubeSearchModal.vue'
+import YouTubeVideoPip from '~/components/YouTubeVideoPip.vue'
 import ChangelogModal from '~/components/ChangelogModal.vue'
 import RightUtilityPanel from '~/components/RightUtilityPanel.vue'
 import { Menu, Users, Info, Search, Image as ImageIcon, MessageSquare, Link2, Settings, Sun, Moon, Plus, Sparkles, Music } from '@lucide/vue'
@@ -146,7 +147,8 @@ const selectedUserProfile = ref<Profile | null>(null)
 const isMusicSearchModalOpen = ref(false)
 const isMusicQueueOpen = ref(false)
 const isUtilityPanelOpen = ref(false)
-const audioPlayerRef = ref<HTMLAudioElement | null>(null)
+const isVideoPipOpen = ref(false)
+const audioPlayerRef = ref<HTMLVideoElement | HTMLAudioElement | null>(null)
 
 const musicHistory = computed(() => {
   return extractMusicHistory(messages.value, 50)
@@ -202,7 +204,19 @@ function handleAudioEnded() {
 }
 
 function handleAudioError() {
-  musicHandlePlaybackError()
+  if (isVideoPipOpen.value) {
+    // Graceful fallback: close PiP and reload audio-only
+    isVideoPipOpen.value = false
+    const track = musicCurrentTrack.value
+    if (track && audioPlayerRef.value) {
+      const currentSec = audioPlayerRef.value.currentTime || 0
+      audioPlayerRef.value.src = `/api/youtube/stream?v=${encodeURIComponent(track.videoId)}`
+      pendingAudioSeekSec = currentSec
+      pendingAudioAutoplay = true
+    }
+  } else {
+    musicHandlePlaybackError()
+  }
 }
 
 function onPlayerAction(action: 'play' | 'pause' | 'seek' | 'load', payload?: any) {
@@ -212,7 +226,8 @@ function onPlayerAction(action: 'play' | 'pause' | 'seek' | 'load', payload?: an
 
   try {
     if (action === 'load' && payload?.videoId) {
-      audio.src = `/api/youtube/stream?v=${encodeURIComponent(payload.videoId)}`
+      const streamType = isVideoPipOpen.value ? '&type=video' : ''
+      audio.src = `/api/youtube/stream?v=${encodeURIComponent(payload.videoId)}${streamType}`
       pendingAudioSeekSec = payload.startSeconds || 0
       pendingAudioAutoplay = payload.autoplay !== false
       audio.volume = Math.max(0, Math.min(1, musicVolume.value / 100))
@@ -289,6 +304,19 @@ const {
   resetPlaybackError: musicResetPlaybackError,
   applyRemoteSyncEvent: musicApplyRemoteSyncEvent,
 } = musicPlayer
+
+function handleToggleVideoPip() {
+  isVideoPipOpen.value = !isVideoPipOpen.value
+  const track = musicCurrentTrack.value
+  if (track && audioPlayerRef.value) {
+    const currentSec = audioPlayerRef.value.currentTime || 0
+    const wasPlaying = !audioPlayerRef.value.paused
+    const streamType = isVideoPipOpen.value ? '&type=video' : ''
+    audioPlayerRef.value.src = `/api/youtube/stream?v=${encodeURIComponent(track.videoId)}${streamType}`
+    pendingAudioSeekSec = currentSec
+    pendingAudioAutoplay = wasPlaying
+  }
+}
 
 watch(musicVolume, (newVol) => {
   if (audioPlayerRef.value) {
@@ -1224,6 +1252,7 @@ onUnmounted(() => {
           :is-tuned-in="musicIsTunedIn"
           :queue-count="musicQueue.length"
           :is-queue-open="isMusicQueueOpen"
+          :is-video-pip-open="isVideoPipOpen"
           :conversation-name="musicCurrentTrack?.conversationId !== activeConversationId ? (conversations.find(c => c.id === musicCurrentTrack?.conversationId)?.title || conversations.find(c => c.id === musicCurrentTrack?.conversationId)?.peer?.display_name || undefined) : undefined"
           @toggle-play="handleMusicTogglePlayPause"
           @seek="musicSeekTo"
@@ -1235,6 +1264,7 @@ onUnmounted(() => {
           @toggle-queue="isMusicQueueOpen = !isMusicQueueOpen"
           @join="musicJoinSession"
           @leave="musicLeaveSession"
+          @toggle-pip="handleToggleVideoPip"
         />
 
         <!-- Music Queue & History Collapsible Panel -->
@@ -1486,20 +1516,33 @@ onUnmounted(() => {
         @complete="isConfettiActive = false"
       />
 
-      <!-- Native HTML5 audio element for persistent room playback (server-proxied to bypass corporate network restrictions) -->
-      <audio
-        id="youtube-hidden-player"
-        ref="audioPlayerRef"
-        preload="auto"
-        class="hidden pointer-events-none w-0 h-0 opacity-0 overflow-hidden"
-        aria-hidden="true"
-        @timeupdate="handleAudioTimeUpdate"
-        @loadedmetadata="handleAudioMetadata"
-        @durationchange="handleAudioMetadata"
-        @play="musicAutoplayBlocked = false"
-        @ended="handleAudioEnded"
-        @error="handleAudioError"
-      ></audio>
+      <!-- YouTube Video Picture-in-Picture Floating Window -->
+      <YouTubeVideoPip
+        :is-open="isVideoPipOpen"
+        :track="musicCurrentTrack"
+        :current-time-sec="musicCurrentTimeSec"
+        :duration-sec="musicDurationSec"
+        :is-muted="musicIsMuted"
+        @close="handleToggleVideoPip"
+        @toggle-play="handleMusicTogglePlayPause"
+        @seek="musicSeekTo"
+        @toggle-mute="musicToggleMute"
+      >
+        <video
+          id="youtube-media-player"
+          ref="audioPlayerRef"
+          preload="auto"
+          playsinline
+          :class="isVideoPipOpen ? 'w-full h-full object-cover' : 'hidden pointer-events-none w-0 h-0 opacity-0 overflow-hidden'"
+          aria-hidden="true"
+          @timeupdate="handleAudioTimeUpdate"
+          @loadedmetadata="handleAudioMetadata"
+          @durationchange="handleAudioMetadata"
+          @play="musicAutoplayBlocked = false"
+          @ended="handleAudioEnded"
+          @error="handleAudioError"
+        ></video>
+      </YouTubeVideoPip>
 
       <!-- YouTube Music Search Modal -->
       <YouTubeSearchModal

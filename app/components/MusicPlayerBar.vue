@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { MusicPlaybackState } from '~/types/chat'
 import { formatDurationSeconds, getYouTubeThumbnailProxyUrl } from '~/utils/youtube'
-import { Play, Pause, Square, Volume2, VolumeX, Music, Volume1, SkipForward, ListMusic, Headphones, LogOut } from '@lucide/vue'
+import { Play, Pause, Square, Volume2, VolumeX, Music, Volume1, SkipForward, ListMusic, Headphones, LogOut, Tv } from '@lucide/vue'
 
 const props = withDefaults(
   defineProps<{
@@ -15,6 +15,7 @@ const props = withDefaults(
     queueCount?: number
     isQueueOpen?: boolean
     isTunedIn?: boolean
+    isVideoPipOpen?: boolean
   }>(),
   {
     isMuted: false,
@@ -22,6 +23,7 @@ const props = withDefaults(
     queueCount: 0,
     isQueueOpen: false,
     isTunedIn: true,
+    isVideoPipOpen: false,
   },
 )
 
@@ -36,6 +38,7 @@ const emit = defineEmits<{
   (e: 'toggle-queue'): void
   (e: 'join'): void
   (e: 'leave'): void
+  (e: 'toggle-pip'): void
 }>()
 
 const formattedCurrentTime = computed(() => formatDurationSeconds(props.currentTimeSec))
@@ -202,6 +205,21 @@ function handleSeekInput(e: Event) {
       >
         <VolumeX v-if="isMuted" class="w-4 h-4 text-red-500" />
         <Volume2 v-else class="w-4 h-4" />
+      </button>
+
+      <!-- Watch Video PiP Toggle -->
+      <button
+        type="button"
+        data-test="music-toggle-pip"
+        class="relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition cursor-pointer border"
+        :class="isVideoPipOpen
+          ? 'bg-blue-500 text-white border-blue-500 shadow-xs'
+          : 'bg-black/5 dark:bg-white/10 text-[var(--ap-text-primary)] hover:bg-black/10 dark:hover:bg-white/15 border-[var(--ap-glass-border)]'"
+        :title="isVideoPipOpen ? 'Hide Video (Audio Only)' : 'Watch Video (Picture-in-Picture)'"
+        @click="emit('toggle-pip')"
+      >
+        <Tv class="w-3.5 h-3.5" />
+        <span class="hidden sm:inline">Watch</span>
       </button>
 
       <!-- Queue & History Toggle -->
