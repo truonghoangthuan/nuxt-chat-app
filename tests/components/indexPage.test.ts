@@ -176,6 +176,18 @@ describe('IndexPage (app/pages/index.vue)', () => {
     },
   )
 
+  it('places sender search below the fixed-height header and resets its local filter between conversations', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-a'
+    const wrapper = mount(IndexPage)
+    await wrapper.get('[data-test="open-search-btn"]').trigger('click')
+    const search = wrapper.getComponent({ name: 'MessageSearchBar' })
+    expect(wrapper.get('header.chat-stage-header').find('[data-test="message-search-bar"]').exists()).toBe(false)
+    mockChatRoomState.activeConversationId.value = 'conv-b'
+    await flushPromises()
+    expect(wrapper.getComponent({ name: 'MessageSearchBar' }).vm).not.toBe(search.vm)
+    wrapper.unmount()
+  })
+
   it('mounts workspace and sidebar directly without E2eeGate', async () => {
     mockE2eeState.status.value = 'locked'
     const wrapper = mount(IndexPage)
