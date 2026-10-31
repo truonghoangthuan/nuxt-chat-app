@@ -29,7 +29,7 @@
   - `extractBestVideoStream(formats: any[]): { url: string; mimeType: string } | null`
   - `resolveYouTubeVideoStream(videoId: string, options?: ResolveAudioOptions): Promise<{ url: string; mimeType: string } | null>`
 
-- [ ] **Step 1: Write the failing tests for video stream extraction and resolution**
+- [x] **Step 1: Write the failing tests for video stream extraction and resolution**
 
 In `tests/utils/youtube.test.ts`, append:
 ```typescript
@@ -61,12 +61,12 @@ describe('extractBestVideoStream', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/utils/youtube.test.ts`
 Expected: FAIL with `extractBestVideoStream is not defined`
 
-- [ ] **Step 3: Implement `extractBestVideoStream` and `resolveYouTubeVideoStream`**
+- [x] **Step 3: Implement `extractBestVideoStream` and `resolveYouTubeVideoStream`**
 
 In `app/utils/youtube.ts`, add:
 ```typescript
@@ -179,12 +179,12 @@ export async function resolveYouTubeVideoStream(
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `npx vitest run tests/utils/youtube.test.ts`
 Expected: PASS (all tests pass)
 
-- [ ] **Step 5: Commit changes**
+- [x] **Step 5: Commit changes**
 
 ```bash
 git add app/utils/youtube.ts tests/utils/youtube.test.ts
@@ -203,7 +203,7 @@ git commit -m "feat(youtube): add video stream extraction and resolution utiliti
 - Consumes: `resolveYouTubeVideoStream`, `resolveYouTubeAudioStream`, `query.type`
 - Produces: Proxied video stream with `video/mp4` content type when `type === 'video'`
 
-- [ ] **Step 1: Write failing test for `stream.get.ts` with `type=video`**
+- [x] **Step 1: Write failing test for `stream.get.ts` with `type=video`**
 
 In `tests/utils/youtubeServer.test.ts`, add a test case in `describe('stream.get handler')`:
 ```typescript
@@ -259,12 +259,12 @@ it('resolves and streams video/mp4 when query type is video', async () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `npx vitest run tests/utils/youtubeServer.test.ts`
 Expected: FAIL because handler does not currently handle `type=video`.
 
-- [ ] **Step 3: Update `server/api/youtube/stream.get.ts`**
+- [x] **Step 3: Update `server/api/youtube/stream.get.ts`**
 
 Update `server/api/youtube/stream.get.ts`:
 ```typescript
@@ -362,12 +362,12 @@ export default defineEventHandler(async (event) => {
 })
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/utils/youtubeServer.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Commit changes**
+- [x] **Step 5: Commit changes**
 
 ```bash
 git add server/api/youtube/stream.get.ts tests/utils/youtubeServer.test.ts
@@ -394,7 +394,7 @@ git commit -m "feat(youtube): support type=video stream proxying"
   - `(e: 'seek', seconds: number): void`
   - `(e: 'toggle-mute'): void`
 
-- [ ] **Step 1: Write component tests for `YouTubeVideoPip.vue`**
+- [x] **Step 1: Write component tests for `YouTubeVideoPip.vue`**
 
 Create `tests/components/YouTubeVideoPip.test.ts`:
 ```typescript
@@ -472,12 +472,12 @@ describe('YouTubeVideoPip', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/components/YouTubeVideoPip.test.ts`
 Expected: FAIL (`Cannot find module '~/components/YouTubeVideoPip.vue'`)
 
-- [ ] **Step 3: Implement `app/components/YouTubeVideoPip.vue`**
+- [x] **Step 3: Implement `app/components/YouTubeVideoPip.vue`**
 
 Create `app/components/YouTubeVideoPip.vue`:
 ```vue
@@ -650,12 +650,12 @@ function handleSeekInput(e: Event) {
 </template>
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/components/YouTubeVideoPip.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Commit changes**
+- [x] **Step 5: Commit changes**
 
 ```bash
 git add app/components/YouTubeVideoPip.vue tests/components/YouTubeVideoPip.test.ts
@@ -674,7 +674,7 @@ git commit -m "feat(youtube): add YouTubeVideoPip component"
 - Props: add `isVideoPipOpen?: boolean`
 - Emits: add `(e: 'toggle-pip'): void`
 
-- [ ] **Step 1: Write test for "Watch" button on player bar**
+- [x] **Step 1: Write test for "Watch" button on player bar**
 
 In `tests/components/musicUi.test.ts`, add test inside `describe('Music UI components')`:
 ```typescript
@@ -710,12 +710,12 @@ it('renders Watch Video button and emits toggle-pip when clicked', async () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/components/musicUi.test.ts`
 Expected: FAIL (`watchBtn.exists()` is false)
 
-- [ ] **Step 3: Update `app/components/MusicPlayerBar.vue`**
+- [x] **Step 3: Update `app/components/MusicPlayerBar.vue`**
 
 Import `Tv` icon from `@lucide/vue`:
 ```typescript
@@ -749,12 +749,12 @@ Add button to template right controls (before or next to Queue button):
 </button>
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/components/musicUi.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Commit changes**
+- [x] **Step 5: Commit changes**
 
 ```bash
 git add app/components/MusicPlayerBar.vue tests/components/musicUi.test.ts
@@ -775,7 +775,7 @@ git commit -m "feat(music): add Watch video button to MusicPlayerBar"
 - Dynamically attaches media element to `YouTubeVideoPip.vue` when `isVideoPipOpen` is true.
 - Falls back to audio mode when error occurs while video is active.
 
-- [ ] **Step 1: Write test for PiP wiring in `indexPage.test.ts`**
+- [x] **Step 1: Write test for PiP wiring in `indexPage.test.ts`**
 
 In `tests/components/indexPage.test.ts`, add test:
 ```typescript
@@ -786,7 +786,7 @@ it('toggles isVideoPipOpen and switches media source when watch button is clicke
 })
 ```
 
-- [ ] **Step 2: Update `app/pages/index.vue`**
+- [x] **Step 2: Update `app/pages/index.vue`**
 
 1. Define `isVideoPipOpen = ref(false)`.
 2. Update `onPlayerAction('load', payload)` to append `&type=video` if `isVideoPipOpen.value` is true:
@@ -865,12 +865,12 @@ function handleAudioError() {
 ```
 Note: In Vue, we can teleport `<video>` into the PiP container when `isVideoPipOpen` is true using `<Teleport to="#pip-video-slot">` or mount it directly within `<Teleport>`.
 
-- [ ] **Step 3: Run all music test suites to verify passing**
+- [x] **Step 3: Run all music test suites to verify passing**
 
 Run: `npx vitest run tests/utils/youtube.test.ts tests/utils/youtubeServer.test.ts tests/components/musicUi.test.ts tests/components/YouTubeVideoPip.test.ts tests/composables/useMusicPlayer.test.ts`
 Expected: ALL PASS
 
-- [ ] **Step 4: Commit changes**
+- [x] **Step 4: Commit changes**
 
 ```bash
 git add app/pages/index.vue tests/
