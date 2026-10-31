@@ -99,6 +99,75 @@ describe('useImageAttachmentCache', () => {
     expect(cache.isDecrypting('path/test.enc')).toBe(false)
   })
 
+  it('rejects an in-flight download after the cache is cleared without creating a blob URL', async () => {
+    const cache = useImageAttachmentCache()
+    let resolveDownload!: (value: any) => void
+    const download = new Promise(resolve => { resolveDownload = resolve })
+    mockSupabase.storage.from.mockReturnValue({ download: vi.fn().mockReturnValue(download) })
+
+    const pending = cache.getOrFetchImage('path/stale.enc', 'image/png', 'ch-1', fakeKey, mockSupabase)
+    cache.revokeAllUrls()
+    const result = expect(pending).rejects.toThrow('Attachment request was invalidated')
+    resolveDownload({ data: new Blob([new Uint8Array(40)]), error: null })
+    await result
+
+    expect(URL.createObjectURL).not.toHaveBeenCalled()
+    expect(cache.getCachedUrl('path/stale.enc')).toBeUndefined()
+    expect(cache.isDecrypting('path/stale.enc')).toBe(false)
+  })
+
+  it('rejects a decryption that finishes after clearing the cache', async () => {
+    const cache = useImageAttachmentCache()
+    let finishDecryption!: (value: Uint8Array) => void
+    let startedDecryption!: () => void
+    const started = new Promise<void>(resolve => { startedDecryption = resolve })
+    vi.mocked(decryptBinary).mockImplementationOnce(() => {
+      startedDecryption()
+      return new Promise(resolve => { finishDecryption = resolve })
+    })
+
+    const pending = cache.getOrFetchImage('path/decrypting.enc', 'image/png', 'ch-1', fakeKey, mockSupabase)
+    await started
+    cache.revokeAllUrls()
+    const result = expect(pending).rejects.toThrow('Attachment request was invalidated')
+    finishDecryption(new Uint8Array([1, 2, 3]))
+    await result
+
+    expect(URL.createObjectURL).not.toHaveBeenCalled()
+    expect(cache.getCachedUrl('path/decrypting.enc')).toBeUndefined()
+  })
+
+  it.each(['success', 'failure'] as const)('keeps newer same-path work tracked after stale %s', async (outcome) => {
+    const cache = useImageAttachmentCache()
+    let finishOld!: (value: any) => void
+    let finishNew!: (value: any) => void
+    const oldDownload = new Promise(resolve => { finishOld = resolve })
+    const newDownload = new Promise(resolve => { finishNew = resolve })
+    const download = vi.fn().mockReturnValueOnce(oldDownload).mockReturnValue(newDownload)
+    mockSupabase.storage.from.mockReturnValue({ download })
+    const path = 'path/restarted.enc'
+    const oldRequest = cache.getOrFetchImage(path, 'image/png', 'ch-1', fakeKey, mockSupabase)
+    cache.revokeAllUrls()
+    const newRequest = cache.getOrFetchImage(path, 'image/png', 'ch-1', fakeKey, mockSupabase)
+    const oldResult = expect(oldRequest).rejects.toThrow(outcome === 'success'
+      ? 'Attachment request was invalidated' : 'Download failed')
+    finishOld(outcome === 'success'
+      ? { data: new Blob([new Uint8Array(40)]), error: null }
+      : { data: null, error: { message: 'Download failed' } })
+    await oldResult
+
+    const stillDecrypting = cache.isDecrypting(path)
+    const deduplicated = cache.getOrFetchImage(path, 'image/png', 'ch-1', fakeKey, mockSupabase)
+    finishNew({ data: new Blob([new Uint8Array(40)]), error: null })
+    const [url, duplicateUrl] = await Promise.all([newRequest, deduplicated])
+
+    expect(stillDecrypting).toBe(true)
+    expect(download).toHaveBeenCalledTimes(2)
+    expect(duplicateUrl).toBe(url)
+    expect(cache.getCachedUrl(path)).toBe(url)
+    expect(cache.isDecrypting(path)).toBe(false)
+  })
+
   it('revokes all object URLs and clears cache on revokeAllUrls', async () => {
     const cache = useImageAttachmentCache()
 
