@@ -288,5 +288,36 @@ describe('Image utilities', () => {
       })
       await expect(resizeImage(file)).rejects.toThrow(/Failed to load image/i)
     })
+
+    it('uses and revokes URL.createObjectURL when available in browser', async () => {
+      const originalImage = globalThis.Image
+      class MockImage {
+        width = 100
+        height = 100
+        naturalWidth = 100
+        naturalHeight = 100
+        onload: (() => void) | null = null
+        onerror: (() => void) | null = null
+        set src(_v: string) {
+          setTimeout(() => this.onload?.(), 0)
+        }
+      }
+      // @ts-expect-error Mocking global Image
+      globalThis.Image = MockImage
+
+      const createSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/mock-uuid')
+      const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+
+      try {
+        const file = new File(['small'], 'pic.png', { type: 'image/png' })
+        const res = await resizeImage(file, 2048)
+        expect(res.width).toBe(100)
+        expect(createSpy).toHaveBeenCalledWith(file)
+        expect(revokeSpy).toHaveBeenCalledWith('blob:http://localhost/mock-uuid')
+      } finally {
+        globalThis.Image = originalImage
+        vi.restoreAllMocks()
+      }
+    })
   })
 })
