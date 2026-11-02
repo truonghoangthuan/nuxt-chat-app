@@ -504,6 +504,26 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+const MAX_CONFETTI_REGEX_CACHE = 500
+const confettiRegexCache = new Map<string, RegExp>()
+
+export function clearConfettiRegexCache(): void {
+  confettiRegexCache.clear()
+}
+
+function getConfettiWordRegex(needle: string): RegExp {
+  let re = confettiRegexCache.get(needle)
+  if (!re) {
+    if (confettiRegexCache.size >= MAX_CONFETTI_REGEX_CACHE) {
+      confettiRegexCache.clear()
+    }
+    const escaped = escapeRegex(needle)
+    re = new RegExp(`(?<=^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, 'iu')
+    confettiRegexCache.set(needle, re)
+  }
+  return re
+}
+
 export function matchesConfettiDictionary(
   text: string | null | undefined,
   dictionary: string[] | null | undefined,
@@ -514,8 +534,7 @@ export function matchesConfettiDictionary(
   for (const entry of dictionary) {
     const needle = normalizeConfettiWord(entry)
     if (!needle) continue
-    const escaped = escapeRegex(needle)
-    const regex = new RegExp(`(?<=^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, 'iu')
+    const regex = getConfettiWordRegex(needle)
     if (regex.test(clean)) return true
   }
   return false

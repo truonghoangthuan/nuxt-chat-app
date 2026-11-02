@@ -331,13 +331,13 @@ begin
     raise exception 'Cannot start a direct message with yourself.';
   end if;
 
-  -- Derive deterministic 64-bit advisory lock key from sorted UUIDs
+  -- Derive deterministic 64-bit advisory lock key from sorted UUIDs (16 hex chars = 64 bits)
   lock_key := ('x' || substr(md5(
     case when caller_id < target_user_id
          then caller_id::text || target_user_id::text
          else target_user_id::text || caller_id::text
     end
-  ), 1, 15))::bit(64)::bigint;
+  ), 1, 16))::bit(64)::bigint;
 
   perform pg_advisory_xact_lock(lock_key);
 

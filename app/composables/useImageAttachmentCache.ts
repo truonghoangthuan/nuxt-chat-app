@@ -72,6 +72,10 @@ export function createImageAttachmentCache(): ImageAttachmentCache {
     if (!resolvedKey) {
       throw new Error('Decryption key is required')
     }
+    const client = supabaseClient || resolveDefaultSupabase()
+    if (!client) {
+      throw new Error('Supabase client is not available')
+    }
 
     const cached = cachedUrls.get(path)
     if (cached) {
@@ -88,13 +92,9 @@ export function createImageAttachmentCache(): ImageAttachmentCache {
     decrypting.value = { ...decrypting.value, [path]: true }
 
     const requestGeneration = generation
-    const promise = (async () => {
+    let promise: Promise<string>
+    promise = (async () => {
       try {
-        const client = supabaseClient || resolveDefaultSupabase()
-        if (!client) {
-          throw new Error('Supabase client is not available')
-        }
-
         const { data, error } = await client.storage
           .from('message-attachments')
           .download(path)
@@ -139,11 +139,13 @@ export function createImageAttachmentCache(): ImageAttachmentCache {
         cachedUrls.set(path, objectUrl)
         return objectUrl
       } finally {
-        if (requestGeneration === generation) {
+        if (promise && inFlight.get(path) === promise) {
           inFlight.delete(path)
-          const next = { ...decrypting.value }
-          delete next[path]
-          decrypting.value = next
+          if (decrypting.value[path]) {
+            const next = { ...decrypting.value }
+            delete next[path]
+            decrypting.value = next
+          }
         }
       }
     })()
