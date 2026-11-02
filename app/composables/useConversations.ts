@@ -132,36 +132,46 @@ export function createConversationsActions(deps: ConversationsActionsDeps) {
       }
 
       try {
-        const { data: existingMemberships } = await supabase
+        const { data: myMemberships } = await supabase
           .from('conversation_members')
-          .select('conversation_id, conversation:conversations(*)')
-          .eq('user_id', peerUserId)
+          .select('conversation_id, conversation:conversations!inner(*)')
+          .eq('user_id', current.id)
+          .eq('conversation.type', 'direct')
 
-        if (existingMemberships && existingMemberships.length > 0) {
-          const matched = (existingMemberships as any[]).find(
-            m => m.conversation && m.conversation.type === 'direct',
-          )
-          if (matched?.conversation) {
-            const c = matched.conversation
-            const conv: Conversation = {
-              id: c.id,
-              type: 'direct',
-              title: null,
-              created_by: c.created_by,
-              created_at: c.created_at,
-              updated_at: c.updated_at,
-              peer: peerProfile || null,
-              members: [
-                { conversation_id: c.id, user_id: current.id, role: 'owner', joined_at: c.created_at, profile: current },
-                { conversation_id: c.id, user_id: peerUserId, role: 'member', joined_at: c.created_at, profile: peerProfile || null },
-              ],
-              unreadCount: unreadCounts.value[c.id] || 0,
+        if (myMemberships && myMemberships.length > 0) {
+          const candidateConvIds = myMemberships.map((m: any) => m.conversation_id)
+          const { data: peerMembership } = await supabase
+            .from('conversation_members')
+            .select('conversation_id')
+            .in('conversation_id', candidateConvIds)
+            .eq('user_id', peerUserId)
+            .limit(1)
+
+          if (peerMembership && peerMembership.length > 0) {
+            const matchedConvId = peerMembership[0].conversation_id
+            const matched = myMemberships.find((m: any) => m.conversation_id === matchedConvId)
+            if (matched?.conversation) {
+              const c = matched.conversation
+              const conv: Conversation = {
+                id: c.id,
+                type: 'direct',
+                title: null,
+                created_by: c.created_by,
+                created_at: c.created_at,
+                updated_at: c.updated_at,
+                peer: peerProfile || null,
+                members: [
+                  { conversation_id: c.id, user_id: current.id, role: 'owner', joined_at: c.created_at, profile: current },
+                  { conversation_id: c.id, user_id: peerUserId, role: 'member', joined_at: c.created_at, profile: peerProfile || null },
+                ],
+                unreadCount: unreadCounts.value[c.id] || 0,
+              }
+              if (!conversations.value.some(item => item.id === conv.id)) {
+                conversations.value = [conv, ...conversations.value]
+              }
+              await selectConversation(conv.id)
+              return conv
             }
-            if (!conversations.value.some(item => item.id === conv.id)) {
-              conversations.value = [conv, ...conversations.value]
-            }
-            await selectConversation(conv.id)
-            return conv
           }
         }
       } catch {

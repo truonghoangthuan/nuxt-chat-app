@@ -1332,11 +1332,45 @@ describe('useChatRoom contacts and conversations', () => {
         }
         if (table === 'conversation_members') {
           return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockImplementation((col: string, val: string) => ({
-                data: mockMembersDb.filter(m => m[col] === val),
-                error: null,
-              })),
+            select: vi.fn().mockImplementation((_fields?: string) => {
+              let rows = [...mockMembersDb]
+              const builder: any = {
+                eq: vi.fn().mockImplementation((col: string, val: string) => {
+                  if (col === 'conversation.type') {
+                    rows = rows.filter(m => {
+                      const conv = mockConversationsDb.find(c => c.id === m.conversation_id)
+                      return conv?.type === val
+                    })
+                  } else {
+                    rows = rows.filter(m => m[col] === val)
+                  }
+                  return builder
+                }),
+                in: vi.fn().mockImplementation((col: string, vals: any[]) => {
+                  rows = rows.filter(m => vals.includes(m[col]))
+                  return builder
+                }),
+                limit: vi.fn().mockImplementation((_n: number) => {
+                  return builder
+                }),
+                then: (resolve: any, reject: any) => {
+                  const dataWithConv = rows.map(m => ({
+                    ...m,
+                    conversation: mockConversationsDb.find(c => c.id === m.conversation_id),
+                  }))
+                  return Promise.resolve({ data: dataWithConv, error: null }).then(resolve, reject)
+                },
+              }
+              Object.defineProperty(builder, 'data', {
+                get() {
+                  return rows.map(m => ({
+                    ...m,
+                    conversation: mockConversationsDb.find(c => c.id === m.conversation_id),
+                  }))
+                },
+              })
+              builder.error = null
+              return builder
             }),
             insert: vi.fn().mockImplementation((payload: any) => {
               if (mockMembersInsertError) {
@@ -1563,6 +1597,31 @@ describe('useChatRoom contacts and conversations', () => {
     const conv2 = await room.openOrCreateDirectChat('u-bob')
     expect(conv2.id).toBe(conv1.id)
     expect(room.conversations.value).toHaveLength(1)
+  })
+
+  it('verifies both caller and peer membership in direct chat fallback', async () => {
+    const thirdPartyConv = {
+      id: 'conv-third-party',
+      type: 'direct',
+      title: null,
+      created_by: 'u-charlie',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    mockConversationsDb.push(thirdPartyConv)
+    mockMembersDb.push(
+      { conversation_id: 'conv-third-party', user_id: 'u-charlie', role: 'owner' },
+      { conversation_id: 'conv-third-party', user_id: 'u-bob', role: 'member' },
+    )
+
+    vi.spyOn(mockSupabase, 'rpc').mockResolvedValue({ data: null, error: { message: 'RPC failed' } })
+
+    const room = useChatRoom()
+    const dm = await room.openOrCreateDirectChat('u-bob')
+
+    expect(dm.id).not.toBe('conv-third-party')
+    expect(dm.members.some(m => m.user_id === 'u-alice')).toBe(true)
+    expect(dm.members.some(m => m.user_id === 'u-bob')).toBe(true)
   })
 
   it('deduplicates concurrent openOrCreateDirectChat calls for the same peer', async () => {
