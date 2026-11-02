@@ -31,6 +31,8 @@ as $$
   select *
   from public.profiles
   where auth.role() = 'authenticated'
+    and search_email is not null
+    and length(trim(search_email)) > 0
     and lower(email) = lower(trim(search_email))
   limit 1;
 $$;
