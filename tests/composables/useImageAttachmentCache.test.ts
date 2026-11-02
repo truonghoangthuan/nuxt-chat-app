@@ -241,6 +241,16 @@ describe('useImageAttachmentCache', () => {
     ).rejects.toThrow('Decryption key is required')
   })
 
+  it('cleans up decrypting state and rejects when Supabase client is not available', async () => {
+    const cache = useImageAttachmentCache()
+    vi.stubGlobal('useSupabaseClient', () => null)
+
+    const pending = cache.getOrFetchImage('path/noclient.enc', 'image/jpeg', 'ch-1', fakeKey, null)
+    await expect(pending).rejects.toThrow('Supabase client is not available')
+    expect(cache.isDecrypting('path/noclient.enc')).toBe(false)
+    vi.unstubAllGlobals()
+  })
+
   it('evicts oldest blob URL and calls revokeObjectURL when cache exceeds capacity', async () => {
     const cache = useImageAttachmentCache()
     const urls: string[] = []
