@@ -1045,6 +1045,22 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
     expect(room.messages.value[0].status).toBe('failed')
   })
 
+  it('cleans up already-uploaded storage files when subsequent upload fails in multi-image batch', async () => {
+    const room = useChatRoom()
+    room.activeChannelId.value = 'ch-general'
+
+    mockUpload
+      .mockResolvedValueOnce({ data: { path: 'ok' }, error: null })
+      .mockResolvedValueOnce({ data: null, error: new Error('Upload failed on 2nd image') })
+
+    const file1 = new File(['pic1'], 'pic1.jpg', { type: 'image/jpeg' })
+    const file2 = new File(['pic2'], 'pic2.jpg', { type: 'image/jpeg' })
+    const result = await room.sendImages([file1, file2])
+
+    expect(result).toBe(false)
+    expect(mockRemove).toHaveBeenCalledWith([expect.stringContaining('/0.enc')])
+  })
+
   it('editMessage rejects editing image messages with error', async () => {
     const room = useChatRoom()
     room.activeChannelId.value = 'ch-general'
