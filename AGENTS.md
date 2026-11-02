@@ -74,7 +74,7 @@ The codebase separates **Supabase/Realtime I/O orchestration** from **pure, test
 │   └── api/
 │       └── youtube/
 │           ├── search.get.ts       # KOQC Piped search endpoint
-│           ├── stream.get.ts       # Proxied KOQC audio stream endpoint with byte-range capping
+│           ├── stream.get.ts       # Proxied KOQC audio stream endpoint with Range pass-through and client abort signal
 │           ├── thumbnail.get.ts    # Proxied KOQC thumbnail endpoint
 │           └── trending.get.ts     # KOQC Piped Vietnam trending endpoint
 ├── scripts/
