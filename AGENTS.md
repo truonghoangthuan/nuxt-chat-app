@@ -301,12 +301,26 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - **Progressive Error Recovery Reset:** Transient network errors set retry flags (`errorRetried = true`). Once the HTML5 audio element successfully resumes playing and advances playback progress (`timeupdate`), the controller must reset error flags via `resetPlaybackError()`, allowing future transient glitches to retry rather than locking into `autoplayBlocked`.
     - **Initial Load Seek Offset Deferral:** When loading a stream with an initial seek offset (`startSeconds > 0`), defer invoking `audio.play()` until `loadedmetadata` applies `currentTime`. Calling `play()` synchronously before metadata loads causes browsers to fire redundant HTTP byte 0 range requests before immediately canceling them to seek.
 
+38. **Group Ownership Succession & RLS UPDATE Policy Discipline (`conversation_members`):**
+    - **PostgreSQL RLS UPDATE Policy Requirement:** Any table with Row-Level Security enabled requires an explicit `FOR UPDATE` policy. On `public.conversation_members`, group owners must be granted permission to update member roles (`role = 'owner'`) for co-members in their groups.
+    - **Succession Execution & Error Propagation:** When a group owner departs (`leaveGroup`), the application must identify the oldest remaining member (`joined_at ASC`), execute the role promotion update, and verify that `{ error }` is `null` before deleting the departing owner's membership row. Promotion failures must throw and abort departure so groups never become ownerless.
+
+39. **Reverse Proxy CSRF & Multi-Hop `x-forwarded-host` Parsing:**
+    - In multi-tier reverse proxy configurations (e.g. Cloudflare -> Load Balancer -> Node runtime), the `x-forwarded-host` request header may contain a comma-separated list of hostnames (`client.example.com, lb.internal:8080`).
+    - Server routes performing CSRF origin verification (such as `/api/chess/move`) must extract only the first host (`(rawHost || '').split(',')[0].trim()`) before passing it to `new URL(...)`, preventing `TypeError: Invalid URL` and false-positive 403 origin rejections.
+
+40. **Multi-Attachment Storage Garbage Collection on Partial Upload & Database Failure:**
+    - When uploading batches of encrypted attachments (e.g. multiple photos in `useChatMediaUpload.ts`), the client must accumulate successfully uploaded storage paths in an in-flight array (`uploadedStoragePaths`).
+    - If a subsequent image upload fails, or if the subsequent `messages` table insertion fails with a non-duplicate error, the client must immediately invoke `supabase.storage.from('message-attachments').remove(uploadedStoragePaths)` to clean up orphaned storage chunks before marking the message as failed.
+
 
 ## 5. Testing Standards
 
 - **Path Aliases:** Both `~` and `@` resolve to `./app` in Nuxt and `vitest.config.ts`.
 - **Test-First Discipline:** Keep state transitions in pure factories (`useMessagesState.ts`, `useTypingState.ts`, `usePresenceState.ts`, `useConnectionManager.ts`) or exported helpers so they can be tested deterministically in `tests/` without live network calls.
 - **Verification Gate:** Always run `npm test` and confirm all test suites pass before claiming any task or bugfix is complete.
+- **Happy-DOM `blob:nodedata:` Object URL Fallback:** In Node.js / Happy-DOM test environments, `URL.createObjectURL(file)` produces `blob:nodedata:...` URLs that cause Happy-DOM's internal fetch to throw `DOMException [NotSupportedError]: URL scheme "blob" is not supported`. Image loaders and canvas downscalers (`resizeImage`) must verify `objectUrl && !objectUrl.startsWith('blob:nodedata:')` before loading, falling back to `FileReader.readAsDataURL` in SSR/test environments, and must always revoke object URLs in a `finally` block.
+- **Template Method Binding in `<script setup>`:** When testing Vue components with `@vue/test-utils`, global auto-imported functions (e.g., `navigateTo`, `useRoute`) attached directly to inline template event handlers (`@click="navigateTo('/login')"`) fail with `TypeError: _ctx.navigateTo is not a function`. Always declare a dedicated wrapper function inside `<script setup>` (e.g., `function returnToLogin() { return navigateTo('/login') }`) and bind that method to template triggers.
 
 ## 6. Agent Workflow Rules
 
