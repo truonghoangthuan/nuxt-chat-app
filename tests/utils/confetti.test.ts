@@ -11,6 +11,7 @@ import {
   normalizeConfettiWord,
   sanitizeConfettiWords,
   matchesConfettiDictionary,
+  clearConfettiRegexCache,
 } from '~/utils/confetti'
 
 describe('Raycast confetti physics (app/utils/confetti.ts)', () => {
@@ -212,5 +213,14 @@ describe('Confetti dictionary helpers (app/utils/confetti.ts)', () => {
     expect(matchesConfettiDictionary('Are you ok?', ['ok'])).toBe(true)
     expect(matchesConfettiDictionary('OK!', ['ok'])).toBe(true)
     expect(matchesConfettiDictionary('ok bro', ['ok'])).toBe(true)
+  })
+
+  it('reuses cached compiled regexes and can clear regex cache', () => {
+    clearConfettiRegexCache()
+    expect(matchesConfettiDictionary('celebrate good times', ['celebrate'])).toBe(true)
+    // Subsequent matching uses cached regex
+    expect(matchesConfettiDictionary('we celebrate today', ['celebrate'])).toBe(true)
+    expect(() => clearConfettiRegexCache()).not.toThrow()
+    expect(matchesConfettiDictionary('we celebrate today', ['celebrate'])).toBe(true)
   })
 })
