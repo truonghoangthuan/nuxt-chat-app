@@ -17,6 +17,7 @@ A modern, resilient, end-to-end encrypted real-time web chat application built w
 - **Direct Messages**: 1-on-1 private messaging between mutual contacts.
 - **Group Chats**: Multi-member conversations with ownership roles (`owner`, `member`), group info modal, member management, and leave controls.
 - **Persistent Unread Tracking**: Per-user `conversation_reads` tracking unread message badges across sessions.
+- **Conversation List Filters**: Choose **All**, **Unread**, **Direct**, or **Groups** below the sidebar search to focus the conversation list. Filters combine with name/email search and keep newest activity first. **Unread** updates immediately as existing unread counts change; reading a chat can remove its row without closing the active conversation. Filters stay in memory only and reset to All when the sidebar remounts.
 
 ### Contacts & Privacy
 - **Mutual Friendships**: Bidirectional friend requests and removals executed through atomic Postgres security-definer RPCs (`add_mutual_friend`, `remove_mutual_friend`).

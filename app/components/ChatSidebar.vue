@@ -109,6 +109,13 @@ const emit = defineEmits<{
 }>()
 
 const searchQuery = ref('')
+const conversationFilters = [
+  { value: 'all', label: 'All' },
+  { value: 'unread', label: 'Unread' },
+  { value: 'direct', label: 'Direct' },
+  { value: 'group', label: 'Groups' },
+] as const
+const conversationFilter = ref<(typeof conversationFilters)[number]['value']>('all')
 
 const activeId = computed(() => props.activeConversationId || props.activeChannelId)
 
@@ -224,6 +231,12 @@ function getConversationActivityTimestamp(conv: Conversation): number {
 const filteredConversations = computed<Conversation[]>(() => {
   const query = searchQuery.value.trim().toLowerCase()
   let list = rawConversations.value
+
+  if (conversationFilter.value === 'unread') {
+    list = list.filter(conv => (props.unreadCounts[conv.id] || 0) > 0)
+  } else if (conversationFilter.value !== 'all') {
+    list = list.filter(conv => conv.type === conversationFilter.value)
+  }
 
   if (query) {
     list = list.filter(conv => {
@@ -492,6 +505,22 @@ function onContactsClick() {
         </div>
       </div>
 
+      <!-- Conversation list filters -->
+      <div role="group" aria-label="Filter conversations" class="flex gap-1 px-3 pb-2 shrink-0">
+        <button
+          v-for="filter in conversationFilters"
+          :key="filter.value"
+          type="button"
+          :data-test="`conversation-filter-${filter.value}`"
+          :aria-pressed="conversationFilter === filter.value"
+          class="flex-1 min-w-0 rounded-full px-1 py-1.5 text-[11px] font-medium cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ap-blue)]"
+          :class="conversationFilter === filter.value ? 'bg-blue-500/15 text-[var(--ap-text-primary)] ring-1 ring-inset ring-[var(--ap-blue)]' : 'bg-black/5 dark:bg-white/8 text-[var(--ap-text-primary)] hover:bg-black/10 dark:hover:bg-white/12'"
+          @click="conversationFilter = filter.value"
+        >
+          {{ filter.label }}
+        </button>
+      </div>
+
       <!-- Scrollable Area (Conversations + Online Friends) -->
       <div class="flex-1 overflow-y-auto px-2 py-1 space-y-3 custom-scroll">
         <!-- Unified Conversations Section -->
@@ -506,7 +535,16 @@ function onContactsClick() {
             class="px-3 py-6 text-center text-xs text-[var(--ap-text-muted)] italic"
           >
             <template v-if="searchQuery.trim()">
-              No conversations match your search
+              No conversations match your search and filter
+            </template>
+            <template v-else-if="conversationFilter === 'unread'">
+              No unread conversations. Choose All to see every chat.
+            </template>
+            <template v-else-if="conversationFilter === 'direct'">
+              No direct conversations. Start a new direct chat or choose All.
+            </template>
+            <template v-else-if="conversationFilter === 'group'">
+              No group conversations. Create a group or choose All.
             </template>
             <template v-else>
               No conversations yet. Start a new direct chat or create a group!
