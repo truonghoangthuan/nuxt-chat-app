@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
-import { Send, X, Plus, Zap, Sparkles } from '@lucide/vue'
+import { Send, X, Plus, Zap, Sparkles, ChevronLeft, ChevronRight } from '@lucide/vue'
 import Button from '~/components/ui/Button.vue'
 import type { ChatMessage, Profile } from '~/types/chat'
 import { shouldSendOnKeydown, extractActiveMentionQuery, applyMentionAutocomplete } from '~/utils/chat'
@@ -77,7 +77,9 @@ const selectedMentionIndex = ref(0)
 const dismissedMentionStartIndex = ref<number | null>(null)
 
 const validationError = ref('')
-const pendingAttachments = ref<Array<{ file: File; url: string }>>([])
+const pendingAttachments = ref<Array<{ id: number; file: File; url: string }>>([])
+let nextAttachmentId = 0
+const attachmentOrderStatus = ref('')
 
 watch(
   () => props.replyingTo,
@@ -122,6 +124,7 @@ function clearPendingAttachments() {
     revokeUrl(item.url)
   }
   pendingAttachments.value = []
+  attachmentOrderStatus.value = ''
   validationError.value = ''
   if (fileInputRef.value) {
     fileInputRef.value.value = ''
@@ -140,6 +143,25 @@ function removeAttachment(index: number) {
     const val = validateImageFiles(pendingAttachments.value.map(a => a.file))
     validationError.value = val.valid ? '' : (val.error || '')
   }
+}
+
+function moveAttachment(index: number, direction: -1 | 1, event: MouseEvent) {
+  if (props.disabled) return
+  const target = index + direction
+  if (target < 0 || target >= pendingAttachments.value.length) return
+  const button = event.currentTarget as HTMLButtonElement
+  const preview = button.closest('[data-test="attachment-preview"]')
+  const [attachment] = pendingAttachments.value.splice(index, 1)
+  pendingAttachments.value.splice(target, 0, attachment)
+  attachmentOrderStatus.value = `Moved ${attachment.file.name} to position ${target + 1} of ${pendingAttachments.value.length}.`
+  nextTick(() => {
+    // Keyed previews follow their File; do not focus removed or switched queues.
+    if (props.disabled || !pendingAttachments.value.some(item => item.id === attachment.id)) return
+    const focusTarget = !button.disabled ? button
+      : preview?.querySelector<HTMLButtonElement>('button[data-test^="move-attachment-"]:not(:disabled)')
+    focusTarget?.focus({ preventScroll: true })
+    focusTarget?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  })
 }
 
 function triggerFileInput() {
@@ -167,7 +189,7 @@ function queueFiles(files: FileList | File[]) {
     const url = typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
       ? URL.createObjectURL(file)
       : ''
-    pendingAttachments.value.push({ file, url })
+    pendingAttachments.value.push({ id: nextAttachmentId++, file, url })
   }
 
   if (fileInputRef.value) {
@@ -463,6 +485,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Attachment Preview Tray -->
+      <p role="status" aria-live="polite" aria-atomic="true" class="sr-only">{{ attachmentOrderStatus }}</p>
       <div
         v-if="pendingAttachments.length > 0"
         data-test="attachment-tray"
@@ -470,24 +493,49 @@ onUnmounted(() => {
       >
         <div
           v-for="(att, idx) in pendingAttachments"
-          :key="idx"
+          :key="att.id"
           data-test="attachment-preview"
-          class="relative group shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-black/10 dark:bg-black/40"
+          class="group shrink-0 w-20"
         >
-          <img
-            :src="att.url"
-            :alt="att.file.name"
-            class="w-full h-full object-cover"
-          />
-          <button
-            type="button"
-            data-test="remove-attachment"
-            class="absolute top-1 right-1 p-0.5 rounded-full bg-black/70 text-white hover:bg-black transition-colors cursor-pointer"
-            :aria-label="`Remove ${att.file.name}`"
-            @click="removeAttachment(idx)"
-          >
-            <X class="size-3" aria-hidden="true" />
-          </button>
+          <div class="relative h-16 rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-black/10 dark:bg-black/40">
+            <img
+              :src="att.url"
+              :alt="att.file.name"
+              class="w-full h-full object-cover"
+            />
+            <button
+              type="button"
+              data-test="remove-attachment"
+              class="absolute top-1 right-1 p-0.5 rounded-full bg-black/70 text-white hover:bg-black transition-colors cursor-pointer"
+              :aria-label="`Remove ${att.file.name}`"
+              @click="removeAttachment(idx)"
+            >
+              <X class="size-3" aria-hidden="true" />
+            </button>
+          </div>
+          <div v-if="pendingAttachments.length > 1" class="flex items-center justify-between mt-1">
+            <button
+              type="button"
+              data-test="move-attachment-earlier"
+              :aria-label="`Move ${att.file.name} earlier`"
+              :disabled="disabled || idx === 0"
+              class="size-8 flex items-center justify-center rounded-lg text-[var(--ap-text-primary)] hover:bg-black/10 dark:hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-500 disabled:opacity-30 disabled:cursor-not-allowed"
+              @click="moveAttachment(idx, -1, $event)"
+            >
+              <ChevronLeft class="size-4" aria-hidden="true" />
+            </button>
+            <span class="text-[11px] tabular-nums text-[var(--ap-text-secondary)]">{{ idx + 1 }}</span>
+            <button
+              type="button"
+              data-test="move-attachment-later"
+              :aria-label="`Move ${att.file.name} later`"
+              :disabled="disabled || idx === pendingAttachments.length - 1"
+              class="size-8 flex items-center justify-center rounded-lg text-[var(--ap-text-primary)] hover:bg-black/10 dark:hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-500 disabled:opacity-30 disabled:cursor-not-allowed"
+              @click="moveAttachment(idx, 1, $event)"
+            >
+              <ChevronRight class="size-4" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </div>
 
