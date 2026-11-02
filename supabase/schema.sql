@@ -376,6 +376,7 @@ create table if not exists public.messages (
 );
 
 alter table public.messages enable row level security;
+alter table public.messages replica identity full;
 
 create index if not exists messages_conv_cursor_idx
   on public.messages (conversation_id, created_at desc, id desc);
