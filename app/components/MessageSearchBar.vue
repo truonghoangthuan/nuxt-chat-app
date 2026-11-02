@@ -19,6 +19,7 @@ const inputRef = ref<HTMLInputElement | null>(null)
 const currentIndex = ref(0)
 const senderId = ref('')
 const messageType = ref<MessageSearchType>('all')
+const pinnedOnly = ref(false)
 const fromDate = ref('')
 const throughDate = ref('')
 const dateErrorId = useId()
@@ -41,7 +42,7 @@ const senders = computed(() => {
 })
 
 const results = computed(() =>
-  filterMessagesByKeyword(props.messages, props.modelValue, messageType.value)
+  filterMessagesByKeyword(props.messages, props.modelValue, messageType.value, pinnedOnly.value)
     .filter((message) => !senderId.value || message.user_id === senderId.value)
     .filter((message) => {
       if (!fromDate.value && !throughDate.value) return true
@@ -55,10 +56,10 @@ const results = computed(() =>
 )
 
 watch(
-  [() => props.modelValue, senderId, fromDate, throughDate, messageType, () => results.value.map((message) => message.id)],
-  ([query, sender, from, through, type, ids], [oldQuery, oldSender, oldFrom, oldThrough, oldType, oldIds]) => {
+  [() => props.modelValue, senderId, fromDate, throughDate, messageType, pinnedOnly, () => results.value.map((message) => message.id)],
+  ([query, sender, from, through, type, pinned, ids], [oldQuery, oldSender, oldFrom, oldThrough, oldType, oldPinned, oldIds]) => {
     const filtersChanged = query !== oldQuery || sender !== oldSender
-      || from !== oldFrom || through !== oldThrough || type !== oldType
+      || from !== oldFrom || through !== oldThrough || type !== oldType || pinned !== oldPinned
     const previousId = oldIds[currentIndex.value]
     const preservedIndex = !filtersChanged ? ids.indexOf(previousId) : -1
     if (preservedIndex >= 0) {
@@ -122,7 +123,7 @@ onMounted(() => {
     />
 
     <span
-      v-if="modelValue.trim() || messageType !== 'all'"
+      v-if="modelValue.trim() || messageType !== 'all' || pinnedOnly"
       data-test="search-count"
       role="status"
       aria-live="polite"
@@ -183,6 +184,15 @@ onMounted(() => {
         <option value="images">Images</option>
         <option value="links">Links</option>
       </select>
+      <label class="flex items-center gap-1 text-[var(--ap-text-secondary)] cursor-pointer">
+        <input
+          v-model="pinnedOnly"
+          type="checkbox"
+          data-test="search-pinned-only"
+          class="accent-blue-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+        />
+        Pinned only
+      </label>
       <label class="flex items-center gap-1 min-w-0 text-[var(--ap-text-secondary)]">
         From
         <input
@@ -208,7 +218,7 @@ onMounted(() => {
         />
       </label>
       <span class="text-[10px] text-[var(--ap-text-muted)]">Loaded messages only · Local time</span>
-      <span v-if="messageType !== 'all'" class="text-[10px] text-[var(--ap-text-muted)]">Keyword optional</span>
+      <span v-if="messageType !== 'all' || pinnedOnly" class="text-[10px] text-[var(--ap-text-muted)]">Keyword optional</span>
       <p v-if="invalidDateRange" :id="dateErrorId" role="alert" class="basis-full text-[var(--ap-text-primary)]">
         From date must be on or before through date.
       </p>
