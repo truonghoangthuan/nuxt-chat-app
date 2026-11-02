@@ -4,19 +4,21 @@ import {
   handleIncomingRealtimeMessage,
   handleRealtimeMessageUpdate,
   handleRealtimeReactionEvent,
-  isDuplicateKeyError,
   resolveMessageAuthor,
   applyRealtimeProfileUpdate,
   filterOnlineFriends,
-  computeUnreadSnapshot,
-  computeOldestReadTimestamp,
-  computeChannelReadMap,
-  createChannelReadDebouncer,
   subscribeWithPromise,
   decryptMessageRow,
   decryptMessageRows,
   useChatRoom,
 } from '~/composables/useChatRoom'
+import { isDuplicateKeyError } from '~/utils/chat'
+import {
+  computeUnreadSnapshot,
+  computeOldestReadTimestamp,
+  computeChannelReadMap,
+  createChannelReadDebouncer,
+} from '~/composables/useUnreadReads'
 import { useE2ee } from '~/composables/useE2ee'
 import { useImageAttachmentCache } from '~/composables/useImageAttachmentCache'
 
