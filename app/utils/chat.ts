@@ -604,12 +604,13 @@ export function filterMessagesByKeyword(
   messages: ChatMessage[],
   query: string,
   messageType: MessageSearchType = 'all',
+  pinnedOnly = false,
 ): ChatMessage[] {
   const q = query.trim().toLowerCase()
-  if (!q && messageType === 'all') return []
+  if (!q && messageType === 'all' && !pinnedOnly) return []
 
   return messages.filter((msg) => {
-    if (msg.deleted_at || msg.encryption === 'undecryptable') {
+    if (msg.deleted_at || msg.encryption === 'undecryptable' || (pinnedOnly && !msg.pinned_at)) {
       return false
     }
 
