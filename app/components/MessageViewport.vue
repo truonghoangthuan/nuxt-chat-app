@@ -82,6 +82,42 @@ const editingContent = ref('')
 const copiedCodeMessageId = ref<string | null>(null)
 const activePinnedIndex = ref(0)
 const highlightedMessageId = ref<string | null>(null)
+const copyFeedback = ref('')
+let copyRequestId = 0
+
+function resetCopyFeedback() {
+  copyRequestId += 1
+  copyFeedback.value = ''
+}
+
+function copyableMessageText(message: ChatMessage): string | null {
+  if (message.status !== 'sent' || message.deleted_at || message.encryption === 'undecryptable'
+    || message.content.startsWith('e2ee:') || isSystemPayload(message.content)
+    || parseStickerPayload(message.content)) return null
+  const text = isImagePayload(message.content)
+    ? parseImagePayload(message.content)?.caption
+    : message.content
+  return text?.trim() ? text : null
+}
+
+async function copyMessage(message: ChatMessage) {
+  const text = copyableMessageText(message)
+  if (text === null) return
+  resetCopyFeedback()
+  const requestId = copyRequestId
+  try {
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      copyFeedback.value = 'Clipboard unavailable. Select the message text and copy it manually.'
+      return
+    }
+    await navigator.clipboard.writeText(text)
+    if (requestId !== copyRequestId) return
+    copyFeedback.value = 'Message copied to clipboard.'
+  } catch {
+    if (requestId !== copyRequestId) return
+    copyFeedback.value = 'Could not copy. Allow clipboard access or select the message text and copy it manually.'
+  }
+}
 
 function reactorsOf(userIds: string[]) {
   return userIds.map((id) => {
@@ -204,6 +240,7 @@ async function copyCode(code: string, messageId: string) {
 }
 
 const effectiveConversationId = computed(() => props.conversationId ?? props.channelId ?? null)
+watch(effectiveConversationId, resetCopyFeedback, { flush: 'sync' })
 const backgroundStyle = computed(() => resolveChatBackgroundStyle(props.backgroundUrl))
 
 const memberDisplayNames = computed(() =>
@@ -385,6 +422,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  resetCopyFeedback()
   if (resizeObserver) {
     resizeObserver.disconnect()
     resizeObserver = null
@@ -408,6 +446,13 @@ onUnmounted(() => {
     </div>
 
     <div class="relative z-10 flex-1 flex flex-col min-h-0 overflow-hidden">
+      <p
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-test="message-copy-status"
+        :class="copyFeedback ? 'px-4 py-1 text-xs text-[var(--ap-text-secondary)]' : 'sr-only'"
+      >{{ copyFeedback }}</p>
       <!-- Pinned Messages Banner -->
     <div
       v-if="pinnedMessages.length > 0 && currentPinnedMessage"
@@ -636,6 +681,17 @@ onUnmounted(() => {
               @click="emit('toggleReaction', { messageId: item.message.id, emoji })"
             >
               {{ emoji }}
+            </button>
+            <button
+              v-if="copyableMessageText(item.message) !== null"
+              type="button"
+              :data-test="`copy-message-${item.message.id}`"
+              aria-label="Copy message"
+              title="Copy message"
+              class="px-2 py-0.5 text-[11px] font-medium text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] rounded-full hover:bg-black/5 dark:hover:bg-white/15 cursor-pointer shrink-0"
+              @click="copyMessage(item.message)"
+            >
+              Copy
             </button>
             <button
               type="button"
