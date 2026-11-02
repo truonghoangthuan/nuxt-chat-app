@@ -767,7 +767,7 @@ export function useChatRoom() {
     try {
       let query = supabase
         .from('messages')
-        .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url, email)')
+        .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url, email, bank_qr_url)')
         .eq('conversation_id', convId)
 
       if (lastTimestamp) {
@@ -1343,7 +1343,7 @@ export function useChatRoom() {
     try {
       let { data, error } = await supabase
         .from('messages')
-        .select('*, author:profiles!messages_user_id_fkey(id, email, display_name, avatar_color, avatar_url)')
+        .select('*, author:profiles!messages_user_id_fkey(id, email, display_name, avatar_color, avatar_url, bank_qr_url)')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
@@ -1394,7 +1394,7 @@ export function useChatRoom() {
     try {
       let query = supabase
         .from('messages')
-        .select('*, author:profiles!messages_user_id_fkey(id, email, display_name, avatar_color, avatar_url)')
+        .select('*, author:profiles!messages_user_id_fkey(id, email, display_name, avatar_color, avatar_url, bank_qr_url)')
         .eq('conversation_id', convId)
         .or(`created_at.lt."${cursor.created_at}",and(created_at.eq."${cursor.created_at}",id.lt."${cursor.id}")`)
         .order('created_at', { ascending: false })
@@ -1537,14 +1537,14 @@ export function useChatRoom() {
           content: encryptedContent,
           reply_to_id: replyToId || null,
         })
-        .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
+        .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url, bank_qr_url)')
         .single()
 
       if (error) {
         if (isDuplicateKeyError(error)) {
           const { data: existing } = await supabase
             .from('messages')
-            .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
+            .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url, bank_qr_url)')
             .eq('client_id', clientId)
             .single()
           if (existing) {
@@ -1638,14 +1638,14 @@ export function useChatRoom() {
           content: encryptedContent,
           reply_to_id: retrying.reply_to_id || null,
         })
-        .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
+        .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url, bank_qr_url)')
         .single()
 
       if (error) {
         if (isDuplicateKeyError(error)) {
           const { data: existing } = await supabase
             .from('messages')
-            .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
+            .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url, bank_qr_url)')
             .eq('client_id', clientId)
             .single()
           if (existing) {

@@ -208,14 +208,14 @@ export function useChatMediaUpload(options: ChatMediaUploadOptions) {
           user_id: current.id,
           content: encryptedEnvelope,
         })
-        .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
+        .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url, bank_qr_url)')
         .single()
 
       if (error) {
         if (isDuplicateKeyError(error)) {
           const { data: existing } = await options.supabase
             .from('messages')
-            .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url)')
+            .select('*, author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url, bank_qr_url)')
             .eq('client_id', clientId)
             .single()
           if (existing) {
