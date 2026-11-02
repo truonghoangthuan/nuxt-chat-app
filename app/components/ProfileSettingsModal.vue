@@ -208,14 +208,20 @@ async function handleSave() {
   <Transition name="modal-fade">
     <div
       v-if="isOpen"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-md"
+      class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 dark:bg-black/70 backdrop-blur-md"
       @click.self="handleClose"
     >
-      <div class="messenger-dialog-surface profile-settings-surface w-full max-w-md rounded-2xl border border-black/10 dark:border-white/15 bg-white/95 dark:bg-[#161824]/95 backdrop-blur-2xl shadow-2xl p-6 text-[var(--ap-text-primary)]">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-[16px] font-semibold text-[var(--ap-text-primary)] tracking-tight">
-            Profile Settings
-          </h3>
+      <div class="messenger-dialog-surface profile-settings-surface w-full max-w-xl md:max-w-2xl max-h-[88vh] rounded-3xl border border-black/10 dark:border-white/15 bg-white/95 dark:bg-[#161824]/95 backdrop-blur-2xl shadow-2xl flex flex-col overflow-hidden text-[var(--ap-text-primary)]">
+        <!-- Pinned Header -->
+        <div class="px-5 sm:px-6 py-4 border-b border-black/5 dark:border-white/5 flex items-center justify-between shrink-0">
+          <div>
+            <h3 class="text-[16px] font-semibold text-[var(--ap-text-primary)] tracking-tight">
+              Profile Settings
+            </h3>
+            <p class="text-[11px] text-[var(--ap-text-muted)] mt-0.5">
+              Customize your profile, payment QR, and app appearance
+            </p>
+          </div>
           <button
             type="button"
             class="w-7 h-7 rounded-full text-[var(--ap-text-muted)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/10 text-lg font-bold flex items-center justify-center cursor-pointer transition-colors"
@@ -225,317 +231,332 @@ async function handleSave() {
           </button>
         </div>
 
-        <div v-if="error" class="mb-4 p-3 rounded-xl text-xs bg-rose-500/10 border border-rose-500/25 text-rose-500 dark:text-rose-400 backdrop-blur-md">
-          {{ error }}
-        </div>
-
-        <form class="space-y-4" @submit.prevent="handleSave">
-          <!-- Live Preview -->
-          <div class="flex items-center gap-3.5 p-3 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/10 dark:border-white/10 backdrop-blur-md">
-            <UserAvatar
-              :display-name="displayName || 'Friend'"
-              :avatar-color="avatarColor"
-              :avatar-url="avatarUrl"
-              :show-online="true"
-              size="lg"
-            />
-            <div class="min-w-0">
-              <div class="text-[14px] font-semibold text-[var(--ap-text-primary)] truncate">
-                {{ displayName.trim() || 'Friend' }}
-              </div>
-              <div class="text-xs text-[var(--ap-text-muted)]">
-                Live preview
-              </div>
+        <!-- Form wrapping scrollable body and pinned footer -->
+        <form class="flex flex-col flex-1 min-h-0 overflow-hidden" @submit.prevent="handleSave">
+          <!-- Scrollable Content Body -->
+          <div class="overflow-y-auto flex-1 px-5 sm:px-6 py-5 space-y-4 scrollbar-thin">
+            <div v-if="error" class="p-3 rounded-xl text-xs bg-rose-500/10 border border-rose-500/25 text-rose-500 dark:text-rose-400 backdrop-blur-md">
+              {{ error }}
             </div>
-          </div>
 
-          <!-- Account Details (Read-only) -->
-          <div class="p-3.5 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/10 dark:border-white/10 space-y-2 text-xs backdrop-blur-md">
-            <div>
-              <span class="text-[var(--ap-text-muted)] font-medium block mb-0.5">Account Email</span>
-              <div data-test="profile-email" class="text-[var(--ap-text-primary)] font-semibold flex items-center justify-between">
-                <span>{{ profile?.email || 'No email registered' }}</span>
-                <span v-if="profile?.email" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-medium">Verified</span>
-              </div>
-            </div>
-            <div class="pt-1.5 border-t border-black/5 dark:border-white/5 flex items-center justify-between text-[11px]">
-              <div class="flex items-center gap-1.5">
-                <span class="text-[var(--ap-text-muted)]">User ID: </span>
-                <span data-test="profile-user-id" class="font-mono text-[var(--ap-text-secondary)] select-all">{{ profile?.id || '—' }}</span>
-                <button
-                  v-if="profile?.id"
-                  type="button"
-                  data-test="copy-user-id-btn"
-                  class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/15 text-[var(--ap-text-secondary)] border border-black/10 dark:border-white/10 cursor-pointer transition-colors"
-                  @click="copyUserId"
-                >
-                  {{ copiedId ? 'Copied!' : 'Copy' }}
-                </button>
-              </div>
-              <div v-if="profile?.created_at" data-test="profile-created-at" class="text-[var(--ap-text-muted)] font-mono">
-                Joined {{ new Date(profile.created_at).toLocaleDateString() }}
-              </div>
-            </div>
-          </div>
+            <!-- Responsive 2-Column Grid (Option A) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 items-start">
+              <!-- Column 1: Identity & Profile Details -->
+              <div class="space-y-4">
+                <!-- Live Preview -->
+                <div class="flex items-center gap-3.5 p-3 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/10 dark:border-white/10 backdrop-blur-md">
+                  <UserAvatar
+                    :display-name="displayName || 'Friend'"
+                    :avatar-color="avatarColor"
+                    :avatar-url="avatarUrl"
+                    :show-online="true"
+                    size="lg"
+                  />
+                  <div class="min-w-0">
+                    <div class="text-[14px] font-semibold text-[var(--ap-text-primary)] truncate">
+                      {{ displayName.trim() || 'Friend' }}
+                    </div>
+                    <div class="text-xs text-[var(--ap-text-muted)]">
+                      Live preview
+                    </div>
+                  </div>
+                </div>
 
-          <!-- Display Name -->
-          <div>
-            <label class="block text-xs font-semibold text-[var(--ap-text-secondary)] mb-1.5">
-              Display Name
-            </label>
-            <Input
-              id="display-name"
-              v-model="displayName"
-              type="text"
-              required
-              maxlength="40"
-              placeholder="Your display name"
-              class="h-10 rounded-xl border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/8 text-[var(--ap-text-primary)] placeholder-[var(--ap-text-muted)] focus-visible:border-blue-500/50"
-            />
-          </div>
-
-          <!-- Avatar image URL -->
-          <div>
-            <label for="avatar-url" class="block text-xs font-semibold text-[var(--ap-text-secondary)] mb-1.5">Avatar image URL</label>
-            <input
-              id="avatar-url"
-              v-model="avatarUrl"
-              data-test="avatar-url"
-              type="url"
-              maxlength="2048"
-              placeholder="https://example.com/avatar.jpg"
-              class="w-full h-10 px-3.5 text-xs rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/8 text-[var(--ap-text-primary)] placeholder-[var(--ap-text-muted)] focus:outline-none focus:bg-black/8 dark:focus:bg-white/12 focus:ring-1 focus:ring-blue-500/50 transition-colors"
-            />
-            <p class="mt-1 text-[11px] text-[var(--ap-text-muted)]">Optional. Leave blank to use your initials.</p>
-            <p v-if="avatarUrl && !isValidAvatarUrl(avatarUrl)" class="mt-1 text-xs text-rose-500 dark:text-rose-400">Enter a valid HTTP or HTTPS URL.</p>
-          </div>
-
-          <!-- Bank QR Code Upload & Preview -->
-          <div>
-            <label class="block text-xs font-semibold text-[var(--ap-text-secondary)] mb-1.5">Bank QR Code</label>
-            <input
-              ref="bankQrFileInput"
-              data-test="bank-qr-file-input"
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              class="hidden"
-              @change="onBankQrFileSelected"
-            />
-
-            <!-- Preview State -->
-            <div
-              v-if="bankQrPreviewUrl"
-              data-test="bank-qr-preview"
-              class="p-3 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/10 dark:border-white/10 flex items-center justify-between gap-3"
-            >
-              <div class="flex items-center gap-3 min-w-0">
-                <div class="w-14 h-14 rounded-xl overflow-hidden bg-white p-1 border border-black/10 shadow-xs flex items-center justify-center shrink-0">
-                  <img
-                    :src="bankQrPreviewUrl"
-                    alt="Bank QR Code"
-                    class="w-full h-full object-contain"
+                <!-- Display Name -->
+                <div>
+                  <label class="block text-xs font-semibold text-[var(--ap-text-secondary)] mb-1.5">
+                    Display Name
+                  </label>
+                  <Input
+                    id="display-name"
+                    v-model="displayName"
+                    type="text"
+                    required
+                    maxlength="40"
+                    placeholder="Your display name"
+                    class="h-10 rounded-xl border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/8 text-[var(--ap-text-primary)] placeholder-[var(--ap-text-muted)] focus-visible:border-blue-500/50"
                   />
                 </div>
-                <div class="min-w-0">
-                  <div class="text-xs font-semibold text-[var(--ap-text-primary)] truncate">
-                    Bank QR Code
+
+                <!-- Avatar image URL -->
+                <div>
+                  <label for="avatar-url" class="block text-xs font-semibold text-[var(--ap-text-secondary)] mb-1.5">Avatar image URL</label>
+                  <input
+                    id="avatar-url"
+                    v-model="avatarUrl"
+                    data-test="avatar-url"
+                    type="url"
+                    maxlength="2048"
+                    placeholder="https://example.com/avatar.jpg"
+                    class="w-full h-10 px-3.5 text-xs rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/8 text-[var(--ap-text-primary)] placeholder-[var(--ap-text-muted)] focus:outline-none focus:bg-black/8 dark:focus:bg-white/12 focus:ring-1 focus:ring-blue-500/50 transition-colors"
+                  />
+                  <p class="mt-1 text-[11px] text-[var(--ap-text-muted)]">Optional. Leave blank to use your initials.</p>
+                  <p v-if="avatarUrl && !isValidAvatarUrl(avatarUrl)" class="mt-1 text-xs text-rose-500 dark:text-rose-400">Enter a valid HTTP or HTTPS URL.</p>
+                </div>
+
+                <!-- Avatar Color Swatches -->
+                <div>
+                  <label class="block text-xs font-semibold text-[var(--ap-text-secondary)] mb-2">
+                    Avatar Color
+                  </label>
+                  <div class="grid grid-cols-4 gap-2">
+                    <button
+                      v-for="color in AVATAR_PALETTE"
+                      :key="color"
+                      type="button"
+                      :data-test="`color-swatch-${color}`"
+                      class="h-8 rounded-xl transition-all flex items-center justify-center text-white text-xs font-bold shadow-xs cursor-pointer active:scale-95"
+                      :class="avatarColor === color ? 'ring-2 ring-blue-500 scale-[1.04] shadow-md' : 'opacity-85 hover:opacity-100 hover:scale-[1.02]'"
+                      :style="{ backgroundColor: color }"
+                      @click="avatarColor = color"
+                    >
+                      <span v-if="avatarColor === color">✓</span>
+                    </button>
                   </div>
-                  <div class="text-[11px] text-[var(--ap-text-muted)]">
-                    Ready for payment
+                </div>
+
+                <!-- Bank QR Code Upload & Preview -->
+                <div>
+                  <label class="block text-xs font-semibold text-[var(--ap-text-secondary)] mb-1.5">Bank QR Code</label>
+                  <input
+                    ref="bankQrFileInput"
+                    data-test="bank-qr-file-input"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    class="hidden"
+                    @change="onBankQrFileSelected"
+                  />
+
+                  <!-- Preview State -->
+                  <div
+                    v-if="bankQrPreviewUrl"
+                    data-test="bank-qr-preview"
+                    class="p-3 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/10 dark:border-white/10 flex items-center justify-between gap-3"
+                  >
+                    <div class="flex items-center gap-3 min-w-0">
+                      <div class="w-14 h-14 rounded-xl overflow-hidden bg-white p-1 border border-black/10 shadow-xs flex items-center justify-center shrink-0">
+                        <img
+                          :src="bankQrPreviewUrl"
+                          alt="Bank QR Code"
+                          class="w-full h-full object-contain"
+                        />
+                      </div>
+                      <div class="min-w-0">
+                        <div class="text-xs font-semibold text-[var(--ap-text-primary)] truncate">
+                          Bank QR Code
+                        </div>
+                        <div class="text-[11px] text-[var(--ap-text-muted)]">
+                          Ready for payment
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        data-test="bank-qr-upload-btn"
+                        class="px-2.5 py-1.5 rounded-xl text-xs font-medium bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition-colors cursor-pointer"
+                        @click="triggerBankQrFileInput"
+                      >
+                        Change
+                      </button>
+                      <button
+                        type="button"
+                        data-test="bank-qr-remove-btn"
+                        class="px-2.5 py-1.5 rounded-xl text-xs font-medium text-rose-500 hover:text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                        @click="removeBankQr"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Empty / Upload State -->
+                  <div
+                    v-else
+                    class="p-4 rounded-2xl border border-dashed border-black/15 dark:border-white/15 bg-black/[0.02] dark:dark:bg-white/[0.02] flex flex-col items-center justify-center text-center gap-2 hover:border-blue-500/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-all cursor-pointer"
+                    @click="triggerBankQrFileInput"
+                  >
+                    <button
+                      type="button"
+                      data-test="bank-qr-upload-btn"
+                      class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium bg-blue-500/15 hover:bg-blue-500/25 text-blue-600 dark:text-blue-400 transition-colors pointer-events-none"
+                    >
+                      <Upload class="w-3.5 h-3.5" />
+                      <span>Upload QR Code Image</span>
+                    </button>
+                    <p class="text-[11px] text-[var(--ap-text-muted)]">
+                      PNG, JPG or WebP up to 5MB. Friends can view your payment QR in your profile.
+                    </p>
+                  </div>
+
+                  <p v-if="qrUploadError" class="mt-1 text-xs text-rose-500 dark:text-rose-400">
+                    {{ qrUploadError }}
+                  </p>
+                </div>
+              </div>
+
+              <!-- Column 2: Account Details & Preferences -->
+              <div class="space-y-4">
+                <!-- Account Details (Read-only) -->
+                <div class="p-3.5 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/10 dark:border-white/10 space-y-2 text-xs backdrop-blur-md">
+                  <div>
+                    <span class="text-[var(--ap-text-muted)] font-medium block mb-0.5">Account Email</span>
+                    <div data-test="profile-email" class="text-[var(--ap-text-primary)] font-semibold flex items-center justify-between">
+                      <span>{{ profile?.email || 'No email registered' }}</span>
+                      <span v-if="profile?.email" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-medium">Verified</span>
+                    </div>
+                  </div>
+                  <div class="pt-1.5 border-t border-black/5 dark:border-white/5 flex items-center justify-between text-[11px]">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-[var(--ap-text-muted)]">User ID: </span>
+                      <span data-test="profile-user-id" class="font-mono text-[var(--ap-text-secondary)] select-all">{{ profile?.id || '—' }}</span>
+                      <button
+                        v-if="profile?.id"
+                        type="button"
+                        data-test="copy-user-id-btn"
+                        class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/15 text-[var(--ap-text-secondary)] border border-black/10 dark:border-white/10 cursor-pointer transition-colors"
+                        @click="copyUserId"
+                      >
+                        {{ copiedId ? 'Copied!' : 'Copy' }}
+                      </button>
+                    </div>
+                    <div v-if="profile?.created_at" data-test="profile-created-at" class="text-[var(--ap-text-muted)] font-mono">
+                      Joined {{ new Date(profile.created_at).toLocaleDateString() }}
+                    </div>
                   </div>
                 </div>
+
+                <!-- Application Theme Selector -->
+                <div class="space-y-2 p-3.5 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/10 dark:border-white/10 backdrop-blur-md">
+                  <div class="flex items-center justify-between">
+                    <div class="space-y-0.5">
+                      <div class="text-xs font-semibold text-[var(--ap-text-primary)]">
+                        Application Theme
+                      </div>
+                      <div class="text-[11px] text-[var(--ap-text-muted)]">
+                        Select visual style and personality
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      data-test="theme-mode-toggle"
+                      class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] border border-black/10 dark:border-white/10 transition-colors cursor-pointer"
+                      @click="toggleTheme"
+                    >
+                      <Sun v-if="isDark" class="size-3.5 text-amber-500" />
+                      <Moon v-else class="size-3.5 text-blue-500" />
+                      <span>{{ isDark ? 'Dark Mode' : 'Light Mode' }}</span>
+                    </button>
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-2 pt-1">
+                    <!-- Default (Apple Fluid) -->
+                    <button
+                      type="button"
+                      data-test="theme-option-default"
+                      class="p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer active:scale-95"
+                      :class="uiTheme === 'default' ? 'bg-blue-500/15 border-blue-500 text-blue-900 dark:text-white ring-1 ring-blue-500' : 'bg-black/[0.03] dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10'"
+                      @click="setUiTheme('default')"
+                    >
+                      <div class="flex items-center justify-between w-full mb-1">
+                        <Laptop class="size-4" :class="uiTheme === 'default' ? 'text-blue-500 dark:text-blue-400' : 'text-[var(--ap-text-muted)]'" />
+                        <span v-if="uiTheme === 'default'" class="text-[10px] text-blue-600 dark:text-blue-400 font-bold">Active</span>
+                      </div>
+                      <div>
+                        <div class="text-xs font-semibold">Default</div>
+                        <div class="text-[10px] text-[var(--ap-text-muted)] leading-tight">Apple Fluid</div>
+                      </div>
+                    </button>
+
+                    <!-- VSCode -->
+                    <button
+                      type="button"
+                      data-test="theme-option-vscode"
+                      class="p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer active:scale-95"
+                      :class="uiTheme === 'vscode' ? 'bg-blue-500/15 border-blue-500 text-blue-900 dark:text-white ring-1 ring-blue-500' : 'bg-black/[0.03] dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10'"
+                      @click="setUiTheme('vscode')"
+                    >
+                      <div class="flex items-center justify-between w-full mb-1">
+                        <Code2 class="size-4" :class="uiTheme === 'vscode' ? 'text-blue-500 dark:text-blue-400' : 'text-[var(--ap-text-muted)]'" />
+                        <span v-if="uiTheme === 'vscode'" class="text-[10px] text-blue-600 dark:text-blue-400 font-bold">Active</span>
+                      </div>
+                      <div>
+                        <div class="text-xs font-semibold font-mono">VSCode</div>
+                        <div class="text-[10px] text-[var(--ap-text-muted)] leading-tight">IDE Shell</div>
+                      </div>
+                    </button>
+
+                    <!-- Yahoo! Messenger -->
+                    <button
+                      type="button"
+                      data-test="theme-option-yahoo"
+                      class="p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer active:scale-95"
+                      :class="uiTheme === 'yahoo' ? 'bg-purple-500/15 border-purple-500 text-purple-900 dark:text-white ring-1 ring-purple-500' : 'bg-black/[0.03] dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10'"
+                      @click="setUiTheme('yahoo')"
+                    >
+                      <div class="flex items-center justify-between w-full mb-1">
+                        <MessageCircle class="size-4" :class="uiTheme === 'yahoo' ? 'text-purple-500 dark:text-purple-400' : 'text-[var(--ap-text-muted)]'" />
+                        <span v-if="uiTheme === 'yahoo'" class="text-[10px] text-purple-600 dark:text-purple-400 font-bold">Active</span>
+                      </div>
+                      <div>
+                        <div class="text-xs font-semibold">Yahoo!</div>
+                        <div class="text-[10px] text-[var(--ap-text-muted)] leading-tight">Classic IM</div>
+                      </div>
+                    </button>
+
+                    <!-- Telegram-inspired messenger -->
+                    <button
+                      type="button"
+                      data-test="theme-option-telegram"
+                      :aria-pressed="uiTheme === 'telegram'"
+                      class="p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer active:scale-95"
+                      :class="uiTheme === 'telegram' ? 'bg-blue-500/15 border-blue-500 text-blue-900 dark:text-white ring-1 ring-blue-500' : 'bg-black/[0.03] dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10'"
+                      @click="setUiTheme('telegram')"
+                    >
+                      <div class="flex items-center justify-between w-full mb-1">
+                        <MessageCircle class="size-4 text-blue-500 dark:text-blue-400" />
+                        <span v-if="uiTheme === 'telegram'" class="text-[10px] text-blue-600 dark:text-blue-400 font-bold">Active</span>
+                      </div>
+                      <div>
+                        <div class="text-xs font-semibold">Telegram</div>
+                        <div class="text-[10px] text-[var(--ap-text-muted)] leading-tight">Clean messenger</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Confetti Preference Toggle -->
+                <div class="flex items-center justify-between p-3.5 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/10 dark:border-white/10 backdrop-blur-md">
+                  <div class="space-y-0.5">
+                    <div class="text-xs font-semibold text-[var(--ap-text-primary)]">
+                      Celebration Confetti 🎉
+                    </div>
+                    <div class="text-[11px] text-[var(--ap-text-muted)]">
+                      Pop confetti effects when messages celebrate good news
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    :aria-checked="confettiEnabled"
+                    data-test="confetti-toggle"
+                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                    :class="confettiEnabled ? 'bg-blue-500' : 'bg-black/15 dark:bg-white/15'"
+                    @click="confettiEnabled = !confettiEnabled"
+                  >
+                    <span
+                      class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
+                      :class="confettiEnabled ? 'translate-x-5' : 'translate-x-0'"
+                    />
+                  </button>
+                </div>
               </div>
-
-              <div class="flex items-center gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  data-test="bank-qr-upload-btn"
-                  class="px-2.5 py-1.5 rounded-xl text-xs font-medium bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] transition-colors cursor-pointer"
-                  @click="triggerBankQrFileInput"
-                >
-                  Change
-                </button>
-                <button
-                  type="button"
-                  data-test="bank-qr-remove-btn"
-                  class="px-2.5 py-1.5 rounded-xl text-xs font-medium text-rose-500 hover:text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                  @click="removeBankQr"
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
-
-            <!-- Empty / Upload State -->
-            <div
-              v-else
-              class="p-4 rounded-2xl border border-dashed border-black/15 dark:border-white/15 bg-black/[0.02] dark:dark:bg-white/[0.02] flex flex-col items-center justify-center text-center gap-2 hover:border-blue-500/50 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-all cursor-pointer"
-              @click="triggerBankQrFileInput"
-            >
-              <button
-                type="button"
-                data-test="bank-qr-upload-btn"
-                class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium bg-blue-500/15 hover:bg-blue-500/25 text-blue-600 dark:text-blue-400 transition-colors pointer-events-none"
-              >
-                <Upload class="w-3.5 h-3.5" />
-                <span>Upload QR Code Image</span>
-              </button>
-              <p class="text-[11px] text-[var(--ap-text-muted)]">
-                PNG, JPG or WebP up to 5MB. Friends can view your payment QR in your profile.
-              </p>
-            </div>
-
-            <p v-if="qrUploadError" class="mt-1 text-xs text-rose-500 dark:text-rose-400">
-              {{ qrUploadError }}
-            </p>
-          </div>
-
-          <!-- Avatar Color Swatches -->
-          <div>
-            <label class="block text-xs font-semibold text-[var(--ap-text-secondary)] mb-2">
-              Avatar Color
-            </label>
-            <div class="grid grid-cols-4 gap-2">
-              <button
-                v-for="color in AVATAR_PALETTE"
-                :key="color"
-                type="button"
-                :data-test="`color-swatch-${color}`"
-                class="h-8 rounded-xl transition-all flex items-center justify-center text-white text-xs font-bold shadow-xs cursor-pointer active:scale-95"
-                :class="avatarColor === color ? 'ring-2 ring-blue-500 scale-[1.04] shadow-md' : 'opacity-85 hover:opacity-100 hover:scale-[1.02]'"
-                :style="{ backgroundColor: color }"
-                @click="avatarColor = color"
-              >
-                <span v-if="avatarColor === color">✓</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Application Theme Selector -->
-          <div class="space-y-2 p-3.5 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/10 dark:border-white/10 backdrop-blur-md">
-            <div class="flex items-center justify-between">
-              <div class="space-y-0.5">
-                <div class="text-xs font-semibold text-[var(--ap-text-primary)]">
-                  Application Theme
-                </div>
-                <div class="text-[11px] text-[var(--ap-text-muted)]">
-                  Select visual style and layout personality
-                </div>
-              </div>
-              <button
-                type="button"
-                data-test="theme-mode-toggle"
-                class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] border border-black/10 dark:border-white/10 transition-colors cursor-pointer"
-                @click="toggleTheme"
-              >
-                <Sun v-if="isDark" class="size-3.5 text-amber-500" />
-                <Moon v-else class="size-3.5 text-blue-500" />
-                <span>{{ isDark ? 'Dark Mode' : 'Light Mode' }}</span>
-              </button>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2 pt-1">
-              <!-- Default (Apple Fluid) -->
-              <button
-                type="button"
-                data-test="theme-option-default"
-                class="p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer active:scale-95"
-                :class="uiTheme === 'default' ? 'bg-blue-500/15 border-blue-500 text-blue-900 dark:text-white ring-1 ring-blue-500' : 'bg-black/[0.03] dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10'"
-                @click="setUiTheme('default')"
-              >
-                <div class="flex items-center justify-between w-full mb-1">
-                  <Laptop class="size-4" :class="uiTheme === 'default' ? 'text-blue-500 dark:text-blue-400' : 'text-[var(--ap-text-muted)]'" />
-                  <span v-if="uiTheme === 'default'" class="text-[10px] text-blue-600 dark:text-blue-400 font-bold">Active</span>
-                </div>
-                <div>
-                  <div class="text-xs font-semibold">Default</div>
-                  <div class="text-[10px] text-[var(--ap-text-muted)] leading-tight">Apple Fluid</div>
-                </div>
-              </button>
-
-              <!-- VSCode -->
-              <button
-                type="button"
-                data-test="theme-option-vscode"
-                class="p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer active:scale-95"
-                :class="uiTheme === 'vscode' ? 'bg-blue-500/15 border-blue-500 text-blue-900 dark:text-white ring-1 ring-blue-500' : 'bg-black/[0.03] dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10'"
-                @click="setUiTheme('vscode')"
-              >
-                <div class="flex items-center justify-between w-full mb-1">
-                  <Code2 class="size-4" :class="uiTheme === 'vscode' ? 'text-blue-500 dark:text-blue-400' : 'text-[var(--ap-text-muted)]'" />
-                  <span v-if="uiTheme === 'vscode'" class="text-[10px] text-blue-600 dark:text-blue-400 font-bold">Active</span>
-                </div>
-                <div>
-                  <div class="text-xs font-semibold font-mono">VSCode</div>
-                  <div class="text-[10px] text-[var(--ap-text-muted)] leading-tight">IDE Shell</div>
-                </div>
-              </button>
-
-              <!-- Yahoo! Messenger -->
-              <button
-                type="button"
-                data-test="theme-option-yahoo"
-                class="p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer active:scale-95"
-                :class="uiTheme === 'yahoo' ? 'bg-purple-500/15 border-purple-500 text-purple-900 dark:text-white ring-1 ring-purple-500' : 'bg-black/[0.03] dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10'"
-                @click="setUiTheme('yahoo')"
-              >
-                <div class="flex items-center justify-between w-full mb-1">
-                  <MessageCircle class="size-4" :class="uiTheme === 'yahoo' ? 'text-purple-500 dark:text-purple-400' : 'text-[var(--ap-text-muted)]'" />
-                  <span v-if="uiTheme === 'yahoo'" class="text-[10px] text-purple-600 dark:text-purple-400 font-bold">Active</span>
-                </div>
-                <div>
-                  <div class="text-xs font-semibold">Yahoo!</div>
-                  <div class="text-[10px] text-[var(--ap-text-muted)] leading-tight">Classic IM</div>
-                </div>
-              </button>
-              <!-- Telegram-inspired messenger -->
-              <button
-                type="button"
-                data-test="theme-option-telegram"
-                :aria-pressed="uiTheme === 'telegram'"
-                class="p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer active:scale-95"
-                :class="uiTheme === 'telegram' ? 'bg-blue-500/15 border-blue-500 text-blue-900 dark:text-white ring-1 ring-blue-500' : 'bg-black/[0.03] dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10'"
-                @click="setUiTheme('telegram')"
-              >
-                <div class="flex items-center justify-between w-full mb-1">
-                  <MessageCircle class="size-4 text-blue-500 dark:text-blue-400" />
-                  <span v-if="uiTheme === 'telegram'" class="text-[10px] text-blue-600 dark:text-blue-400 font-bold">Active</span>
-                </div>
-                <div>
-                  <div class="text-xs font-semibold">Telegram</div>
-                  <div class="text-[10px] text-[var(--ap-text-muted)] leading-tight">Clean messenger</div>
-                </div>
-              </button>
             </div>
           </div>
 
-          <!-- Confetti Preference Toggle -->
-          <div class="flex items-center justify-between p-3.5 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/10 dark:border-white/10 backdrop-blur-md">
-            <div class="space-y-0.5">
-              <div class="text-xs font-semibold text-[var(--ap-text-primary)]">
-                Celebration Confetti 🎉
-              </div>
-              <div class="text-[11px] text-[var(--ap-text-muted)]">
-                Pop confetti effects when messages celebrate good news
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="confettiEnabled"
-              data-test="confetti-toggle"
-              class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-              :class="confettiEnabled ? 'bg-blue-500' : 'bg-black/15 dark:bg-white/15'"
-              @click="confettiEnabled = !confettiEnabled"
-            >
-              <span
-                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
-                :class="confettiEnabled ? 'translate-x-5' : 'translate-x-0'"
-              />
-            </button>
-          </div>
-
-          <div class="flex justify-end gap-2 pt-2">
+          <!-- Pinned Footer (Always accessible) -->
+          <div class="px-5 sm:px-6 py-3.5 border-t border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] flex items-center justify-end gap-2.5 shrink-0 backdrop-blur-md">
             <Button type="button" variant="outline" class="rounded-full border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] px-4 py-2" @click="handleClose">
               Cancel
             </Button>

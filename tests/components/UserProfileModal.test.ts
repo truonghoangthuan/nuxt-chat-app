@@ -36,6 +36,30 @@ describe('UserProfileModal', () => {
     })
     expect(wrapper.find('[data-test="user-bank-qr"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="user-bank-qr"] img').attributes('src')).toBe('https://example.com/qr.png')
+    expect(wrapper.find('[data-test="user-bank-qr-empty"]').exists()).toBe(false)
+  })
+
+  it('renders subtle empty placeholder when profile has no bank_qr_url', () => {
+    const wrapper = mount(UserProfileModal, {
+      props: {
+        isOpen: true,
+        profile: mockProfile,
+      },
+    })
+    expect(wrapper.find('[data-test="user-bank-qr"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="user-bank-qr-empty"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('No payment QR code provided')
+  })
+
+  it('ensures modal container has max-height and scrollable body for responsive fitting', () => {
+    const wrapper = mount(UserProfileModal, {
+      props: {
+        isOpen: true,
+        profile: mockProfile,
+      },
+    })
+    expect(wrapper.find('.max-h-\\[85vh\\]').exists()).toBe(true)
+    expect(wrapper.find('.overflow-y-auto').exists()).toBe(true)
   })
 
   it('renders profile information with display name, email, avatar, and online status', () => {

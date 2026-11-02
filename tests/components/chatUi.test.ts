@@ -355,6 +355,27 @@ describe('Chat UI components', () => {
     }
   })
 
+  it('ProfileSettingsModal renders responsive screen-fitting layout with max-height and scrollable body', async () => {
+    const ProfileSettingsModal = (await import('~/components/ProfileSettingsModal.vue')).default
+    const wrapper = mount(ProfileSettingsModal, {
+      props: {
+        isOpen: true,
+        profile: {
+          id: 'u-1',
+          display_name: 'Alice',
+          avatar_color: '#0284c7',
+        },
+      },
+    })
+
+    const surface = wrapper.find('.profile-settings-surface')
+    expect(surface.exists()).toBe(true)
+    expect(surface.classes()).toContain('max-h-[88vh]')
+    expect(surface.classes()).toContain('overflow-hidden')
+    expect(wrapper.find('.overflow-y-auto').exists()).toBe(true)
+    expect(wrapper.find('button[type="submit"]').exists()).toBe(true)
+  })
+
   it('ChatSidebar switches structural chrome for vscode and yahoo themes while keeping conversation hooks', async () => {
     const { useTheme } = await import('~/composables/useTheme')
     const { setUiTheme } = useTheme()

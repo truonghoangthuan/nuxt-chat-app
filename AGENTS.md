@@ -318,6 +318,15 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - **TDZ Guard in IIFE Finally Block:** In async IIFE assignments (`let promise: Promise<T>; promise = (async () => { ... })()`), declare `let promise` outside the IIFE so early errors cannot trigger `ReferenceError: Cannot access 'promise' before initialization` inside `finally`. Guard the check with `if (promise && inFlight.get(key) === promise)`.
     - **Identity-Guarded In-Flight Cleanup:** Stale in-flight promises from invalidated or revoked generations (`revokeAllUrls`) must only delete `inFlight` and reactive flags (`decrypting[key]`) if `inFlight.get(key) === promise`. Never unconditionally delete `decrypting[key]` in `finally`, which would erase tracking for newer same-key requests started after a generation change.
 
+42. **Modal Viewport Bounds, Pinned Action Chrome & Internal Scroll Containment:**
+    - **Viewport Ceiling & Scroll Containment:** Every modal dialog surface (`ProfileSettingsModal.vue`, `UserProfileModal.vue`) must enforce an explicit viewport ceiling (`max-h-[85vh]` or `max-h-[88vh]`), an internal scrollable body container (`overflow-y-auto scrollbar-thin`), and `overflow-hidden` on the outer card surface.
+    - **Pinned Header & Action Footer:** Modal title headers and primary action buttons (Save changes, Cancel, Send Direct Message) must be pinned (`shrink-0`) outside the scroll container so they remain visible and interactive regardless of display resolution or scroll position.
+    - **Responsive Multi-Column Organization:** Content-heavy modal dialogs must not stack endlessly in a single narrow column (`max-w-md`). On desktop viewports (`md:`), group controls into responsive multi-column grids (`grid-cols-1 md:grid-cols-2`) with wider surface cards (`max-w-xl md:max-w-2xl`) to avoid unnecessary vertical bloat.
+
+43. **Joined Profile FK Projection Parity & Dynamic Hydration:**
+    - **Message Author Projection Parity:** When user-facing profile fields (e.g., `bank_qr_url`) are added to `public.profiles`, all joined PostgREST message select projections (`author:profiles!messages_user_id_fkey(id, display_name, avatar_color, avatar_url, email, bank_qr_url)`) in `useChatRoom.ts` and `useChatMediaUpload.ts` must project them so avatar click triggers receive full profile metadata.
+    - **Dynamic Missing-Field Hydration:** Any component or handler that receives an author snippet from message rows or member lists (`handleViewProfile` in `app/pages/index.vue`, `UserProfileModal.vue`) must guard against incomplete snapshots: if an expected profile property is `undefined`, it must dynamically query `supabase.from('profiles').select('*').eq('id', userId).maybeSingle()` and merge the fresh record into memory.
+
 
 ## 5. Testing Standards
 

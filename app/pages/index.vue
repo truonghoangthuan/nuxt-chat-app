@@ -478,9 +478,21 @@ function handleQueueMusicTrack(track: YouTubeSearchResult, position: 'end' | 'ne
   musicEnqueue(track, activeConversationId.value, position)
 }
 
-function handleViewProfile(profile: Profile) {
+async function handleViewProfile(profile: Profile) {
   selectedUserProfile.value = profile
   isUserProfileModalOpen.value = true
+
+  if (profile?.id && profile.bank_qr_url === undefined && typeof useSupabaseClient === 'function') {
+    try {
+      const supabase = useSupabaseClient()
+      const { data } = await supabase.from('profiles').select('*').eq('id', profile.id).maybeSingle()
+      if (data && selectedUserProfile.value?.id === profile.id) {
+        selectedUserProfile.value = { ...selectedUserProfile.value, ...data }
+      }
+    } catch {
+      // ignore
+    }
+  }
 }
 const replyingTo = ref<ChatMessage | null>(null)
 const isLightboxOpen = ref(false)
