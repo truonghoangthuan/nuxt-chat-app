@@ -42,7 +42,7 @@ A modern, resilient, end-to-end encrypted real-time web chat application built w
 
 ### Encrypted Attachments & Customization
 - **Encrypted Media Grid**: Upload and view encrypted images stored in a private Supabase storage bucket (`message-attachments`) with automatic client-side blob caching.
-- **Lightbox Viewer**: Full-screen image preview modal with zoom and pan support (`ImageViewerModal.vue`).
+- **Lightbox Viewer**: Full-screen decrypted image preview (`ImageViewerModal.vue`) with **Zoom in / Zoom out** from 100% of fitted size to 400%, native scrolling/touch panning, and **Fit** reset. Use +/=, - and 0 to zoom/reset, Left/Right arrows to switch images, and Escape to close. Zoom resets on navigation, conversation changes and reopening; browser Ctrl/Cmd shortcuts are left alone. Images remain client-side blob URLs; zoom never downloads or persists another copy.
 - **Custom Backgrounds**: Conversation-specific wallpaper customization stored in `chat-backgrounds` bucket.
 - **Service Worker Desktop Notifications**: Native Action Center notifications via `public/sw.js` with audio chimes.
 - **Adaptive Dark / Light Theme**: Obsidian Precision Studio dark theme paired with high-contrast light mode tokens.

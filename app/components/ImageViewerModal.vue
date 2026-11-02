@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import type { EncryptedImageMetadata } from '~/types/chat'
 import { useImageAttachmentCache } from '~/composables/useImageAttachmentCache'
 
@@ -28,6 +28,41 @@ const currentIndex = ref(props.initialIndex ?? 0)
 const resolvedUrls = ref<Record<string, string>>({})
 const isLoading = ref(false)
 const errorMessage = ref<string | null>(null)
+const zoom = ref(1)
+const panRef = ref<HTMLElement | null>(null)
+let zoomRevision = 0
+let loadRevision = 0
+
+function setZoom(value: number) {
+  if (!canZoom.value) return
+  const previous = zoom.value
+  const next = Math.max(1, Math.min(4, value))
+  const pan = panRef.value
+  const left = pan ? (pan.scrollLeft + pan.clientWidth / 2) * next / previous - pan.clientWidth / 2 : 0
+  const top = pan ? (pan.scrollTop + pan.clientHeight / 2) * next / previous - pan.clientHeight / 2 : 0
+  const revision = ++zoomRevision
+  zoom.value = next
+  nextTick(() => {
+    if (revision !== zoomRevision || !pan || pan !== panRef.value) return
+    pan.scrollLeft = next === 1 ? 0 : Math.max(0, left)
+    pan.scrollTop = next === 1 ? 0 : Math.max(0, top)
+  })
+}
+
+function resetZoom() {
+  zoom.value = 1
+  const revision = ++zoomRevision
+  nextTick(() => {
+    if (revision !== zoomRevision || !panRef.value) return
+    panRef.value.scrollLeft = 0
+    panRef.value.scrollTop = 0
+  })
+}
+
+watch(
+  () => [props.open, props.channelId, props.images, props.initialIndex, currentIndex.value],
+  resetZoom,
+)
 
 const cache = useImageAttachmentCache()
 
@@ -42,8 +77,12 @@ const activeImageUrl = computed<string | null>(() => {
   return resolvedUrls.value[activeImage.value.path] || null
 })
 
+const canZoom = computed(() => Boolean(activeImageUrl.value) && !isLoading.value && !errorMessage.value)
+
 async function loadActiveImage() {
+  const revision = ++loadRevision
   errorMessage.value = null
+  isLoading.value = false
   const img = activeImage.value
   if (!img || !img.path) return
 
@@ -68,22 +107,26 @@ async function loadActiveImage() {
       props.e2eeKey,
       props.supabaseClient,
     )
+    if (revision !== loadRevision) return
     resolvedUrls.value = { ...resolvedUrls.value, [img.path]: url }
   } catch {
-    errorMessage.value = 'Failed to decrypt or load image.'
+    if (revision === loadRevision) errorMessage.value = 'Failed to decrypt or load image.'
   } finally {
-    isLoading.value = false
+    if (revision === loadRevision) isLoading.value = false
   }
 }
 
 watch(
-  () => [props.open, props.initialIndex, props.images],
+  () => [props.open, props.initialIndex, props.images, props.channelId],
   ([isOpen, idx]) => {
     if (isOpen) {
       errorMessage.value = null
       const targetIndex = Number(idx) || 0
       currentIndex.value = Math.max(0, Math.min(targetIndex, (props.images?.length || 1) - 1))
       loadActiveImage()
+    } else {
+      ++loadRevision
+      isLoading.value = false
     }
   },
   { immediate: true },
@@ -135,7 +178,15 @@ function handleDownload() {
 }
 
 function handleKeydown(e: KeyboardEvent) {
-  if (!props.open) return
+  if (!props.open || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return
+  const target = e.target as HTMLElement | null
+  if (target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return
+  if (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '0') {
+    if (!canZoom.value) return
+    e.preventDefault()
+    setZoom(e.key === '0' ? 1 : zoom.value + (e.key === '-' ? -0.5 : 0.5))
+    return
+  }
   if (e.key === 'ArrowLeft') {
     e.preventDefault()
     goToPrev()
@@ -155,6 +206,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  ++loadRevision
+  ++zoomRevision
   if (typeof window !== 'undefined') {
     window.removeEventListener('keydown', handleKeydown)
   }
@@ -168,6 +221,7 @@ onUnmounted(() => {
     class="fixed inset-0 z-50 flex flex-col bg-black/85 backdrop-blur-2xl select-none"
     role="dialog"
     aria-modal="true"
+    aria-label="Image viewer"
     @click.self="handleClose"
   >
     <!-- Header: Counter & Actions -->
@@ -217,7 +271,8 @@ onUnmounted(() => {
         v-if="images.length > 1"
         type="button"
         data-test="lightbox-prev"
-        class="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white transition-all cursor-pointer backdrop-blur-xl border border-white/15 z-10 focus:outline-none focus:ring-2 focus:ring-blue-500/40 shadow-xl"
+        class="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/60 hover:bg-black/80 text-white/90 hover:text-white transition-all cursor-pointer backdrop-blur-xl border border-white/15 z-10 focus:outline-none focus:ring-2 focus:ring-blue-500/40 shadow-xl"
+        aria-label="Previous image"
         title="Previous (Left arrow)"
         @click.stop="goToPrev"
       >
@@ -231,7 +286,8 @@ onUnmounted(() => {
         v-if="images.length > 1"
         type="button"
         data-test="lightbox-next"
-        class="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white transition-all cursor-pointer backdrop-blur-xl border border-white/15 z-10 focus:outline-none focus:ring-2 focus:ring-blue-500/40 shadow-xl"
+        class="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/60 hover:bg-black/80 text-white/90 hover:text-white transition-all cursor-pointer backdrop-blur-xl border border-white/15 z-10 focus:outline-none focus:ring-2 focus:ring-blue-500/40 shadow-xl"
+        aria-label="Next image"
         title="Next (Right arrow)"
         @click.stop="goToNext"
       >
@@ -264,14 +320,60 @@ onUnmounted(() => {
         <span class="text-xs font-mono font-medium tracking-wide">Decrypting image...</span>
       </div>
 
-      <!-- Active image -->
-      <img
+      <!-- Native scrolling keeps every edge of the enlarged image reachable. -->
+      <div
         v-else
-        data-test="lightbox-image"
-        :src="activeImageUrl"
-        :alt="`Image ${currentIndex + 1} of ${images.length}`"
-        class="max-h-full max-w-full object-contain rounded-2xl shadow-2xl transition-all select-none border border-white/10"
+        ref="panRef"
+        data-test="lightbox-pan"
+        class="absolute inset-4 overflow-auto overscroll-contain focus-visible:outline-2 focus-visible:outline-blue-400"
+        tabindex="0"
+        aria-label="Image preview. Scroll to pan when zoomed."
       >
+        <div
+          data-test="lightbox-zoom-content"
+          class="flex items-center justify-center"
+          :style="{ width: `${zoom * 100}%`, height: `${zoom * 100}%` }"
+        >
+          <img
+            data-test="lightbox-image"
+            :src="activeImageUrl"
+            :alt="`Image ${currentIndex + 1} of ${images.length}`"
+            class="w-full h-full object-contain select-none"
+            draggable="false"
+          >
+        </div>
+      </div>
     </div>
+
+    <footer class="flex items-center justify-center gap-2 px-4 py-3 shrink-0 text-white bg-black/40">
+      <button
+        type="button"
+        data-test="lightbox-zoom-out"
+        :disabled="!canZoom || zoom <= 1"
+        class="size-10 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-blue-400"
+        aria-label="Zoom out"
+        title="Zoom out (-)"
+        @click="setZoom(zoom - 0.5)"
+      >−</button>
+      <output data-test="lightbox-zoom-level" class="w-16 text-center text-sm tabular-nums" aria-live="polite" aria-label="Zoom relative to fitted size">{{ zoom * 100 }}%</output>
+      <button
+        type="button"
+        data-test="lightbox-zoom-in"
+        :disabled="!canZoom || zoom >= 4"
+        class="size-10 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-blue-400"
+        aria-label="Zoom in"
+        title="Zoom in (+)"
+        @click="setZoom(zoom + 0.5)"
+      >+</button>
+      <button
+        type="button"
+        data-test="lightbox-fit"
+        :disabled="!canZoom"
+        class="h-10 px-3 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-40 text-sm focus-visible:outline-2 focus-visible:outline-blue-400"
+        aria-label="Fit image"
+        title="Fit image (0)"
+        @click="setZoom(1)"
+      >Fit</button>
+    </footer>
   </div>
 </template>
