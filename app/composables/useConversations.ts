@@ -356,11 +356,15 @@ export function createConversationsActions(deps: ConversationsActionsDeps) {
         const nextOwner = [...remaining].sort((a, b) =>
           (a.joined_at || '').localeCompare(b.joined_at || ''),
         )[0]
-        await supabase
+        const { error: promoError } = await supabase
           .from('conversation_members')
           .update({ role: 'owner' })
           .eq('conversation_id', conversationId)
           .eq('user_id', nextOwner.user_id)
+
+        if (promoError) {
+          throw new Error(promoError.message || 'Failed to transfer group ownership.')
+        }
       }
     }
 

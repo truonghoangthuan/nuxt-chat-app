@@ -279,6 +279,38 @@ create policy "Users can remove themselves or owners can manage members"
     )
   );
 
+-- Group owners can update member roles (e.g. ownership succession)
+drop policy if exists "Group owners can update member roles" on public.conversation_members;
+create policy "Group owners can update member roles"
+  on public.conversation_members for update
+  to authenticated
+  using (
+    exists (
+      select 1 from public.conversation_members cm
+      where cm.conversation_id = public.conversation_members.conversation_id
+        and cm.user_id = auth.uid()
+        and cm.role = 'owner'
+    )
+    and exists (
+      select 1 from public.conversations c
+      where c.id = public.conversation_members.conversation_id
+        and c.type = 'group'
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.conversation_members cm
+      where cm.conversation_id = public.conversation_members.conversation_id
+        and cm.user_id = auth.uid()
+        and cm.role = 'owner'
+    )
+    and exists (
+      select 1 from public.conversations c
+      where c.id = public.conversation_members.conversation_id
+        and c.type = 'group'
+    )
+  );
+
 -- Atomic helper: get or create direct conversation between auth.uid() and target_user_id
 create or replace function public.get_or_create_direct_conversation(target_user_id uuid)
 returns uuid

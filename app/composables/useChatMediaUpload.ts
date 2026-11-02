@@ -229,6 +229,7 @@ export function useChatMediaUpload(options: ChatMediaUploadOptions) {
             return true
           }
         }
+        await cleanupUploadedStorage()
         options.messagesStore.markMessageFailed(clientId)
         return false
       }
@@ -244,9 +245,11 @@ export function useChatMediaUpload(options: ChatMediaUploadOptions) {
         return true
       }
 
+      await cleanupUploadedStorage()
       options.messagesStore.markMessageFailed(clientId)
       return false
     } catch {
+      await cleanupUploadedStorage()
       options.messagesStore.markMessageFailed(clientId)
       return false
     }

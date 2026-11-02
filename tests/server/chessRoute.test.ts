@@ -43,4 +43,16 @@ describe('Nitro chess trust adapter', () => {
     }
     await expect(handler(e as any)).resolves.toBeDefined()
   })
+  it('accepts multi-hop comma-separated x-forwarded-host behind reverse proxy', async () => {
+    const e = {
+      headers: new Headers({
+        origin: 'https://proxy.example.com',
+        host: 'internal-pod:3000',
+        'x-forwarded-host': 'proxy.example.com, load-balancer.internal:8080',
+      }),
+      node: { req: { url: '/api/chess/move' } },
+      body: { from: 'e2', to: 'e4', expectedMoveCount: 0, roomId: '00000000-0000-0000-0000-000000000000' },
+    }
+    await expect(handler(e as any)).resolves.toBeDefined()
+  })
 })

@@ -4,7 +4,8 @@ import { submitChessMove } from '../../utils/chessMove'
 
 export default defineEventHandler(async event => {
   // Reject cross-origin browser submissions; cookies authenticate same-origin calls.
-  const host = event.headers.get('x-forwarded-host') || event.headers.get('host')
+  const rawHost = event.headers.get('x-forwarded-host') || event.headers.get('host') || ''
+  const host = rawHost.split(',')[0].trim()
   const origin = event.headers.get('origin')
   if (origin && host
     && origin !== new URL(event.node.req.url || '/', `https://${host}`).origin
