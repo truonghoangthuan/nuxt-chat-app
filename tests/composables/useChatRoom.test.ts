@@ -1400,6 +1400,18 @@ describe('useChatRoom contacts and conversations', () => {
                 }),
               })),
             }),
+            update: vi.fn().mockImplementation((payload: any) => ({
+              eq: vi.fn().mockImplementation((col1: string, val1: string) => ({
+                eq: vi.fn().mockImplementation((col2: string, val2: string) => {
+                  for (const m of mockMembersDb) {
+                    if ((m[col1] === val1 && m[col2] === val2) || (m[col2] === val1 && m[col1] === val2)) {
+                      Object.assign(m, payload)
+                    }
+                  }
+                  return Promise.resolve({ error: null })
+                }),
+              })),
+            })),
           }
         }
         if (table === 'messages') {
@@ -1714,6 +1726,19 @@ describe('useChatRoom contacts and conversations', () => {
     expect(room.conversations.value.find(c => c.id === group2.id)).toBeUndefined()
     expect(room.conversations.value).toHaveLength(1)
     expect(room.activeConversationId.value).toBe(group1.id)
+  })
+
+  it('promotes oldest remaining member to owner when group owner leaves', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Succession Group', ['u-bob', 'u-charlie'])
+    const aliceMember = mockMembersDb.find(m => m.conversation_id === group.id && m.user_id === 'u-alice')
+    expect(aliceMember?.role).toBe('owner')
+
+    await room.leaveGroup(group.id)
+
+    expect(mockMembersDb.some(m => m.conversation_id === group.id && m.user_id === 'u-alice')).toBe(false)
+    const bobMember = mockMembersDb.find(m => m.conversation_id === group.id && m.user_id === 'u-bob')
+    expect(bobMember?.role).toBe('owner')
   })
 
   it('sends messages and encrypts using conversation_id as AAD', async () => {
