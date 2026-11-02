@@ -26,4 +26,32 @@ describe('email confirmation page', () => {
     expect(navigateTo).toHaveBeenCalledWith(invitePath)
     wrapper.unmount()
   })
+
+  it('shows timeout warning and return to login button after 5 seconds', async () => {
+    vi.useFakeTimers()
+    const navigateTo = vi.fn()
+    vi.stubGlobal('useSupabaseUser', () => ref(null))
+    vi.stubGlobal('useSupabaseCookieRedirect', () => ({ pluck: vi.fn() }))
+    vi.stubGlobal('navigateTo', navigateTo)
+
+    const wrapper = mount(ConfirmPage)
+    await flushPromises()
+
+    // At 1200ms, should NOT bounce to login
+    vi.advanceTimersByTime(1500)
+    await flushPromises()
+    expect(navigateTo).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Confirming your account')
+
+    // At 5000ms, timedOut shows
+    vi.advanceTimersByTime(3500)
+    await flushPromises()
+    expect(wrapper.text()).toContain('Confirmation is taking longer than expected')
+
+    const button = wrapper.find('button')
+    expect(button.exists()).toBe(true)
+    await button.trigger('click')
+    expect(navigateTo).toHaveBeenCalledWith('/login')
+    wrapper.unmount()
+  })
 })

@@ -153,14 +153,41 @@ export async function resizeImage(
   file: File,
   maxDim = 2048
 ): Promise<{ blob: Blob; width: number; height: number }> {
-  const dataUrl = await readFileAsDataUrl(file)
+  const hasCreateObjectURL = typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
+  let objectUrl: string | null = null
+  if (hasCreateObjectURL) {
+    try {
+      objectUrl = URL.createObjectURL(file)
+    } catch {}
+  }
   const img = new Image()
 
-  await new Promise<void>((resolve, reject) => {
-    img.onload = () => resolve()
-    img.onerror = () => reject(new Error('Failed to load image'))
-    img.src = dataUrl
-  })
+  const loadSource = (src: string) =>
+    new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve()
+      img.onerror = () => reject(new Error('Failed to load image'))
+      img.src = src
+    })
+
+  try {
+    if (objectUrl && !objectUrl.startsWith('blob:nodedata:')) {
+      try {
+        await loadSource(objectUrl)
+      } catch {
+        const dataUrl = await readFileAsDataUrl(file)
+        await loadSource(dataUrl)
+      }
+    } else {
+      const dataUrl = await readFileAsDataUrl(file)
+      await loadSource(dataUrl)
+    }
+  } finally {
+    if (objectUrl && typeof URL.revokeObjectURL === 'function') {
+      try {
+        URL.revokeObjectURL(objectUrl)
+      } catch {}
+    }
+  }
 
   const origWidth = img.naturalWidth || img.width
   const origHeight = img.naturalHeight || img.height

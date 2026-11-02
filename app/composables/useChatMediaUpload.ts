@@ -140,6 +140,17 @@ export function useChatMediaUpload(options: ChatMediaUploadOptions) {
     }
 
     const uploadedMetadatas: EncryptedImageMetadata[] = []
+    const uploadedStoragePaths: string[] = []
+
+    async function cleanupUploadedStorage(): Promise<void> {
+      if (uploadedStoragePaths.length > 0) {
+        try {
+          await options.supabase.storage
+            .from('message-attachments')
+            .remove(uploadedStoragePaths)
+        } catch {}
+      }
+    }
 
     for (let index = 0; index < files.length; index++) {
       const file = files[index]
@@ -159,10 +170,12 @@ export function useChatMediaUpload(options: ChatMediaUploadOptions) {
           })
 
         if (uploadError) {
+          await cleanupUploadedStorage()
           options.messagesStore.markMessageFailed(clientId)
           return false
         }
 
+        uploadedStoragePaths.push(storagePath)
         uploadedMetadatas.push({
           path: storagePath,
           mimeType: file.type || 'image/jpeg',
@@ -171,6 +184,7 @@ export function useChatMediaUpload(options: ChatMediaUploadOptions) {
           size: resized.blob.size,
         })
       } catch {
+        await cleanupUploadedStorage()
         options.messagesStore.markMessageFailed(clientId)
         return false
       }
@@ -215,6 +229,7 @@ export function useChatMediaUpload(options: ChatMediaUploadOptions) {
             return true
           }
         }
+        await cleanupUploadedStorage()
         options.messagesStore.markMessageFailed(clientId)
         return false
       }
@@ -230,9 +245,11 @@ export function useChatMediaUpload(options: ChatMediaUploadOptions) {
         return true
       }
 
+      await cleanupUploadedStorage()
       options.messagesStore.markMessageFailed(clientId)
       return false
     } catch {
+      await cleanupUploadedStorage()
       options.messagesStore.markMessageFailed(clientId)
       return false
     }

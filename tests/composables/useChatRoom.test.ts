@@ -4,19 +4,21 @@ import {
   handleIncomingRealtimeMessage,
   handleRealtimeMessageUpdate,
   handleRealtimeReactionEvent,
-  isDuplicateKeyError,
   resolveMessageAuthor,
   applyRealtimeProfileUpdate,
   filterOnlineFriends,
-  computeUnreadSnapshot,
-  computeOldestReadTimestamp,
-  computeChannelReadMap,
-  createChannelReadDebouncer,
   subscribeWithPromise,
   decryptMessageRow,
   decryptMessageRows,
   useChatRoom,
 } from '~/composables/useChatRoom'
+import { isDuplicateKeyError } from '~/utils/chat'
+import {
+  computeUnreadSnapshot,
+  computeOldestReadTimestamp,
+  computeChannelReadMap,
+  createChannelReadDebouncer,
+} from '~/composables/useUnreadReads'
 import { useE2ee } from '~/composables/useE2ee'
 import { useImageAttachmentCache } from '~/composables/useImageAttachmentCache'
 
@@ -1043,6 +1045,35 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
     expect(room.messages.value[0].status).toBe('failed')
   })
 
+  it('cleans up already-uploaded storage files when subsequent upload fails in multi-image batch', async () => {
+    const room = useChatRoom()
+    room.activeChannelId.value = 'ch-general'
+
+    mockUpload
+      .mockResolvedValueOnce({ data: { path: 'ok' }, error: null })
+      .mockResolvedValueOnce({ data: null, error: new Error('Upload failed on 2nd image') })
+
+    const file1 = new File(['pic1'], 'pic1.jpg', { type: 'image/jpeg' })
+    const file2 = new File(['pic2'], 'pic2.jpg', { type: 'image/jpeg' })
+    const result = await room.sendImages([file1, file2])
+
+    expect(result).toBe(false)
+    expect(mockRemove).toHaveBeenCalledWith([expect.stringContaining('/0.enc')])
+  })
+
+  it('cleans up uploaded storage files when database message insert fails', async () => {
+    const room = useChatRoom()
+    room.activeChannelId.value = 'ch-general'
+
+    mockInsertSingle.mockResolvedValueOnce({ data: null, error: new Error('DB insert failed') })
+
+    const file = new File(['pic'], 'pic.jpg', { type: 'image/jpeg' })
+    const result = await room.sendImages([file])
+
+    expect(result).toBe(false)
+    expect(mockRemove).toHaveBeenCalledWith([expect.stringContaining('/0.enc')])
+  })
+
   it('editMessage rejects editing image messages with error', async () => {
     const room = useChatRoom()
     room.activeChannelId.value = 'ch-general'
@@ -1177,6 +1208,7 @@ describe('useChatRoom contacts and conversations', () => {
   let mockContactsSelect: any
   let mockMembersInsertError: any
   let mockMembersDeleteError: any
+  let mockMembersUpdateError: any
   let mockConversationsUpdateError: { message: string } | null = null
   let mockTogglePinError: string | null = null
   let mockMessagesUpdateError: { message: string } | null = null
@@ -1190,6 +1222,7 @@ describe('useChatRoom contacts and conversations', () => {
     capturedMessagesSelect = ''
     mockMembersInsertError = null
     mockMembersDeleteError = null
+    mockMembersUpdateError = null
     mockProfilesDb = new Map([
       ['u-alice', { id: 'u-alice', email: 'alice@example.com', display_name: 'Alice', avatar_color: '#0284c7' }],
       ['u-bob', { id: 'u-bob', email: 'bob@example.com', display_name: 'Bob', avatar_color: '#7c3aed' }],
@@ -1398,6 +1431,21 @@ describe('useChatRoom contacts and conversations', () => {
                 }),
               })),
             }),
+            update: vi.fn().mockImplementation((payload: any) => ({
+              eq: vi.fn().mockImplementation((col1: string, val1: string) => ({
+                eq: vi.fn().mockImplementation((col2: string, val2: string) => {
+                  if (mockMembersUpdateError) {
+                    return Promise.resolve({ error: mockMembersUpdateError })
+                  }
+                  for (const m of mockMembersDb) {
+                    if ((m[col1] === val1 && m[col2] === val2) || (m[col2] === val1 && m[col1] === val2)) {
+                      Object.assign(m, payload)
+                    }
+                  }
+                  return Promise.resolve({ error: null })
+                }),
+              })),
+            })),
           }
         }
         if (table === 'messages') {
@@ -1712,6 +1760,28 @@ describe('useChatRoom contacts and conversations', () => {
     expect(room.conversations.value.find(c => c.id === group2.id)).toBeUndefined()
     expect(room.conversations.value).toHaveLength(1)
     expect(room.activeConversationId.value).toBe(group1.id)
+  })
+
+  it('promotes oldest remaining member to owner when group owner leaves', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Succession Group', ['u-bob', 'u-charlie'])
+    const aliceMember = mockMembersDb.find(m => m.conversation_id === group.id && m.user_id === 'u-alice')
+    expect(aliceMember?.role).toBe('owner')
+
+    await room.leaveGroup(group.id)
+
+    expect(mockMembersDb.some(m => m.conversation_id === group.id && m.user_id === 'u-alice')).toBe(false)
+    const bobMember = mockMembersDb.find(m => m.conversation_id === group.id && m.user_id === 'u-bob')
+    expect(bobMember?.role).toBe('owner')
+  })
+
+  it('throws and aborts leaving group when succession promotion update fails', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Transfer Fail Group', ['u-bob'])
+    mockMembersUpdateError = { message: 'Transfer ownership failed' }
+
+    await expect(room.leaveGroup(group.id)).rejects.toThrow('Transfer ownership failed')
+    expect(mockMembersDb.some(m => m.conversation_id === group.id && m.user_id === 'u-alice')).toBe(true)
   })
 
   it('sends messages and encrypts using conversation_id as AAD', async () => {

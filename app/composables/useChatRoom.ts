@@ -57,22 +57,6 @@ import {
 } from '~/composables/useUnreadReads'
 import { createContactsActions } from '~/composables/useContacts'
 import { createConversationsActions } from '~/composables/useConversations'
-
-export {
-  computeUnreadSnapshot,
-  computeInitialUnreadSnapshot,
-  computeOldestReadTimestamp,
-  computeConversationReadMap,
-  computeChannelReadMap,
-  createConversationReadDebouncer,
-  createChannelReadDebouncer,
-  createReadReceiptDebouncer,
-  applyIncomingUnreadIncrement,
-  applyActiveChannelReadReset,
-  applyCrossTabReadTimestamp,
-}
-export { createContactsActions }
-export { createConversationsActions }
 import {
   isImagePayload,
   parseImagePayload,
@@ -80,7 +64,6 @@ import {
 } from '~/utils/image'
 
 export const PAGE_SIZE = 40
-export { isDuplicateKeyError }
 
 export async function decryptMessageRow<
   T extends {

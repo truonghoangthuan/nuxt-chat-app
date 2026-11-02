@@ -347,6 +347,27 @@ export function createConversationsActions(deps: ConversationsActionsDeps) {
       throw new Error('Not authenticated.')
     }
 
+    const targetConv = conversations.value.find(c => c.id === conversationId)
+    const myMember = targetConv?.members?.find(m => m.user_id === current.id)
+
+    if (targetConv?.type === 'group' && myMember?.role === 'owner') {
+      const remaining = (targetConv.members || []).filter(m => m.user_id !== current.id)
+      if (remaining.length > 0) {
+        const nextOwner = [...remaining].sort((a, b) =>
+          (a.joined_at || '').localeCompare(b.joined_at || ''),
+        )[0]
+        const { error: promoError } = await supabase
+          .from('conversation_members')
+          .update({ role: 'owner' })
+          .eq('conversation_id', conversationId)
+          .eq('user_id', nextOwner.user_id)
+
+        if (promoError) {
+          throw new Error(promoError.message || 'Failed to transfer group ownership.')
+        }
+      }
+    }
+
     const { error: leaveError } = await supabase
       .from('conversation_members')
       .delete()

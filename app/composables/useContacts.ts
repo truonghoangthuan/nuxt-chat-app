@@ -2,8 +2,6 @@ import type { Ref } from 'vue'
 import type { Contact, Profile } from '~/types/chat'
 import { isValidEmail, isDuplicateKeyError } from '~/utils/chat'
 
-export { isDuplicateKeyError }
-
 export interface ContactsActionsDeps {
   supabase: any
   authProfile: {
