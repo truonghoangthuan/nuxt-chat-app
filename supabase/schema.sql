@@ -255,17 +255,25 @@ create policy "Authenticated users can insert conversation members"
     )
   );
 
--- Users can leave, or owners can remove members
+-- Users can leave, or owners can manage members in group chats
+drop policy if exists "Users can remove themselves or owners can manage members" on public.conversation_members;
 create policy "Users can remove themselves or owners can manage members"
   on public.conversation_members for delete
   to authenticated
   using (
     auth.uid() = user_id
-    or exists (
-      select 1 from public.conversation_members cm
-      where cm.conversation_id = public.conversation_members.conversation_id
-        and cm.user_id = auth.uid()
-        and cm.role = 'owner'
+    or (
+      exists (
+        select 1 from public.conversation_members cm
+        where cm.conversation_id = public.conversation_members.conversation_id
+          and cm.user_id = auth.uid()
+          and cm.role = 'owner'
+      )
+      and exists (
+        select 1 from public.conversations c
+        where c.id = public.conversation_members.conversation_id
+          and c.type = 'group'
+      )
     )
   );
 
