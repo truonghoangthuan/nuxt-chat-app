@@ -598,24 +598,26 @@ export interface HighlightSegment {
   isMatch: boolean
 }
 
+export type MessageSearchType = 'all' | 'images' | 'links'
+
 export function filterMessagesByKeyword(
   messages: ChatMessage[],
   query: string,
+  messageType: MessageSearchType = 'all',
 ): ChatMessage[] {
   const q = query.trim().toLowerCase()
-  if (!q) return []
+  if (!q && messageType === 'all') return []
 
   return messages.filter((msg) => {
     if (msg.deleted_at || msg.encryption === 'undecryptable') {
       return false
     }
 
-    if (isImagePayload(msg.content)) {
-      const payload = parseImagePayload(msg.content)
-      return Boolean(payload?.caption && payload.caption.toLowerCase().includes(q))
-    }
-
-    return msg.content.toLowerCase().includes(q)
+    const image = parseImagePayload(msg.content)
+    if (messageType === 'images' && !image?.images.length) return false
+    const text = image ? (image.caption || '') : msg.content
+    if (messageType === 'links' && !tokenizeMessageMentions(text).some(segment => segment.isLink)) return false
+    return !q || text.toLowerCase().includes(q)
   })
 }
 

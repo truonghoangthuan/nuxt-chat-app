@@ -25,6 +25,71 @@ describe('MessageSearchBar', () => {
     },
   ]
 
+  it('finds uncaptioned images and caption links without a keyword, then combines filters', async () => {
+    const image = (caption?: string) => JSON.stringify({
+      type: 'images', images: [{ path: 'private/metadata-only.example', mimeType: 'image/png', width: 10, height: 10, size: 100 }], caption,
+    })
+    const messages: ChatMessage[] = [
+      ...sampleMessages,
+      { ...sampleMessages[0], id: 'photo', content: image() },
+      { ...sampleMessages[1], id: 'caption', content: image('Apples https://example.com') },
+      { ...sampleMessages[0], id: 'link', content: 'https://example.org apples' },
+      { ...sampleMessages[0], id: 'deleted', content: image(), deleted_at: '2026-11-01T00:00:00Z' },
+      { ...sampleMessages[0], id: 'locked', content: image(), encryption: 'undecryptable' },
+    ]
+    const wrapper = mount(MessageSearchBar, { props: { messages, modelValue: '' } })
+    const type = wrapper.get('[data-test="search-type"]')
+    expect(type.attributes('aria-label')).toBe('Filter by message type')
+    expect(wrapper.find('[data-test="search-count"]').exists()).toBe(false)
+    await type.setValue('images')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 2')
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['photo'])
+    await wrapper.get('[data-test="search-input"]').trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['caption'])
+    await type.setValue('links')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 2')
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['caption'])
+    await wrapper.setProps({ modelValue: 'APPLES' })
+    await wrapper.get('[data-test="search-sender"]').setValue('u-2')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 1')
+    await wrapper.get('[data-test="search-from-date"]').setValue('2026-10-23')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('No results')
+    await wrapper.get('[data-test="search-from-date"]').setValue('')
+    await wrapper.setProps({ modelValue: 'metadata-only' })
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('No results')
+    await wrapper.setProps({ modelValue: '' })
+    await type.setValue('all')
+    expect(wrapper.find('[data-test="search-count"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('resets type navigation even for identical matches and preserves selected IDs on arrival', async () => {
+    const content = JSON.stringify({ type: 'images', images: [{ path: 'photo', mimeType: 'image/png', width: 10, height: 10, size: 100 }], caption: 'https://example.com apples' })
+    const messages = sampleMessages.map(message => ({ ...message, content }))
+    const wrapper = mount(MessageSearchBar, { props: { messages, modelValue: '' } })
+    await wrapper.get('[data-test="search-type"]').setValue('images')
+    await wrapper.get('[data-test="search-input"]').trigger('keydown', { key: 'Enter' })
+    const older = { ...messages[0], id: 'older' }
+    await wrapper.setProps({ messages: [older, ...messages] })
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('3 of 3')
+    expect(wrapper.emitted('jump')).toHaveLength(2)
+    await wrapper.get('[data-test="search-type"]').setValue('links')
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('1 of 3')
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['older'])
+    await wrapper.get('[data-test="search-input"]').trigger('keydown', { key: 'Enter', shiftKey: true })
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['msg-2'])
+    await wrapper.setProps({ messages: [older, messages[0]] })
+    expect(wrapper.get('[data-test="search-count"]').text()).toBe('2 of 2')
+    expect(wrapper.emitted('jump')?.at(-1)).toEqual(['msg-1'])
+    await wrapper.get('[data-test="search-type"]').trigger('keydown', { key: 'Escape' })
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    wrapper.unmount()
+    const reopened = mount(MessageSearchBar, { props: { messages, modelValue: '' } })
+    expect((reopened.get('[data-test="search-type"]').element as HTMLSelectElement).value).toBe('all')
+    expect(reopened.find('[data-test="search-count"]').exists()).toBe(false)
+    reopened.unmount()
+  })
+
   it('narrows keyword matches to inclusive local days and combines with sender', async () => {
     const localTime = (day: number, hour: number, minute = 0) =>
       new Date(2026, 9, day, hour, minute).toISOString()

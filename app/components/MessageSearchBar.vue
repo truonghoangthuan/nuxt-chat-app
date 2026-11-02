@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, useId } from 'vue'
 import type { ChatMessage } from '~/types/chat'
-import { filterMessagesByKeyword } from '~/utils/chat'
+import { filterMessagesByKeyword, type MessageSearchType } from '~/utils/chat'
 import { Search, ChevronUp, ChevronDown, X } from '@lucide/vue'
 
 const props = defineProps<{
@@ -18,6 +18,7 @@ const emit = defineEmits<{
 const inputRef = ref<HTMLInputElement | null>(null)
 const currentIndex = ref(0)
 const senderId = ref('')
+const messageType = ref<MessageSearchType>('all')
 const fromDate = ref('')
 const throughDate = ref('')
 const dateErrorId = useId()
@@ -40,7 +41,7 @@ const senders = computed(() => {
 })
 
 const results = computed(() =>
-  filterMessagesByKeyword(props.messages, props.modelValue)
+  filterMessagesByKeyword(props.messages, props.modelValue, messageType.value)
     .filter((message) => !senderId.value || message.user_id === senderId.value)
     .filter((message) => {
       if (!fromDate.value && !throughDate.value) return true
@@ -54,10 +55,10 @@ const results = computed(() =>
 )
 
 watch(
-  [() => props.modelValue, senderId, fromDate, throughDate, () => results.value.map((message) => message.id)],
-  ([query, sender, from, through, ids], [oldQuery, oldSender, oldFrom, oldThrough, oldIds]) => {
+  [() => props.modelValue, senderId, fromDate, throughDate, messageType, () => results.value.map((message) => message.id)],
+  ([query, sender, from, through, type, ids], [oldQuery, oldSender, oldFrom, oldThrough, oldType, oldIds]) => {
     const filtersChanged = query !== oldQuery || sender !== oldSender
-      || from !== oldFrom || through !== oldThrough
+      || from !== oldFrom || through !== oldThrough || type !== oldType
     const previousId = oldIds[currentIndex.value]
     const preservedIndex = !filtersChanged ? ids.indexOf(previousId) : -1
     if (preservedIndex >= 0) {
@@ -121,7 +122,7 @@ onMounted(() => {
     />
 
     <span
-      v-if="modelValue.trim()"
+      v-if="modelValue.trim() || messageType !== 'all'"
       data-test="search-count"
       role="status"
       aria-live="polite"
@@ -172,6 +173,16 @@ onMounted(() => {
         <option value="">All senders</option>
         <option v-for="sender in senders" :key="sender.id" :value="sender.id">{{ sender.name }}</option>
       </select>
+      <select
+        v-model="messageType"
+        data-test="search-type"
+        aria-label="Filter by message type"
+        class="min-w-0 w-32 max-w-full rounded-md bg-[var(--ap-stage)] text-[var(--ap-text-primary)] px-1 py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+      >
+        <option value="all">All types</option>
+        <option value="images">Images</option>
+        <option value="links">Links</option>
+      </select>
       <label class="flex items-center gap-1 min-w-0 text-[var(--ap-text-secondary)]">
         From
         <input
@@ -197,6 +208,7 @@ onMounted(() => {
         />
       </label>
       <span class="text-[10px] text-[var(--ap-text-muted)]">Loaded messages only · Local time</span>
+      <span v-if="messageType !== 'all'" class="text-[10px] text-[var(--ap-text-muted)]">Keyword optional</span>
       <p v-if="invalidDateRange" :id="dateErrorId" role="alert" class="basis-full text-[var(--ap-text-primary)]">
         From date must be on or before through date.
       </p>
