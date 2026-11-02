@@ -139,11 +139,13 @@ export function createImageAttachmentCache(): ImageAttachmentCache {
         cachedUrls.set(path, objectUrl)
         return objectUrl
       } finally {
-        if (requestGeneration === generation) {
+        if (inFlight.get(path) === promise) {
           inFlight.delete(path)
-          const next = { ...decrypting.value }
-          delete next[path]
-          decrypting.value = next
+          if (decrypting.value[path]) {
+            const next = { ...decrypting.value }
+            delete next[path]
+            decrypting.value = next
+          }
         }
       }
     })()
