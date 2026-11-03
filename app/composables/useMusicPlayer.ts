@@ -327,6 +327,22 @@ export function createMusicController(options: MusicControllerOptions = {}) {
     }
   }
 
+  function shuffleQueue(): void {
+    // Fisher–Yates selects an order; existing move operations keep older peers compatible.
+    const shuffled = [...queue.value]
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      const item = shuffled[i]!
+      shuffled[i] = shuffled[j]!
+      shuffled[j] = item
+    }
+    for (const [index, item] of shuffled.entries()) {
+      if (queue.value[index]?.id !== item.id) {
+        moveInQueue(item.id, index)
+      }
+    }
+  }
+
   function clearQueue(): void {
     const op: MusicQueueOp = { op: 'clear' }
     queue.value = []
@@ -645,6 +661,7 @@ export function createMusicController(options: MusicControllerOptions = {}) {
     enqueue,
     removeFromQueue,
     moveInQueue,
+    shuffleQueue,
     clearQueue,
     skipToNext,
     handleTrackEnded,

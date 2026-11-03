@@ -101,6 +101,26 @@ describe('MusicQueuePanel.vue', () => {
     expect(legacyPlayBtn.attributes('disabled')).toBeDefined()
   })
 
+  it('offers a shuffle action only for the queue and disables short queues', async () => {
+    const wrapper = mount(MusicQueuePanel, {
+      props: { open: true, queue: sampleQueue, history: sampleHistory },
+    })
+    const shuffle = wrapper.get('[data-test="queue-shuffle"]')
+    expect(shuffle.attributes('type')).toBe('button')
+    expect(shuffle.attributes('aria-label')).toBe('Shuffle upcoming songs')
+    await shuffle.trigger('click')
+    expect(wrapper.emitted('shuffle')).toEqual([[]])
+    await wrapper.setProps({ queue: sampleQueue.slice(0, 1) })
+    expect(shuffle.attributes('disabled')).toBeDefined()
+    await shuffle.trigger('click')
+    expect(wrapper.emitted('shuffle')).toHaveLength(1)
+    await wrapper.setProps({ queue: [] })
+    expect(shuffle.attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-test="tab-history"]').trigger('click')
+    expect(wrapper.find('[data-test="queue-shuffle"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('emits move when reorder up or down buttons are clicked', async () => {
     const wrapper = mount(MusicQueuePanel, {
       props: {
