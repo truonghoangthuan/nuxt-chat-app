@@ -139,9 +139,11 @@ export function calculateBackoffMs(attempt: number): number {
   return Math.min(1000 * Math.pow(2, attempt), 30000)
 }
 
+export const MAX_MESSAGE_LENGTH = 4000
+
 export function isValidMessageContent(content: string): boolean {
   const trimmed = content.trim()
-  return trimmed.length > 0 && content.length <= 4000
+  return trimmed.length > 0 && content.length <= MAX_MESSAGE_LENGTH
 }
 
 export function isValidDisplayName(name: string): boolean {

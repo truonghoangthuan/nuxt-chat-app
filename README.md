@@ -29,6 +29,7 @@ A modern, resilient, end-to-end encrypted real-time web chat application built w
 - **Global Presence**: `presence:global` channel tracking online contacts with multi-tab deduplication.
 - **Typing Indicators**: Real-time per-conversation typing broadcasts with automatic idle expiry.
 - **Optimistic UI**: Messages render immediately with UUID `client_id` for idempotent deduplication and retry/dismiss handling on failure.
+- **Long-message Draft Protection**: Text messages show a length counter near the existing 4000-unit limit and an actionable warning above it. Oversized text stays editable and cannot be sent or silently cleared; shorten it to send. Counts match JavaScript UTF-16 length (some emoji use two units) after existing surrounding-whitespace trimming. Per-conversation drafts remain memory-only; image caption behavior is unchanged.
 
 ### Multiplayer Caro
 - **Invite-link rooms**: Create a private two-player 15×15 game and invite someone with a room link.

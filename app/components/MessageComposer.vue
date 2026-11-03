@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onUnmounted, useId } from 'vue'
 import { Send, X, Plus, Zap, Sparkles, ChevronLeft, ChevronRight } from '@lucide/vue'
 import Button from '~/components/ui/Button.vue'
 import type { ChatMessage, Profile } from '~/types/chat'
-import { shouldSendOnKeydown, extractActiveMentionQuery, applyMentionAutocomplete } from '~/utils/chat'
+import { shouldSendOnKeydown, extractActiveMentionQuery, applyMentionAutocomplete, MAX_MESSAGE_LENGTH } from '~/utils/chat'
 import { validateImageFiles, isImagePayload, parseImagePayload, formatImageMessageSummary } from '~/utils/image'
 import UserAvatar from '~/components/UserAvatar.vue'
 import { useTheme } from '~/composables/useTheme'
@@ -80,6 +80,11 @@ const validationError = ref('')
 const pendingAttachments = ref<Array<{ id: number; file: File; url: string }>>([])
 let nextAttachmentId = 0
 const attachmentOrderStatus = ref('')
+const lengthFeedbackId = useId()
+// Match the trimmed text emitted to sendMessage; captions have a separate payload.
+const messageLength = computed(() => content.value.trim().length)
+const isMessageTooLong = computed(() => pendingAttachments.value.length === 0 && messageLength.value > MAX_MESSAGE_LENGTH)
+const showLengthFeedback = computed(() => pendingAttachments.value.length === 0 && messageLength.value >= MAX_MESSAGE_LENGTH * 0.9)
 
 watch(
   () => props.replyingTo,
@@ -334,7 +339,7 @@ function handleDeckKeydown(event: KeyboardEvent) {
 }
 
 function handleSend() {
-  if (props.disabled) return
+  if (props.disabled || isMessageTooLong.value) return
 
   if (pendingAttachments.value.length > 0) {
     const filesToSend = pendingAttachments.value.map(a => a.file)
@@ -605,6 +610,8 @@ onUnmounted(() => {
           v-model="content"
           rows="1"
           :disabled="disabled"
+          :aria-invalid="isMessageTooLong ? 'true' : undefined"
+          :aria-describedby="showLengthFeedback ? lengthFeedbackId : undefined"
           :placeholder="pendingAttachments.length > 0 ? 'Add a caption...' : `Message ${isDm ? '@' : '#'}${channelSlug || 'channel'}`"
           class="flex-1 bg-transparent border-0 text-[var(--ap-text-primary)] placeholder-[var(--ap-text-muted)] text-[13.5px] leading-relaxed py-1 px-1 resize-none focus:outline-none focus:ring-0 custom-scroll max-h-32 disabled:opacity-60"
           @input="handleInput"
@@ -645,7 +652,7 @@ onUnmounted(() => {
         <!-- Send Button -->
         <button
           type="button"
-          :disabled="disabled || (!content.trim() && pendingAttachments.length === 0)"
+          :disabled="disabled || isMessageTooLong || (!content.trim() && pendingAttachments.length === 0)"
           class="chat-composer-send w-8 h-8 rounded-full bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/30 transition-all active:scale-90 shrink-0 cursor-pointer disabled:opacity-40"
           title="Send message"
           aria-label="Send message"
@@ -654,6 +661,15 @@ onUnmounted(() => {
           <Send class="size-3.5" aria-hidden="true" />
         </button>
       </div>
+      <p
+        v-if="showLengthFeedback"
+        :id="lengthFeedbackId"
+        data-test="message-length-feedback"
+        class="mt-1 px-3 text-xs"
+        :class="isMessageTooLong ? 'text-rose-700 dark:text-rose-300' : 'text-[var(--ap-text-secondary)]'"
+      >
+        {{ messageLength }} / {{ MAX_MESSAGE_LENGTH }}<template v-if="isMessageTooLong"> — Message too long. Shorten it to send.</template>
+      </p>
     </div>
   </div>
 </template>
