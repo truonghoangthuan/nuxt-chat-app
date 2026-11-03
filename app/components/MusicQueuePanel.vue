@@ -5,6 +5,7 @@ import type { MusicHistoryEntry } from '~/utils/chat'
 import { getYouTubeThumbnailProxyUrl, formatDurationSeconds } from '~/utils/youtube'
 import {
   ListMusic,
+  Shuffle,
   History,
   Trash2,
   Play,
@@ -29,6 +30,7 @@ const emit = defineEmits<{
   (e: 'remove', id: string): void
   (e: 'move', id: string, toIndex: number): void
   (e: 'clear'): void
+  (e: 'shuffle'): void
   (e: 'play-now', track: YouTubeSearchResult): void
   (e: 'queue-track', track: YouTubeSearchResult, position: 'end' | 'next'): void
 }>()
@@ -85,7 +87,7 @@ function formatRelativeTime(isoString: string): string {
     class="w-full bg-[var(--ap-stage)]/95 backdrop-blur-md border-b border-[var(--ap-glass-border)] shadow-xl z-20 transition-all select-none"
   >
     <!-- Header with Tabs and Actions -->
-    <div class="px-4 py-2 border-b border-[var(--ap-glass-border)] flex items-center justify-between gap-3 text-xs">
+    <div class="px-4 py-2 border-b border-[var(--ap-glass-border)] flex flex-wrap items-center justify-between gap-3 text-xs">
       <div class="flex items-center gap-1.5">
         <!-- Queue Tab -->
         <button
@@ -135,6 +137,19 @@ function formatRelativeTime(isoString: string): string {
       </div>
 
       <div class="flex items-center gap-2">
+        <button
+          v-if="activeTab === 'queue'"
+          type="button"
+          data-test="queue-shuffle"
+          :disabled="queue.length < 2"
+          aria-label="Shuffle upcoming songs"
+          title="Shuffle upcoming songs without interrupting playback"
+          class="px-2 py-1 rounded-md text-[11px] font-medium text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 transition cursor-pointer flex items-center gap-1"
+          @click="emit('shuffle')"
+        >
+          <Shuffle class="w-3 h-3" />
+          <span>Shuffle</span>
+        </button>
         <!-- Clear Queue Button (only on Queue tab) -->
         <button
           v-if="activeTab === 'queue' && queue.length > 0"

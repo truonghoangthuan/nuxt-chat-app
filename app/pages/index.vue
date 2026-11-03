@@ -291,6 +291,7 @@ const {
   enqueue: musicEnqueue,
   removeFromQueue: musicRemoveFromQueue,
   moveInQueue: musicMoveInQueue,
+  shuffleQueue: musicShuffleQueue,
   clearQueue: musicClearQueue,
   skipToNext: musicSkipToNext,
   handleTrackEnded: musicHandleTrackEnded,
@@ -1292,6 +1293,7 @@ onUnmounted(() => {
           @close="isMusicQueueOpen = false"
           @remove="musicRemoveFromQueue"
           @move="musicMoveInQueue"
+          @shuffle="musicShuffleQueue"
           @clear="musicClearQueue"
           @play-now="handleSelectMusicTrack"
           @queue-track="handleQueueMusicTrack"
