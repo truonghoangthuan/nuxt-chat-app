@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { MusicPlaybackState, MusicQueueItem, YouTubeSearchResult } from '~/types/chat'
 import type { MusicHistoryEntry } from '~/utils/chat'
 import { getYouTubeThumbnailProxyUrl, formatDurationSeconds } from '~/utils/youtube'
@@ -36,6 +36,18 @@ const emit = defineEmits<{
 }>()
 
 const activeTab = ref<'queue' | 'history'>('queue')
+const historyQuery = ref('')
+watch([() => props.open, () => props.currentTrack?.conversationId], () => {
+  historyQuery.value = ''
+})
+const filteredHistory = computed(() => {
+  const query = historyQuery.value.trim().toLowerCase()
+  if (!query) return props.history
+  return props.history.filter(item =>
+    [item.title, item.track?.channelTitle, item.actorName]
+      .some(value => value?.toLowerCase().includes(query)),
+  )
+})
 const draggedIndex = ref<number | null>(null)
 
 function handleDragStart(e: DragEvent, index: number) {
@@ -280,6 +292,35 @@ function formatRelativeTime(isoString: string): string {
 
       <!-- History Tab Content -->
       <template v-else>
+        <input
+          v-model="historyQuery"
+          type="search"
+          data-test="history-search"
+          aria-label="Search loaded song history"
+          placeholder="Search by song, artist or friend"
+          class="w-full min-w-0 rounded-lg border border-[var(--ap-glass-border)] bg-black/5 dark:bg-white/5 px-3 py-2 text-xs text-[var(--ap-text-primary)] placeholder:text-[var(--ap-text-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+        />
+        <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[var(--ap-text-secondary)]">
+          <p data-test="history-search-status" role="status">
+            {{ filteredHistory.length }} of {{ history.length }} loaded songs. Only loaded history is searched.
+          </p>
+          <button
+            v-if="historyQuery"
+            type="button"
+            data-test="history-search-clear"
+            class="rounded px-2 py-1 text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 cursor-pointer"
+            @click="historyQuery = ''"
+          >
+            Clear search
+          </button>
+        </div>
+        <div
+          v-if="history.length > 0 && filteredHistory.length === 0"
+          data-test="history-no-matches"
+          class="py-8 text-center text-xs text-[var(--ap-text-muted)]"
+        >
+          No matching songs. Try another song, artist or friend.
+        </div>
         <div
           v-if="history.length === 0"
           data-test="history-empty"
@@ -290,7 +331,7 @@ function formatRelativeTime(isoString: string): string {
         </div>
 
         <div
-          v-for="item in history"
+          v-for="item in filteredHistory"
           :key="item.messageId"
           data-test="history-item"
           class="flex items-center gap-2.5 p-2 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 border border-transparent hover:border-[var(--ap-glass-border)] transition text-xs"
