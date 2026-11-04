@@ -75,6 +75,7 @@ const props = withDefaults(
     notificationPermission?: NotificationPermission
     canInstallPwa?: boolean
     canOpenStreet?: boolean
+    canOpenIncense?: boolean
     appVersion?: string
   }>(),
   {
@@ -106,6 +107,7 @@ const emit = defineEmits<{
   (e: 'toggleTheme'): void
   (e: 'installPwa'): void
   (e: 'openStreet'): void
+  (e: 'openIncense'): void
   (e: 'logout'): void
   (e: 'closeMobile'): void
 }>()
@@ -707,6 +709,16 @@ function onContactsClick() {
           >
             <span aria-hidden="true">♧</span>
             <span>Ra phố · Trà đá đầu ngõ<small v-if="!canOpenStreet" class="block font-normal text-[var(--ap-text-secondary)] mt-0.5">Chọn nhóm để ra phố</small></span>
+          </button>
+          <button
+            type="button"
+            data-test="open-incense"
+            :disabled="!canOpenIncense"
+            class="w-full min-h-11 mb-2 flex items-center gap-2 px-3 py-2 rounded-xl text-left text-xs font-semibold text-[var(--ap-text-primary)] bg-amber-500/10 border border-amber-600/20 hover:bg-amber-500/20 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 cursor-pointer"
+            @click="emit('openIncense')"
+          >
+            <span aria-hidden="true">⌁</span>
+            <span>Thắp nhang · Một nén bình an<small v-if="!canOpenIncense" class="block font-normal text-[var(--ap-text-secondary)] mt-0.5">Chọn cuộc trò chuyện để mở sân</small></span>
           </button>
           <div class="grid grid-cols-2 gap-1.5">
             <a

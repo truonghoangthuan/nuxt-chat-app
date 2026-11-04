@@ -17,6 +17,7 @@
     "@vercel/analytics": "^2.0.1",
     "chess.js": "1.4.0",
     "nuxt": "^4.6.3",
+    "three": "0.180.0",
     "vue": "^3.5.43"
   },
   "devDependencies": {

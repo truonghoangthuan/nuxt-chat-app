@@ -134,6 +134,25 @@ const mockStreetState = {
 }
 vi.mock('~/composables/useStreet', () => ({ useStreet: () => mockStreetState }))
 
+vi.mock('~/utils/incenseRepository', () => ({
+  createIncenseRepository: () => ({
+    list: async () => [{
+      id: 'historical-incense', client_id: 'historical-offering', conversation_id: 'conv-incense',
+      user_id: 'u-former-member', actor: { id: 'u-former-member', display_name: 'Former Member' },
+      created_at: '2026-11-04T08:00:00Z',
+    }],
+    record: vi.fn(),
+  }),
+}))
+vi.mock('~/utils/incense/loadCourtyard', () => ({
+  loadCourtyard: async () => ({
+    createCourtyard: (_host: HTMLElement, options: any) => {
+      options.onReady()
+      return { dispose: vi.fn() }
+    },
+  }),
+}))
+
 import IndexPage from '~/pages/index.vue'
 import ContactsModal from '~/components/ContactsModal.vue'
 import CreateGroupModal from '~/components/CreateGroupModal.vue'
@@ -148,6 +167,67 @@ describe('IndexPage (app/pages/index.vue)', () => {
     mockChatRoomState.activeConversation.value = null
     mockChatRoomState.contacts.value = []
     mockChatRoomState.onlineFriends.value = []
+  })
+
+  it('opens incense for the selected conversation without replacing the composer and closes on switch', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-incense'
+    mockChatRoomState.activeConversation.value = {
+      id: 'conv-incense', type: 'group', title: 'Nhóm bình an', created_by: 'u-self', created_at: '', members: [],
+    }
+    const wrapper = mount(IndexPage, { global: { stubs: { IncenseActivityModal: { name: 'IncenseActivityModal', props: ['conversationId', 'actorId', 'roomTitle'], template: '<div data-test="incense-modal-stub" />' } } } })
+    const composer = wrapper.getComponent({ name: 'MessageComposer' }).element
+    expect(wrapper.find('[data-test="incense-modal-stub"]').exists()).toBe(false)
+    await wrapper.get('[data-test="open-incense"]').trigger('click')
+    expect(wrapper.find('[data-test="incense-modal-stub"]').exists()).toBe(true)
+    expect(wrapper.getComponent({ name: 'IncenseActivityModal' }).props()).toMatchObject({ conversationId: 'conv-incense', actorId: 'u-self', roomTitle: 'Nhóm bình an' })
+    expect(wrapper.getComponent({ name: 'MessageComposer' }).element).toBe(composer)
+    mockChatRoomState.activeConversationId.value = 'other'
+    await flushPromises()
+    expect(wrapper.find('[data-test="incense-modal-stub"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('retains the courtyard and explains unavailable profiles for historical actors outside known profiles and current members', async () => {
+    vi.stubGlobal('useSupabaseClient', () => ({}))
+    mockChatRoomState.knownProfiles.value = []
+    mockChatRoomState.activeConversationId.value = 'conv-incense'
+    mockChatRoomState.activeConversation.value = {
+      id: 'conv-incense', type: 'group', title: 'Nhóm bình an', created_by: 'u-self', created_at: '', members: [],
+    }
+    const wrapper = mount(IndexPage)
+    try {
+      await wrapper.get('[data-test="open-incense"]').trigger('click')
+      await flushPromises()
+      const courtyard = wrapper.getComponent({ name: 'IncenseCourtyard' }).element
+      await wrapper.get('.history .actor').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.findComponent({ name: 'IncenseCourtyard' }).exists()).toBe(true)
+      expect(wrapper.getComponent({ name: 'IncenseCourtyard' }).element).toBe(courtyard)
+      expect(wrapper.get('[data-test="incense-profile-feedback"]').text()).toBe('Không thể xem hồ sơ này lúc này. Lịch sử dâng hương vẫn được giữ lại.')
+      expect(wrapper.get('[data-test="incense-profile-feedback"]').attributes('role')).toBe('status')
+      expect(wrapper.get('.history .actor').text()).toBe('Former Member')
+      expect(wrapper.getComponent({ name: 'UserProfileModal' }).props('isOpen')).toBe(false)
+
+      await wrapper.get('[data-test="incense-close"]').trigger('click')
+      await wrapper.get('[data-test="open-incense"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[data-test="incense-profile-feedback"]').exists()).toBe(false)
+
+      const accessibleProfile: Profile = {
+        id: 'u-former-member', display_name: 'Former Member', avatar_color: '#3b82f6', bank_qr_url: null,
+      }
+      mockChatRoomState.knownProfiles.value = [accessibleProfile]
+      await wrapper.get('.history .actor').trigger('click')
+      await flushPromises()
+      expect(wrapper.findComponent({ name: 'IncenseCourtyard' }).exists()).toBe(false)
+      expect(wrapper.getComponent({ name: 'UserProfileModal' }).props('isOpen')).toBe(true)
+      expect(wrapper.getComponent({ name: 'UserProfileModal' }).props('profile')).toEqual(accessibleProfile)
+    } finally {
+      wrapper.unmount()
+      mockChatRoomState.knownProfiles.value = []
+      vi.unstubAllGlobals()
+    }
   })
 
   it('opens the street explicitly for a group without joining and retains the encrypted chat composer', async () => {

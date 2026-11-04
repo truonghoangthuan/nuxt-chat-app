@@ -1,0 +1,78 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
+import IncenseCourtyard from '~/components/IncenseCourtyard.vue'
+const scene = vi.hoisted(() => ({ start: vi.fn(), skip: vi.fn(), dispose: vi.fn(), setReducedMotion: vi.fn(), resetView: vi.fn(), confirm: vi.fn(), rollback: vi.fn() }))
+let callbacks: any
+vi.mock('~/utils/incense/loadCourtyard', () => ({ loadCourtyard: async () => ({ createCourtyard: (_host: HTMLElement, options: any) => { callbacks = options; options.onReady(); return scene } }) }))
+const event = { id: 'e', client_id: 'r', conversation_id: 'room', user_id: 'actor', actor: { id: 'actor', display_name: 'An <b>' }, created_at: '2026-11-04T08:00:00Z' }
+const props = { conversationId: 'room', actorId: 'actor', roomTitle: 'Nhóm bạn', repository: { list: async () => [event], record: vi.fn(async () => event) } }
+beforeEach(() => { vi.clearAllMocks(); vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) })
+
+describe('incense courtyard production component', () => {
+  it('shows failure instead of success and retries the same offering without replaying motion', async () => {
+    const record = vi.fn().mockRejectedValueOnce({ code: 'NETWORK' }).mockResolvedValue(event)
+    const wrapper = mount(IncenseCourtyard, { props: { ...props, repository: { list: async () => [], record } } })
+    await flushPromises()
+    await wrapper.get('[data-test="incense-offer"]').trigger('click')
+    await callbacks.onComplete()
+    await flushPromises()
+    expect(wrapper.find('[data-test="incense-feedback"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Chưa xác nhận')
+    expect(scene.rollback).toHaveBeenCalledTimes(1)
+    await wrapper.get('[data-test="incense-retry"]').trigger('click')
+    await flushPromises()
+    expect(record.mock.calls[0]).toEqual(record.mock.calls[1])
+    expect(scene.start).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-test="incense-feedback"]').text()).toContain('Đã gửi')
+    wrapper.unmount()
+  })
+  it('does not load or enable rituals before schema authorization and supports fallback reload', async () => {
+    const wrapper = mount(IncenseCourtyard, { props: { ...props, repository: { list: async () => { throw { code: 'PGRST202' } }, record: vi.fn() } } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('chưa sẵn sàng')
+    expect(wrapper.find('.empty').exists()).toBe(false)
+    expect(wrapper.get('[data-test="incense-offer"]').attributes('disabled')).toBeDefined()
+    expect(scene.start).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it('invalidates renderer callbacks on group/auth switch and aborts on close', async () => {
+    const record = vi.fn(async () => event)
+    const wrapper = mount(IncenseCourtyard, { props: { ...props, repository: { list: async () => [], record } } })
+    await flushPromises()
+    const old = callbacks
+    await wrapper.setProps({ conversationId: 'other', actorId: 'other-actor' })
+    await flushPromises()
+    expect(old.signal.aborted).toBe(true)
+    old.onComplete()
+    expect(record).not.toHaveBeenCalled()
+    await wrapper.get('[data-test="incense-motion"]').setValue(true)
+    expect(scene.setReducedMotion).toHaveBeenCalledWith(true)
+    await wrapper.get('[role="dialog"]').trigger('keydown', { key: 'Escape' })
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    const current = callbacks
+    wrapper.unmount()
+    current.onComplete()
+    expect(current.signal.aborted).toBe(true)
+    expect(record).not.toHaveBeenCalled()
+  })
+  it('renders authenticated history safely and records only after explicit ritual completion', async () => {
+    const wrapper = mount(IncenseCourtyard, { props })
+    await flushPromises()
+    expect(wrapper.text()).toContain('Nhóm bạn')
+    expect(wrapper.text()).toContain('An <b>')
+    expect(wrapper.find('time').attributes('title')).toBeTruthy()
+    expect(props.repository.record).not.toHaveBeenCalled()
+    await wrapper.get('[data-test="incense-offer"]').trigger('click')
+    expect(scene.start).toHaveBeenCalledTimes(1)
+    await wrapper.get('[data-test="incense-offer"]').trigger('click')
+    expect(scene.start).toHaveBeenCalledTimes(1)
+    await callbacks.onComplete()
+    await flushPromises()
+    expect(props.repository.record).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-test="incense-feedback"]').text()).toContain('Đã gửi')
+    await wrapper.get('[data-test="incense-offer"]').trigger('click')
+    expect(wrapper.find('[data-test="incense-feedback"]').exists()).toBe(false)
+    wrapper.unmount()
+    expect(scene.dispose).toHaveBeenCalled()
+  })
+})

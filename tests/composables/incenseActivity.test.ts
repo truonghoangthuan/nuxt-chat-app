@@ -1,0 +1,68 @@
+import { describe, expect, it, vi } from 'vitest'
+import { createIncenseActivity } from '~/composables/useIncenseActivity'
+
+const row = { id: 'event', client_id: 'request', conversation_id: 'room', user_id: 'actor', created_at: '2026-11-04T08:00:00Z', actor: { id: 'actor', display_name: 'An' } }
+function deferred<T>() { let resolve!: (v: T) => void; const promise = new Promise<T>(r => { resolve = r }); return { promise, resolve } }
+
+describe('incense persistence lifecycle', () => {
+  it('ignores old history, saves and errors after switching conversation or closing', async () => {
+    const oldList = deferred<any>()
+    const oldSave = deferred<any>()
+    const activity = createIncenseActivity({ list: vi.fn().mockResolvedValueOnce([]).mockReturnValueOnce(oldList.promise).mockResolvedValue([]), record: () => oldSave.promise })
+    await activity.open('room', 'actor')
+    const saving = activity.offer()
+    const opening = activity.open('old', 'actor')
+    await activity.open('new', 'other-actor')
+    oldList.resolve([row])
+    oldSave.resolve(row)
+    await Promise.all([saving, opening])
+    expect(activity.history.value).toEqual([])
+    expect(activity.status.value).toBe('ready')
+    activity.close()
+    await activity.offer()
+    expect(activity.status.value).toBe('idle')
+  })
+  it('requires successful history authorization before permitting a write', async () => {
+    const record = vi.fn()
+    const activity = createIncenseActivity({ list: async () => { throw { code: '42501' } }, record })
+    await activity.open('room', 'actor')
+    await activity.offer()
+    expect(record).not.toHaveBeenCalled()
+  })
+  it('retains the id for a failed retry and never claims success', async () => {
+    const record = vi.fn().mockRejectedValueOnce({ code: 'NETWORK' }).mockResolvedValueOnce(row)
+    const uuid = vi.fn(() => 'request')
+    const activity = createIncenseActivity({ list: async () => [], record, uuid })
+    await activity.open('room', 'actor')
+    await activity.offer()
+    expect(activity.status.value).toBe('error')
+    expect(activity.history.value).toEqual([])
+    await activity.offer()
+    expect(record.mock.calls).toEqual([['room', 'request'], ['room', 'request']])
+    expect(uuid).toHaveBeenCalledTimes(1)
+    expect(activity.history.value).toEqual([row])
+  })
+  it('shows an explicit unavailable state for an absent schema', async () => {
+    const activity = createIncenseActivity({ list: async () => { throw { code: '42P01' } }, record: vi.fn() })
+    await activity.open('room', 'actor')
+    expect(activity.status.value).toBe('unavailable')
+    expect(activity.error.value).toContain('chưa sẵn sàng')
+    await activity.offer()
+    expect(activity.history.value).toEqual([])
+  })
+  it('only confirms after database success and coalesces double clicks', async () => {
+    const pending = deferred<any>()
+    const record = vi.fn(() => pending.promise)
+    const activity = createIncenseActivity({ list: async () => [], record, uuid: () => 'request' })
+    await activity.open('room', 'actor')
+    const first = activity.offer()
+    const second = activity.offer()
+    expect(record).toHaveBeenCalledTimes(1)
+    expect(activity.status.value).toBe('saving')
+    expect(activity.history.value).toEqual([])
+    pending.resolve(row)
+    await Promise.all([first, second])
+    expect(activity.status.value).toBe('success')
+    expect(activity.history.value).toEqual([row])
+  })
+})
