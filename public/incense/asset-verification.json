@@ -1,0 +1,105 @@
+{
+  "ok": true,
+  "three": "0.180.0",
+  "human": {
+    "file": "assets/sam.glb",
+    "bytes": 21109960,
+    "gltfMeshes": 12,
+    "skinnedPrimitives": 14,
+    "skinCount": 1,
+    "joints": 56,
+    "animations": 1,
+    "triangles": 91610,
+    "embeddedImages": 10,
+    "copyright": "Authored by Innerscene Corp (innerscene.com). Public domain: dedicated under CC0 1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/. Free to use, modify and redistribute for any purpose, with no credit required."
+  },
+  "externalRuntimeURLsInApp": false,
+  "textureFiles": 15,
+  "hashes": [
+    {
+      "file": "assets/sam.glb",
+      "bytes": 21109960,
+      "sha256": "bbce6e51c8f46ed9e0ed6312ed89ba7e4b03a8bf5374d4f307ca24325a2c7822"
+    },
+    {
+      "file": "assets/sky.hdr",
+      "bytes": 1435119,
+      "sha256": "fd94c84997b8a3c353b62c2125a9b44e19509956986a126e472684432a02d798"
+    },
+    {
+      "file": "assets/red_brick_pavers_nor_gl.jpg",
+      "bytes": 711387,
+      "sha256": "2fc96080344b4053a1df3142a42d50bc29673b21b2b3ad48053d1ec9d37fb3b8"
+    },
+    {
+      "file": "assets/worn_mossy_plasterwall_nor_gl.jpg",
+      "bytes": 870753,
+      "sha256": "0fdf1e22066c4f6fc2c820ae9b11aa5f9ea6ea131ccf3abb65f37251ab9f6a5d"
+    },
+    {
+      "file": "assets/wood_planks_nor_gl.jpg",
+      "bytes": 652441,
+      "sha256": "d02abf113e17a8abe97e1be3e9d6d88add242e8c2291e2200d37aa8c68909f25"
+    },
+    {
+      "file": "assets/clay_roof_tiles_nor_gl.jpg",
+      "bytes": 1101177,
+      "sha256": "e6b364661f6c3045bf5268f684047968fc6550e5fa9b22b4b1266df47b495faa"
+    },
+    {
+      "file": "assets/red_brick_pavers_diff.jpg",
+      "bytes": 460206,
+      "sha256": "50567d36dd6d9bbf4ef9b76f83ed08fcfc8faa0d2bdfe1c2de81de5978d851db"
+    },
+    {
+      "file": "assets/red_brick_pavers_rough.jpg",
+      "bytes": 293258,
+      "sha256": "ae88ab9cf9671db2f32306c29f6c6c2a159794ec8e4d36fb197c0b7b80f6e143"
+    },
+    {
+      "file": "assets/worn_mossy_plasterwall_diff.jpg",
+      "bytes": 964249,
+      "sha256": "415cbcbe8f70269569aa4f2f1efc13ca1bd5f2fabc791dff428ef0fa243e1e9e"
+    },
+    {
+      "file": "assets/worn_mossy_plasterwall_rough.jpg",
+      "bytes": 635042,
+      "sha256": "b33938d0ac7889b7b8580b8e3920958c0aa13a1154d6ad783676a540afd628e9"
+    },
+    {
+      "file": "assets/wood_planks_diff.jpg",
+      "bytes": 609525,
+      "sha256": "3b0669f683e4bf10f5a55a381cfa9669a7b8dfd921901829daa3b35acc2bbdec"
+    },
+    {
+      "file": "assets/wood_planks_rough.jpg",
+      "bytes": 299757,
+      "sha256": "1b7f115bfa25619b0a2db554eb1ab88a6fc5ef0b74ba4890611eae04d00b9829"
+    },
+    {
+      "file": "assets/clay_roof_tiles_diff.jpg",
+      "bytes": 878367,
+      "sha256": "aac0f4e742a2cce21afb5dfb523b47c720c6a8e2782a312b823608fe3f80eae6"
+    },
+    {
+      "file": "assets/clay_roof_tiles_rough.jpg",
+      "bytes": 306665,
+      "sha256": "9dbddfda928ea582e520d5e6fe7fadcfb886a169df9aa8ecaefa689363679b58"
+    },
+    {
+      "file": "assets/worn_plaster_wall_diff.jpg",
+      "bytes": 750361,
+      "sha256": "f769bee35504ff713e89e89d2b64c1eb3c373dd184973ac8706310f19fd63efe"
+    },
+    {
+      "file": "assets/worn_plaster_wall_rough.jpg",
+      "bytes": 242497,
+      "sha256": "383584ed24edd4dd6e6a675fd822ec04152684ba15f4b0eda1f0dbe31979a7c6"
+    },
+    {
+      "file": "assets/worn_plaster_wall_nor_gl.jpg",
+      "bytes": 680164,
+      "sha256": "5d1dc80a354fc7de3f0ada286176b56d50067c85c9f95140aadf7d5db15adee1"
+    }
+  ]
+}

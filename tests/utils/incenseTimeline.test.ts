@@ -1,0 +1,40 @@
+import { describe, expect, it, vi } from 'vitest'
+import { createRitualTimeline } from '~/utils/incense/ritualTimeline'
+
+describe('ritual timeline', () => {
+  it('derives the pose from absolute elapsed time and completes once even after frame throttling', () => {
+    const pose = vi.fn(), complete = vi.fn()
+    const ritual = createRitualTimeline({ pose, complete })
+    ritual.start(100)
+    ritual.start(100)
+    ritual.step(10500)
+    expect(pose).toHaveBeenLastCalledWith(10.4)
+    ritual.step(15000)
+    ritual.skip()
+    ritual.step(16000)
+    expect(complete).toHaveBeenCalledTimes(1)
+    expect(ritual.running).toBe(false)
+  })
+  it('skips or changes reduced motion mid-sequence without double completion', () => {
+    const complete = vi.fn()
+    const ritual = createRitualTimeline({ pose: vi.fn(), complete })
+    ritual.start(0)
+    ritual.setReducedMotion(true)
+    ritual.skip()
+    expect(complete).toHaveBeenCalledTimes(1)
+    ritual.start(100)
+    expect(complete).toHaveBeenCalledTimes(2)
+  })
+  it('does not complete or animate after disposal', () => {
+    const pose = vi.fn(), complete = vi.fn()
+    const ritual = createRitualTimeline({ pose, complete })
+    ritual.start(0)
+    ritual.dispose()
+    ritual.skip()
+    ritual.step(15000)
+    ritual.setReducedMotion(true)
+    ritual.start(20000)
+    expect(complete).not.toHaveBeenCalled()
+    expect(pose).not.toHaveBeenCalled()
+  })
+})

@@ -35,6 +35,7 @@ import { useE2ee } from '~/composables/useE2ee'
 import { usePwaInstall } from '~/composables/usePwaInstall'
 import { useStreet } from '~/composables/useStreet'
 import StreetScene from '~/components/StreetScene.vue'
+import IncenseActivityModal from '~/components/IncenseActivityModal.vue'
 import {
   extractMediaFromMessages,
   extractLinksFromMessages,
@@ -509,6 +510,27 @@ const {
   participants: streetParticipants, joined: streetJoined, status: streetStatus,
   error: streetError, teaNotice: streetTeaNotice, speech: streetSpeech,
 } = street
+
+const isIncenseOpen = ref(false)
+const incenseProfileFeedback = ref('')
+function handleIncenseProfile(userId: string) {
+  const profile = knownProfiles.value.find(person => person.id === userId)
+    || activeConversation.value?.members?.find(member => member.user_id === userId)?.profile
+    || (currentProfile.value?.id === userId ? currentProfile.value : null)
+  if (!profile) {
+    incenseProfileFeedback.value = 'Không thể xem hồ sơ này lúc này. Lịch sử dâng hương vẫn được giữ lại.'
+    return
+  }
+  isIncenseOpen.value = false
+  void handleViewProfile(profile)
+}
+function handleOpenIncense() {
+  if (!activeConversation.value || !currentProfile.value) return
+  incenseProfileFeedback.value = ''
+  isIncenseOpen.value = true
+  isMobileSidebarOpen.value = false
+}
+watch([activeConversationId, () => currentProfile.value?.id], () => { isIncenseOpen.value = false })
 
 function handleOpenStreet() {
   activeStageTab.value = 'street'
@@ -1023,6 +1045,8 @@ onUnmounted(() => {
       :notification-permission="notificationPermission"
       :can-install-pwa="canInstallPwa"
       :can-open-street="activeConversation?.type === 'group'"
+      :can-open-incense="!!activeConversation && !!currentProfile"
+      @open-incense="handleOpenIncense"
       @open-street="handleOpenStreet"
       @install-pwa="promptInstallPwa"
       @toggle-notifications="handleToggleNotifications"
@@ -1560,6 +1584,17 @@ onUnmounted(() => {
         :profile="currentProfile"
         @close="isProfileSettingsModalOpen = false"
         @save="handleSaveProfile"
+      />
+
+      <IncenseActivityModal
+        v-if="isIncenseOpen && activeConversation && currentProfile"
+        :key="`${activeConversation.id}:${currentProfile.id}`"
+        :conversation-id="activeConversation.id"
+        :actor-id="currentProfile.id"
+        :room-title="activeConversation.title || activeConversation.peer?.display_name || 'Cuộc trò chuyện'"
+        :profile-feedback="incenseProfileFeedback"
+        @close="isIncenseOpen = false"
+        @view-profile="handleIncenseProfile"
       />
 
       <!-- Changelog / What's New Modal -->
