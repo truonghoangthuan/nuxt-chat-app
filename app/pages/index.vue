@@ -33,6 +33,8 @@ import RightUtilityPanel from '~/components/RightUtilityPanel.vue'
 import { Menu, Users, Info, Search, Image as ImageIcon, MessageSquare, Link2, Settings, Sun, Moon, Plus, Sparkles, Music } from '@lucide/vue'
 import { useE2ee } from '~/composables/useE2ee'
 import { usePwaInstall } from '~/composables/usePwaInstall'
+import { useStreet } from '~/composables/useStreet'
+import StreetScene from '~/components/StreetScene.vue'
 import {
   extractMediaFromMessages,
   extractLinksFromMessages,
@@ -500,7 +502,30 @@ const isLightboxOpen = ref(false)
 const lightboxImages = ref<EncryptedImageMetadata[]>([])
 const lightboxInitialIndex = ref(0)
 
-const activeStageTab = ref<'messages' | 'media' | 'links'>('messages')
+const activeStageTab = ref<'messages' | 'media' | 'links' | 'street'>('messages')
+const isStreetVisible = computed(() => activeStageTab.value === 'street' && activeConversation.value?.type === 'group')
+const street = useStreet(activeConversation, currentProfile, messages, isLoadingHistory, isStreetVisible)
+const {
+  participants: streetParticipants, joined: streetJoined, status: streetStatus,
+  error: streetError, teaNotice: streetTeaNotice, speech: streetSpeech,
+} = street
+
+function handleOpenStreet() {
+  activeStageTab.value = 'street'
+  isMobileSidebarOpen.value = false
+  handleCloseSearch()
+}
+
+function handleStreetProfile(userId: string) {
+  const profile = knownProfiles.value.find(person => person.id === userId)
+    || activeConversation.value?.members?.find(member => member.user_id === userId)?.profile
+    || (currentProfile.value?.id === userId ? currentProfile.value : null)
+  if (profile) void handleViewProfile(profile)
+}
+
+watch(() => activeConversation.value?.type, (type) => {
+  if (type !== 'group' && activeStageTab.value === 'street') activeStageTab.value = 'messages'
+})
 const mediaCount = computed(() => extractMediaFromMessages(messages.value).length)
 const linksCount = computed(() => extractLinksFromMessages(messages.value).length)
 
@@ -997,6 +1022,8 @@ onUnmounted(() => {
       :notifications-enabled="soundEnabled || desktopEnabled"
       :notification-permission="notificationPermission"
       :can-install-pwa="canInstallPwa"
+      :can-open-street="activeConversation?.type === 'group'"
+      @open-street="handleOpenStreet"
       @install-pwa="promptInstallPwa"
       @toggle-notifications="handleToggleNotifications"
       @select-conversation="handleSelectConversation"
@@ -1317,6 +1344,18 @@ onUnmounted(() => {
           </button>
 
           <button
+            v-if="activeConversation?.type === 'group'"
+            type="button"
+            data-test="subtab-street"
+            :aria-pressed="isStreetVisible"
+            class="inline-flex min-h-10 items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 cursor-pointer"
+            :class="isStreetVisible ? 'bg-emerald-500/15 ring-1 ring-emerald-600/30' : ''"
+            @click="handleOpenStreet"
+          >
+            <span aria-hidden="true">♧</span><span>Ra phố</span>
+          </button>
+
+          <button
             type="button"
             data-test="subtab-media"
             class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
@@ -1351,9 +1390,30 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <!-- Message Viewport -->
+        <!-- Keep the real E2EE viewport/composer mounted when toggling the street. -->
+        <div
+          v-if="activeStageTab === 'messages' || activeStageTab === 'street'"
+          class="street-chat-layout"
+          :class="{ 'street-chat-layout--open': isStreetVisible }"
+          data-test="street-chat-layout"
+        >
+        <StreetScene
+          v-if="isStreetVisible"
+          :participants="streetParticipants"
+          :current-user-id="currentProfile?.id || ''"
+          :joined="streetJoined"
+          :status="streetStatus"
+          :error="streetError"
+          :tea-notice="streetTeaNotice"
+          :speech="streetSpeech"
+          :room-title="activeConversation?.title || 'Bạn đầu ngõ'"
+          :enabled="e2eeStatus === 'unlocked'"
+          @join="street.join"
+          @leave="street.leave"
+          @invite-tea="street.inviteTea"
+          @view-profile="handleStreetProfile"
+        />
         <MessageViewport
-          v-if="activeStageTab === 'messages'"
           ref="messageViewportRef"
           :messages="messages"
           :search-query="searchQuery"
@@ -1398,6 +1458,7 @@ onUnmounted(() => {
             @toggle-stickers="isUtilityPanelOpen = !isUtilityPanelOpen"
           />
         </MessageViewport>
+        </div>
 
         <!-- Media Subtab Gallery -->
         <ChatMediaGallery
@@ -1591,3 +1652,16 @@ onUnmounted(() => {
     </footer>
   </div>
 </template>
+
+<style scoped>
+.street-chat-layout { display: flex; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+.street-chat-layout--open { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 36%); }
+.street-chat-layout--open > :deep(.chat-timeline-stage) { border-left: 1px solid var(--ap-glass-border); }
+@media (max-width: 1100px) {
+  .street-chat-layout--open { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(190px, 44%) minmax(0, 1fr); }
+  .street-chat-layout--open > :deep(.chat-timeline-stage) { border-left: 0; border-top: 1px solid var(--ap-glass-border); }
+}
+@media (max-height: 650px) and (max-width: 1100px) {
+  .street-chat-layout--open { grid-template-rows: minmax(125px, 36%) minmax(0, 1fr); }
+}
+</style>
