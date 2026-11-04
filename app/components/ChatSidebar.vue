@@ -74,6 +74,7 @@ const props = withDefaults(
     notificationsEnabled?: boolean
     notificationPermission?: NotificationPermission
     canInstallPwa?: boolean
+    canOpenStreet?: boolean
     appVersion?: string
   }>(),
   {
@@ -104,6 +105,7 @@ const emit = defineEmits<{
   (e: 'toggleNotifications'): void
   (e: 'toggleTheme'): void
   (e: 'installPwa'): void
+  (e: 'openStreet'): void
   (e: 'logout'): void
   (e: 'closeMobile'): void
 }>()
@@ -696,6 +698,16 @@ function onContactsClick() {
           <div class="flex items-center justify-between px-2 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--ap-text-muted)]">
             <span>Activities</span>
           </div>
+          <button
+            type="button"
+            data-test="open-street"
+            :disabled="!canOpenStreet"
+            class="w-full min-h-11 mb-2 flex items-center gap-2 px-3 py-2 rounded-xl text-left text-xs font-semibold text-[var(--ap-text-primary)] bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
+            @click="emit('openStreet')"
+          >
+            <span aria-hidden="true">♧</span>
+            <span>Ra phố · Trà đá đầu ngõ<small v-if="!canOpenStreet" class="block font-normal text-[var(--ap-text-secondary)] mt-0.5">Chọn nhóm để ra phố</small></span>
+          </button>
           <div class="grid grid-cols-2 gap-1.5">
             <a
               href="/caro"

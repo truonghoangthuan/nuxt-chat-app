@@ -121,6 +121,19 @@ vi.mock('~/composables/useE2ee', () => ({
   useE2ee: () => mockE2eeState,
 }))
 
+const mockStreetState = {
+  participants: ref([]),
+  joined: ref(false),
+  status: ref('idle'),
+  error: ref(null),
+  teaNotice: ref(null),
+  speech: ref({}),
+  join: vi.fn(),
+  leave: vi.fn().mockResolvedValue(undefined),
+  inviteTea: vi.fn(),
+}
+vi.mock('~/composables/useStreet', () => ({ useStreet: () => mockStreetState }))
+
 import IndexPage from '~/pages/index.vue'
 import ContactsModal from '~/components/ContactsModal.vue'
 import CreateGroupModal from '~/components/CreateGroupModal.vue'
@@ -135,6 +148,37 @@ describe('IndexPage (app/pages/index.vue)', () => {
     mockChatRoomState.activeConversation.value = null
     mockChatRoomState.contacts.value = []
     mockChatRoomState.onlineFriends.value = []
+  })
+
+  it('opens the street explicitly for a group without joining and retains the encrypted chat composer', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-street'
+    mockChatRoomState.activeConversation.value = {
+      id: 'conv-street', type: 'group', title: 'Bạn đầu ngõ', created_by: 'u-self',
+      created_at: '2026-10-21T00:00:00Z', members: [],
+    }
+    const wrapper = mount(IndexPage)
+    expect(wrapper.findComponent({ name: 'StreetScene' }).exists()).toBe(false)
+    expect(wrapper.get('[data-test="open-street"]').attributes('disabled')).toBeUndefined()
+    await wrapper.get('[data-test="open-street"]').trigger('click')
+    expect(wrapper.findComponent({ name: 'StreetScene' }).exists()).toBe(true)
+    expect(mockStreetState.join).not.toHaveBeenCalled()
+    expect(wrapper.findComponent({ name: 'MessageComposer' }).exists()).toBe(true)
+    const scene = wrapper.getComponent({ name: 'StreetScene' })
+    scene.vm.$emit('join')
+    expect(mockStreetState.join).toHaveBeenCalledOnce()
+    await wrapper.get('[data-test="subtab-messages"]').trigger('click')
+    expect(wrapper.findComponent({ name: 'StreetScene' }).exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('does not offer a street for a direct conversation', () => {
+    mockChatRoomState.activeConversationId.value = 'direct'
+    mockChatRoomState.activeConversation.value = {
+      id: 'direct', type: 'direct', title: null, created_by: 'u-self', created_at: '',
+    }
+    const wrapper = mount(IndexPage)
+    expect(wrapper.find('[data-test="subtab-street"]').exists()).toBe(false)
+    wrapper.unmount()
   })
 
   it.each(['play', 'pause', 'nexttrack', 'seekto'])(
