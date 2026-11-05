@@ -69,4 +69,29 @@ describe('useStealthMode & shortcut helpers', () => {
     expect(stealth.isStealthHidden.value).toBe(false)
     expect(document.title).toBe('Nuxt Friends Chat (3)')
   })
+
+  it('falls back to default title if cloakTitle is empty or whitespace', () => {
+    document.title = 'Nuxt Friends Chat'
+    const stealth = useStealthMode()
+    stealth.updateStealthConfig({ cloakTitle: '   ' })
+
+    stealth.toggleStealth()
+    expect(stealth.isStealthHidden.value).toBe(true)
+    expect(document.title).toBe('Workspace — Notes')
+
+    stealth.toggleStealth()
+  })
+
+  it('updates document.title dynamically if stealth mode is already active', () => {
+    document.title = 'Nuxt Friends Chat'
+    const stealth = useStealthMode()
+    stealth.setStealthHidden(true)
+    expect(document.title).toBe('Workspace — Notes')
+
+    stealth.updateStealthConfig({ cloakTitle: 'Project Analytics' })
+    expect(document.title).toBe('Project Analytics')
+
+    stealth.setStealthHidden(false)
+    expect(document.title).toBe('Nuxt Friends Chat')
+  })
 })

@@ -123,6 +123,9 @@ export function useStealthMode() {
 
   function updateStealthConfig(patch: Partial<StealthConfig>): void {
     config.value = { ...config.value, ...patch }
+    if (isStealthHidden.value && patch.cloakTitle !== undefined && typeof document !== 'undefined') {
+      document.title = patch.cloakTitle.trim() || DEFAULT_STEALTH_CONFIG.cloakTitle
+    }
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(STORAGE_KEY_STEALTH_CONFIG, JSON.stringify(config.value))
@@ -161,9 +164,8 @@ export function useStealthMode() {
     if (val) {
       if (typeof document !== 'undefined') {
         originalTitle.value = document.title
-        if (config.value.cloakTitle) {
-          document.title = config.value.cloakTitle
-        }
+        const cloak = config.value.cloakTitle?.trim() || DEFAULT_STEALTH_CONFIG.cloakTitle
+        document.title = cloak
       }
       isStealthHidden.value = true
     } else {

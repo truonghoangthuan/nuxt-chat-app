@@ -8,7 +8,7 @@ import UserAvatar from '~/components/UserAvatar.vue'
 import Input from '~/components/ui/Input.vue'
 import Button from '~/components/ui/Button.vue'
 import { Sun, Moon, Laptop, Code2, MessageCircle, Upload, EyeOff, RotateCcw, Image, Code, Table, Trash2, X, Check, Copy } from '@lucide/vue'
-import { useStealthMode, formatShortcutFromEvent, type StealthCoverMode } from '~/composables/useStealthMode'
+import { useStealthMode, formatShortcutFromEvent, DEFAULT_STEALTH_CONFIG, type StealthCoverMode } from '~/composables/useStealthMode'
 
 const props = defineProps<{
   isOpen: boolean
@@ -81,6 +81,11 @@ function handleShortcutKeydown(e: KeyboardEvent) {
 
 function resetStealthShortcut() {
   updateStealthConfig({ shortcut: 'Ctrl+H' })
+}
+
+function onCloakTitleInput(e: Event) {
+  const target = e.target as HTMLInputElement
+  updateStealthConfig({ cloakTitle: target.value })
 }
 
 function setStealthMode(mode: StealthCoverMode) {
@@ -689,6 +694,26 @@ async function handleSave() {
                         <RotateCcw class="size-3.5" />
                       </button>
                     </div>
+                  </div>
+
+                  <!-- Stealth Tab Title (Cloak Title) -->
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <label for="stealth-cloak-title" class="text-[11px] font-medium text-[var(--ap-text-secondary)]">
+                        Decoy Tab Title
+                      </label>
+                      <span class="text-[10px] text-[var(--ap-text-muted)]">Shown in browser tab</span>
+                    </div>
+                    <input
+                      id="stealth-cloak-title"
+                      data-test="stealth-cloak-title-input"
+                      type="text"
+                      maxlength="100"
+                      :value="stealthConfig.cloakTitle"
+                      :placeholder="DEFAULT_STEALTH_CONFIG.cloakTitle"
+                      class="w-full h-8 px-2.5 text-xs rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.04] dark:bg-white/[0.06] text-[var(--ap-text-primary)] placeholder-[var(--ap-text-muted)] focus:outline-none focus:bg-black/8 dark:focus:bg-white/10 focus:ring-1 focus:ring-blue-500/50 transition-colors"
+                      @input="onCloakTitleInput"
+                    />
                   </div>
 
                   <!-- Segmented Cover Mode Selection -->
