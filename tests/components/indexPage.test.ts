@@ -1117,4 +1117,60 @@ describe('IndexPage (app/pages/index.vue)', () => {
     const media = mediaEl.element as HTMLVideoElement
     expect(media.src).not.toContain('type=video')
   })
+
+  it('toggles StealthOverlay and calls preventDefault on Ctrl+H keydown on window', async () => {
+    localStorage.clear()
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="stealth-overlay"]').exists()).toBe(false)
+
+    const event = new KeyboardEvent('keydown', { key: 'h', ctrlKey: true, bubbles: true, cancelable: true })
+    const preventDefaultSpy = vi.spyOn(event, 'preventDefault')
+    window.dispatchEvent(event)
+    await wrapper.vm.$nextTick()
+
+    expect(preventDefaultSpy).toHaveBeenCalled()
+    expect(wrapper.find('[data-test="stealth-overlay"]').exists()).toBe(true)
+
+    const event2 = new KeyboardEvent('keydown', { key: 'h', ctrlKey: true, bubbles: true, cancelable: true })
+    window.dispatchEvent(event2)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-test="stealth-overlay"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('exits stealth mode when StealthOverlay emits exit', async () => {
+    localStorage.clear()
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', ctrlKey: true, bubbles: true, cancelable: true }))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-test="stealth-overlay"]').exists()).toBe(true)
+
+    const stealthOverlay = wrapper.findComponent({ name: 'StealthOverlay' })
+    stealthOverlay.vm.$emit('exit')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-test="stealth-overlay"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('pauses audio playback when entering stealth mode', async () => {
+    localStorage.clear()
+    const wrapper = mount(IndexPage)
+    await flushPromises()
+
+    const audioEl = wrapper.find('#youtube-media-player').element as HTMLVideoElement
+    let isPaused = false
+    audioEl.pause = vi.fn(() => { isPaused = true })
+    Object.defineProperty(audioEl, 'paused', { get: () => isPaused, configurable: true })
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', ctrlKey: true, bubbles: true, cancelable: true }))
+    await wrapper.vm.$nextTick()
+
+    expect(audioEl.pause).toHaveBeenCalled()
+    wrapper.unmount()
+  })
 })

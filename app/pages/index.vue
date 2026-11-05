@@ -30,6 +30,8 @@ import YouTubeSearchModal from '~/components/YouTubeSearchModal.vue'
 import YouTubeVideoPip from '~/components/YouTubeVideoPip.vue'
 import ChangelogModal from '~/components/ChangelogModal.vue'
 import RightUtilityPanel from '~/components/RightUtilityPanel.vue'
+import StealthOverlay from '~/components/StealthOverlay.vue'
+import { useStealthMode, matchesShortcutEvent } from '~/composables/useStealthMode'
 import { Menu, Users, Info, Search, Image as ImageIcon, MessageSquare, Link2, Settings, Sun, Moon, Plus, Sparkles, Music } from '@lucide/vue'
 import { useE2ee } from '~/composables/useE2ee'
 import { usePwaInstall } from '~/composables/usePwaInstall'
@@ -135,6 +137,15 @@ const {
   initializeE2ee,
   clearE2eeSession,
 } = useE2ee()
+
+const {
+  isStealthHidden,
+  config: stealthConfig,
+  customImageUrl: stealthCustomImageUrl,
+  initStealthMode,
+  toggleStealth,
+  setStealthHidden,
+} = useStealthMode()
 
 const isMobileSidebarOpen = ref(false)
 const isContactsModalOpen = ref(false)
@@ -571,7 +582,9 @@ const isBuzzShaking = ref(false)
 let buzzShakeTimer: any = null
 
 function triggerBuzzShake() {
-  playBuzzSound()
+  if (!isStealthHidden.value) {
+    playBuzzSound()
+  }
   isBuzzShaking.value = true
   if (buzzShakeTimer) clearTimeout(buzzShakeTimer)
   buzzShakeTimer = setTimeout(() => {
@@ -639,6 +652,23 @@ function handleJumpSearchResult(messageId: string) {
 }
 
 function handleGlobalKeydown(e: KeyboardEvent) {
+  const target = e.target as HTMLElement | null
+  if (target && target.closest?.('[data-test="stealth-shortcut-btn"]')) {
+    return
+  }
+
+  if (matchesShortcutEvent(e, stealthConfig.value.shortcut)) {
+    e.preventDefault()
+    e.stopPropagation()
+    toggleStealth()
+    if (isStealthHidden.value && audioPlayerRef.value && !audioPlayerRef.value.paused) {
+      try {
+        audioPlayerRef.value.pause()
+      } catch {}
+    }
+    return
+  }
+
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
     e.preventDefault()
     isSearchOpen.value = true
@@ -911,9 +941,10 @@ let unsubMusicSync: (() => void) | null = null
 onMounted(async () => {
   initTheme?.()
   initPwaInstall()
+  initStealthMode()
 
   if (typeof window !== 'undefined') {
-    window.addEventListener('keydown', handleGlobalKeydown)
+    window.addEventListener('keydown', handleGlobalKeydown, true)
   }
 
   if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
@@ -946,7 +977,7 @@ onUnmounted(() => {
     } catch {}
   }
   if (typeof window !== 'undefined') {
-    window.removeEventListener('keydown', handleGlobalKeydown)
+    window.removeEventListener('keydown', handleGlobalKeydown, true)
   }
   if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
     navigator.serviceWorker.removeEventListener('message', handleSwMessage)
@@ -1685,6 +1716,15 @@ onUnmounted(() => {
         <span>TypeScript Vue</span>
       </div>
     </footer>
+    <!-- Stealth / Boss Key Fullscreen Overlay -->
+    <StealthOverlay
+      :active="isStealthHidden"
+      :mode="stealthConfig.mode"
+      :custom-image-url="stealthCustomImageUrl"
+      :image-fit="stealthConfig.imageFit"
+      :shortcut-label="stealthConfig.shortcut"
+      @exit="setStealthHidden(false)"
+    />
   </div>
 </template>
 
