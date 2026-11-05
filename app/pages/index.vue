@@ -661,11 +661,6 @@ function handleGlobalKeydown(e: KeyboardEvent) {
     e.preventDefault()
     e.stopPropagation()
     toggleStealth()
-    if (isStealthHidden.value && audioPlayerRef.value && !audioPlayerRef.value.paused) {
-      try {
-        audioPlayerRef.value.pause()
-      } catch {}
-    }
     return
   }
 

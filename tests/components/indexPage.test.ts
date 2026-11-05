@@ -1157,7 +1157,7 @@ describe('IndexPage (app/pages/index.vue)', () => {
     wrapper.unmount()
   })
 
-  it('pauses audio playback when entering stealth mode', async () => {
+  it('keeps audio playback playing when entering stealth mode', async () => {
     localStorage.clear()
     const wrapper = mount(IndexPage)
     await flushPromises()
@@ -1170,7 +1170,9 @@ describe('IndexPage (app/pages/index.vue)', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', ctrlKey: true, bubbles: true, cancelable: true }))
     await wrapper.vm.$nextTick()
 
-    expect(audioEl.pause).toHaveBeenCalled()
+    expect(wrapper.find('[data-test="stealth-overlay"]').exists()).toBe(true)
+    expect(audioEl.pause).not.toHaveBeenCalled()
+    expect(audioEl.paused).toBe(false)
     wrapper.unmount()
   })
 })
