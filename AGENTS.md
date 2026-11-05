@@ -347,3 +347,16 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
 - **Workspace Skills & Docs:**
   - Use the workspace UI/design skills in `.agents/skills/` (`frontend-design`, `ui-styling`, `ui-ux-pro-max`, `design-system`) when designing or restyling UI components.
   - Save design specifications in `docs/superpowers/specs/` and implementation plans in `docs/superpowers/plans/`.
+- **Session Wrap-Up: Versioning & Changelog Discipline:**
+  - At the end of every session that introduces code changes (features, bug fixes, refactors, or UI updates), the agent **must** perform versioning and update the changelog before concluding work:
+    1. *Bump Version:* Increment `version` in `package.json` according to SemVer (patch for bug fixes/refactors, minor for new features/activities).
+    2. *Update Changelog:* Add or promote the release entry in `CHANGELOG.md` under `## [x.y.z] - YYYY-MM-DD` (following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)), categorizing changes into `### Added`, `### Fixed`, or `### Changed` with bold item titles (`- **Title**: Description`).
+    3. *Sync Test Assertions:* Update `tests/utils/version.test.ts` to assert the new `APP_VERSION`, `CURRENT_RELEASE.version`, and `CURRENT_RELEASE.date`.
+    4. *Verify:* Run `npm test` and ensure all test suites pass.
+- **Code Review & Issue Severity Classification (VF Scale):**
+  - When reviewing code, conducting audits, or reporting detected issues and bugs, strictly classify and tag every finding according to the following VF severity levels:
+    - **`VF3` (Minor / Bug nhỏ):** Cosmetic quirks, minor visual/styling defects, typos, non-breaking edge cases, or minor code smells that do not disrupt user workflows or application functionality.
+    - **`VF5` (Medium / Bug trung bình):** Functional glitches, incomplete input validation, UI/UX friction, non-fatal errors with existing workarounds, or localized edge-case failures.
+    - **`VF7` (High / Bug nghiêm trọng):** Broken user-facing features, risk of data loss/corruption, state machine desynchronization, significant performance degradation, or RLS/security permission issues.
+    - **`VF9` (Critical / Bug chí mạng):** Application crashes, fatal runtime exceptions, unauthenticated data exposure, cryptographic key compromise, or complete failure of core realtime/auth infrastructure.
+  - In all code review summaries and issue reports, explicitly prefix or tag each item with its severity level (e.g. `[VF3]`, `[VF5]`, `[VF7]`, `[VF9]`).
