@@ -86,4 +86,21 @@ describe('ProfileSettingsModal — Stealth Mode settings', () => {
     expect(wrapper.text()).toContain('quota')
     setItemSpy.mockRestore()
   })
+
+  it('updates decoy tab title (cloakTitle) when input changes', async () => {
+    const wrapper = mount(ProfileSettingsModal, {
+      props: {
+        isOpen: true,
+        profile: { id: 'u1', display_name: 'Alice', avatar_color: '#3b82f6' },
+      },
+    })
+
+    const titleInput = wrapper.find<HTMLInputElement>('[data-test="stealth-cloak-title-input"]')
+    expect(titleInput.exists()).toBe(true)
+    expect(titleInput.element.value).toBe('Workspace — Notes')
+
+    await titleInput.setValue('Budget Spreadsheet 2026')
+    const { config } = useStealthMode()
+    expect(config.value.cloakTitle).toBe('Budget Spreadsheet 2026')
+  })
 })
