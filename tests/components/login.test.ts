@@ -26,6 +26,9 @@ afterEach(() => {
 describe('login page', () => {
   it('renders shadcn form controls with vertically stacked labels', () => {
     const wrapper = mount(LoginPage)
+    expect(wrapper.text()).toContain('My Team')
+    expect(wrapper.text()).toContain('Sign in to My Team')
+    expect(wrapper.text()).not.toContain('Friends Chat')
 
     expect(wrapper.find('input[type="email"]').exists()).toBe(true)
     expect(wrapper.find('input[type="password"]').exists()).toBe(true)

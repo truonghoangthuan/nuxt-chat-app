@@ -25,6 +25,8 @@ describe('ChangelogModal Component', () => {
     const versionTag = wrapper.find('[data-test="changelog-version-tag"]')
     expect(versionTag.exists()).toBe(true)
     expect(versionTag.text()).toBe(`v${APP_VERSION}`)
+    expect(wrapper.text()).toContain("What's New in My Team")
+    expect(wrapper.text()).toContain('My Team · Nuxt 4')
     expect(wrapper.text()).toContain(CURRENT_RELEASE.title)
     expect(wrapper.text()).toContain(CURRENT_RELEASE.date)
   })
@@ -116,6 +118,8 @@ describe('ChatSidebar Version Indicator', () => {
     const versionBtn = wrapper.find('[data-test="open-changelog"]')
     expect(versionBtn.exists()).toBe(true)
     expect(versionBtn.text()).toContain(`v${APP_VERSION}`)
+    expect(wrapper.text()).toContain('My Team')
+    expect(wrapper.text()).not.toContain('Precision Studio')
 
     await versionBtn.trigger('click')
     expect(wrapper.emitted('openChangelog')).toBeTruthy()

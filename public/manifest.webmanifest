@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Friends Chat — Precision Studio",
-  "short_name": "Friends Chat",
-  "description": "Real-time end-to-end encrypted chat workspace for friends",
+  "name": "My Team",
+  "short_name": "My Team",
+  "description": "Real-time end-to-end encrypted chat workspace for My Team",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -23,9 +23,9 @@
       "purpose": "any maskable"
     },
     {
-      "src": "/mug-hot-solid-full.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/favicon.ico",
+      "sizes": "16x16",
+      "type": "image/x-icon",
       "purpose": "any"
     }
   ]

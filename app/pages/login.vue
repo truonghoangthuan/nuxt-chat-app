@@ -73,9 +73,9 @@ function setMode(signUp: boolean) {
     <!-- Left Hero Section (Cupertino Frosted Showcase) -->
     <section class="auth-story relative hidden min-h-[calc(100vh-2rem)] overflow-hidden rounded-2xl border border-[var(--ap-glass-border)] bg-[var(--ap-stage)] backdrop-blur-2xl p-8 lg:flex lg:flex-col lg:justify-between xl:p-12 shadow-xl">
       <div class="relative z-10 flex items-center gap-3">
-        <div class="brand-mark flex size-10 items-center justify-center rounded-xl bg-blue-500 text-xs font-bold text-white shadow-md shadow-blue-500/30">FC</div>
+        <div class="brand-mark flex size-10 items-center justify-center rounded-xl bg-blue-500 text-xs font-bold text-white shadow-md shadow-blue-500/30">MT</div>
         <div>
-          <p class="text-sm font-semibold tracking-tight text-[var(--ap-text-primary)]">Friends Chat</p>
+          <p class="text-sm font-semibold tracking-tight text-[var(--ap-text-primary)]">My Team</p>
           <p class="text-xs text-[var(--ap-text-muted)]">Cupertino Fluid Messenger</p>
         </div>
       </div>
@@ -124,9 +124,9 @@ function setMode(signUp: boolean) {
     <section class="auth-panel flex min-h-[calc(100vh-1.5rem)] flex-col justify-center rounded-2xl border border-[var(--ap-glass-border)] bg-[var(--ap-stage)] backdrop-blur-2xl px-5 py-8 sm:px-10 lg:min-h-[calc(100vh-2rem)] lg:px-10 shadow-xl">
       <div class="mx-auto w-full max-w-[360px]">
         <div class="mb-6 flex items-center gap-3 lg:hidden">
-          <div class="brand-mark flex size-9 items-center justify-center rounded-xl bg-blue-500 text-xs font-bold text-white shadow-md shadow-blue-500/30">FC</div>
+          <div class="brand-mark flex size-9 items-center justify-center rounded-xl bg-blue-500 text-xs font-bold text-white shadow-md shadow-blue-500/30">MT</div>
           <div>
-            <p class="text-sm font-semibold text-[var(--ap-text-primary)]">Friends Chat</p>
+            <p class="text-sm font-semibold text-[var(--ap-text-primary)]">My Team</p>
             <p class="text-xs text-[var(--ap-text-muted)]">Your people, in one place</p>
           </div>
         </div>
@@ -160,13 +160,13 @@ function setMode(signUp: boolean) {
           </div>
           <Button type="submit" :disabled="isLoading" class="mt-2 h-10 w-full rounded-full bg-blue-500 hover:bg-blue-600 text-xs font-semibold text-white shadow-md shadow-blue-500/30 focus-visible:ring-blue-500 disabled:opacity-50 cursor-pointer transition-all active:scale-95">
             <span v-if="isLoading" class="mr-2 size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" aria-hidden="true" />
-            {{ isLoading ? 'One moment…' : isSignUp ? 'Create your account' : 'Sign in to Friends Chat' }}
+            {{ isLoading ? 'One moment…' : isSignUp ? 'Create your account' : 'Sign in to My Team' }}
           </Button>
         </form>
 
         <p class="mt-5 text-center text-[11px] leading-relaxed text-[var(--ap-text-muted)]">By continuing, you agree to keep the conversation kind and respectful.</p>
       </div>
-      <p class="mt-auto pt-6 text-center text-[11px] text-[var(--ap-text-muted)]">Friends Chat <span aria-hidden="true">·</span> Apple Fluid System</p>
+      <p class="mt-auto pt-6 text-center text-[11px] text-[var(--ap-text-muted)]">My Team <span aria-hidden="true">·</span> Apple Fluid System</p>
     </section>
   </main>
 </template>

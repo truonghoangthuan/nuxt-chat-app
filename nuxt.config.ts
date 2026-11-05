@@ -8,13 +8,13 @@ export default defineNuxtConfig({
   app: {
     pageTransition: { name: 'page', mode: 'out-in' },
     head: {
-      title: 'Friends Chat — Precision Studio',
+      title: 'My Team',
       meta: [
         { name: 'theme-color', content: '#0b0f17' },
-        { name: 'application-name', content: 'Friends Chat' },
+        { name: 'application-name', content: 'My Team' },
       ],
       link: [
-        { rel: 'icon', type: 'image/svg+xml', href: '/mug-hot-solid-full.svg' },
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
         { rel: 'manifest', href: '/manifest.webmanifest' },
         { rel: 'apple-touch-icon', href: '/pwa-192x192.png' },
       ],
