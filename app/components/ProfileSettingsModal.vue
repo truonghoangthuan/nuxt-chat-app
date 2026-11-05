@@ -7,7 +7,8 @@ import { useTheme, type AppUiTheme } from '~/composables/useTheme'
 import UserAvatar from '~/components/UserAvatar.vue'
 import Input from '~/components/ui/Input.vue'
 import Button from '~/components/ui/Button.vue'
-import { Sun, Moon, Laptop, Code2, MessageCircle, Upload } from '@lucide/vue'
+import { Sun, Moon, Laptop, Code2, MessageCircle, Upload, EyeOff, RotateCcw, Image, Code, Table, Trash2 } from '@lucide/vue'
+import { useStealthMode, formatShortcutFromEvent, type StealthCoverMode } from '~/composables/useStealthMode'
 
 const props = defineProps<{
   isOpen: boolean
@@ -44,6 +45,82 @@ const confettiEnabled = ref(getConfettiEnabled())
 const error = ref<string | null>(null)
 const isSubmitting = ref(false)
 const copiedId = ref(false)
+
+const {
+  config: stealthConfig,
+  customImageUrl: stealthImageUrl,
+  updateStealthConfig,
+  setCustomCoverImage,
+  removeCustomCoverImage,
+} = useStealthMode()
+
+const isRecordingShortcut = ref(false)
+const stealthImageFileInput = ref<HTMLInputElement | null>(null)
+const stealthImageError = ref<string | null>(null)
+
+function startRecordingShortcut() {
+  isRecordingShortcut.value = true
+}
+
+function stopRecordingShortcut() {
+  isRecordingShortcut.value = false
+}
+
+function handleShortcutKeydown(e: KeyboardEvent) {
+  if (!isRecordingShortcut.value) return
+  if (e.key === 'Escape') {
+    isRecordingShortcut.value = false
+    return
+  }
+  const formatted = formatShortcutFromEvent(e)
+  if (formatted) {
+    updateStealthConfig({ shortcut: formatted })
+    isRecordingShortcut.value = false
+  }
+}
+
+function resetStealthShortcut() {
+  updateStealthConfig({ shortcut: 'Ctrl+H' })
+}
+
+function setStealthMode(mode: StealthCoverMode) {
+  updateStealthConfig({ mode })
+}
+
+function triggerStealthImageUpload() {
+  stealthImageFileInput.value?.click()
+}
+
+function onStealthImageSelected(e: Event) {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  const validation = validateImageFile(file)
+  if (!validation.valid) {
+    stealthImageError.value = validation.error || 'Invalid image file.'
+    target.value = ''
+    return
+  }
+
+  stealthImageError.value = null
+  const reader = new FileReader()
+  reader.onload = () => {
+    if (typeof reader.result === 'string') {
+      setCustomCoverImage(reader.result)
+      updateStealthConfig({ mode: 'image' })
+    }
+  }
+  reader.readAsDataURL(file)
+  target.value = ''
+}
+
+function handleRemoveStealthImage() {
+  removeCustomCoverImage()
+  if (stealthConfig.value.mode === 'image') {
+    updateStealthConfig({ mode: 'code' })
+  }
+}
 
 async function copyUserId() {
   if (!props.profile?.id) return
@@ -550,6 +627,151 @@ async function handleSave() {
                       :class="confettiEnabled ? 'translate-x-5' : 'translate-x-0'"
                     />
                   </button>
+                </div>
+
+                <!-- Stealth / Boss Key -->
+                <div class="space-y-3 p-3.5 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/10 dark:border-white/10 backdrop-blur-md">
+                  <div class="flex items-center justify-between">
+                    <div class="space-y-0.5">
+                      <div class="text-xs font-semibold text-[var(--ap-text-primary)] flex items-center gap-1.5">
+                        <EyeOff class="size-3.5 text-blue-500" />
+                        <span>Stealth Hide (Boss Key)</span>
+                      </div>
+                      <div class="text-[11px] text-[var(--ap-text-muted)]">
+                        Instantly cloak chat behind a decoy screen or cover image
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        data-test="stealth-shortcut-btn"
+                        class="px-2.5 py-1 rounded-lg text-xs font-mono font-semibold border transition-all cursor-pointer"
+                        :class="isRecordingShortcut ? 'bg-blue-500 text-white border-blue-500 animate-pulse' : 'bg-black/5 dark:bg-white/8 hover:bg-black/10 dark:hover:bg-white/15 text-[var(--ap-text-primary)] border-black/10 dark:border-white/10'"
+                        @click="startRecordingShortcut"
+                        @keydown.stop.prevent="handleShortcutKeydown"
+                        @blur="stopRecordingShortcut"
+                      >
+                        {{ isRecordingShortcut ? 'Press keys...' : stealthConfig.shortcut }}
+                      </button>
+                      <button
+                        type="button"
+                        data-test="stealth-shortcut-reset"
+                        class="p-1 rounded-lg text-[var(--ap-text-muted)] hover:text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                        title="Reset to default (Ctrl+H)"
+                        @click="resetStealthShortcut"
+                      >
+                        <RotateCcw class="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Cover Mode Selection -->
+                  <div>
+                    <div class="text-[11px] font-medium text-[var(--ap-text-secondary)] mb-1.5">
+                      Decoy Screen / Cover Mode
+                    </div>
+                    <div class="grid grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        data-test="stealth-mode-code"
+                        class="px-2.5 py-2 rounded-xl border text-xs font-medium flex flex-col items-center gap-1 transition-all cursor-pointer active:scale-95"
+                        :class="stealthConfig.mode === 'code' ? 'bg-blue-500/15 border-blue-500 text-blue-900 dark:text-white ring-1 ring-blue-500' : 'bg-black/[0.02] dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10'"
+                        @click="setStealthMode('code')"
+                      >
+                        <Code class="size-4 text-blue-500" />
+                        <span>Code IDE</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        data-test="stealth-mode-sheet"
+                        class="px-2.5 py-2 rounded-xl border text-xs font-medium flex flex-col items-center gap-1 transition-all cursor-pointer active:scale-95"
+                        :class="stealthConfig.mode === 'sheet' ? 'bg-blue-500/15 border-blue-500 text-blue-900 dark:text-white ring-1 ring-blue-500' : 'bg-black/[0.02] dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10'"
+                        @click="setStealthMode('sheet')"
+                      >
+                        <Table class="size-4 text-emerald-500" />
+                        <span>Spreadsheet</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        data-test="stealth-mode-image"
+                        class="px-2.5 py-2 rounded-xl border text-xs font-medium flex flex-col items-center gap-1 transition-all cursor-pointer active:scale-95"
+                        :class="stealthConfig.mode === 'image' ? 'bg-blue-500/15 border-blue-500 text-blue-900 dark:text-white ring-1 ring-blue-500' : 'bg-black/[0.02] dark:bg-white/5 border-black/10 dark:border-white/10 text-[var(--ap-text-secondary)] hover:bg-black/5 dark:hover:bg-white/10'"
+                        @click="setStealthMode('image')"
+                      >
+                        <Image class="size-4 text-purple-500" />
+                        <span>Custom Image</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Custom Cover Image Upload -->
+                  <div class="pt-2 border-t border-black/5 dark:border-white/5">
+                    <input
+                      ref="stealthImageFileInput"
+                      type="file"
+                      data-test="stealth-image-input"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      class="hidden"
+                      @change="onStealthImageSelected"
+                    />
+
+                    <div v-if="stealthImageUrl" class="flex items-center gap-3">
+                      <img
+                        :src="stealthImageUrl"
+                        data-test="stealth-image-preview"
+                        alt="Custom cover"
+                        class="w-14 h-10 object-cover rounded-lg border border-black/10 dark:border-white/10 bg-black/5"
+                      />
+                      <div class="flex-1 min-w-0">
+                        <div class="text-xs font-medium text-[var(--ap-text-primary)] truncate">
+                          Custom Cover Active
+                        </div>
+                        <div class="text-[10px] text-[var(--ap-text-muted)]">
+                          Full screen when stealth is triggered
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          data-test="stealth-image-upload-btn"
+                          class="px-2 py-1 rounded-lg text-xs font-medium bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-[var(--ap-text-secondary)] transition-colors cursor-pointer"
+                          @click="triggerStealthImageUpload"
+                        >
+                          Change
+                        </button>
+                        <button
+                          type="button"
+                          data-test="stealth-image-remove-btn"
+                          class="p-1 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                          title="Remove custom image"
+                          @click="handleRemoveStealthImage"
+                        >
+                          <Trash2 class="size-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div v-else class="flex items-center justify-between">
+                      <div class="text-[11px] text-[var(--ap-text-muted)]">
+                        Upload custom image (screenshot, wallpaper, notes)
+                      </div>
+                      <button
+                        type="button"
+                        data-test="stealth-image-upload-btn"
+                        class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium bg-blue-500/15 hover:bg-blue-500/25 text-blue-600 dark:text-blue-400 transition-colors cursor-pointer"
+                        @click="triggerStealthImageUpload"
+                      >
+                        <Upload class="size-3" />
+                        <span>Upload Image</span>
+                      </button>
+                    </div>
+
+                    <p v-if="stealthImageError" class="mt-1 text-xs text-rose-500 dark:text-rose-400">
+                      {{ stealthImageError }}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
