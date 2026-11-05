@@ -107,7 +107,11 @@ function onStealthImageSelected(e: Event) {
   const reader = new FileReader()
   reader.onload = () => {
     if (typeof reader.result === 'string') {
-      setCustomCoverImage(reader.result)
+      const saved = setCustomCoverImage(reader.result)
+      if (!saved) {
+        stealthImageError.value = 'Image exceeds browser storage quota. Please use a smaller image.'
+        return
+      }
       updateStealthConfig({ mode: 'image' })
     }
   }

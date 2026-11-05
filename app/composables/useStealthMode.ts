@@ -25,13 +25,14 @@ const testCustomImageUrlRef = ref<string | null>(null)
 const testOriginalTitleRef = ref<string>('')
 
 export function formatShortcutFromEvent(
-  e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey'>
+  e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey'> & { code?: string }
 ): string | null {
   const key = e.key
   if (!key) return null
   if (['Control', 'Shift', 'Alt', 'Meta'].includes(key)) return null
 
   const isFn = /^F([1-9]|1[0-2])$/i.test(key)
+  const isSpace = key === ' ' || e.code === 'Space'
   const hasModifiers = e.ctrlKey || e.altKey || e.shiftKey || e.metaKey
 
   if (!hasModifiers && !isFn) {
@@ -44,14 +45,14 @@ export function formatShortcutFromEvent(
   if (e.shiftKey) parts.push('Shift')
   if (e.metaKey) parts.push('Meta')
 
-  const keyPart = isFn ? key.toUpperCase() : key.length === 1 ? key.toUpperCase() : key
+  const keyPart = isFn ? key.toUpperCase() : isSpace ? 'Space' : key.length === 1 ? key.toUpperCase() : key
   parts.push(keyPart)
 
   return parts.join('+')
 }
 
 export function matchesShortcutEvent(
-  e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey'>,
+  e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey'> & { code?: string },
   shortcut: string
 ): boolean {
   if (!shortcut || !e.key) return false
@@ -62,7 +63,8 @@ export function matchesShortcutEvent(
   const targetKey = tokens[tokens.length - 1]
   const targetMods = new Set(tokens.slice(0, -1))
 
-  const eventKey = e.key.toUpperCase()
+  const isSpace = e.key === ' ' || e.code === 'Space'
+  const eventKey = isSpace ? 'SPACE' : e.key.toUpperCase()
   if (eventKey !== targetKey) return false
 
   const wantAlt = targetMods.has('ALT')
@@ -130,14 +132,16 @@ export function useStealthMode() {
     }
   }
 
-  function setCustomCoverImage(dataUrl: string): void {
-    customImageUrl.value = dataUrl
+  function setCustomCoverImage(dataUrl: string): boolean {
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(STORAGE_KEY_STEALTH_IMAGE, dataUrl)
       }
+      customImageUrl.value = dataUrl
+      return true
     } catch {
-      // Best-effort persistence
+      // LocalStorage quota exceeded or storage disabled
+      return false
     }
   }
 

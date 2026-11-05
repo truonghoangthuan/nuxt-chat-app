@@ -53,7 +53,7 @@ function handleSecretUnlock() {
     <!-- Custom Image Cover -->
     <div
       v-if="effectiveMode === 'image' && customImageUrl"
-      class="w-full h-full flex items-center justify-center bg-black"
+      class="relative w-full h-full flex items-center justify-center bg-black"
     >
       <img
         data-test="stealth-custom-image"
@@ -61,6 +61,13 @@ function handleSecretUnlock() {
         alt="Cover"
         class="w-full h-full"
         :class="imageFit === 'contain' ? 'object-contain bg-black' : 'object-cover'"
+      />
+      <!-- Secret bottom-right touch unlock trigger -->
+      <div
+        data-test="stealth-corner-unlock"
+        class="absolute bottom-0 right-0 w-16 h-16 z-20 cursor-default opacity-0 select-none"
+        aria-label="Unlock"
+        @click.stop="handleSecretUnlock"
       />
     </div>
 

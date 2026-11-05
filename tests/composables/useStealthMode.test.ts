@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   formatShortcutFromEvent,
   matchesShortcutEvent,
@@ -18,6 +18,7 @@ describe('useStealthMode & shortcut helpers', () => {
     expect(formatShortcutFromEvent({ key: 'h', ctrlKey: true, altKey: false, shiftKey: false, metaKey: false })).toBe('Ctrl+H')
     expect(formatShortcutFromEvent({ key: 'x', ctrlKey: true, altKey: false, shiftKey: true, metaKey: false })).toBe('Ctrl+Shift+X')
     expect(formatShortcutFromEvent({ key: 'F9', ctrlKey: false, altKey: false, shiftKey: false, metaKey: false })).toBe('F9')
+    expect(formatShortcutFromEvent({ key: ' ', code: 'Space', ctrlKey: true, altKey: false, shiftKey: false, metaKey: false })).toBe('Ctrl+Space')
   })
 
   it('rejects modifier-only presses and bare single keys without modifiers', () => {
@@ -30,16 +31,29 @@ describe('useStealthMode & shortcut helpers', () => {
     expect(matchesShortcutEvent({ key: 'h', ctrlKey: true, altKey: false, shiftKey: false, metaKey: false }, 'Ctrl+H')).toBe(true)
     expect(matchesShortcutEvent({ key: 'H', ctrlKey: true, altKey: false, shiftKey: false, metaKey: false }, 'ctrl+h')).toBe(true)
     expect(matchesShortcutEvent({ key: 'h', ctrlKey: true, altKey: false, shiftKey: true, metaKey: false }, 'Ctrl+H')).toBe(false)
+    expect(matchesShortcutEvent({ key: ' ', code: 'Space', ctrlKey: true, altKey: false, shiftKey: false, metaKey: false }, 'Ctrl+Space')).toBe(true)
   })
 
   it('persists custom shortcut, cover mode, and image data URL in localStorage', () => {
     const stealth = useStealthMode()
     stealth.updateStealthConfig({ shortcut: 'Alt+Z', mode: 'image' })
-    stealth.setCustomCoverImage('data:image/png;base64,iVBORw0KGgo=')
+    const success = stealth.setCustomCoverImage('data:image/png;base64,iVBORw0KGgo=')
 
+    expect(success).toBe(true)
     expect(stealth.config.value.shortcut).toBe('Alt+Z')
     expect(stealth.customImageUrl.value).toBe('data:image/png;base64,iVBORw0KGgo=')
     expect(localStorage.getItem('nuxt-chat-stealth-image')).toBe('data:image/png;base64,iVBORw0KGgo=')
+  })
+
+  it('returns false from setCustomCoverImage when storage quota is exceeded', () => {
+    const stealth = useStealthMode()
+    const setItemSpy = vi.spyOn(localStorage, 'setItem').mockImplementationOnce(() => {
+      throw new Error('QuotaExceededError')
+    })
+
+    const success = stealth.setCustomCoverImage('data:image/png;base64,giantdata')
+    expect(success).toBe(false)
+    setItemSpy.mockRestore()
   })
 
   it('cloaks and restores document.title when toggling stealth mode', () => {

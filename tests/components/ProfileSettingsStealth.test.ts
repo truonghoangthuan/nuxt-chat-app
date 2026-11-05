@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ProfileSettingsModal from '~/components/ProfileSettingsModal.vue'
 import { useStealthMode } from '~/composables/useStealthMode'
@@ -61,5 +61,29 @@ describe('ProfileSettingsModal — Stealth Mode settings', () => {
 
     const { config } = useStealthMode()
     expect(config.value.shortcut).toBe('Ctrl+H')
+  })
+
+  it('displays error message when custom cover image upload exceeds storage quota', async () => {
+    const setItemSpy = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError')
+    })
+
+    const wrapper = mount(ProfileSettingsModal, {
+      props: {
+        isOpen: true,
+        profile: { id: 'u1', display_name: 'Alice', avatar_color: '#3b82f6' },
+      },
+    })
+
+    const input = wrapper.find<HTMLInputElement>('[data-test="stealth-image-input"]')
+    const file = new File(['image-bytes'], 'cover.png', { type: 'image/png' })
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+
+    await input.trigger('change')
+    await new Promise(resolve => setTimeout(resolve, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('quota')
+    setItemSpy.mockRestore()
   })
 })

@@ -55,4 +55,17 @@ describe('StealthOverlay', () => {
     await unlockBtn.trigger('click')
     expect(wrapper.emitted('exit')).toHaveLength(1)
   })
+
+  it('emits exit on triple-clicking corner unlock button in custom image mode', async () => {
+    const wrapper = mount(StealthOverlay, {
+      props: { active: true, mode: 'image', customImageUrl: 'data:image/png;base64,abc' },
+    })
+    const unlockBtn = wrapper.find('[data-test="stealth-corner-unlock"]')
+    expect(unlockBtn.exists()).toBe(true)
+    await unlockBtn.trigger('click')
+    await unlockBtn.trigger('click')
+    expect(wrapper.emitted('exit')).toBeUndefined()
+    await unlockBtn.trigger('click')
+    expect(wrapper.emitted('exit')).toHaveLength(1)
+  })
 })
