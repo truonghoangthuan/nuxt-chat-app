@@ -299,6 +299,12 @@ describe('Chat UI components', () => {
     const copyBtn = wrapper.find('[data-test="copy-user-id-btn"]')
     expect(copyBtn.exists()).toBe(true)
     expect(copyBtn.text()).toContain('Copy')
+
+    const identityBanner = wrapper.find('[data-test="profile-identity-banner"]')
+    expect(identityBanner.exists()).toBe(true)
+    expect(idEl.classes()).toContain('truncate')
+    const swatch = wrapper.find('[data-test="color-swatch-#0284c7"]')
+    expect(swatch.classes()).toContain('rounded-full')
   })
 
   it('ProfileSettingsModal renders Default, VSCode, and Yahoo theme options and updates active theme on click', async () => {

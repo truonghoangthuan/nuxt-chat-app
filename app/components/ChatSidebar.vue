@@ -856,7 +856,7 @@ function onContactsClick() {
           <span class="text-[10px] text-[var(--ap-text-muted)] group-hover:text-[var(--ap-text-secondary)]">· What's new</span>
         </button>
         <span class="text-[10px] font-mono text-[var(--ap-text-muted)]/60 pr-0.5">
-          Precision Studio
+          My Team
         </span>
       </div>
     </aside>

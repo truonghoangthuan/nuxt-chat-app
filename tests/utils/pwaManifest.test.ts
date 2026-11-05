@@ -10,8 +10,8 @@ describe('Windows PWA Manifest, Icons & Service Worker', () => {
     expect(fs.existsSync(manifestPath)).toBe(true)
 
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
-    expect(manifest.name).toBe('Friends Chat — Precision Studio')
-    expect(manifest.short_name).toBe('Friends Chat')
+    expect(manifest.name).toBe('My Team')
+    expect(manifest.short_name).toBe('My Team')
     expect(manifest.display).toBe('standalone')
     expect(manifest.start_url).toBe('/')
     expect(manifest.theme_color).toBe('#0b0f17')
@@ -20,6 +20,16 @@ describe('Windows PWA Manifest, Icons & Service Worker', () => {
     const sizes = manifest.icons.map((i: { sizes: string }) => i.sizes)
     expect(sizes).toContain('192x192')
     expect(sizes).toContain('512x512')
+  })
+
+  it('configures My Team branding and /favicon.ico in nuxt.config.ts and public/favicon.ico', () => {
+    const nuxtConfig = fs.readFileSync(path.join(rootDir, 'nuxt.config.ts'), 'utf8')
+    expect(nuxtConfig).toContain("title: 'My Team'")
+    expect(nuxtConfig).toContain("{ name: 'application-name', content: 'My Team' }")
+    expect(nuxtConfig).toContain("href: '/favicon.ico'")
+
+    const faviconBuf = fs.readFileSync(path.join(rootDir, 'public', 'favicon.ico'))
+    expect(faviconBuf.length).toBe(463)
   })
 
   it('includes valid 192x192 and 512x512 PNG icons in public/', () => {

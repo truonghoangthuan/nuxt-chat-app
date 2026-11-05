@@ -8,8 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-05
+
 ### Added
+- **My Team Branding & Updated Favicon**: Rebranded workspace title, manifest metadata, login screen, sidebar footer, and changelog dialog to `My Team` with a new application favicon (`/favicon.ico`).
+- **Unified Profile Identity Banner**: Consolidated live avatar preview, verified email badge, truncated non-wrapping UUID chip with one-click copy, and join date into a single top banner in `ProfileSettingsModal.vue`.
 - **Reaction Reactor Popover**: Hovering (or focusing) a reaction pill in `MessageViewport.vue` now opens a styled popover listing who reacted, with avatars ("You" for the current user).
+
+### Fixed
+- **Profile Settings Dialog Layout & Overflow**: Refactored `ProfileSettingsModal.vue` with a single-row 8-circle color swatch picker, compact payment QR row, horizontal theme pills, and segmented Stealth Boss Key bar so controls no longer wrap awkwardly or clip at the bottom of the dialog.
 
 ## [0.8.0] - 2026-10-29
 

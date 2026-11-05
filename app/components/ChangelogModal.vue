@@ -56,7 +56,7 @@ onBeforeUnmount(() => {
             <div>
               <div class="flex items-center gap-2">
                 <h3 id="changelog-title" class="text-base font-semibold text-[var(--ap-text-primary)] tracking-tight">
-                  What's New in Nuxt Chat
+                  What's New in My Team
                 </h3>
                 <span
                   data-test="changelog-version-tag"
@@ -184,7 +184,7 @@ onBeforeUnmount(() => {
         <!-- Modal Footer -->
         <div class="p-4 border-t border-black/5 dark:border-white/10 flex items-center justify-between gap-3 bg-black/[0.02] dark:bg-white/[0.02] shrink-0">
           <div class="text-[11px] font-mono text-[var(--ap-text-muted)]">
-            Precision Studio · Nuxt 4
+            My Team · Nuxt 4
           </div>
           <Button
             type="button"
