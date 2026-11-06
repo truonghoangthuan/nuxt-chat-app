@@ -61,6 +61,8 @@ import {
   isImagePayload,
   parseImagePayload,
   formatImageMessageSummary,
+  isSharedMemePath,
+  sanitizeConversationMemes,
 } from '~/utils/image'
 
 export const PAGE_SIZE = 40
@@ -747,6 +749,7 @@ export function useChatRoom() {
             unreadCount: unreadCounts.value[c.id] || 0,
             background_url: c.background_url || null,
             confetti_words: Array.isArray(c.confetti_words) ? c.confetti_words : (existingConv?.confetti_words || []),
+            memes: sanitizeConversationMemes(c.memes ?? existingConv?.memes),
           }
         })
         conversations.value = convs
@@ -1438,6 +1441,7 @@ export function useChatRoom() {
     messagesStore,
     sendMessage: (content: string, replyTo?: any, conversationId?: string) => sendMessage(content, replyTo, conversationId),
     findUserByEmail,
+    e2ee,
   })
 
   const {
@@ -1455,6 +1459,8 @@ export function useChatRoom() {
     updateConfettiWords,
     addConfettiWord,
     removeConfettiWord,
+    uploadConversationMeme,
+    removeConversationMeme,
   } = conversationsActions
 
   const createChannel = async (name: string) => createGroup(name, []).then(channel => ({ channel, error: null })).catch((err: any) => ({ channel: null, error: err?.message || 'Failed to create channel.' }))
@@ -1594,6 +1600,26 @@ export function useChatRoom() {
     await sendMessage(payload, undefined, conversationId)
   }
 
+  async function sendMeme(
+    meme: EncryptedImageMetadata,
+    replyToId?: string | null,
+  ): Promise<void> {
+    if (!meme?.path) return
+    const payload: ImageMessagePayload = {
+      type: 'images',
+      images: [
+        {
+          path: meme.path,
+          mimeType: meme.mimeType || 'image/png',
+          width: meme.width || 0,
+          height: meme.height || 0,
+          size: meme.size || 0,
+        },
+      ],
+    }
+    await sendMessage(JSON.stringify(payload), replyToId)
+  }
+
   async function retryMessage(clientId: string): Promise<void> {
     const retrying = messagesStore.markMessageRetrying(clientId)
     if (!retrying) return
@@ -1610,16 +1636,20 @@ export function useChatRoom() {
     }
 
     if (isImagePayload(retrying.content)) {
-      const pending = pendingImageFiles.get(clientId)
-      if (!pending) {
-        messagesStore.markMessageFailed(clientId)
+      const parsed = parseImagePayload(retrying.content)
+      const hasBlob = parsed?.images?.some(img => img.path.startsWith('blob:'))
+      if (pendingImageFiles.has(clientId) || hasBlob) {
+        const pending = pendingImageFiles.get(clientId)
+        if (!pending) {
+          messagesStore.markMessageFailed(clientId)
+          return
+        }
+        const ok = await sendImages(pending.files, pending.caption, clientId)
+        if (!ok) {
+          messagesStore.markMessageFailed(clientId)
+        }
         return
       }
-      const ok = await sendImages(pending.files, pending.caption, clientId)
-      if (!ok) {
-        messagesStore.markMessageFailed(clientId)
-      }
-      return
     }
 
     try {
@@ -1822,7 +1852,7 @@ export function useChatRoom() {
     if (targetMsg && isImagePayload(targetMsg.content)) {
       const parsed = parseImagePayload(targetMsg.content)
       if (parsed && Array.isArray(parsed.images) && parsed.images.length > 0) {
-        const paths = parsed.images.map(img => img.path).filter(Boolean)
+        const paths = parsed.images.map(img => img.path).filter(p => Boolean(p) && !isSharedMemePath(p))
         if (paths.length > 0) {
           try {
             await supabase.storage.from('message-attachments').remove(paths)
@@ -2070,5 +2100,8 @@ export function useChatRoom() {
     broadcastMusicSync,
     sendMusicPlaySystemMessage,
     sendMusicActionSystemMessage,
+    uploadConversationMeme,
+    removeConversationMeme,
+    sendMeme,
   }
 }
