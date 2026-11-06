@@ -5,6 +5,8 @@ import {
   parseImagePayload,
   isImagePayload,
   resizeImage,
+  isSharedMemePath,
+  sanitizeConversationMemes,
 } from '~/utils/image'
 
 describe('Image utilities', () => {
@@ -318,6 +320,72 @@ describe('Image utilities', () => {
         globalThis.Image = originalImage
         vi.restoreAllMocks()
       }
+    })
+
+    it('preserves animated GIF files without resizing on canvas', async () => {
+      const originalImage = globalThis.Image
+      class MockGifImage {
+        width = 3000
+        height = 3000
+        naturalWidth = 3000
+        naturalHeight = 3000
+        onload: (() => void) | null = null
+        onerror: (() => void) | null = null
+        set src(_v: string) {
+          setTimeout(() => this.onload?.(), 0)
+        }
+      }
+      // @ts-expect-error Mocking global Image
+      globalThis.Image = MockGifImage
+
+      const createSpy = vi.spyOn(document, 'createElement')
+
+      try {
+        const file = new File(['fake-gif'], 'animated.gif', {
+          type: 'image/gif',
+        })
+        const res = await resizeImage(file, 2048)
+        expect(res.width).toBe(3000)
+        expect(res.height).toBe(3000)
+        expect(res.blob).toBe(file)
+        expect(createSpy).not.toHaveBeenCalledWith('canvas')
+      } finally {
+        globalThis.Image = originalImage
+        vi.restoreAllMocks()
+      }
+    })
+  })
+
+  describe('Conversation meme helpers', () => {
+    it('identifies shared conversation meme storage paths', () => {
+      expect(isSharedMemePath('conversations/conv-1/memes/meme-1.enc')).toBe(true)
+      expect(isSharedMemePath('channels/ch-1/memes/meme-2.enc')).toBe(true)
+      expect(isSharedMemePath('conversations/conv-1/client-1/0.enc')).toBe(false)
+      expect(isSharedMemePath('blob:http://localhost/123')).toBe(false)
+      expect(isSharedMemePath('')).toBe(false)
+    })
+
+    it('sanitizes valid ConversationMeme entries and drops malformed items', () => {
+      const raw = [
+        {
+          id: 'm-1',
+          path: 'conversations/c-1/memes/m-1.enc',
+          mimeType: 'image/gif',
+          width: 320,
+          height: 240,
+          size: 4096,
+          created_at: '2026-11-06T10:00:00Z',
+          uploaded_by: 'u-1',
+        },
+        { id: 'bad', path: '' },
+        null,
+      ]
+      const clean = sanitizeConversationMemes(raw)
+      expect(clean).toHaveLength(1)
+      expect(clean[0].id).toBe('m-1')
+      expect(clean[0].path).toBe('conversations/c-1/memes/m-1.enc')
+      expect(clean[0].uploaded_by).toBe('u-1')
+      expect(sanitizeConversationMemes(null)).toEqual([])
     })
   })
 })
