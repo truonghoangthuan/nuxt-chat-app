@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import type { Conversation } from '~/types/chat'
+import type { Conversation, ConversationMeme } from '~/types/chat'
+import { useImageAttachmentCache } from '~/composables/useImageAttachmentCache'
 import {
   X,
   Sparkles,
@@ -14,6 +15,8 @@ import {
   Flame,
   Laugh,
   CheckCircle2,
+  Plus,
+  Loader2,
 } from '@lucide/vue'
 
 const props = withDefaults(
@@ -22,12 +25,14 @@ const props = withDefaults(
     conversation: Conversation | null
     mediaCount?: number
     linksCount?: number
+    isUploadingMeme?: boolean
   }>(),
   {
     isOpen: false,
     conversation: null,
     mediaCount: 0,
     linksCount: 0,
+    isUploadingMeme: false,
   },
 )
 
@@ -39,9 +44,61 @@ const emit = defineEmits<{
   (e: 'openBackground'): void
   (e: 'openConfetti'): void
   (e: 'openGroupInfo'): void
+  (e: 'uploadMeme', file: File): void
+  (e: 'sendMeme', meme: ConversationMeme): void
+  (e: 'deleteMeme', memeId: string): void
 }>()
 
 const activeTab = ref<'chaos' | 'activities' | 'notes'>('chaos')
+const memeInputRef = ref<HTMLInputElement | null>(null)
+const imageCache = useImageAttachmentCache()
+const memeUrls = ref<Record<string, string>>({})
+
+function triggerMemeUpload() {
+  memeInputRef.value?.click()
+}
+
+function handleMemeFileChange(e: Event) {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (file) {
+    emit('uploadMeme', file)
+  }
+  if (target) {
+    target.value = ''
+  }
+}
+
+async function resolveMemeUrls() {
+  const memes = props.conversation?.memes || []
+  const convId = props.conversation?.id || ''
+  if (!memes.length || !convId) {
+    memeUrls.value = {}
+    return
+  }
+  for (const m of memes) {
+    if (memeUrls.value[m.id]) continue
+    const cached = imageCache.getCachedUrl(m.path)
+    if (cached) {
+      memeUrls.value[m.id] = cached
+    } else {
+      imageCache
+        .getOrFetchImage(m.path, m.mimeType, convId)
+        .then((url) => {
+          memeUrls.value[m.id] = url
+        })
+        .catch(() => {})
+    }
+  }
+}
+
+watch(
+  () => [props.conversation?.id, props.conversation?.memes],
+  () => {
+    resolveMemeUrls()
+  },
+  { deep: true, immediate: true },
+)
 
 // Curated Beautiful Chaos Expressive Stickers
 const STICKERS = [
@@ -224,6 +281,103 @@ function handleSendSticker(sticker: typeof STICKERS[0]) {
             <span class="text-[11.5px] font-semibold text-[var(--ap-text-primary)] leading-tight">{{ sticker.label }}</span>
             <span class="text-[9.5px] font-mono font-medium text-[var(--ap-text-muted)] mt-0.5">{{ sticker.badge }}</span>
           </button>
+        </div>
+      </div>
+
+      <!-- Conversation Memes Section -->
+      <div>
+        <div class="text-[10.5px] uppercase font-semibold text-[var(--ap-text-muted)] tracking-wider mb-2 flex items-center justify-between">
+          <div class="flex items-center gap-1.5">
+            <span>Conversation Memes</span>
+            <span v-if="conversation?.memes?.length" class="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-purple-500/10 text-purple-400 font-semibold">
+              {{ conversation.memes.length }}
+            </span>
+          </div>
+          <button
+            type="button"
+            data-test="upload-meme-btn"
+            :disabled="isUploadingMeme"
+            class="text-[10.5px] text-purple-500 hover:text-purple-400 font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+            @click="triggerMemeUpload"
+          >
+            <Loader2 v-if="isUploadingMeme" class="w-3 h-3 animate-spin" />
+            <Plus v-else class="w-3 h-3" />
+            <span>Upload</span>
+          </button>
+        </div>
+
+        <input
+          ref="memeInputRef"
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          class="hidden"
+          data-test="meme-file-input"
+          @change="handleMemeFileChange"
+        />
+
+        <!-- Empty State -->
+        <div
+          v-if="!conversation?.memes?.length"
+          data-test="memes-empty-state"
+          class="flex flex-col items-center justify-center p-4 rounded-xl border border-dashed border-black/10 dark:border-white/10 text-center bg-black/2 dark:bg-white/2"
+        >
+          <Laugh class="w-7 h-7 text-[var(--ap-text-muted)] mb-1.5 opacity-60" />
+          <p class="text-xs font-semibold text-[var(--ap-text-primary)]">No memes in this room</p>
+          <p class="text-[11px] text-[var(--ap-text-muted)] mt-0.5 max-w-[200px]">
+            Upload PNG, JPG, or GIF memes for all room members to send with one click.
+          </p>
+          <button
+            type="button"
+            class="mt-2.5 px-3 py-1 rounded-lg bg-purple-600/10 hover:bg-purple-600/20 text-purple-400 text-xs font-medium transition cursor-pointer"
+            @click="triggerMemeUpload"
+          >
+            + Add First Meme
+          </button>
+        </div>
+
+        <!-- Meme Grid -->
+        <div v-else class="grid grid-cols-3 gap-2">
+          <div
+            v-for="meme in conversation.memes"
+            :key="meme.id"
+            data-test="meme-item"
+            class="relative group aspect-square rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 hover:border-purple-500/50 hover:shadow-md transition-all cursor-pointer flex items-center justify-center"
+            :title="`Click to send meme`"
+            @click="emit('sendMeme', meme)"
+          >
+            <!-- Loaded Decrypted Image -->
+            <img
+              v-if="memeUrls[meme.id]"
+              :src="memeUrls[meme.id]"
+              alt="Meme"
+              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+              loading="lazy"
+            />
+            <!-- Skeleton / Placeholder -->
+            <div v-else class="flex flex-col items-center justify-center text-[var(--ap-text-muted)] animate-pulse">
+              <ImageIcon class="w-5 h-5 opacity-40 mb-1" />
+              <span class="text-[9px] font-mono opacity-60">MEME</span>
+            </div>
+
+            <!-- GIF Badge -->
+            <span
+              v-if="meme.mimeType === 'image/gif'"
+              class="absolute bottom-1 left-1 px-1 py-0.2 rounded text-[8.5px] font-bold bg-black/70 text-white leading-none pointer-events-none"
+            >
+              GIF
+            </span>
+
+            <!-- Delete Button -->
+            <button
+              type="button"
+              data-test="delete-meme-btn"
+              class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 hover:bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-xs"
+              title="Delete meme from library"
+              @click.stop="emit('deleteMeme', meme.id)"
+            >
+              <X class="w-3 h-3" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -7,8 +7,9 @@ import ChatSidebar from '~/components/ChatSidebar.vue'
 import UserAvatar from '~/components/UserAvatar.vue'
 import ChatMediaGallery from '~/components/ChatMediaGallery.vue'
 import ChatLinksList from '~/components/ChatLinksList.vue'
+import RightUtilityPanel from '~/components/RightUtilityPanel.vue'
 import { isValidAvatarUrl } from '~/utils/chat'
-import type { Conversation, Profile } from '~/types/chat'
+import type { Conversation, ConversationMeme, Profile } from '~/types/chat'
 
 describe('Chat UI components', () => {
   it('accepts only optional HTTP(S) avatar URLs', () => {
@@ -2446,6 +2447,85 @@ describe('Chat UI components', () => {
     expect(popover.exists()).toBe(true)
     expect(popover.classes()).toContain('group-hover/pill:block')
     expect(popover.classes()).not.toContain('group-hover:block')
+  })
+
+  describe('RightUtilityPanel - Conversation Memes', () => {
+    it('renders memes empty state and emits uploadMeme when file is chosen', async () => {
+      const conv: Conversation = {
+        id: 'c-1',
+        type: 'group',
+        title: 'Group 1',
+        created_by: 'u-1',
+        created_at: new Date().toISOString(),
+        memes: [],
+      }
+      const wrapper = mount(RightUtilityPanel, {
+        props: {
+          isOpen: true,
+          conversation: conv,
+        },
+      })
+
+      expect(wrapper.find('[data-test="memes-empty-state"]').exists()).toBe(true)
+      expect(wrapper.find('[data-test="upload-meme-btn"]').exists()).toBe(true)
+
+      const fileInput = wrapper.find<HTMLInputElement>('[data-test="meme-file-input"]')
+      expect(fileInput.exists()).toBe(true)
+
+      const testFile = new File(['meme'], 'funny.png', { type: 'image/png' })
+      Object.defineProperty(fileInput.element, 'files', {
+        value: [testFile],
+        writable: true,
+      })
+      await fileInput.trigger('change')
+
+      expect(wrapper.emitted('uploadMeme')).toBeTruthy()
+      expect(wrapper.emitted('uploadMeme')![0][0]).toBe(testFile)
+    })
+
+    it('renders meme tiles and handles sendMeme and deleteMeme clicks', async () => {
+      const meme1: ConversationMeme = {
+        id: 'm-1',
+        path: 'conversations/c-2/memes/m-1.enc',
+        mimeType: 'image/png',
+        width: 200,
+        height: 200,
+        size: 1024,
+        created_at: new Date().toISOString(),
+        uploaded_by: 'u-1',
+      }
+      const conv: Conversation = {
+        id: 'c-2',
+        type: 'group',
+        title: 'Group 2',
+        created_by: 'u-1',
+        created_at: new Date().toISOString(),
+        memes: [meme1],
+      }
+      const wrapper = mount(RightUtilityPanel, {
+        props: {
+          isOpen: true,
+          conversation: conv,
+        },
+      })
+
+      const memeItem = wrapper.find('[data-test="meme-item"]')
+      expect(memeItem.exists()).toBe(true)
+
+      // Clicking meme tile emits sendMeme
+      await memeItem.trigger('click')
+      expect(wrapper.emitted('sendMeme')).toBeTruthy()
+      expect(wrapper.emitted('sendMeme')![0][0]).toEqual(meme1)
+
+      // Clicking delete button emits deleteMeme without emitting sendMeme again
+      const deleteBtn = wrapper.find('[data-test="delete-meme-btn"]')
+      expect(deleteBtn.exists()).toBe(true)
+      await deleteBtn.trigger('click')
+
+      expect(wrapper.emitted('deleteMeme')).toBeTruthy()
+      expect(wrapper.emitted('deleteMeme')![0][0]).toBe('m-1')
+      expect(wrapper.emitted('sendMeme')).toHaveLength(1)
+    })
   })
 })
 
