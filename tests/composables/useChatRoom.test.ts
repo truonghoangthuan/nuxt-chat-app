@@ -2747,4 +2747,52 @@ describe('useChatRoom contacts and conversations', () => {
     const finalMsg = room.messages.value.find(m => m.client_id === clientId)
     expect(finalMsg?.status).toBe('sent')
   })
+
+  it('realtime UPDATE on conversations sanitizes incoming memes array', async () => {
+    let updateConversationHandler: ((payload: any) => void) | null = null
+    const origChannel = mockSupabase.channel
+    mockSupabase.channel = vi.fn().mockImplementation((name: string, ...args: any[]) => {
+      const ch = origChannel ? origChannel(name, ...args) : { on: vi.fn(), subscribe: vi.fn() }
+      const origOn = ch.on.bind(ch)
+      ch.on = vi.fn().mockImplementation((type: string, filter: any, callback: any) => {
+        if (filter?.event === 'UPDATE' && filter?.table === 'conversations') {
+          updateConversationHandler = callback
+        }
+        return origOn(type, filter, callback)
+      })
+      return ch
+    })
+
+    const room = useChatRoom()
+    const group = await room.createGroup('Meme RT Room', ['u-bob'])
+    await room.initializeChat()
+
+    expect(updateConversationHandler).toBeTruthy()
+
+    const badMemePayload = {
+      new: {
+        id: group.id,
+        memes: [
+          { id: 'bad-1', path: 'bad-path' },
+          {
+            id: 'm-good',
+            path: `conversations/${group.id}/memes/m-good.enc`,
+            mimeType: 'image/png',
+            width: 100,
+            height: 100,
+            size: 1000,
+            created_at: new Date().toISOString(),
+            uploaded_by: 'u-bob',
+          },
+          null,
+        ],
+      },
+    }
+
+    updateConversationHandler!(badMemePayload)
+
+    const updated = room.conversations.value.find(c => c.id === group.id)
+    expect(updated?.memes).toHaveLength(1)
+    expect(updated?.memes?.[0].id).toBe('m-good')
+  })
 })

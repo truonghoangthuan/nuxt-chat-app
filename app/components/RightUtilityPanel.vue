@@ -93,6 +93,13 @@ async function resolveMemeUrls() {
 }
 
 watch(
+  () => props.conversation?.id,
+  () => {
+    memeUrls.value = {}
+  },
+)
+
+watch(
   () => [props.conversation?.id, props.conversation?.memes],
   () => {
     resolveMemeUrls()

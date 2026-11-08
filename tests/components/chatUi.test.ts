@@ -2526,6 +2526,62 @@ describe('Chat UI components', () => {
       expect(wrapper.emitted('deleteMeme')![0][0]).toBe('m-1')
       expect(wrapper.emitted('sendMeme')).toHaveLength(1)
     })
+
+    it('clears memeUrls when conversation id switches', async () => {
+      const convA: Conversation = {
+        id: 'conv-a',
+        type: 'group',
+        title: 'Group A',
+        created_by: 'u-1',
+        created_at: new Date().toISOString(),
+        memes: [
+          {
+            id: 'm-a',
+            path: 'conversations/conv-a/memes/m-a.enc',
+            mimeType: 'image/png',
+            width: 100,
+            height: 100,
+            size: 500,
+            created_at: new Date().toISOString(),
+            uploaded_by: 'u-1',
+          },
+        ],
+      }
+      const convB: Conversation = {
+        id: 'conv-b',
+        type: 'group',
+        title: 'Group B',
+        created_by: 'u-1',
+        created_at: new Date().toISOString(),
+        memes: [
+          {
+            id: 'm-b',
+            path: 'conversations/conv-b/memes/m-b.enc',
+            mimeType: 'image/png',
+            width: 100,
+            height: 100,
+            size: 500,
+            created_at: new Date().toISOString(),
+            uploaded_by: 'u-1',
+          },
+        ],
+      }
+
+      const wrapper = mount(RightUtilityPanel, {
+        props: {
+          isOpen: true,
+          conversation: convA,
+        },
+      })
+
+      const vm = wrapper.vm as any
+      vm.memeUrls['m-a'] = 'blob:http://localhost/m-a'
+      expect(vm.memeUrls['m-a']).toBe('blob:http://localhost/m-a')
+
+      await wrapper.setProps({ conversation: convB })
+
+      expect(vm.memeUrls['m-a']).toBeUndefined()
+    })
   })
 })
 

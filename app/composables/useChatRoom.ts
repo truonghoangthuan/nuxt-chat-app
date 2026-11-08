@@ -1050,7 +1050,13 @@ export function useChatRoom() {
           const updated = payload.new as Conversation
           if (updated?.id) {
             conversations.value = conversations.value.map(c =>
-              c.id === updated.id ? { ...c, ...updated } : c,
+              c.id === updated.id
+                ? {
+                    ...c,
+                    ...updated,
+                    memes: updated.memes !== undefined ? sanitizeConversationMemes(updated.memes) : c.memes,
+                  }
+                : c,
             )
           }
         },
