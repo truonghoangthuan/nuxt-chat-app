@@ -41,6 +41,7 @@ export interface Conversation {
   unreadCount?: number
   background_url?: string | null
   confetti_words?: string[]
+  memes?: ConversationMeme[]
 }
 
 export interface Contact {
@@ -186,6 +187,12 @@ export interface EncryptedImageMetadata {
   width: number
   height: number
   size: number
+}
+
+export interface ConversationMeme extends EncryptedImageMetadata {
+  id: string
+  created_at: string
+  uploaded_by: string
 }
 
 export interface ImageMessagePayload {

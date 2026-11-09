@@ -699,6 +699,10 @@ alter table public.conversations
 alter table public.conversations
   add column if not exists confetti_words text[] not null default '{}';
 
+-- Migration: add memes jsonb array to conversations
+alter table public.conversations
+  add column if not exists memes jsonb not null default '[]'::jsonb;
+
 -- Storage Bucket for shared chat backgrounds (publicly readable)
 insert into storage.buckets (id, name, public)
 values ('chat-backgrounds', 'chat-backgrounds', true)

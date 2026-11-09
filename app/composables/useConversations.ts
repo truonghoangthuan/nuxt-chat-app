@@ -1,11 +1,13 @@
 import type { Ref } from 'vue'
-import type { Conversation, ConversationMember, Profile } from '~/types/chat'
+import type { Conversation, ConversationMember, ConversationMeme, Profile } from '~/types/chat'
 import {
   validateBackgroundFile,
   serializeSystemMessage,
   CHAT_BACKGROUND_PRESETS,
 } from '~/utils/chat'
 import { sanitizeConfettiWords, normalizeConfettiWord } from '~/utils/confetti'
+import { validateImageFiles, resizeImage } from '~/utils/image'
+import { encryptBinary } from '~/utils/crypto'
 
 export interface ConversationsActionsDeps {
   supabase: any
@@ -23,6 +25,7 @@ export interface ConversationsActionsDeps {
   messagesStore: { setInitialHistory: (msgs: any[], convId: string) => void }
   sendMessage: (content: string, replyTo?: any, conversationId?: string) => Promise<any>
   findUserByEmail: (email: string) => Promise<Profile | null>
+  e2ee?: { key: Ref<CryptoKey | null> }
 }
 
 export function createConversationsActions(deps: ConversationsActionsDeps) {
@@ -39,6 +42,7 @@ export function createConversationsActions(deps: ConversationsActionsDeps) {
     messagesStore,
     sendMessage,
     findUserByEmail,
+    e2ee,
   } = deps
 
   const inFlightDirectChats = new Map<string, Promise<Conversation>>()
@@ -654,6 +658,143 @@ export function createConversationsActions(deps: ConversationsActionsDeps) {
     return updateConfettiWords(conversationId, next)
   }
 
+  async function uploadConversationMeme(
+    conversationId: string,
+    file: File,
+  ): Promise<{ meme: ConversationMeme | null; error: string | null }> {
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    if (!current?.id) {
+      return { meme: null, error: 'Not authenticated.' }
+    }
+
+    const targetConv = conversations.value.find(c => c.id === conversationId)
+    if (!targetConv) {
+      return { meme: null, error: 'Conversation not found.' }
+    }
+
+    const validation = validateImageFiles([file])
+    if (!validation.valid) {
+      return { meme: null, error: validation.error || 'Invalid image file.' }
+    }
+
+    if (!e2ee?.key?.value) {
+      return { meme: null, error: 'Encryption key not available.' }
+    }
+
+    const memeId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `meme-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+    const storagePath = `conversations/${conversationId}/memes/${memeId}.enc`
+
+    let resized: { blob: Blob; width: number; height: number }
+    try {
+      resized = await resizeImage(file)
+    } catch (err: any) {
+      return { meme: null, error: err?.message || 'Failed to process image.' }
+    }
+
+    let encrypted: Uint8Array
+    try {
+      const buffer = await resized.blob.arrayBuffer()
+      encrypted = await encryptBinary(e2ee.key.value, new Uint8Array(buffer), conversationId)
+    } catch (err: any) {
+      return { meme: null, error: err?.message || 'Failed to encrypt meme image.' }
+    }
+
+    const { error: uploadError } = await supabase.storage
+      .from('message-attachments')
+      .upload(storagePath, encrypted, {
+        contentType: 'application/octet-stream',
+        upsert: false,
+      })
+
+    if (uploadError) {
+      return { meme: null, error: uploadError.message || 'Failed to upload meme image.' }
+    }
+
+    const nowIso = new Date().toISOString()
+    const newMeme: ConversationMeme = {
+      id: memeId,
+      path: storagePath,
+      mimeType: file.type || 'image/png',
+      width: resized.width,
+      height: resized.height,
+      size: resized.blob.size,
+      created_at: nowIso,
+      uploaded_by: current.id,
+    }
+
+    const prevMemes = [...(targetConv.memes || [])]
+    const prevUpdated = targetConv.updated_at
+    const updatedMemes = [...prevMemes, newMeme]
+
+    targetConv.memes = updatedMemes
+    targetConv.updated_at = nowIso
+
+    try {
+      const { error: dbError } = await supabase
+        .from('conversations')
+        .update({ memes: updatedMemes, updated_at: nowIso })
+        .eq('id', conversationId)
+
+      if (dbError) {
+        targetConv.memes = prevMemes
+        targetConv.updated_at = prevUpdated
+        await supabase.storage.from('message-attachments').remove([storagePath]).catch(() => {})
+        return { meme: null, error: dbError.message || 'Failed to save meme.' }
+      }
+
+      return { meme: newMeme, error: null }
+    } catch (err: any) {
+      targetConv.memes = prevMemes
+      targetConv.updated_at = prevUpdated
+      await supabase.storage.from('message-attachments').remove([storagePath]).catch(() => {})
+      return { meme: null, error: err?.message || 'Failed to save meme.' }
+    }
+  }
+
+  async function removeConversationMeme(
+    conversationId: string,
+    memeId: string,
+  ): Promise<{ error: string | null }> {
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    if (!current?.id) {
+      return { error: 'Not authenticated.' }
+    }
+
+    const targetConv = conversations.value.find(c => c.id === conversationId)
+    if (!targetConv) {
+      return { error: 'Conversation not found.' }
+    }
+
+    const prevMemes = [...(targetConv.memes || [])]
+    const prevUpdated = targetConv.updated_at
+    const updatedMemes = prevMemes.filter(m => m.id !== memeId)
+
+    targetConv.memes = updatedMemes
+    const nowIso = new Date().toISOString()
+    targetConv.updated_at = nowIso
+
+    try {
+      const { error: dbError } = await supabase
+        .from('conversations')
+        .update({ memes: updatedMemes, updated_at: nowIso })
+        .eq('id', conversationId)
+
+      if (dbError) {
+        targetConv.memes = prevMemes
+        targetConv.updated_at = prevUpdated
+        return { error: dbError.message || 'Failed to remove meme.' }
+      }
+
+      return { error: null }
+    } catch (err: any) {
+      targetConv.memes = prevMemes
+      targetConv.updated_at = prevUpdated
+      return { error: err?.message || 'Failed to remove meme.' }
+    }
+  }
+
   return {
     openOrCreateDirectChat,
     createGroup,
@@ -669,5 +810,7 @@ export function createConversationsActions(deps: ConversationsActionsDeps) {
     updateConfettiWords,
     addConfettiWord,
     removeConfettiWord,
+    uploadConversationMeme,
+    removeConversationMeme,
   }
 }

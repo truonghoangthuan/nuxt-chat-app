@@ -1213,12 +1213,16 @@ describe('useChatRoom contacts and conversations', () => {
   let mockTogglePinError: string | null = null
   let mockMessagesUpdateError: { message: string } | null = null
   let mockReactionsError: { message: string } | null = null
+  let mockStorageUpload: any
+  let mockStorageRemove: any
   let capturedMessagesSelect = ''
 
   beforeEach(async () => {
     mockConversationsUpdateError = null
     mockMessagesUpdateError = null
     mockReactionsError = null
+    mockStorageUpload = vi.fn().mockResolvedValue({ data: { path: 'ok' }, error: null })
+    mockStorageRemove = vi.fn().mockResolvedValue({ data: [], error: null })
     capturedMessagesSelect = ''
     mockMembersInsertError = null
     mockMembersDeleteError = null
@@ -1509,6 +1513,12 @@ describe('useChatRoom contacts and conversations', () => {
         subscribe: vi.fn().mockReturnThis(),
         send: vi.fn(),
       }),
+      storage: {
+        from: vi.fn((_bucket: string) => ({
+          upload: mockStorageUpload,
+          remove: mockStorageRemove,
+        })),
+      },
       removeChannel: vi.fn(),
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
@@ -2612,5 +2622,177 @@ describe('useChatRoom contacts and conversations', () => {
     const skipMsg = room.messages.value[room.messages.value.length - 1]
     expect(skipMsg.content).toContain('"event":"music_skip"')
     expect(skipMsg.content).toContain('"detail":"Next Track Title"')
+  })
+
+  it('uploadConversationMeme encrypts, uploads to message-attachments, and updates conversation memes', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Meme Room', ['u-bob'])
+
+    const file = new File(['fake-meme-content'], 'laugh.png', { type: 'image/png' })
+    const { meme, error } = await room.uploadConversationMeme(group.id, file)
+
+    expect(error).toBeNull()
+    expect(meme).toBeDefined()
+    expect(meme?.path).toMatch(new RegExp(`^conversations/${group.id}/memes/[^/]+\\.enc$`))
+    expect(meme?.uploaded_by).toBe('u-alice')
+
+    expect(mockStorageUpload).toHaveBeenCalledWith(
+      meme!.path,
+      expect.any(Uint8Array),
+      expect.objectContaining({ contentType: 'application/octet-stream' })
+    )
+
+    const updatedConv = room.conversations.value.find(c => c.id === group.id)
+    expect(updatedConv?.memes).toHaveLength(1)
+    expect(updatedConv?.memes?.[0].id).toBe(meme!.id)
+  })
+
+  it('uploadConversationMeme rolls back conversation memes and removes uploaded blob if database update fails', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Meme Room 2', ['u-bob'])
+
+    mockConversationsUpdateError = { message: 'Database connection failed' }
+
+    const file = new File(['fake-meme-content-2'], 'fail.png', { type: 'image/png' })
+    const { meme, error } = await room.uploadConversationMeme(group.id, file)
+
+    expect(error).toBe('Database connection failed')
+    expect(meme).toBeNull()
+
+    const updatedConv = room.conversations.value.find(c => c.id === group.id)
+    expect(updatedConv?.memes || []).toHaveLength(0)
+    expect(mockStorageRemove).toHaveBeenCalled()
+  })
+
+  it('removeConversationMeme removes meme from conversation without deleting storage object', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Meme Room 3', ['u-bob'])
+
+    const file = new File(['fake-meme-content-3'], 'laugh3.png', { type: 'image/png' })
+    const { meme } = await room.uploadConversationMeme(group.id, file)
+    expect(meme).toBeDefined()
+
+    mockStorageRemove.mockClear()
+
+    const { error } = await room.removeConversationMeme(group.id, meme!.id)
+    expect(error).toBeNull()
+
+    const updatedConv = room.conversations.value.find(c => c.id === group.id)
+    expect(updatedConv?.memes).toEqual([])
+    expect(mockStorageRemove).not.toHaveBeenCalled()
+  })
+
+  it('sendMeme sends an image message and deleteMessage does NOT remove shared meme storage paths', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Meme Room 4', ['u-bob'])
+
+    const memeMeta = {
+      id: 'm-shared-1',
+      path: `conversations/${group.id}/memes/m-shared-1.enc`,
+      mimeType: 'image/png',
+      width: 400,
+      height: 300,
+      size: 1024,
+      created_at: new Date().toISOString(),
+      uploaded_by: 'u-alice',
+    }
+
+    mockStorageRemove.mockClear()
+    await room.sendMeme(memeMeta)
+
+    const lastMsg = room.messages.value[room.messages.value.length - 1]
+    expect(lastMsg).toBeDefined()
+    expect(lastMsg.content).toContain('conversations/' + group.id + '/memes/m-shared-1.enc')
+
+    await room.deleteMessage(lastMsg.id)
+
+    expect(mockStorageRemove).not.toHaveBeenCalled()
+  })
+
+  it('retryMessage on a failed meme message encrypts and inserts row without requiring pendingImageFiles', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Meme Room 5', ['u-bob'])
+
+    const memePayload = JSON.stringify({
+      type: 'images',
+      images: [
+        {
+          path: `conversations/${group.id}/memes/meme-retry.enc`,
+          mimeType: 'image/png',
+          width: 500,
+          height: 500,
+          size: 2048,
+        },
+      ],
+    })
+
+    const clientId = 'client-retry-meme-1'
+    room.messages.value = [
+      {
+        id: clientId,
+        client_id: clientId,
+        conversation_id: group.id,
+        user_id: 'u-alice',
+        content: memePayload,
+        created_at: new Date().toISOString(),
+        status: 'failed',
+      },
+    ]
+
+    const retriedMsg = room.messages.value.find(m => m.client_id === clientId)
+    expect(retriedMsg?.status).toBe('failed')
+
+    await room.retryMessage(clientId)
+
+    const finalMsg = room.messages.value.find(m => m.client_id === clientId)
+    expect(finalMsg?.status).toBe('sent')
+  })
+
+  it('realtime UPDATE on conversations sanitizes incoming memes array', async () => {
+    let updateConversationHandler: ((payload: any) => void) | null = null
+    const origChannel = mockSupabase.channel
+    mockSupabase.channel = vi.fn().mockImplementation((name: string, ...args: any[]) => {
+      const ch = origChannel ? origChannel(name, ...args) : { on: vi.fn(), subscribe: vi.fn() }
+      const origOn = ch.on.bind(ch)
+      ch.on = vi.fn().mockImplementation((type: string, filter: any, callback: any) => {
+        if (filter?.event === 'UPDATE' && filter?.table === 'conversations') {
+          updateConversationHandler = callback
+        }
+        return origOn(type, filter, callback)
+      })
+      return ch
+    })
+
+    const room = useChatRoom()
+    const group = await room.createGroup('Meme RT Room', ['u-bob'])
+    await room.initializeChat()
+
+    expect(updateConversationHandler).toBeTruthy()
+
+    const badMemePayload = {
+      new: {
+        id: group.id,
+        memes: [
+          { id: 'bad-1', path: 'bad-path' },
+          {
+            id: 'm-good',
+            path: `conversations/${group.id}/memes/m-good.enc`,
+            mimeType: 'image/png',
+            width: 100,
+            height: 100,
+            size: 1000,
+            created_at: new Date().toISOString(),
+            uploaded_by: 'u-bob',
+          },
+          null,
+        ],
+      },
+    }
+
+    updateConversationHandler!(badMemePayload)
+
+    const updated = room.conversations.value.find(c => c.id === group.id)
+    expect(updated?.memes).toHaveLength(1)
+    expect(updated?.memes?.[0].id).toBe('m-good')
   })
 })

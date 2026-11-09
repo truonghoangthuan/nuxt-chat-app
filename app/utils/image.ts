@@ -1,4 +1,4 @@
-import type { EncryptedImageMetadata, ImageMessagePayload } from '~/types/chat'
+import type { ConversationMeme, EncryptedImageMetadata, ImageMessagePayload } from '~/types/chat'
 
 export const MAX_IMAGE_COUNT = 10
 export const MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024 // 10MB
@@ -196,7 +196,7 @@ export async function resizeImage(
     throw new Error('Failed to load image')
   }
 
-  if (origWidth <= maxDim && origHeight <= maxDim) {
+  if (file.type === 'image/gif' || (origWidth <= maxDim && origHeight <= maxDim)) {
     return {
       blob: file,
       width: origWidth,
@@ -245,4 +245,47 @@ export async function resizeImage(
     width: targetWidth,
     height: targetHeight,
   }
+}
+
+/**
+ * Checks if a storage path belongs to a shared conversation meme.
+ */
+export function isSharedMemePath(path: unknown): boolean {
+  if (typeof path !== 'string') return false
+  return /^(conversations|channels)\/[^/]+\/memes\/[^/]+\.enc$/.test(path.trim())
+}
+
+/**
+ * Sanitizes and validates an array of conversation meme metadata objects.
+ */
+export function sanitizeConversationMemes(raw: unknown): ConversationMeme[] {
+  if (!Array.isArray(raw)) return []
+  const result: ConversationMeme[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const m = item as Record<string, unknown>
+    if (
+      typeof m.id === 'string' &&
+      m.id.trim() &&
+      isSharedMemePath(m.path) &&
+      typeof m.mimeType === 'string' &&
+      typeof m.width === 'number' &&
+      typeof m.height === 'number' &&
+      typeof m.size === 'number' &&
+      typeof m.created_at === 'string' &&
+      typeof m.uploaded_by === 'string'
+    ) {
+      result.push({
+        id: m.id.trim(),
+        path: (m.path as string).trim(),
+        mimeType: m.mimeType,
+        width: m.width,
+        height: m.height,
+        size: m.size,
+        created_at: m.created_at,
+        uploaded_by: m.uploaded_by,
+      })
+    }
+  }
+  return result
 }

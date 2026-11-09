@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import type { ChatMessage, EncryptedImageMetadata, Profile, YouTubeSearchResult } from '~/types/chat'
+import type { ChatMessage, ConversationMeme, EncryptedImageMetadata, Profile, YouTubeSearchResult } from '~/types/chat'
 import { useChatRoom } from '~/composables/useChatRoom'
 import { useAuthProfile } from '~/composables/useAuthProfile'
 import { useTheme } from '~/composables/useTheme'
@@ -120,6 +120,9 @@ const {
   broadcastMusicSync,
   sendMusicPlaySystemMessage,
   sendMusicActionSystemMessage,
+  uploadConversationMeme,
+  removeConversationMeme,
+  sendMeme,
 } = useChatRoom()
 
 const { currentProfile, updateProfile, signOut } = useAuthProfile()
@@ -836,6 +839,67 @@ async function handleSendImages(files: File[], caption?: string) {
   await sendImages(files, caption)
 }
 
+const isUploadingMeme = ref(false)
+
+async function handleUploadMeme(file: File) {
+  const convId = activeConversationId.value
+  if (!convId) return
+  isUploadingMeme.value = true
+  try {
+    const { meme, error } = await uploadConversationMeme(convId, file)
+    if (error) {
+      addNotificationToast({
+        title: 'Meme upload failed',
+        body: error,
+      })
+    } else if (meme) {
+      addNotificationToast({
+        title: 'Meme added',
+        body: 'Meme saved to conversation library.',
+      })
+    }
+  } catch (err: any) {
+    addNotificationToast({
+      title: 'Meme upload failed',
+      body: err?.message || 'Unexpected error.',
+    })
+  } finally {
+    isUploadingMeme.value = false
+  }
+}
+
+async function handleSendMeme(meme: ConversationMeme) {
+  const replyId = replyingTo.value?.id || null
+  replyingTo.value = null
+  try {
+    await sendMeme(meme, replyId)
+  } catch (err: any) {
+    addNotificationToast({
+      title: 'Failed to send meme',
+      body: err?.message || 'Unexpected error.',
+    })
+  }
+}
+
+async function handleDeleteMeme(memeId: string) {
+  const convId = activeConversationId.value
+  if (!convId) return
+  try {
+    const { error } = await removeConversationMeme(convId, memeId)
+    if (error) {
+      addNotificationToast({
+        title: 'Failed to delete meme',
+        body: error,
+      })
+    }
+  } catch (err: any) {
+    addNotificationToast({
+      title: 'Failed to delete meme',
+      body: err?.message || 'Unexpected error.',
+    })
+  }
+}
+
 let prevConfettiMessageId: string | null = null
 let hasLoadedHistoryForConv = false
 
@@ -1540,6 +1604,7 @@ onUnmounted(() => {
         :conversation="activeConversation"
         :media-count="mediaCount"
         :links-count="linksCount"
+        :is-uploading-meme="isUploadingMeme"
         @close="isUtilityPanelOpen = false"
         @send-sticker="handleSendMessage"
         @send-reaction="handleSendQuickReaction"
@@ -1547,6 +1612,9 @@ onUnmounted(() => {
         @open-background="isChatBackgroundModalOpen = true"
         @open-confetti="isConfettiDictionaryModalOpen = true"
         @open-group-info="isGroupInfoModalOpen = true"
+        @upload-meme="handleUploadMeme"
+        @send-meme="handleSendMeme"
+        @delete-meme="handleDeleteMeme"
       />
 
       <!-- Contacts Modal -->
