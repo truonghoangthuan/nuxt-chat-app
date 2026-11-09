@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-09
+
+### Added
+- **Unread Browser Tab Title**: Show the total unread message count as `(3) Tin nhắn mới — My Team`, preserving the configured base title and restoring it when all messages are read or the chat page is left.
+
+### Fixed
+- **Background Conversation Unreads**: Messages in the selected conversation now count as unread while the tab is hidden or unfocused, without counting own messages or duplicate realtime deliveries; returning to the conversation clears its count.
+
 ## [0.8.1] - 2026-11-05
 
 ### Added

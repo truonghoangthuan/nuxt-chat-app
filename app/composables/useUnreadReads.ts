@@ -9,6 +9,7 @@ export function computeUnreadSnapshot(params: {
   lastReadByChannel?: Record<string, string>
   activeConversationId?: string | null
   activeChannelId?: string | null
+  isWindowActive?: boolean
   currentUserId: string
   currentDisplayName?: string | null
 }): {
@@ -23,7 +24,7 @@ export function computeUnreadSnapshot(params: {
   for (const msg of params.messages) {
     if (!msg || msg.deleted_at) continue
     const targetId = msg.conversation_id || msg.channel_id || ''
-    if (!targetId || targetId === activeId) continue
+    if (!targetId || (targetId === activeId && params.isWindowActive !== false)) continue
     if (params.currentUserId && msg.user_id === params.currentUserId) continue
 
     const lastReadIso = lastReadMap[targetId]

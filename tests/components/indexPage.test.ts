@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
+import { createHead, renderDOMHead } from '@unhead/vue/client'
+import { useHead } from '@unhead/vue'
 import type { Conversation, Contact, Profile } from '~/types/chat'
 
 const mockChatRoomState = {
@@ -161,12 +163,43 @@ import GroupInfoModal from '~/components/GroupInfoModal.vue'
 describe('IndexPage (app/pages/index.vue)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal('useHead', vi.fn())
+    mockChatRoomState.unreadCounts.value = {}
     mockE2eeState.status.value = 'unlocked'
     mockChatRoomState.conversations.value = []
     mockChatRoomState.activeConversationId.value = null
     mockChatRoomState.activeConversation.value = null
     mockChatRoomState.contacts.value = []
     mockChatRoomState.onlineFriends.value = []
+  })
+
+  it('reactively aggregates unread messages in the tab title and restores the exact base on read and route leave', async () => {
+    vi.stubGlobal('useHead', useHead)
+    const head = createHead({ document })
+    head.push({ title: 'My Team' })
+    const wrapper = mount(IndexPage, { global: { plugins: [head] } })
+    const renderTitle = async () => {
+      await nextTick()
+      await renderDOMHead(head)
+      return document.title
+    }
+    try {
+      expect(await renderTitle()).toBe('My Team')
+      mockChatRoomState.unreadCounts.value = { direct: 1, group: 2 }
+      expect(await renderTitle()).toBe('(3) Tin nhắn mới — My Team')
+      mockChatRoomState.unreadCounts.value.direct = 0
+      expect(await renderTitle()).toBe('(2) Tin nhắn mới — My Team')
+      mockChatRoomState.unreadCounts.value = {}
+      expect(await renderTitle()).toBe('My Team')
+      head.push({ title: 'Friends Chat — Precision Studio' })
+      mockChatRoomState.unreadCounts.value = { group: 12 }
+      expect(await renderTitle()).toBe('(12) Tin nhắn mới — Friends Chat — Precision Studio')
+    } finally {
+      wrapper.unmount()
+    }
+    expect(await renderTitle()).toBe('Friends Chat — Precision Studio')
+    mockChatRoomState.unreadCounts.value.group = 99
+    expect(await renderTitle()).toBe('Friends Chat — Precision Studio')
   })
 
   it('opens incense for the selected conversation without replacing the composer and closes on switch', async () => {
