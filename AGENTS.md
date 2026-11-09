@@ -333,6 +333,12 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - **Continuous Media Playback:** Toggling stealth mode (`isStealthHidden`) must NEVER pause or interrupt synchronized audio/video playback (`audioPlayerRef`). The stealth overlay covers the screen at `z-[9999]`, allowing background music to continue playing uninterrupted without visual leaking.
     - **Strict Alert Muting:** Incoming audio alerts (e.g. `playBuzzSound()`) must strictly remain muted (`if (!isStealthHidden.value)`) while stealth mode is active to prevent audible notification leaks in stealth environments.
 
+45. **Shared Storage Asset Invariants (Memes, Attachments & Media Lifecycle):**
+    - **Shared Attachment Preservation vs. Message Deletion:** Messages referencing shared room resources (e.g., memes or stickers at `conversations/<id>/memes/*.enc` or `channels/<id>/memes/*.enc`) must NEVER delete the underlying storage object when a chat message is soft-deleted or deleted (`isSharedMemePath(path)`). Removing an item from the library metadata must only modify the metadata entry (`conversations.memes`), preserving the binary so historical chat messages remain renderable.
+    - **Offline & Pre-Uploaded Attachment Retries:** `retryMessage(clientId)` must check whether image payload paths already point to storage (not `blob:`) before requiring `pendingImageFiles` in memory. If paths are already remote storage objects (e.g., shared memes), bypass `sendImages` and proceed directly to encryption and message insert.
+    - **Animated GIF Transcoding Bypass:** Canvas 2D re-encoding in client-side image resizers (`resizeImage`) flattens and destroys animated GIF frames. Always short-circuit `resizeImage` when `file.type === 'image/gif'`, returning the original `File` blob and natural dimensions without drawing to `<canvas>`.
+    - **Realtime JSONB Array Sanitization & Viewport Cache Eviction:** Any conversation-level JSONB array (`confetti_words`, `memes`) received over Realtime `postgres_changes` `UPDATE` events must be passed through validators (`sanitizeConversationMemes`) before updating state to prevent malformed payloads from polluting memory. Component-level decrypted image URL maps must be cleared whenever the active conversation ID changes to prevent referencing blob URLs that were revoked upon cache eviction.
+
 
 ## 5. Testing Standards
 
