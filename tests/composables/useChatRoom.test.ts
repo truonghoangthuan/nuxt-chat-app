@@ -36,11 +36,21 @@ vi.mock('~/utils/image', async (importOriginal) => {
 import { extractAuthUserId, useAuthProfile } from '~/composables/useAuthProfile'
 import { createMessagesStore } from '~/composables/useMessagesState'
 import { createTypingTracker } from '~/composables/useTypingState'
-import type { Profile, Conversation, Contact } from '~/types/chat'
+import type { Profile, Conversation, Contact, ChatMessage } from '~/types/chat'
 import { createPhraseConfig, deriveKey, encryptContent, decryptContent } from '~/utils/crypto'
 import { isSystemPayload, parseSystemPayload } from '~/utils/chat'
 
 describe('useChatRoom realtime message routing & profile caching', () => {
+  it('includes the selected conversation in unread snapshots while the tab is inactive', () => {
+    const snapshot = computeUnreadSnapshot({
+      messages: [{ id: 'background', conversation_id: 'selected', user_id: 'other', content: 'Hello', created_at: '2026-11-09T00:00:00Z' }],
+      activeConversationId: 'selected',
+      currentUserId: 'self',
+      isWindowActive: false,
+    })
+    expect(snapshot.unreadCounts).toEqual({ selected: 1 })
+  })
+
   it('increments unread count for inactive channels and reconciles messages for active channel', () => {
     const store = createMessagesStore()
     const typing = createTypingTracker(() => 'u-me', 3000)
@@ -2533,7 +2543,75 @@ describe('useChatRoom contacts and conversations', () => {
     expect(capturedReadsInIds).toEqual([group.id])
   })
 
-  it('suppresses automatic markConversationRead on incoming message when document is not focused', async () => {
+  it('removes selected background unread on soft-delete without subtracting repeats or read messages', async () => {
+    mockSupabase.auth.getUser = vi.fn().mockResolvedValue({
+      data: { user: { id: 'u-alice', email: 'alice@example.com' } }, error: null,
+    })
+    const callbacks: Record<string, (payload: any) => Promise<void>> = {}
+    mockSupabase.channel = vi.fn().mockImplementation(() => {
+      const channel: any = {
+        on: vi.fn((event: string, filter: any, callback: any) => {
+          if (event === 'postgres_changes' && filter?.table === 'messages') callbacks[filter.event] = callback
+          return channel
+        }),
+        subscribe: vi.fn((callback?: any) => { callback?.('SUBSCRIBED'); return channel }),
+        send: vi.fn(),
+        track: vi.fn().mockResolvedValue('ok'),
+      }
+      return channel
+    })
+    const room = useChatRoom()
+    const originalVisibility = Object.getOwnPropertyDescriptor(document, 'visibilityState')
+    const originalHasFocus = document.hasFocus
+    try {
+      await room.initializeChat()
+      const group = await room.createGroup('Deletion Test', ['u-bob'])
+      await room.selectConversation(group.id)
+      const readAt = room.activeConversationReads.value['u-alice']
+      const content = await encryptContent(testKey, 'Hello @Alice', group.id)
+      const row = {
+        id: 'background-delete', client_id: 'background-delete-client', conversation_id: group.id,
+        user_id: 'u-bob', content, created_at: new Date(Date.parse(readAt) + 1000).toISOString(),
+      }
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+      document.hasFocus = () => false
+      await callbacks.INSERT({ new: row })
+      expect(room.unreadCounts.value[group.id]).toBe(1)
+      expect(room.unreadMentions.value[group.id]).toBe(1)
+      const deleted = { ...row, deleted_at: new Date().toISOString() }
+      await callbacks.UPDATE({ new: deleted, old: { id: row.id } })
+      expect(room.unreadCounts.value[group.id]).toBe(0)
+      expect(room.unreadMentions.value[group.id]).toBe(0)
+      expect(room.messages.value.find((message: ChatMessage) => message.id === row.id)?.deleted_at).toBe(deleted.deleted_at)
+
+      // Another unread in this conversation must survive repeated delivery of the same deletion.
+      await callbacks.INSERT({ new: { ...row, id: 'survivor', client_id: 'survivor-client' } })
+      room.unreadCounts.value.other = 2
+      room.unreadMentions.value.other = 1
+      await callbacks.UPDATE({ new: deleted, old: { id: row.id } })
+      await callbacks.UPDATE({ new: deleted, old: { ...row, deleted_at: null } })
+      expect(room.unreadCounts.value[group.id]).toBe(1)
+      expect(room.unreadMentions.value[group.id]).toBe(1)
+
+      // A previously read timeline row must not consume that unrelated unread.
+      const readRow = { ...row, id: 'already-read', client_id: 'read-client', created_at: readAt }
+      room.messages.value.push({ ...readRow, content: 'Hello @Alice', status: 'sent' })
+      await callbacks.UPDATE({ new: { ...readRow, deleted_at: deleted.deleted_at }, old: { id: readRow.id } })
+      expect(room.unreadCounts.value).toEqual({ [group.id]: 1, other: 2 })
+      expect(room.unreadMentions.value).toEqual({ [group.id]: 1, other: 1 })
+      expect(room.activeConversationReads.value['u-alice']).toBe(readAt)
+    } finally {
+      room.cleanupChat()
+      document.hasFocus = originalHasFocus
+      if (originalVisibility) Object.defineProperty(document, 'visibilityState', originalVisibility)
+      else delete (document as any).visibilityState
+    }
+  })
+
+  it.each([
+    ['hidden', false, 'focus'],
+    ['visible', false, 'visibilitychange'],
+  ])('counts selected-conversation messages while %s/unfocused, then clears only that conversation on return', async (visibility, focused, returnEvent) => {
     mockSupabase.auth.getUser = vi.fn().mockResolvedValue({
       data: { user: { id: 'u-alice', email: 'alice@example.com' } },
       error: null,
@@ -2565,42 +2643,59 @@ describe('useChatRoom contacts and conversations', () => {
     // Mock document.hasFocus = false and visibilityState = 'hidden'
     const origHasFocus = document.hasFocus
     const origVisibilityState = Object.getOwnPropertyDescriptor(document, 'visibilityState')
-    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
-    document.hasFocus = () => false
+    Object.defineProperty(document, 'visibilityState', { value: visibility, configurable: true })
+    document.hasFocus = () => Boolean(focused)
+    room.unreadCounts.value.other = 2
+    try {
+      // Record initial read timestamp from conversation creation
+      const initialRead = room.activeConversationReads.value['u-alice']
 
-    // Record initial read timestamp from conversation creation
-    const initialRead = room.activeConversationReads.value['u-alice']
+      // Wait 10ms so next timestamp is distinctly different
+      await new Promise(r => setTimeout(r, 15))
 
-    // Wait 10ms so next timestamp is distinctly different
-    await new Promise(r => setTimeout(r, 15))
+      const encrypted = await encryptContent(testKey, 'Background message', group.id)
+      await insertCallback({
+        new: {
+          id: 'msg-bg-1',
+          client_id: 'c-bg-1',
+          conversation_id: group.id,
+          user_id: 'u-bob',
+          content: encrypted,
+          created_at: new Date().toISOString(),
+        },
+      })
 
-    const encrypted = await encryptContent(testKey, 'Background message', group.id)
-    await insertCallback({
-      new: {
-        id: 'msg-bg-1',
-        client_id: 'c-bg-1',
-        conversation_id: group.id,
-        user_id: 'u-bob',
-        content: encrypted,
-        created_at: new Date().toISOString(),
-      },
-    })
+      // Expect markConversationRead NOT to have been called for alice while unfocused
+      expect(room.activeConversationReads.value['u-alice']).toBe(initialRead)
+      expect(room.unreadCounts.value[group.id]).toBe(1)
+      expect(room.messages.value.some((m: ChatMessage) => m.id === 'msg-bg-1')).toBe(true)
+      const duplicateRow = { ...room.messages.value.find((m: ChatMessage) => m.id === 'msg-bg-1'), content: encrypted }
+      await insertCallback({ new: duplicateRow })
+      await insertCallback({ new: { ...duplicateRow, id: 'msg-own', client_id: 'c-own', user_id: 'u-alice' } })
+      expect(room.unreadCounts.value[group.id]).toBe(1)
+      expect(room.messages.value.filter((m: ChatMessage) => m.id === 'msg-bg-1')).toHaveLength(1)
 
-    // Expect markConversationRead NOT to have been called for alice while unfocused
-    expect(room.activeConversationReads.value['u-alice']).toBe(initialRead)
+      // Restore focus and trigger window focus / visibilitychange
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+      document.hasFocus = () => true
+      ;(returnEvent === 'focus' ? window : document).dispatchEvent(new Event(String(returnEvent)))
 
-    // Restore focus and trigger window focus / visibilitychange
-    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
-    document.hasFocus = () => true
-    window.dispatchEvent(new Event('focus'))
-
-    // Now it should be updated to a newer timestamp
-    expect(room.activeConversationReads.value['u-alice']).not.toBe(initialRead)
-
-    // Cleanup
-    document.hasFocus = origHasFocus
-    if (origVisibilityState) {
-      Object.defineProperty(document, 'visibilityState', origVisibilityState)
+      // Now it should be updated to a newer timestamp
+      expect(room.activeConversationReads.value['u-alice']).not.toBe(initialRead)
+      expect(room.unreadCounts.value[group.id]).toBe(0)
+      expect(room.unreadCounts.value.other).toBe(2)
+      // A refreshed unread snapshot has no pending realtime-read flag.
+      room.unreadCounts.value[group.id] = 3
+      window.dispatchEvent(new Event('focus'))
+      expect(room.unreadCounts.value[group.id]).toBe(0)
+    } finally {
+      room.cleanupChat()
+      document.hasFocus = origHasFocus
+      if (origVisibilityState) {
+        Object.defineProperty(document, 'visibilityState', origVisibilityState)
+      } else {
+        delete (document as any).visibilityState
+      }
     }
   })
 

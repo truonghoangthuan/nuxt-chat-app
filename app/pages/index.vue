@@ -125,6 +125,14 @@ const {
   sendMeme,
 } = useChatRoom()
 
+const totalUnread = computed(() => Object.values(unreadCounts.value).reduce((total, count) => total + count, 0))
+useHead(() => {
+  const count = totalUnread.value
+  return {
+    titleTemplate: (title) => count > 0 ? `(${count}) Tin nhắn mới — ${title || ''}` : title,
+  }
+})
+
 const { currentProfile, updateProfile, signOut } = useAuthProfile()
 const { isDark, toggleTheme, uiTheme, initTheme } = useTheme()
 const {

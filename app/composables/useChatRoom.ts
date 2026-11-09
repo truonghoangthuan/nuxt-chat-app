@@ -201,6 +201,7 @@ export function handleIncomingRealtimeMessage(params: {
   conversations?: Conversation[] | Ref<Conversation[]>
   notificationManager?: ReturnType<typeof createNotificationManager>
   onNavigate?: (convId: string) => void
+  isWindowActive?: boolean
 }): void {
   const activeId = params.activeConversationId !== undefined ? params.activeConversationId : params.activeChannelId
   const targetId = params.row.conversation_id || params.row.channel_id || ''
@@ -216,10 +217,14 @@ export function handleIncomingRealtimeMessage(params: {
     }
   }
 
+  const alreadyInActiveTimeline = targetId === activeId && params.isWindowActive === false && params.messagesStore.messages.value.some(message =>
+    message.id === params.row.id || (params.row.client_id && message.client_id === params.row.client_id),
+  )
   if (targetId && targetId === activeId) {
     params.messagesStore.reconcileIncomingMessage(params.row)
     params.typingTracker.clearUserTyping(params.row.user_id)
-  } else if (targetId) {
+  }
+  if (targetId && !params.row.deleted_at && !alreadyInActiveTimeline && (targetId !== activeId || params.isWindowActive === false)) {
     if (params.currentUserId && params.row.user_id === params.currentUserId) {
       return
     }
@@ -269,8 +274,11 @@ export function handleRealtimeMessageUpdate(params: {
   const targetId = params.row.conversation_id || params.row.channel_id
   const isInactive = Boolean(targetId && targetId !== activeId)
 
-  if (isInactive && targetId) {
-    const isSoftDeleted = Boolean(params.row.deleted_at && !params.oldRow?.deleted_at)
+  if (targetId) {
+    const timelineMessage = !isInactive
+      ? params.messagesStore.messages.value.find(message => message.id === params.row.id)
+      : undefined
+    const isSoftDeleted = Boolean(params.row.deleted_at && !params.oldRow?.deleted_at && !timelineMessage?.deleted_at)
     const isFromOtherUser = !params.currentUserId || !params.row.user_id || params.row.user_id !== params.currentUserId
 
     if (isSoftDeleted && isFromOtherUser) {
@@ -296,7 +304,7 @@ export function handleRealtimeMessageUpdate(params: {
         }
       }
     }
-    return
+    if (isInactive) return
   }
   params.messagesStore.reconcileUpdatedMessage(params.row)
 }
@@ -498,13 +506,15 @@ export function useChatRoom() {
   }
 
   function onWindowActive(): void {
-    if (isWindowActive() && pendingReadOnActiveConv && activeConversationId.value) {
+    const conversationId = activeConversationId.value
+    if (isWindowActive() && conversationId && (pendingReadOnActiveConv || (unreadCounts.value[conversationId] || 0) > 0)) {
       pendingReadOnActiveConv = false
-      markConversationRead(activeConversationId.value, true)
+      markConversationRead(conversationId, true)
     }
   }
 
   async function markConversationRead(conversationId: string, immediate = true): Promise<void> {
+    applyActiveChannelReadReset({ conversationId, unreadCounts: unreadCounts.value, unreadMentions: unreadMentions.value })
     const current = authProfile.currentProfile.value
     const nowIso = new Date().toISOString()
     lastReadByConversation.value[conversationId] = nowIso
@@ -590,6 +600,7 @@ export function useChatRoom() {
           messages: decryptedRecent as any,
           lastReadByConversation: map,
           activeConversationId: activeConversationId.value,
+          isWindowActive: isWindowActive(),
           currentUserId: current.id,
           currentDisplayName: current.display_name,
         })
@@ -951,6 +962,7 @@ export function useChatRoom() {
           handleIncomingRealtimeMessage({
             row: fullDecryptedRow,
             activeConversationId: activeConversationId.value,
+            isWindowActive: isWindowActive(),
             messagesStore,
             typingTracker,
             unreadCounts: unreadCounts.value,
