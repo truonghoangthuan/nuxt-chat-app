@@ -1,6 +1,6 @@
 [package]
 name = "my-team"
-version = "0.10.1"
+version = "0.11.0"
 description = "My Team - Lightweight resilient encrypted real-time chat workspace"
 authors = ["My Team"]
 edition = "2021"
