@@ -16,6 +16,7 @@ const mockChatRoomState = {
   openOrCreateDirectChat: vi.fn(),
   createGroup: vi.fn(),
   addMemberToGroup: vi.fn(),
+  removeMemberFromGroup: vi.fn(),
   leaveGroup: vi.fn(),
   updateGroupTitle: vi.fn().mockResolvedValue({ error: null }),
   updateChatBackground: vi.fn().mockResolvedValue({ error: null }),
@@ -531,6 +532,38 @@ describe('IndexPage (app/pages/index.vue)', () => {
     await modal.vm.$emit('updateTitle', 'Renamed Group')
 
     expect(mockChatRoomState.updateGroupTitle).toHaveBeenCalledWith('conv-grp-1', 'Renamed Group')
+  })
+
+  it('calls removeMemberFromGroup when GroupInfoModal emits removeMember and shows toast on error', async () => {
+    mockChatRoomState.activeConversationId.value = 'conv-group-1'
+    mockChatRoomState.activeConversation.value = {
+      id: 'conv-group-1',
+      type: 'group',
+      title: 'Team Alpha',
+      created_by: 'u-self',
+      created_at: '',
+      members: [
+        { conversation_id: 'conv-group-1', user_id: 'u-self', role: 'owner', joined_at: '', profile: { id: 'u-self', email: 'me@a.com', display_name: 'Self', avatar_color: '#000' } },
+        { conversation_id: 'conv-group-1', user_id: 'u-bob', role: 'member', joined_at: '', profile: { id: 'u-bob', email: 'bob@a.com', display_name: 'Bob', avatar_color: '#111' } },
+      ],
+    }
+    const wrapper = mount(IndexPage)
+    await wrapper.get('[data-test="open-group-info"]').trigger('click')
+    const modal = wrapper.getComponent(GroupInfoModal)
+    await modal.vm.$emit('removeMember', 'u-bob')
+    await flushPromises()
+    expect(mockChatRoomState.removeMemberFromGroup).toHaveBeenCalledWith('conv-group-1', 'u-bob')
+
+    mockChatRoomState.removeMemberFromGroup.mockRejectedValueOnce(new Error('Kick failed'))
+    await modal.vm.$emit('removeMember', 'u-bob')
+    await flushPromises()
+    expect(mockChatRoomState.addNotificationToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Failed to remove member',
+        snippet: 'Kick failed',
+      }),
+    )
+    wrapper.unmount()
   })
 
   it('calls addNotificationToast when updateGroupTitle fails', async () => {

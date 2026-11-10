@@ -60,6 +60,7 @@ const {
   openOrCreateDirectChat,
   createGroup,
   addMemberToGroup,
+  removeMemberFromGroup,
   leaveGroup,
   updateGroupTitle,
   updateChatBackground,
@@ -745,6 +746,22 @@ async function handleLeaveGroup(conversationId: string) {
         title: 'Failed to leave group',
         snippet: err?.message || 'Could not leave group.',
       })
+    }
+  }
+}
+
+async function handleRemoveMember(userId: string) {
+  if (activeConversationId.value) {
+    try {
+      await removeMemberFromGroup(activeConversationId.value, userId)
+    } catch (err: any) {
+      if (addNotificationToast) {
+        addNotificationToast({
+          conversationId: activeConversationId.value,
+          title: 'Failed to remove member',
+          snippet: err?.message || 'Could not remove member from group.',
+        })
+      }
     }
   }
 }
@@ -1654,6 +1671,7 @@ onUnmounted(() => {
         :online-user-ids="onlineFriends.map(f => f.id)"
         @close="isGroupInfoModalOpen = false"
         @add-member="handleAddMember"
+        @remove-member="handleRemoveMember"
         @leave="handleLeaveGroup"
         @update-title="handleUpdateGroupTitle"
         @view-profile="handleViewProfile"
