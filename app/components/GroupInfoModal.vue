@@ -22,12 +22,17 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'addMember', email: string): void
+  (e: 'removeMember', userId: string): void
   (e: 'leave', conversationId: string): void
   (e: 'updateTitle', newTitle: string): void
   (e: 'viewProfile', profile: Profile): void
   (e: 'openBackground'): void
   (e: 'openConfettiDictionary'): void
 }>()
+
+const isCurrentUserOwner = computed(() =>
+  Boolean(props.currentUserId && members.value.some(m => m.user_id === props.currentUserId && m.role === 'owner')),
+)
 
 const newMemberEmail = ref('')
 const addMemberError = ref<string | null>(null)
@@ -323,8 +328,8 @@ function handleClose() {
                   </div>
                 </div>
 
-                <!-- Role Badge -->
-                <div class="shrink-0 pl-2">
+                <!-- Role Badge & Actions -->
+                <div class="shrink-0 pl-2 flex items-center gap-1.5">
                   <span
                     :data-test="`member-role-${member.user_id}`"
                     class="text-[11px] font-medium px-2 py-0.5 rounded-full"
@@ -332,6 +337,17 @@ function handleClose() {
                   >
                     {{ member.role === 'owner' ? 'Owner' : 'Member' }}
                   </span>
+                  <button
+                    v-if="isCurrentUserOwner && member.user_id !== currentUserId"
+                    type="button"
+                    :data-test="`remove-member-btn-${member.user_id}`"
+                    :aria-label="`Remove ${member.profile?.display_name || 'member'}`"
+                    title="Remove from group"
+                    class="w-6 h-6 rounded-full text-[var(--ap-text-muted)] hover:text-rose-500 hover:bg-rose-500/10 flex items-center justify-center transition-colors cursor-pointer"
+                    @click.stop="emit('removeMember', member.user_id)"
+                  >
+                    <X class="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             </div>

@@ -8,6 +8,16 @@
     "core:window:allow-show",
     "core:window:allow-hide",
     "core:window:allow-set-focus",
-    "autostart:default"
-  ]
+    "autostart:default",
+    "notification:default",
+    "core:window:allow-set-badge-count",
+    "core:window:allow-request-user-attention"
+  ],
+  "remote": {
+    "urls": [
+      "https://taolaobidao.vercel.app/*",
+      "https://*.vercel.app/*",
+      "http://localhost:*/*"
+    ]
+  }
 }

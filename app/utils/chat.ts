@@ -857,6 +857,8 @@ export function formatSystemMessageText(payload: SystemMessagePayload): string {
       return `${payload.actorName} stopped playback`
     case 'music_skip':
       return `${payload.actorName} skipped to next song${payload.detail ? ` 🎵 ${payload.detail}` : ''}`
+    case 'member_removed':
+      return `${payload.actorName} removed ${payload.detail || 'a member'} from the group`
     default:
       return `${payload.actorName} updated the conversation`
   }

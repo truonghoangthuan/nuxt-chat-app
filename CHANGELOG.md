@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-10
+
+### Added
+- **Windows Desktop Native Notifications & Badges**: Native Action Center notifications and taskbar badging for Tauri v2 Windows desktop via `tauri-plugin-notification` and remote capability permissions, bypassing Edge WebView2 Service Worker limitations with automatic permission initialization.
+- **Group Member Removal**: Allowed group owners to remove members from group chats with optimistic UI rollback, database deletion, and encrypted `member_removed` system activity notices.
+
+### Changed
+- **Group Info Modal Owner Controls**: Added member removal button next to member items in `GroupInfoModal.vue` visible only to group owners, with click-propagation isolation from user profile preview.
+
 ## [0.10.1] - 2026-11-10
 
 ### Added

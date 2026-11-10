@@ -539,4 +539,36 @@ describe('GroupInfoModal.vue', () => {
     await btn.trigger('click')
     expect(wrapper.emitted('openConfettiDictionary')).toHaveLength(1)
   })
+
+  it('renders remove member button only for group owner on other members and emits removeMember without triggering viewProfile', async () => {
+    // When currentUserId is u-1 (owner): shows remove button for u-2, not u-1
+    const ownerWrapper = mount(GroupInfoModal, {
+      props: {
+        isOpen: true,
+        conversation: mockGroupConversation,
+        currentUserId: 'u-1',
+        onlineUserIds: [],
+      },
+    })
+
+    expect(ownerWrapper.find('[data-test="remove-member-btn-u-1"]').exists()).toBe(false)
+    const removeBobBtn = ownerWrapper.find('[data-test="remove-member-btn-u-2"]')
+    expect(removeBobBtn.exists()).toBe(true)
+
+    await removeBobBtn.trigger('click')
+    expect(ownerWrapper.emitted('removeMember')).toEqual([['u-2']])
+    expect(ownerWrapper.emitted('viewProfile')).toBeUndefined()
+
+    // When currentUserId is u-2 (regular member): no remove buttons rendered
+    const memberWrapper = mount(GroupInfoModal, {
+      props: {
+        isOpen: true,
+        conversation: mockGroupConversation,
+        currentUserId: 'u-2',
+        onlineUserIds: [],
+      },
+    })
+    expect(memberWrapper.find('[data-test="remove-member-btn-u-1"]').exists()).toBe(false)
+    expect(memberWrapper.find('[data-test="remove-member-btn-u-2"]').exists()).toBe(false)
+  })
 })

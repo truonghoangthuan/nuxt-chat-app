@@ -17,6 +17,8 @@ export interface NotificationManagerOptions {
   serviceWorkerRegistration?: {
     showNotification: (title: string, options?: NotificationOptions) => Promise<void>
   } | null
+  isDesktopApp?: () => boolean
+  tauriInvoke?: (cmd: string, args?: Record<string, any>) => Promise<any>
   playSound?: () => void
   isDocumentVisible?: () => boolean
   origin?: string
@@ -26,8 +28,19 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
   const activeNotifications = new Set<any>()
   let swRegistration: { showNotification: (title: string, options?: NotificationOptions) => Promise<void> } | null = options?.serviceWorkerRegistration ?? null
 
-  // Register service worker if supported and not explicitly injected
-  if (options?.serviceWorkerRegistration === undefined && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  const checkIsDesktop = (): boolean =>
+    options?.isDesktopApp
+      ? options.isDesktopApp()
+      : typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+
+  const getTauriInvoke = () =>
+    options?.tauriInvoke ||
+    (typeof window !== 'undefined' && typeof (window as any).__TAURI_INTERNALS__?.invoke === 'function'
+      ? (window as any).__TAURI_INTERNALS__.invoke.bind((window as any).__TAURI_INTERNALS__)
+      : null)
+
+  // Register service worker if supported, not in Tauri desktop, and not explicitly injected
+  if (!checkIsDesktop() && options?.serviceWorkerRegistration === undefined && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
     try {
       navigator.serviceWorker.register('/sw.js').then((reg) => {
         swRegistration = reg
@@ -64,6 +77,9 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
     if (options?.notificationApi) {
       return options.notificationApi.permission
     }
+    if (checkIsDesktop()) {
+      return 'granted'
+    }
     if (typeof window !== 'undefined' && 'Notification' in window) {
       return window.Notification.permission
     }
@@ -97,6 +113,22 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
 
   const requestPermission = async (): Promise<NotificationPermission> => {
     try {
+      if (checkIsDesktop()) {
+        const invoke = getTauriInvoke()
+        if (invoke) {
+          try {
+            const res = await invoke('plugin:notification|request_permission')
+            if (res === 'granted' || res === 'denied' || res === 'default') {
+              permission.value = res
+              return res
+            }
+          } catch {
+            // fallback
+          }
+        }
+        permission.value = 'granted'
+        return 'granted'
+      }
       const api = options?.notificationApi || (typeof window !== 'undefined' && 'Notification' in window ? window.Notification : null)
       if (api && typeof api.requestPermission === 'function') {
         const result = await api.requestPermission()
@@ -247,7 +279,7 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
 
     // 3. Desktop Notification (Windows Action Center toast) when tab is not focused or message is in another channel
     if (desktopEnabled.value && (!isFocused || targetId !== activeConversationId)) {
-      const hasPermission = permission.value === 'granted' || (
+      const hasPermission = permission.value === 'granted' || checkIsDesktop() || (
         typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted'
       )
 
@@ -261,7 +293,21 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
           },
         }
 
-        if (swRegistration && typeof swRegistration.showNotification === 'function') {
+        if (checkIsDesktop()) {
+          const invoke = getTauriInvoke()
+          if (invoke) {
+            invoke('plugin:notification|notify', {
+              options: {
+                title,
+                body: snippet,
+              },
+            }).catch(() => {
+              spawnWindowNotification(title, notifOptions, targetId, onNavigate)
+            })
+          } else {
+            spawnWindowNotification(title, notifOptions, targetId, onNavigate)
+          }
+        } else if (swRegistration && typeof swRegistration.showNotification === 'function') {
           try {
             swRegistration.showNotification(title, notifOptions).catch(() => {
               spawnWindowNotification(title, notifOptions, targetId, onNavigate)
@@ -278,6 +324,15 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
 
   const updateAppBadge = (count: number): void => {
     try {
+      if (checkIsDesktop()) {
+        const invoke = getTauriInvoke()
+        if (invoke) {
+          invoke('plugin:window|set_badge_count', {
+            label: 'main',
+            value: count > 0 ? count : null,
+          }).catch(() => {})
+        }
+      }
       if (typeof navigator === 'undefined') return
       if (count > 0) {
         if (typeof (navigator as any).setAppBadge === 'function') {

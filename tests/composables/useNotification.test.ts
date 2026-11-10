@@ -463,4 +463,90 @@ describe('useNotification composable', () => {
     expect(() => manager.updateAppBadge(5)).not.toThrow()
     expect(() => manager.updateAppBadge(0)).not.toThrow()
   })
+
+  it('auto-grants permission in Tauri desktop, bypasses ServiceWorker showNotification, and invokes plugin:notification|notify', async () => {
+    const showNotificationMock = vi.fn().mockResolvedValue(undefined)
+    const notificationConstructor = vi.fn()
+    const tauriInvoke = vi.fn().mockResolvedValue(undefined)
+
+    const manager = createNotificationManager({
+      isDesktopApp: () => true,
+      tauriInvoke,
+      serviceWorkerRegistration: { showNotification: showNotificationMock },
+      notificationConstructor,
+      isDocumentVisible: () => false,
+    })
+
+    expect(manager.permission.value).toBe('granted')
+
+    manager.notifyIncomingMessage({
+      message: {
+        id: 'm-tauri-1',
+        conversation_id: 'conv-tauri',
+        user_id: 'u-peer',
+        content: 'Hello on Windows desktop',
+        author: { id: 'u-peer', display_name: 'Alice', email: 'a@b.c', avatar_color: '#0284c7' },
+      } as any,
+      activeConversationId: 'conv-other',
+    })
+
+    expect(showNotificationMock).not.toHaveBeenCalled()
+    expect(tauriInvoke).toHaveBeenCalledWith('plugin:notification|notify', {
+      options: {
+        title: 'Alice',
+        body: 'Hello on Windows desktop',
+      },
+    })
+    expect(notificationConstructor).not.toHaveBeenCalled()
+  })
+
+  it('falls back to window.Notification when Tauri plugin:notification|notify rejects', async () => {
+    const notifInstance = { close: vi.fn(), onclick: null as any, onclose: null as any }
+    const notificationConstructor = vi.fn().mockReturnValue(notifInstance)
+    const tauriInvoke = vi.fn().mockRejectedValue(new Error('IPC blocked'))
+
+    const manager = createNotificationManager({
+      isDesktopApp: () => true,
+      tauriInvoke,
+      notificationConstructor,
+      isDocumentVisible: () => false,
+    })
+
+    manager.notifyIncomingMessage({
+      message: {
+        id: 'm-tauri-fallback',
+        conversation_id: 'conv-tauri',
+        user_id: 'u-peer',
+        content: 'Fallback toast',
+        author: { id: 'u-peer', display_name: 'Bob', email: 'b@b.c', avatar_color: '#0284c7' },
+      } as any,
+      activeConversationId: 'conv-other',
+    })
+
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(notificationConstructor).toHaveBeenCalledWith('Bob', expect.objectContaining({
+      body: 'Fallback toast',
+    }))
+  })
+
+  it('invokes Tauri plugin:window|set_badge_count in updateAppBadge when tauriInvoke is available', () => {
+    const tauriInvoke = vi.fn().mockResolvedValue(undefined)
+    const manager = createNotificationManager({
+      isDesktopApp: () => true,
+      tauriInvoke,
+    })
+
+    manager.updateAppBadge(7)
+    expect(tauriInvoke).toHaveBeenCalledWith('plugin:window|set_badge_count', {
+      label: 'main',
+      value: 7,
+    })
+
+    manager.updateAppBadge(0)
+    expect(tauriInvoke).toHaveBeenCalledWith('plugin:window|set_badge_count', {
+      label: 'main',
+      value: null,
+    })
+  })
 })

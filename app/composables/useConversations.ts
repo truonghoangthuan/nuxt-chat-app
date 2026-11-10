@@ -345,6 +345,59 @@ export function createConversationsActions(deps: ConversationsActionsDeps) {
 
   const addGroupMember = addMemberToGroup
 
+  async function removeMemberFromGroup(conversationId: string, targetUserId: string): Promise<void> {
+    const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
+    if (!current?.id) {
+      throw new Error('Not authenticated.')
+    }
+
+    const targetConv = conversations.value.find(c => c.id === conversationId)
+    if (!targetConv || targetConv.type !== 'group') {
+      throw new Error('Cannot remove members from a direct message.')
+    }
+
+    if (targetUserId === current.id) {
+      throw new Error('Use leaveGroup to leave the group.')
+    }
+
+    const myMember = targetConv.members?.find(m => m.user_id === current.id)
+    if (myMember?.role !== 'owner') {
+      throw new Error('Only the group owner can remove members.')
+    }
+
+    const prevMembers = [...(targetConv.members || [])]
+    const removedMember = prevMembers.find(m => m.user_id === targetUserId)
+    targetConv.members = prevMembers.filter(m => m.user_id !== targetUserId)
+
+    try {
+      const { error } = await supabase
+        .from('conversation_members')
+        .delete()
+        .eq('conversation_id', conversationId)
+        .eq('user_id', targetUserId)
+
+      if (error) {
+        targetConv.members = prevMembers
+        throw new Error(error.message || 'Failed to remove member.')
+      }
+    } catch (err: any) {
+      targetConv.members = prevMembers
+      throw err
+    }
+
+    const actorName = current.display_name || 'Someone'
+    const detail = removedMember?.profile?.display_name || removedMember?.profile?.email || 'a member'
+    const sysPayload = serializeSystemMessage({
+      type: 'system',
+      event: 'member_removed',
+      actorName,
+      detail,
+    })
+    await sendMessage(sysPayload, undefined, conversationId).catch(() => {})
+  }
+
+  const removeGroupMember = removeMemberFromGroup
+
   async function leaveGroup(conversationId: string): Promise<void> {
     const current = authProfile.currentProfile.value || (await authProfile.ensureProfile())
     if (!current?.id) {
@@ -801,6 +854,8 @@ export function createConversationsActions(deps: ConversationsActionsDeps) {
     createGroupChat,
     addMemberToGroup,
     addGroupMember,
+    removeMemberFromGroup,
+    removeGroupMember,
     leaveGroup,
     leaveGroupChat,
     updateGroupTitle,

@@ -12,6 +12,7 @@ pub fn run() {
             MacosLauncher::LaunchAgent,
             Some(vec!["--minimized"]),
         ))
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             #[cfg(desktop)]
             {
