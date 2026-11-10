@@ -56,4 +56,29 @@ describe('Tauri v2 Windows Icons & Frontend Bootstrapper', () => {
     const distHtmlPath = path.join(rootDir, 'src-tauri', 'frontend', 'index.html')
     expect(fs.existsSync(distHtmlPath)).toBe(true)
   })
+
+  it('configures Tauri v2 Windows NSIS (.exe) and MSI bundler, system tray, and package.json scripts', () => {
+    const confPath = path.join(rootDir, 'src-tauri', 'tauri.conf.json')
+    expect(fs.existsSync(confPath)).toBe(true)
+    const conf = JSON.parse(fs.readFileSync(confPath, 'utf8'))
+
+    expect(conf.productName).toBe('My Team')
+    expect(conf.identifier).toBe('com.myteam.chat')
+    expect(conf.build.devUrl).toBe('http://localhost:3000')
+    expect(conf.build.frontendDist).toBe('./frontend')
+    expect(conf.bundle.targets).toEqual(expect.arrayContaining(['nsis', 'msi']))
+    expect(conf.bundle.icon).toContain('icons/icon.ico')
+
+    const cargoToml = fs.readFileSync(path.join(rootDir, 'src-tauri', 'Cargo.toml'), 'utf8')
+    expect(cargoToml).toContain('tray-icon')
+
+    const libRs = fs.readFileSync(path.join(rootDir, 'src-tauri', 'src', 'lib.rs'), 'utf8')
+    expect(libRs).toContain('TrayIconBuilder')
+    expect(libRs).toContain('prevent_close')
+
+    const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'))
+    expect(pkg.scripts['tauri:prepare']).toBeDefined()
+    expect(pkg.scripts['tauri:dev']).toBeDefined()
+    expect(pkg.scripts['tauri:build']).toBeDefined()
+  })
 })

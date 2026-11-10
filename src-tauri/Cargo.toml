@@ -1,0 +1,18 @@
+[package]
+name = "my-team"
+version = "0.8.1"
+description = "My Team - Lightweight resilient encrypted real-time chat workspace"
+authors = ["you"]
+edition = "2021"
+
+[lib]
+name = "my_team_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
