@@ -369,15 +369,20 @@ export function createConversationsActions(deps: ConversationsActionsDeps) {
     const removedMember = prevMembers.find(m => m.user_id === targetUserId)
     targetConv.members = prevMembers.filter(m => m.user_id !== targetUserId)
 
-    const { error } = await supabase
-      .from('conversation_members')
-      .delete()
-      .eq('conversation_id', conversationId)
-      .eq('user_id', targetUserId)
+    try {
+      const { error } = await supabase
+        .from('conversation_members')
+        .delete()
+        .eq('conversation_id', conversationId)
+        .eq('user_id', targetUserId)
 
-    if (error) {
+      if (error) {
+        targetConv.members = prevMembers
+        throw new Error(error.message || 'Failed to remove member.')
+      }
+    } catch (err: any) {
       targetConv.members = prevMembers
-      throw new Error(error.message || 'Failed to remove member.')
+      throw err
     }
 
     const actorName = current.display_name || 'Someone'

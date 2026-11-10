@@ -2961,4 +2961,31 @@ describe('useChatRoom contacts and conversations', () => {
       mockSupabase.from = origFrom
     }
   })
+
+  it('removeMemberFromGroup rolls back targetConv.members when delete throws an unhandled rejection', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Thrown Exception Team', ['u-bob'])
+    const targetConv = room.conversations.value.find(c => c.id === group.id)!
+
+    const origFrom = mockSupabase.from
+    mockSupabase.from = vi.fn((table: string) => {
+      if (table === 'conversation_members') {
+        return {
+          delete: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockRejectedValue(new Error('Network offline')),
+            }),
+          }),
+        }
+      }
+      return origFrom(table)
+    })
+
+    try {
+      await expect(room.removeMemberFromGroup(group.id, 'u-bob')).rejects.toThrow('Network offline')
+      expect(targetConv.members?.map(m => m.user_id)).toEqual(['u-alice', 'u-bob'])
+    } finally {
+      mockSupabase.from = origFrom
+    }
+  })
 })
