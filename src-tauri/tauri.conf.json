@@ -1,0 +1,39 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "My Team",
+  "version": "0.8.1",
+  "identifier": "com.myteam.chat",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:3000",
+    "beforeBuildCommand": "npm run tauri:prepare",
+    "frontendDist": "./frontend"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "My Team",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 420,
+        "minHeight": 600,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ]
+  }
+}

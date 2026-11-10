@@ -36,3 +36,7 @@ logs
 # Agent teamwork scratchpad
 .agents/teamwork/
 
+# Tauri build artifacts
+src-tauri/target
+src-tauri/gen
+

@@ -13,13 +13,20 @@ export interface PwaInstallManagerOptions {
 
 export function createPwaInstallManager(options?: PwaInstallManagerOptions) {
   let deferredPrompt: BeforeInstallPromptEvent | null = null
+  let swRegistered = false
+  let listenersAttached = false
 
   const checkStandalone = (): boolean => {
     if (options?.isStandalone) {
       return options.isStandalone()
     }
-    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-      return window.matchMedia('(display-mode: standalone)').matches
+    if (typeof window !== 'undefined') {
+      if ('__TAURI_INTERNALS__' in window || '__TAURI__' in window) {
+        return true
+      }
+      if (typeof window.matchMedia === 'function') {
+        return window.matchMedia('(display-mode: standalone)').matches
+      }
     }
     return false
   }
@@ -52,18 +59,23 @@ export function createPwaInstallManager(options?: PwaInstallManagerOptions) {
   }
 
   const init = () => {
-    if (options?.registerServiceWorker) {
-      options.registerServiceWorker()
-    } else if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-      try {
-        navigator.serviceWorker.register('/sw.js').catch(() => {})
-      } catch {}
+    if (!swRegistered) {
+      swRegistered = true
+      if (options?.registerServiceWorker) {
+        options.registerServiceWorker()
+      } else if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        try {
+          navigator.serviceWorker.register('/sw.js').catch(() => {})
+        } catch {}
+      }
     }
 
+    if (listenersAttached) return
     const target = getTarget()
     if (target && typeof target.addEventListener === 'function') {
       target.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
       target.addEventListener('appinstalled', handleAppInstalled)
+      listenersAttached = true
     }
   }
 
@@ -73,6 +85,7 @@ export function createPwaInstallManager(options?: PwaInstallManagerOptions) {
       target.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
       target.removeEventListener('appinstalled', handleAppInstalled)
     }
+    listenersAttached = false
   }
 
   const promptInstall = async (): Promise<'accepted' | 'dismissed'> => {

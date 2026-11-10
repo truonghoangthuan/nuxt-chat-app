@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useTheme } from '~/composables/useTheme'
+import { usePwaInstall } from '~/composables/usePwaInstall'
 
 const { initTheme } = useTheme()
+const { init: initPwaInstall } = usePwaInstall()
 
 onMounted(() => {
   initTheme()
+  initPwaInstall?.()
 })
 </script>
 

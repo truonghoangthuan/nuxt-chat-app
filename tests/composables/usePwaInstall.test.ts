@@ -95,4 +95,32 @@ describe('usePwaInstall composable (createPwaInstallManager)', () => {
     expect(browserManager.isInstalled.value).toBe(true)
     browserManager.cleanup()
   })
+
+  it('detects Tauri desktop runtime (__TAURI_INTERNALS__) as installed and keeps init() idempotent', () => {
+    const target = new EventTarget()
+    const registerSw = vi.fn()
+    ;(window as any).__TAURI_INTERNALS__ = {}
+
+    try {
+      const manager = createPwaInstallManager({
+        windowTarget: target,
+        registerServiceWorker: registerSw,
+      })
+
+      manager.init()
+      manager.init()
+      expect(registerSw).toHaveBeenCalledTimes(1)
+      expect(manager.isInstalled.value).toBe(true)
+
+      const promptEvent = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        userChoice: Promise.resolve({ outcome: 'accepted' as const, platform: 'web' }),
+      })
+      target.dispatchEvent(promptEvent)
+      expect(manager.canInstall.value).toBe(false)
+      manager.cleanup()
+    } finally {
+      delete (window as any).__TAURI_INTERNALS__
+    }
+  })
 })
