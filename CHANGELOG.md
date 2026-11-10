@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-11-10
+
+### Added
+- **Windows Taskbar Unread Badging**: Real-time unread count on Windows taskbar icon via W3C Badging API (`navigator.setAppBadge` / `navigator.clearAppBadge`) in Edge WebView2.
+- **Windows Boot Auto-Start**: Automatic launch on Windows boot using `tauri-plugin-autostart` v2 and desktop autolaunch configuration.
+
+### Changed
+- **Baked Default Server Domain**: Pre-configured desktop client with `https://taolaobidao.vercel.app` default server URL, bypassing manual server setup prompt.
+
 ## [0.10.0] - 2026-11-10
 
 ### Added
