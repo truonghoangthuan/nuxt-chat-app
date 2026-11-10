@@ -51,14 +51,15 @@ describe('Tauri v2 Windows Icons & Frontend Bootstrapper', () => {
     expect(sanitizeTauriServerUrl('')).toBe('')
   })
 
-  it('builds src-tauri/frontend/index.html with safe server connection fallback', () => {
-    const html = buildTauriBootstrapHtml('https://my-team.vercel.app')
-    expect(html).toContain('My Team')
-    expect(html).toContain('https://my-team.vercel.app')
+  it('builds src-tauri/frontend/index.html defaulting to https://taolaobidao.vercel.app', () => {
+    const html = buildTauriBootstrapHtml()
+    expect(html).toContain('https://taolaobidao.vercel.app')
     expect(html).toContain('my-team-desktop-server-url')
 
     const distHtmlPath = path.join(rootDir, 'src-tauri', 'frontend', 'index.html')
     expect(fs.existsSync(distHtmlPath)).toBe(true)
+    const distHtml = fs.readFileSync(distHtmlPath, 'utf8')
+    expect(distHtml).toContain('https://taolaobidao.vercel.app')
   })
 
   it('configures Tauri v2 Windows NSIS (.exe) and MSI bundler, system tray, and package.json scripts', () => {
