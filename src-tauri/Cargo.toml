@@ -2,7 +2,7 @@
 name = "my-team"
 version = "0.8.1"
 description = "My Team - Lightweight resilient encrypted real-time chat workspace"
-authors = ["you"]
+authors = ["My Team"]
 edition = "2021"
 
 [lib]

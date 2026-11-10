@@ -11,8 +11,8 @@
     "postinstall": "nuxt prepare",
     "test": "vitest run",
     "tauri:prepare": "node scripts/generate-pwa-icons.mjs && node scripts/prepare-tauri-frontend.mjs",
-    "tauri:dev": "npx @tauri-apps/cli dev",
-    "tauri:build": "npx @tauri-apps/cli build"
+    "tauri:dev": "npx --yes @tauri-apps/cli dev",
+    "tauri:build": "npx --yes @tauri-apps/cli build"
   },
   "dependencies": {
     "@lucide/vue": "^1.59.0",
