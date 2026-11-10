@@ -237,6 +237,7 @@ export type SystemEventType =
   | 'music_pause'
   | 'music_stop'
   | 'music_skip'
+  | 'member_removed'
 
 export interface SystemMessagePayload {
   type: 'system'

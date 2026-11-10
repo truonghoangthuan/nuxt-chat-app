@@ -2905,4 +2905,60 @@ describe('useChatRoom contacts and conversations', () => {
     await nextTick()
     expect(room.totalUnreadCount.value).toBe(5)
   })
+
+  it('removeMemberFromGroup allows group owner to remove a member, updates state, and sends system notice', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Alpha Team', ['u-bob', 'u-charlie'])
+    expect(group.members?.map(m => m.user_id)).toEqual(['u-alice', 'u-bob', 'u-charlie'])
+
+    await room.removeMemberFromGroup(group.id, 'u-bob')
+
+    const updated = room.conversations.value.find(c => c.id === group.id)
+    expect(updated?.members?.map(m => m.user_id)).toEqual(['u-alice', 'u-charlie'])
+
+    const lastMsg = room.messages.value[room.messages.value.length - 1]
+    expect(lastMsg?.content).toContain('"event":"member_removed"')
+  })
+
+  it('removeMemberFromGroup rejects non-owners, self-removal, and rolls back on database error', async () => {
+    const room = useChatRoom()
+    const group = await room.createGroup('Rollback Team', ['u-bob'])
+
+    // Self-removal rejected
+    await expect(room.removeMemberFromGroup(group.id, 'u-alice')).rejects.toThrow(/leave/i)
+
+    // Non-owner rejected
+    const targetConv = room.conversations.value.find(c => c.id === group.id)!
+    targetConv.members = [
+      { conversation_id: group.id, user_id: 'u-alice', role: 'member', joined_at: '' },
+      { conversation_id: group.id, user_id: 'u-bob', role: 'owner', joined_at: '' },
+    ]
+    await expect(room.removeMemberFromGroup(group.id, 'u-bob')).rejects.toThrow(/owner/i)
+
+    // Restore owner role and simulate DB delete failure
+    targetConv.members = [
+      { conversation_id: group.id, user_id: 'u-alice', role: 'owner', joined_at: '' },
+      { conversation_id: group.id, user_id: 'u-bob', role: 'member', joined_at: '' },
+    ]
+    const origFrom = mockSupabase.from
+    mockSupabase.from = vi.fn((table: string) => {
+      if (table === 'conversation_members') {
+        return {
+          delete: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: { message: 'RLS denied' } }),
+            }),
+          }),
+        }
+      }
+      return origFrom(table)
+    })
+
+    try {
+      await expect(room.removeMemberFromGroup(group.id, 'u-bob')).rejects.toThrow('RLS denied')
+      expect(targetConv.members.map(m => m.user_id)).toEqual(['u-alice', 'u-bob'])
+    } finally {
+      mockSupabase.from = origFrom
+    }
+  })
 })

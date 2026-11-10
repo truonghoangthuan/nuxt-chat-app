@@ -929,6 +929,17 @@ describe('Conversation utilities', () => {
       })).toBe('Hà Anh Tuấn skipped to next song')
     })
 
+    it('formats member_removed system message text', () => {
+      expect(
+        formatSystemMessageText({
+          type: 'system',
+          event: 'member_removed',
+          actorName: 'Alice',
+          detail: 'Bob',
+        }),
+      ).toBe('Alice removed Bob from the group')
+    })
+
     it('invokes JSON.parse only once during parseSystemPayload', () => {
       const jsonSpy = vi.spyOn(JSON, 'parse')
       const payloadStr = JSON.stringify({ type: 'system', event: 'buzz', actorName: 'Dan' })
