@@ -276,6 +276,29 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
     }
   }
 
+  const updateAppBadge = (count: number): void => {
+    try {
+      if (typeof navigator === 'undefined') return
+      if (count > 0) {
+        if (typeof (navigator as any).setAppBadge === 'function') {
+          const promise = (navigator as any).setAppBadge(count)
+          if (promise && typeof promise.catch === 'function') {
+            promise.catch(() => {})
+          }
+        }
+      } else {
+        if (typeof (navigator as any).clearAppBadge === 'function') {
+          const promise = (navigator as any).clearAppBadge()
+          if (promise && typeof promise.catch === 'function') {
+            promise.catch(() => {})
+          }
+        }
+      }
+    } catch {
+      // Ignore badging API errors
+    }
+  }
+
   return {
     soundEnabled,
     desktopEnabled,
@@ -288,6 +311,7 @@ export function createNotificationManager(options?: NotificationManagerOptions) 
     addToast,
     dismissToast,
     notifyIncomingMessage,
+    updateAppBadge,
   }
 }
 
