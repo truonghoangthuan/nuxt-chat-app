@@ -37,6 +37,10 @@ describe('Tauri v2 Windows Icons & Frontend Bootstrapper', () => {
     expect(icoBuf.readUInt32LE(18)).toBe(22)
     // Embedded PNG magic bytes at offset 22
     expect(icoBuf.subarray(22, 30).toString('hex')).toBe('89504e470d0a1a0a')
+
+    const svgPath = path.join(rootDir, 'src-tauri', 'icons', 'ubuntu-logo.svg')
+    expect(fs.existsSync(svgPath)).toBe(true)
+    expect(fs.readFileSync(svgPath, 'utf8')).toContain('#dd4814')
   })
 
   it('sanitizes server URLs and rejects non-http/https protocols', () => {
