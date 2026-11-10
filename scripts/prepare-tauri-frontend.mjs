@@ -23,6 +23,12 @@ export function sanitizeTauriServerUrl(rawUrl) {
 
 export function buildTauriBootstrapHtml(defaultServerUrl = '') {
   const bakedUrl = sanitizeTauriServerUrl(defaultServerUrl)
+  const svgPath = path.resolve(process.cwd(), 'src-tauri', 'icons', 'ubuntu-logo.svg')
+  const rawSvg = fs.existsSync(svgPath) ? fs.readFileSync(svgPath, 'utf8') : ''
+  const gMatch = rawSvg.match(/<g[\s\S]*<\/g>\s*<\/svg>/)
+  const innerSvg = gMatch
+    ? gMatch[0].replace(/<\/svg>\s*$/, '')
+    : '<circle cx="1063.5" cy="1063.5" r="1061.6" fill="#dd4814"/>'
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -69,21 +75,15 @@ export function buildTauriBootstrapHtml(defaultServerUrl = '') {
       width: 64px;
       height: 64px;
       margin: 0 auto 1.25rem;
-      border-radius: 16px;
-      background: linear-gradient(135deg, #10b981 0%, #064e3b 100%);
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 8px 16px rgba(16, 185, 129, 0.25);
+      box-shadow: 0 8px 16px rgba(221, 72, 20, 0.3);
     }
     .logo svg {
-      width: 32px;
-      height: 32px;
-      fill: none;
-      stroke: white;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
+      width: 64px;
+      height: 64px;
     }
     h1 {
       font-size: 1.5rem;
@@ -166,7 +166,7 @@ export function buildTauriBootstrapHtml(defaultServerUrl = '') {
 <body>
   <div class="card" id="setupCard">
     <div class="logo">
-      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <svg viewBox="0 0 2126.9644 2126.9644">${innerSvg}</svg>
     </div>
     <h1>My Team</h1>
     <p>Connect your desktop app to your live workspace server.</p>

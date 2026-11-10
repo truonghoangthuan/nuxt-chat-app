@@ -3,21 +3,21 @@ import { APP_VERSION, CURRENT_RELEASE, RELEASE_HISTORY, parseChangelog } from '~
 
 describe('Dynamic Version & Changelog Parser (version.ts)', () => {
   it('dynamically parses the current version from CHANGELOG.md', () => {
-    expect(APP_VERSION).toBe('0.9.0')
-    expect(CURRENT_RELEASE.version).toBe('0.9.0')
-    expect(CURRENT_RELEASE.date).toBe('2026-11-09')
+    expect(APP_VERSION).toBe('0.10.0')
+    expect(CURRENT_RELEASE.version).toBe('0.10.0')
+    expect(CURRENT_RELEASE.date).toBe('2026-11-10')
     expect(CURRENT_RELEASE.highlights.length).toBeGreaterThan(0)
-    expect(RELEASE_HISTORY.length).toBeGreaterThanOrEqual(7)
+    expect(RELEASE_HISTORY.length).toBeGreaterThanOrEqual(8)
   })
 
-  it('correctly categorizes Added and Fixed sections in the current release', () => {
+  it('correctly categorizes Added and Changed sections in the current release', () => {
     const addedCategory = CURRENT_RELEASE.highlights.find(h => h.category === 'Added')
     expect(addedCategory).toBeDefined()
     expect(addedCategory!.items.length).toBeGreaterThan(0)
 
-    const fixedCategory = CURRENT_RELEASE.highlights.find(h => h.category === 'Fixed')
-    expect(fixedCategory).toBeDefined()
-    expect(fixedCategory!.items.length).toBeGreaterThan(0)
+    const changedCategory = CURRENT_RELEASE.highlights.find(h => h.category === 'Changed')
+    expect(changedCategory).toBeDefined()
+    expect(changedCategory!.items.length).toBeGreaterThan(0)
   })
 
   it('parses custom markdown strings cleanly through parseChangelog', () => {

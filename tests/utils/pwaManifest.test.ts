@@ -82,5 +82,6 @@ describe('Windows PWA Manifest, Icons & Service Worker', () => {
     const wf = fs.readFileSync(wfPath, 'utf8')
     expect(wf).toContain('windows-latest')
     expect(wf).toContain('tauri:build')
+    expect(wf).toContain('softprops/action-gh-release@v2')
   })
 })

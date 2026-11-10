@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-10
+
+### Added
+- **Windows Desktop Installer Release (`.exe` & `.msi`)**: Packaged **My Team** as a native Tauri v2 Windows desktop application with Windows System Tray controls (`Open My Team`, `Hide to Tray`, `Quit My Team`), close-to-tray background persistence, and automated GitHub Releases publishing (`.github/workflows/windows-desktop.yml`).
+- **Ubuntu Circle of Friends Desktop Logo**: Configured `scripts/generate-pwa-icons.mjs` and `scripts/prepare-tauri-frontend.mjs` to rasterize `src-tauri/icons/ubuntu-logo.svg` into anti-aliased RGBA PNG icons (`32x32`, `128x128`, `256x256`, `192x192`, `512x512`) and the native Windows `.ico` bundle icon.
+
+### Changed
+- **Comprehensive README Documentation**: Updated `README.md` with **My Team** branding, GitHub Releases Windows download instructions, Tauri v2 desktop commands, Conversation Meme Library, Stealth Boss Key mode, Multi-UI themes, YouTube Music Room & Media Session API, and interactive multiplayer activities.
+
 ## [0.9.0] - 2026-11-09
 
 ### Added
