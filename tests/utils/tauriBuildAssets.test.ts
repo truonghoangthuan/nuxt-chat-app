@@ -100,4 +100,33 @@ describe('Tauri v2 Windows Icons & Frontend Bootstrapper', () => {
     expect(libRs).toContain('tauri_plugin_autostart')
     expect(libRs).toContain('autolaunch().enable()')
   })
+
+  it('configures tauri-plugin-notification, withGlobalTauri, and remote capability URLs for Windows notifications', () => {
+    const cargoToml = fs.readFileSync(path.join(rootDir, 'src-tauri', 'Cargo.toml'), 'utf8')
+    expect(cargoToml).toContain('tauri-plugin-notification = "2"')
+
+    const conf = JSON.parse(fs.readFileSync(path.join(rootDir, 'src-tauri', 'tauri.conf.json'), 'utf8'))
+    expect(conf.app.withGlobalTauri).toBe(true)
+
+    const capabilities = JSON.parse(
+      fs.readFileSync(path.join(rootDir, 'src-tauri', 'capabilities', 'default.json'), 'utf8')
+    )
+    expect(capabilities.remote?.urls).toEqual(
+      expect.arrayContaining([
+        'https://taolaobidao.vercel.app/*',
+        'https://*.vercel.app/*',
+        'http://localhost:*/*',
+      ])
+    )
+    expect(capabilities.permissions).toEqual(
+      expect.arrayContaining([
+        'notification:default',
+        'core:window:allow-set-badge-count',
+        'core:window:allow-request-user-attention',
+      ])
+    )
+
+    const libRs = fs.readFileSync(path.join(rootDir, 'src-tauri', 'src', 'lib.rs'), 'utf8')
+    expect(libRs).toContain('tauri_plugin_notification::init()')
+  })
 })
