@@ -20,6 +20,11 @@ describe('Windows PWA Manifest, Icons & Service Worker', () => {
     const sizes = manifest.icons.map((i: { sizes: string }) => i.sizes)
     expect(sizes).toContain('192x192')
     expect(sizes).toContain('512x512')
+
+    const icon512Any = manifest.icons.find((i: { sizes: string; purpose?: string }) => i.sizes === '512x512' && i.purpose === 'any')
+    const icon512Maskable = manifest.icons.find((i: { sizes: string; purpose?: string }) => i.sizes === '512x512' && i.purpose === 'maskable')
+    expect(icon512Any).toBeDefined()
+    expect(icon512Maskable).toBeDefined()
   })
 
   it('configures My Team branding and /favicon.ico in nuxt.config.ts and public/favicon.ico', () => {
@@ -69,5 +74,13 @@ describe('Windows PWA Manifest, Icons & Service Worker', () => {
     const respondWith = vi.fn()
     listeners.fetch({ respondWith })
     expect(respondWith).not.toHaveBeenCalled()
+  })
+
+  it('provides a GitHub Actions workflow to build Windows .exe and .msi installers', () => {
+    const wfPath = path.join(rootDir, '.github', 'workflows', 'windows-desktop.yml')
+    expect(fs.existsSync(wfPath)).toBe(true)
+    const wf = fs.readFileSync(wfPath, 'utf8')
+    expect(wf).toContain('windows-latest')
+    expect(wf).toContain('tauri:build')
   })
 })
