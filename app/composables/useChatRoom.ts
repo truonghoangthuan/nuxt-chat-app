@@ -1,4 +1,4 @@
-import { ref, computed, shallowReactive, isRef, type ComputedRef, type Ref } from 'vue'
+import { ref, computed, watch, shallowReactive, isRef, type ComputedRef, type Ref } from 'vue'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import type {
   Conversation,
@@ -417,6 +417,14 @@ export function useChatRoom() {
   }, 2000)
 
   const unreadCounts = ref<Record<string, number>>({})
+  const totalUnreadCount = computed(() =>
+    Object.values(unreadCounts.value || {}).reduce((sum, val) => sum + (val > 0 ? val : 0), 0)
+  )
+
+  watch(totalUnreadCount, (cnt) => {
+    notification.updateAppBadge?.(cnt)
+  }, { immediate: true })
+
   const unreadMentions = ref<Record<string, number>>({})
   const lastReadByConversation = ref<Record<string, string>>({})
   const lastReadByChannel = lastReadByConversation
@@ -2078,6 +2086,7 @@ export function useChatRoom() {
     hasMoreHistory,
     isLoadingHistory,
     unreadCounts,
+    totalUnreadCount,
     unreadMentions,
     activeChannelUnreadSince,
     conversationReadsByConv,
@@ -2114,6 +2123,7 @@ export function useChatRoom() {
     requestNotificationPermission: notification.requestPermission,
     dismissNotificationToast: notification.dismissToast,
     addNotificationToast: notification.addToast,
+    updateAppBadge: notification.updateAppBadge,
     onMusicSync,
     broadcastMusicSync,
     sendMusicPlaySystemMessage,

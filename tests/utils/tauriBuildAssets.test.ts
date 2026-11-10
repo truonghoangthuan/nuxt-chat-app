@@ -51,14 +51,15 @@ describe('Tauri v2 Windows Icons & Frontend Bootstrapper', () => {
     expect(sanitizeTauriServerUrl('')).toBe('')
   })
 
-  it('builds src-tauri/frontend/index.html with safe server connection fallback', () => {
-    const html = buildTauriBootstrapHtml('https://my-team.vercel.app')
-    expect(html).toContain('My Team')
-    expect(html).toContain('https://my-team.vercel.app')
+  it('builds src-tauri/frontend/index.html defaulting to https://taolaobidao.vercel.app', () => {
+    const html = buildTauriBootstrapHtml()
+    expect(html).toContain('https://taolaobidao.vercel.app')
     expect(html).toContain('my-team-desktop-server-url')
 
     const distHtmlPath = path.join(rootDir, 'src-tauri', 'frontend', 'index.html')
     expect(fs.existsSync(distHtmlPath)).toBe(true)
+    const distHtml = fs.readFileSync(distHtmlPath, 'utf8')
+    expect(distHtml).toContain('https://taolaobidao.vercel.app')
   })
 
   it('configures Tauri v2 Windows NSIS (.exe) and MSI bundler, system tray, and package.json scripts', () => {
@@ -84,5 +85,19 @@ describe('Tauri v2 Windows Icons & Frontend Bootstrapper', () => {
     expect(pkg.scripts['tauri:prepare']).toBeDefined()
     expect(pkg.scripts['tauri:dev']).toBeDefined()
     expect(pkg.scripts['tauri:build']).toBeDefined()
+  })
+
+  it('configures tauri-plugin-autostart for Windows boot startup', () => {
+    const cargoToml = fs.readFileSync(path.join(rootDir, 'src-tauri', 'Cargo.toml'), 'utf8')
+    expect(cargoToml).toContain('tauri-plugin-autostart = "2"')
+
+    const capabilities = JSON.parse(
+      fs.readFileSync(path.join(rootDir, 'src-tauri', 'capabilities', 'default.json'), 'utf8')
+    )
+    expect(capabilities.permissions).toContain('autostart:default')
+
+    const libRs = fs.readFileSync(path.join(rootDir, 'src-tauri', 'src', 'lib.rs'), 'utf8')
+    expect(libRs).toContain('tauri_plugin_autostart')
+    expect(libRs).toContain('autolaunch().enable()')
   })
 })

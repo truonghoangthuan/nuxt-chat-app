@@ -415,4 +415,52 @@ describe('useNotification composable', () => {
 
     expect(manager.toasts.value[0].snippet).toBe('⚡ Alice buzzed the chat!')
   })
+
+  it('sets app badge when count > 0 using navigator.setAppBadge', async () => {
+    const setAppBadge = vi.fn().mockResolvedValue(undefined)
+    const clearAppBadge = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { setAppBadge, clearAppBadge })
+
+    const manager = createNotificationManager()
+    manager.updateAppBadge(4)
+    expect(setAppBadge).toHaveBeenCalledWith(4)
+    expect(clearAppBadge).not.toHaveBeenCalled()
+  })
+
+  it('clears app badge when count <= 0 using navigator.clearAppBadge', async () => {
+    const setAppBadge = vi.fn().mockResolvedValue(undefined)
+    const clearAppBadge = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { setAppBadge, clearAppBadge })
+
+    const manager = createNotificationManager()
+    manager.updateAppBadge(0)
+    expect(clearAppBadge).toHaveBeenCalled()
+    expect(setAppBadge).not.toHaveBeenCalled()
+  })
+
+  it('handles negative count by clearing app badge', async () => {
+    const setAppBadge = vi.fn().mockResolvedValue(undefined)
+    const clearAppBadge = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { setAppBadge, clearAppBadge })
+
+    const manager = createNotificationManager()
+    manager.updateAppBadge(-5)
+    expect(clearAppBadge).toHaveBeenCalled()
+    expect(setAppBadge).not.toHaveBeenCalled()
+  })
+
+  it('safely handles missing badging methods or rejection', async () => {
+    const setAppBadge = vi.fn().mockRejectedValue(new Error('Badging rejected'))
+    const clearAppBadge = vi.fn().mockRejectedValue(new Error('Clear rejected'))
+    vi.stubGlobal('navigator', { setAppBadge, clearAppBadge })
+
+    const manager = createNotificationManager()
+    expect(() => manager.updateAppBadge(3)).not.toThrow()
+    expect(() => manager.updateAppBadge(0)).not.toThrow()
+
+    // Test with missing badging methods entirely
+    vi.stubGlobal('navigator', {})
+    expect(() => manager.updateAppBadge(5)).not.toThrow()
+    expect(() => manager.updateAppBadge(0)).not.toThrow()
+  })
 })

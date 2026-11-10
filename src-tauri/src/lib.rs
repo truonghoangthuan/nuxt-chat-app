@@ -3,11 +3,22 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, WindowEvent,
 };
+use tauri_plugin_autostart::MacosLauncher;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec!["--minimized"]),
+        ))
         .setup(|app| {
+            #[cfg(desktop)]
+            {
+                use tauri_plugin_autostart::ManagerExt;
+                let _ = app.autolaunch().enable();
+            }
+
             let open_item = MenuItem::with_id(app, "open", "Open My Team", true, None::<&str>)?;
             let hide_item = MenuItem::with_id(app, "hide", "Hide to Tray", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit My Team", true, None::<&str>)?;

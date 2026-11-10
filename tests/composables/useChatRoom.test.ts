@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { shallowReactive, computed } from 'vue'
+import { shallowReactive, computed, nextTick } from 'vue'
 import {
   handleIncomingRealtimeMessage,
   handleRealtimeMessageUpdate,
@@ -2889,5 +2889,20 @@ describe('useChatRoom contacts and conversations', () => {
     const updated = room.conversations.value.find(c => c.id === group.id)
     expect(updated?.memes).toHaveLength(1)
     expect(updated?.memes?.[0].id).toBe('m-good')
+  })
+
+  it('computes totalUnreadCount and syncs with updateAppBadge', async () => {
+    const room = useChatRoom()
+    expect(room.totalUnreadCount.value).toBe(0)
+    expect(typeof room.updateAppBadge).toBe('function')
+
+    room.unreadCounts.value = {
+      'c-1': 3,
+      'c-2': 2,
+      'c-3': 0,
+      'c-4': -1,
+    }
+    await nextTick()
+    expect(room.totalUnreadCount.value).toBe(5)
   })
 })

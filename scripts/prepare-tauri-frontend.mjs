@@ -21,7 +21,7 @@ export function sanitizeTauriServerUrl(rawUrl) {
   }
 }
 
-export function buildTauriBootstrapHtml(defaultServerUrl = '') {
+export function buildTauriBootstrapHtml(defaultServerUrl = 'https://taolaobidao.vercel.app') {
   const bakedUrl = sanitizeTauriServerUrl(defaultServerUrl)
   const svgPath = path.resolve(process.cwd(), 'src-tauri', 'icons', 'ubuntu-logo.svg')
   const rawSvg = fs.existsSync(svgPath) ? fs.readFileSync(svgPath, 'utf8') : ''
@@ -238,7 +238,7 @@ export function buildTauriBootstrapHtml(defaultServerUrl = '') {
 }
 
 export function writeTauriFrontend(customUrl) {
-  const rawUrl = customUrl !== undefined ? customUrl : (process.env.NUXT_PUBLIC_APP_URL || '')
+  const rawUrl = customUrl !== undefined ? customUrl : (process.env.NUXT_PUBLIC_APP_URL || 'https://taolaobidao.vercel.app')
   const html = buildTauriBootstrapHtml(rawUrl)
   const outDir = path.resolve(process.cwd(), 'src-tauri', 'frontend')
   fs.mkdirSync(outDir, { recursive: true })
