@@ -20,6 +20,9 @@ Operational guide and architectural invariants for AI coding agents working in `
 | `npm run build` | Build application for production |
 | `npm run preview` | Preview production build locally |
 | `node scripts/generate-e2ee-config.mjs "<phrase>"` | Generate PBKDF2 salt, verifier, and SQL seed for E2EE master key setup |
+| `npm run tauri:prepare` | Generate pure Node PNG + Windows `.ico` assets and frontend bootstrapper |
+| `npm run tauri:dev` | Launch Tauri v2 desktop app connected to local Nuxt dev server |
+| `npm run tauri:build` | Build release `.exe` (NSIS) and `.msi` (WiX) Windows installers |
 
 - **Environment Variables:** Copy `.env.example` to `.env` and set `NUXT_PUBLIC_SUPABASE_URL` and `NUXT_PUBLIC_SUPABASE_KEY` for `@nuxtjs/supabase`. Online Chess also requires the server-only `NUXT_SUPABASE_SECRET_KEY`; never expose it with a `NUXT_PUBLIC_` prefix.
 - **Database Schema:** `supabase/schema.sql` defines `public.profiles`, `public.channels`, `public.messages`, `public.e2ee_config`, the `on_auth_user_created` profile-creation trigger, the `enforce_message_e2ee_envelope` trigger, RLS policies, the composite cursor index `messages_channel_cursor_idx`, and the `supabase_realtime` publication.
@@ -79,7 +82,21 @@ The codebase separates **Supabase/Realtime I/O orchestration** from **pure, test
 │           ├── thumbnail.get.ts    # Proxied KOQC thumbnail endpoint
 │           └── trending.get.ts     # KOQC Piped Vietnam trending endpoint
 ├── scripts/
-│   └── generate-e2ee-config.mjs    # CLI helper generating public.e2ee_config SQL insert
+│   ├── generate-e2ee-config.mjs    # CLI helper generating public.e2ee_config SQL insert
+│   ├── generate-pwa-icons.mjs      # Pure Node PNG and Windows .ico generator
+│   └── prepare-tauri-frontend.mjs  # Live-server bootstrapper for Tauri WebView2
+├── src-tauri/                      # Tauri v2 Windows desktop crate
+│   ├── Cargo.toml                  # Rust dependencies (tauri v2 with tray-icon feature)
+│   ├── build.rs                    # Tauri build hook (invokes tauri_build::build())
+│   ├── tauri.conf.json             # App metadata, NSIS/MSI bundle, tray & window configuration
+│   ├── capabilities/
+│   │   └── default.json            # Core window permissions (show, hide, focus)
+│   ├── frontend/
+│   │   └── index.html              # Generated live-server bootstrapper & dark connection card
+│   ├── icons/                      # Zero-dep generated 32x32, 128x128, 256x256 PNGs & icon.ico
+│   └── src/
+│       ├── lib.rs                  # System tray setup, menu handlers & close-to-tray hook
+│       └── main.rs                 # Desktop application entrypoint
 ├── supabase/
 │   └── schema.sql                  # Idempotent SQL schema, RLS policies, seed channels, e2ee config, realtime setup
 └── tests/
@@ -338,6 +355,13 @@ Never violate these invariants when modifying auth, messaging, pagination, or co
     - **Offline & Pre-Uploaded Attachment Retries:** `retryMessage(clientId)` must check whether image payload paths already point to storage (not `blob:`) before requiring `pendingImageFiles` in memory. If paths are already remote storage objects (e.g., shared memes), bypass `sendImages` and proceed directly to encryption and message insert.
     - **Animated GIF Transcoding Bypass:** Canvas 2D re-encoding in client-side image resizers (`resizeImage`) flattens and destroys animated GIF frames. Always short-circuit `resizeImage` when `file.type === 'image/gif'`, returning the original `File` blob and natural dimensions without drawing to `<canvas>`.
     - **Realtime JSONB Array Sanitization & Viewport Cache Eviction:** Any conversation-level JSONB array (`confetti_words`, `memes`) received over Realtime `postgres_changes` `UPDATE` events must be passed through validators (`sanitizeConversationMemes`) before updating state to prevent malformed payloads from polluting memory. Component-level decrypted image URL maps must be cleared whenever the active conversation ID changes to prevent referencing blob URLs that were revoked upon cache eviction.
+
+46. **Tauri v2 Desktop Packaging, Zero-Dep Icons, Live-Server Bootstrapper & CI Invariant:**
+    - **Non-Interactive CI `npx` Execution:** Scripts in `package.json` that execute Tauri CLI without a permanent local devDependency (`"tauri:dev"`, `"tauri:build"`) MUST pass `--yes` (`npx --yes @tauri-apps/cli ...`). Omitting `--yes` causes non-interactive GitHub Actions runners (`windows-latest`) to hang or abort on npm install confirmation prompts (`npm ERR! canceled`).
+    - **Live Server Origin vs. Static Export:** Nuxt 4 server routes (`/api/youtube/stream`, `/api/chess/move`) require server runtime execution. Never package the desktop shell as a static Nuxt export (`nuxt generate`). The desktop shell must point to a live server origin (`devUrl: "http://localhost:3000"` in dev; `src-tauri/frontend/index.html` navigating to `NUXT_PUBLIC_APP_URL` or user-entered server URL in production).
+    - **Pure Node Windows `.ico` Binary Header:** When generating Windows ICO files without external npm dependencies (`scripts/generate-pwa-icons.mjs`), the output buffer must prepend a valid 22-byte header before the 256x256 PNG payload: a 6-byte `ICONDIR` (`00 00 01 00 01 00`) followed by a 16-byte `ICONDIRENTRY` (`width=0`, `height=0` for 256px, `planes=1`, `bpp=32`, `size=pngBuf.length`, `offset=22`). Deviations fail Windows resource compilation (`rc.exe`) during `tauri-build`.
+    - **System Tray Window Close Interception:** Windows desktop shells must intercept `tauri::WindowEvent::CloseRequested` via `api.prevent_close()` and `window.hide()` rather than exiting. Background music playback and Supabase Realtime notifications must remain active in the system tray until the user clicks `"Quit My Team"`.
+    - **Desktop Bridge Detection & PWA Idempotency:** Inside the Tauri webview, `window.__TAURI_INTERNALS__` or `window.__TAURI__` is present. `usePwaInstall.ts` must detect these properties, set `isInstalled.value = true`, and suppress browser install prompts. `init()` must use boolean guard flags (`swRegistered`, `listenersAttached`) to maintain idempotency across root (`app.vue`) and page components.
 
 
 ## 5. Testing Standards
