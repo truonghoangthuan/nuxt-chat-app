@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-15
+
+### Added
+- **Upcoming Listening Time**: See total queued music duration without counting the current song. Partial totals explicitly identify unknown song lengths and remain tied to the entire shared queue while searching.
+
+### Changed
+- **Queue Song Lengths**: Show each upcoming track's length, or an explicit unknown label for missing, live or malformed metadata, without changing playback or room synchronization.
+
 ## [0.12.0] - 2026-11-15
 
 ### Added

@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import type { MusicPlaybackState, MusicQueueItem, YouTubeSearchResult } from '~/types/chat'
 import type { MusicHistoryEntry } from '~/utils/chat'
 import { getYouTubeThumbnailProxyUrl, formatDurationSeconds } from '~/utils/youtube'
+import { parseMusicDuration } from '~/utils/musicDuration'
 import {
   ListMusic,
   Shuffle,
@@ -37,6 +38,14 @@ const emit = defineEmits<{
 
 const activeTab = ref<'queue' | 'history'>('queue')
 const queueQuery = ref('')
+const queueDuration = computed(() => {
+  const durations = props.queue.map(item => parseMusicDuration(item.durationText))
+  const seconds = durations.reduce<number>((total, value) => total + (value ?? 0), 0)
+  const unknown = durations.filter(value => value === null).length
+  const time = formatDurationSeconds(seconds)
+  if (!unknown) return time
+  return `${seconds ? `at least ${time}` : 'unknown'} · ${unknown} unknown ${unknown === 1 ? 'length' : 'lengths'}`
+})
 const filteredQueue = computed(() => {
   const query = queueQuery.value.trim().toLowerCase()
   // Keep shared queue positions so filtered actions include hidden neighbors.
@@ -203,6 +212,9 @@ function formatRelativeTime(isoString: string): string {
     <div class="max-h-72 overflow-y-auto p-3 space-y-1.5">
       <!-- Queue Tab Content -->
       <template v-if="activeTab === 'queue'">
+        <p data-test="queue-duration-summary" class="text-[11px] text-[var(--ap-text-secondary)]">
+          Upcoming time: {{ queueDuration }} · Excludes current song
+        </p>
         <input
           v-model="queueQuery"
           type="search"
@@ -273,6 +285,9 @@ function formatRelativeTime(isoString: string): string {
             <h4 class="text-xs font-semibold text-[var(--ap-text-primary)] truncate" :title="item.title">
               {{ item.title }}
             </h4>
+            <p data-test="queue-item-duration" class="text-[10px] text-[var(--ap-text-secondary)]">
+              {{ parseMusicDuration(item.durationText) === null ? 'Length unknown' : item.durationText }}
+            </p>
             <div class="text-[10px] text-[var(--ap-text-secondary)] flex items-center gap-1.5 truncate">
               <span class="truncate">{{ item.channelTitle }}</span>
               <span class="opacity-40">•</span>
