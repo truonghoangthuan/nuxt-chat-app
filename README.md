@@ -50,7 +50,7 @@ Pre-built Windows 10/11 desktop installers (with the Ubuntu Circle of Friends de
 - **Message Editing & Soft Deletes**: Inline edit tracking (`(edited)` badge) and soft-deletion tombstones (`deleted_at`).
 - **Conversation Meme Library**: Shared per-conversation encrypted meme/sticker library in the right utility panel (`RightUtilityPanel.vue`) supporting image and animated GIF uploads, one-click sending, and safe metadata removal that preserves historical chat bubbles.
 - **Celebration Confetti Dictionary**: Per-conversation trigger words (`ConfettiDictionaryModal.vue`, `ConfettiOverlay.vue`) that launch zero-dependency 2D Canvas confetti and emoji bursts when matched.
-- **In-Memory Decrypted Search**: Real-time client-side search (`MessageSearchBar.vue`) over loaded decrypted history with `<mark>` highlighting, filterable by **All types**, **Images**, **Links**, **Pinned only**, sender, and local date range without sending search queries over the network.
+- **In-Memory Decrypted Search**: Real-time client-side search (`MessageSearchBar.vue`) over loaded decrypted history with `<mark>` highlighting, filterable by **All types**, **Images**, **Links**, **Pinned only**, sender, local date range, and an optional **Exclude phrase** without sending search queries over the network.
 
 ### Shared YouTube Music Room & Media Session
 - **Same-Origin Proxied Audio & Video**: Searches, Vietnam trending feeds, thumbnails, and byte-range media streams route through Nitro server endpoints (`/api/youtube/search`, `/api/youtube/trending`, `/api/youtube/thumbnail`, `/api/youtube/stream`) powered by KOQC Piped—bypassing corporate firewall blocks on third-party media domains.

@@ -3,8 +3,8 @@ import { APP_VERSION, CURRENT_RELEASE, RELEASE_HISTORY, parseChangelog } from '~
 
 describe('Dynamic Version & Changelog Parser (version.ts)', () => {
   it('dynamically parses the current version from CHANGELOG.md', () => {
-    expect(APP_VERSION).toBe('0.13.0')
-    expect(CURRENT_RELEASE.version).toBe('0.13.0')
+    expect(APP_VERSION).toBe('0.14.0')
+    expect(CURRENT_RELEASE.version).toBe('0.14.0')
     expect(CURRENT_RELEASE.date).toBe('2026-11-15')
     expect(CURRENT_RELEASE.highlights.length).toBeGreaterThan(0)
     expect(RELEASE_HISTORY.length).toBeGreaterThanOrEqual(10)

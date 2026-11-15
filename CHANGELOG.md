@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-15
+
+### Added
+- **Exclude Search Phrase**: Omit a case-insensitive literal phrase from loaded decrypted messages and image captions, alone or alongside existing keyword, sender, date, content-type and pinned filters. The phrase stays in component memory and resets when search closes.
+
+### Changed
+- **Search Navigation**: Exclusion changes reset result cycling while incoming history preserves the selected message. Enter, Shift+Enter and Escape work directly from the exclusion field without changing timeline highlighting.
+
 ## [0.13.0] - 2026-11-15
 
 ### Added

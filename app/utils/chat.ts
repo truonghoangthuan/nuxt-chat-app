@@ -607,9 +607,11 @@ export function filterMessagesByKeyword(
   query: string,
   messageType: MessageSearchType = 'all',
   pinnedOnly = false,
+  excludedPhrase = '',
 ): ChatMessage[] {
   const q = query.trim().toLowerCase()
-  if (!q && messageType === 'all' && !pinnedOnly) return []
+  const excluded = excludedPhrase.trim().toLowerCase()
+  if (!q && !excluded && messageType === 'all' && !pinnedOnly) return []
 
   return messages.filter((msg) => {
     if (msg.deleted_at || msg.encryption === 'undecryptable' || (pinnedOnly && !msg.pinned_at)) {
@@ -620,7 +622,8 @@ export function filterMessagesByKeyword(
     if (messageType === 'images' && !image?.images.length) return false
     const text = image ? (image.caption || '') : msg.content
     if (messageType === 'links' && !tokenizeMessageMentions(text).some(segment => segment.isLink)) return false
-    return !q || text.toLowerCase().includes(q)
+    const normalizedText = text.toLowerCase()
+    return (!q || normalizedText.includes(q)) && (!excluded || !normalizedText.includes(excluded))
   })
 }
 
