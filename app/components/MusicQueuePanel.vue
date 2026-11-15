@@ -36,9 +36,20 @@ const emit = defineEmits<{
 }>()
 
 const activeTab = ref<'queue' | 'history'>('queue')
+const queueQuery = ref('')
+const filteredQueue = computed(() => {
+  const query = queueQuery.value.trim().toLowerCase()
+  // Keep shared queue positions so filtered actions include hidden neighbors.
+  return props.queue.map((item, index) => ({ item, index })).filter(({ item }) =>
+    !query || [item.title, item.channelTitle, item.addedBy]
+      .some(value => value?.toLowerCase().includes(query)),
+  )
+})
 const historyQuery = ref('')
 watch([() => props.open, () => props.currentTrack?.conversationId], () => {
+  queueQuery.value = ''
   historyQuery.value = ''
+  draggedId.value = null
 })
 const filteredHistory = computed(() => {
   const query = historyQuery.value.trim().toLowerCase()
@@ -48,10 +59,10 @@ const filteredHistory = computed(() => {
       .some(value => value?.toLowerCase().includes(query)),
   )
 })
-const draggedIndex = ref<number | null>(null)
+const draggedId = ref<string | null>(null)
 
 function handleDragStart(e: DragEvent, index: number) {
-  draggedIndex.value = index
+  draggedId.value = props.queue[index]?.id ?? null
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', String(index))
@@ -67,13 +78,13 @@ function handleDragOver(e: DragEvent) {
 
 function handleDrop(e: DragEvent, dropIndex: number) {
   e.preventDefault()
-  if (draggedIndex.value !== null && draggedIndex.value !== dropIndex) {
-    const item = props.queue[draggedIndex.value]
-    if (item) {
+  if (draggedId.value !== null) {
+    const item = props.queue.find(item => item.id === draggedId.value)
+    if (item && props.queue[dropIndex]?.id !== item.id) {
       emit('move', item.id, dropIndex)
     }
   }
-  draggedIndex.value = null
+  draggedId.value = null
 }
 
 function handlePlayFromQueue(item: MusicQueueItem) {
@@ -192,6 +203,35 @@ function formatRelativeTime(isoString: string): string {
     <div class="max-h-72 overflow-y-auto p-3 space-y-1.5">
       <!-- Queue Tab Content -->
       <template v-if="activeTab === 'queue'">
+        <input
+          v-model="queueQuery"
+          type="search"
+          data-test="queue-search"
+          aria-label="Search upcoming songs"
+          placeholder="Search by song, artist or friend"
+          class="w-full min-w-0 rounded-lg border border-[var(--ap-glass-border)] bg-black/5 dark:bg-white/5 px-3 py-2 text-xs text-[var(--ap-text-primary)] placeholder:text-[var(--ap-text-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+        />
+        <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[var(--ap-text-secondary)]">
+          <p data-test="queue-search-status" role="status" aria-atomic="true">
+            {{ filteredQueue.length }} of {{ queue.length }} upcoming songs.
+          </p>
+          <button
+            v-if="queueQuery"
+            type="button"
+            data-test="queue-search-clear"
+            class="rounded px-2 py-1 text-[var(--ap-text-primary)] hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 cursor-pointer"
+            @click="queueQuery = ''"
+          >
+            Clear search
+          </button>
+        </div>
+        <div
+          v-if="queue.length > 0 && filteredQueue.length === 0"
+          data-test="queue-no-matches"
+          class="py-8 text-center text-xs text-[var(--ap-text-muted)]"
+        >
+          No matching songs. Try another song, artist or friend.
+        </div>
         <div
           v-if="queue.length === 0"
           data-test="queue-empty"
@@ -202,12 +242,13 @@ function formatRelativeTime(isoString: string): string {
         </div>
 
         <div
-          v-for="(item, index) in queue"
+          v-for="{ item, index } in filteredQueue"
           :key="item.id"
           data-test="queue-item"
           draggable="true"
           class="group flex items-center gap-2.5 p-2 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 border border-transparent hover:border-[var(--ap-glass-border)] transition"
           @dragstart="handleDragStart($event, index)"
+          @dragend="draggedId = null"
           @dragover="handleDragOver"
           @drop="handleDrop($event, index)"
         >

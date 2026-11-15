@@ -203,6 +203,136 @@ describe('MusicQueuePanel.vue', () => {
     wrapper.unmount()
   })
 
+  it('searches upcoming titles, artists and friends locally with trimmed case-insensitive substrings', async () => {
+    const wrapper = mount(MusicQueuePanel, {
+      props: { open: true, queue: sampleQueue, history: sampleHistory },
+    })
+    const search = wrapper.get('[data-test="queue-search"]')
+    expect(search.attributes('type')).toBe('search')
+    expect(search.attributes('aria-label')).toBe('Search upcoming songs')
+    for (const query of ['  SECOND  ', 'aRtIsT 2', '  bOB ']) {
+      await search.setValue(query)
+      expect(wrapper.findAll('[data-test="queue-item"]')).toHaveLength(1)
+      expect(wrapper.get('[data-test="queue-item"]').text()).toContain('Second In Queue')
+      expect(wrapper.get('[data-test="queue-search-status"]').text()).toBe('1 of 2 upcoming songs.')
+    }
+    expect(wrapper.get('[data-test="queue-search-status"]').attributes('role')).toBe('status')
+    for (const event of ['remove', 'move', 'play-now', 'queue-track', 'clear', 'shuffle', 'close']) {
+      expect(wrapper.emitted(event)).toBeUndefined()
+    }
+    expect(sampleQueue.map(item => item.id)).toEqual(['q-1', 'q-2'])
+    wrapper.unmount()
+  })
+
+  it('distinguishes empty queue from no matches and clears literal or whitespace queries', async () => {
+    const queue = [...sampleQueue, { ...sampleQueue[0], id: 'literal', title: '[Song].* 🎵', channelTitle: '', addedBy: '' }]
+    const wrapper = mount(MusicQueuePanel, { props: { open: true, queue, history: [] } })
+    const search = wrapper.get('[data-test="queue-search"]')
+    await search.setValue('[song].*')
+    expect(wrapper.findAll('[data-test="queue-item"]')).toHaveLength(1)
+    await search.setValue('missing')
+    expect(wrapper.get('[data-test="queue-no-matches"]').text()).toContain('Try another song, artist or friend')
+    expect(wrapper.find('[data-test="queue-empty"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="queue-search-status"]').text()).toBe('0 of 3 upcoming songs.')
+    await wrapper.get('[data-test="queue-search-clear"]').trigger('click')
+    expect((search.element as HTMLInputElement).value).toBe('')
+    expect(wrapper.findAll('[data-test="queue-item"]').map(row => row.get('h4').text())).toEqual(queue.map(item => item.title))
+    await search.setValue('   ')
+    expect(wrapper.findAll('[data-test="queue-item"]')).toHaveLength(3)
+    await wrapper.get('[data-test="queue-search-clear"]').trigger('click')
+    expect(wrapper.find('[data-test="queue-search-clear"]').exists()).toBe(false)
+    await search.setValue('missing')
+    await wrapper.setProps({ queue: [] })
+    expect(wrapper.find('[data-test="queue-empty"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="queue-no-matches"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="queue-search-status"]').text()).toBe('0 of 0 upcoming songs.')
+    wrapper.unmount()
+  })
+
+  it('keeps searches independent, recomputes queue updates and resets on close or conversation changes', async () => {
+    const track = { conversationId: 'room-a', videoId: 'playing', title: 'Playing', channelTitle: 'Artist', thumbnail: '', isPlaying: true, positionSec: 0, updatedAt: 0, startedBy: 'Alice' }
+    const wrapper = mount(MusicQueuePanel, { props: { open: true, queue: sampleQueue, history: sampleHistory, currentTrack: track } })
+    await wrapper.get('[data-test="queue-search"]').setValue('new song')
+    await wrapper.setProps({ queue: [...sampleQueue, { ...sampleQueue[0], id: 'new', title: 'New Song' }] })
+    expect(wrapper.findAll('[data-test="queue-item"]')).toHaveLength(1)
+    await wrapper.get('[data-test="tab-history"]').trigger('click')
+    await wrapper.get('[data-test="history-search"]').setValue('legacy')
+    await wrapper.get('[data-test="tab-queue"]').trigger('click')
+    expect((wrapper.get('[data-test="queue-search"]').element as HTMLInputElement).value).toBe('new song')
+    await wrapper.get('[data-test="queue-search-clear"]').trigger('click')
+    await wrapper.get('[data-test="tab-history"]').trigger('click')
+    expect((wrapper.get('[data-test="history-search"]').element as HTMLInputElement).value).toBe('legacy')
+    await wrapper.get('[data-test="tab-queue"]').trigger('click')
+    await wrapper.get('[data-test="queue-search"]').setValue('second')
+    await wrapper.setProps({ currentTrack: { ...track, positionSec: 10, title: 'Another Track' } })
+    expect((wrapper.get('[data-test="queue-search"]').element as HTMLInputElement).value).toBe('second')
+    await wrapper.setProps({ currentTrack: { ...track, conversationId: 'room-b' } })
+    expect((wrapper.get('[data-test="queue-search"]').element as HTMLInputElement).value).toBe('')
+    await wrapper.get('[data-test="queue-search"]').setValue('private query')
+    await wrapper.setProps({ open: false })
+    await wrapper.setProps({ open: true })
+    expect((wrapper.get('[data-test="queue-search"]').element as HTMLInputElement).value).toBe('')
+    expect(wrapper.emitted('play-now')).toBeUndefined()
+    expect(wrapper.emitted('move')).toBeUndefined()
+    expect(wrapper.emitted('remove')).toBeUndefined()
+    expect(wrapper.props('currentTrack')).toEqual({ ...track, conversationId: 'room-b' })
+    wrapper.unmount()
+  })
+
+  it('targets shared indices and identities for filtered controls, hidden neighbors and drag/drop', async () => {
+    const queue = [
+      { ...sampleQueue[0], id: 'first', title: 'Match' },
+      { ...sampleQueue[0], id: 'hidden', title: 'Hidden' },
+      { ...sampleQueue[0], id: 'middle', title: 'Match' },
+      { ...sampleQueue[0], id: 'hidden-2', title: 'Hidden' },
+      { ...sampleQueue[0], id: 'last', title: 'Match' },
+    ]
+    const wrapper = mount(MusicQueuePanel, { props: { open: true, queue, history: [] } })
+    await wrapper.get('[data-test="queue-search"]').setValue('match')
+    const rows = wrapper.findAll('[data-test="queue-item"]')
+    expect(rows).toHaveLength(3)
+    expect(rows[0].get('[data-test="queue-move-up"]').attributes('disabled')).toBeDefined()
+    expect(rows[2].get('[data-test="queue-move-down"]').attributes('disabled')).toBeDefined()
+    await rows[1].get('[data-test="queue-move-up"]').trigger('click')
+    await rows[1].get('[data-test="queue-move-down"]').trigger('click')
+    await rows[2].trigger('dragstart')
+    await rows[0].trigger('drop')
+    await rows[0].trigger('dragstart')
+    await rows[2].trigger('drop')
+    expect(wrapper.emitted('move')).toEqual([['middle', 1], ['middle', 3], ['last', 0], ['first', 4]])
+    await rows[1].get('[data-test="queue-play-now"]').trigger('click')
+    await rows[2].get('[data-test="queue-remove"]').trigger('click')
+    expect(wrapper.emitted('play-now')).toEqual([[queue[2]]])
+    expect(wrapper.emitted('remove')).toEqual([['middle'], ['last']])
+    await wrapper.get('[data-test="queue-search"]').setValue('not found')
+    await wrapper.get('[data-test="queue-shuffle"]').trigger('click')
+    await wrapper.get('[data-test="queue-clear"]').trigger('click')
+    expect(wrapper.emitted('shuffle')).toEqual([[]])
+    expect(wrapper.emitted('clear')).toEqual([[]])
+    expect(queue.map(item => item.id)).toEqual(['first', 'hidden', 'middle', 'hidden-2', 'last'])
+    wrapper.unmount()
+  })
+
+  it('retains dragged identity across queue updates and cancels ended or closed drags', async () => {
+    const queue = [sampleQueue[0], { ...sampleQueue[0], id: 'hidden', title: 'Hidden' }, sampleQueue[1]]
+    const wrapper = mount(MusicQueuePanel, { props: { open: true, queue, history: [] } })
+    await wrapper.get('[data-test="queue-search"]').setValue('queue')
+    await wrapper.findAll('[data-test="queue-item"]')[1].trigger('dragstart')
+    await wrapper.setProps({ queue: [sampleQueue[1], ...queue.slice(0, 2)] })
+    await wrapper.findAll('[data-test="queue-item"]')[1].trigger('drop')
+    expect(wrapper.emitted('move')).toEqual([['q-2', 1]])
+    await wrapper.findAll('[data-test="queue-item"]')[0].trigger('dragstart')
+    await wrapper.findAll('[data-test="queue-item"]')[0].trigger('dragend')
+    await wrapper.findAll('[data-test="queue-item"]')[1].trigger('drop')
+    expect(wrapper.emitted('move')).toHaveLength(1)
+    await wrapper.findAll('[data-test="queue-item"]')[0].trigger('dragstart')
+    await wrapper.setProps({ open: false })
+    await wrapper.setProps({ open: true })
+    await wrapper.findAll('[data-test="queue-item"]')[1].trigger('drop')
+    expect(wrapper.emitted('move')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
   it('emits move when reorder up or down buttons are clicked', async () => {
     const wrapper = mount(MusicQueuePanel, {
       props: {
