@@ -21,6 +21,7 @@ const senderId = ref('')
 const messageType = ref<MessageSearchType>('all')
 const pinnedOnly = ref(false)
 const excludedPhrase = ref('')
+const resultOrder = ref<'oldest' | 'newest'>('oldest')
 const fromDate = ref('')
 const throughDate = ref('')
 const dateErrorId = useId()
@@ -42,8 +43,8 @@ const senders = computed(() => {
     .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
 })
 
-const results = computed(() =>
-  filterMessagesByKeyword(props.messages, props.modelValue, messageType.value, pinnedOnly.value, excludedPhrase.value)
+const results = computed(() => {
+  const matches = filterMessagesByKeyword(props.messages, props.modelValue, messageType.value, pinnedOnly.value, excludedPhrase.value)
     .filter((message) => !senderId.value || message.user_id === senderId.value)
     .filter((message) => {
       if (!fromDate.value && !throughDate.value) return true
@@ -54,13 +55,15 @@ const results = computed(() =>
       return (!fromDate.value || day >= Number(fromDate.value.replaceAll('-', '')))
         && (!throughDate.value || day <= Number(throughDate.value.replaceAll('-', '')))
     })
-)
+  // Store order is chronological; reverse only this filtered copy, never the timeline.
+  return resultOrder.value === 'newest' ? matches.reverse() : matches
+})
 
 watch(
-  [() => props.modelValue, senderId, fromDate, throughDate, messageType, pinnedOnly, excludedPhrase, () => results.value.map((message) => message.id)],
-  ([query, sender, from, through, type, pinned, excluded, ids], [oldQuery, oldSender, oldFrom, oldThrough, oldType, oldPinned, oldExcluded, oldIds]) => {
+  [() => props.modelValue, senderId, fromDate, throughDate, messageType, pinnedOnly, excludedPhrase, resultOrder, () => results.value.map((message) => message.id)],
+  ([query, sender, from, through, type, pinned, excluded, order, ids], [oldQuery, oldSender, oldFrom, oldThrough, oldType, oldPinned, oldExcluded, oldOrder, oldIds]) => {
     const filtersChanged = query !== oldQuery || sender !== oldSender
-      || from !== oldFrom || through !== oldThrough || type !== oldType || pinned !== oldPinned || excluded !== oldExcluded
+      || from !== oldFrom || through !== oldThrough || type !== oldType || pinned !== oldPinned || excluded !== oldExcluded || order !== oldOrder
     const previousId = oldIds[currentIndex.value]
     const preservedIndex = !filtersChanged ? ids.indexOf(previousId) : -1
     if (preservedIndex >= 0) {
@@ -174,6 +177,15 @@ onMounted(() => {
       >
         <option value="">All senders</option>
         <option v-for="sender in senders" :key="sender.id" :value="sender.id">{{ sender.name }}</option>
+      </select>
+      <select
+        v-model="resultOrder"
+        data-test="search-order"
+        aria-label="Search result order"
+        class="min-w-0 w-32 max-w-full rounded-md bg-[var(--ap-stage)] text-[var(--ap-text-primary)] px-1 py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+      >
+        <option value="oldest">Oldest first</option>
+        <option value="newest">Newest first</option>
       </select>
       <select
         v-model="messageType"

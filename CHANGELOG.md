@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-16
+
+### Added
+- **Search Result Order**: Start at the newest loaded decrypted match or keep the existing oldest-first order, alongside keyword, exclusion, sender, date, type and pinned filters. Search stays entirely in memory.
+
+### Changed
+- **Ordered Search Navigation**: Switching result order resets to its first match; Next/Previous and Enter/Shift+Enter follow that order. New arrivals and older history preserve the selected message without reordering the conversation timeline.
+
 ## [0.14.1] - 2026-11-16
 
 ### Fixed
