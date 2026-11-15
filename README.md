@@ -90,7 +90,7 @@ Pre-built Windows 10/11 desktop installers (with the Ubuntu Circle of Friends de
 
 ## Prerequisites & Supabase Setup
 
-Use a Node.js release supported by Nuxt 4.6.3: **22.22.3+ on Node 22**, **24.15.0+ on Node 24**, or **26+**.
+Use a Node.js release supported by Nuxt 4.6.4: **22.22.3+ on Node 22**, **24.15.0+ on Node 24**, or **26+**.
 
 ### 1. Database Schema & RLS
 1. Create a project at [supabase.com](https://supabase.com) and open the **SQL Editor**.
