@@ -1,6 +1,6 @@
 {
   "name": "nuxt-chat-app",
-  "version": "0.14.0",
+  "version": "0.14.1",
   "type": "module",
   "private": true,
   "scripts": {
@@ -19,7 +19,7 @@
     "@nuxtjs/supabase": "^2.1.0",
     "@vercel/analytics": "^2.0.1",
     "chess.js": "1.4.0",
-    "nuxt": "^4.6.3",
+    "nuxt": "^4.6.4",
     "three": "0.180.0",
     "vue": "^3.5.43"
   },
