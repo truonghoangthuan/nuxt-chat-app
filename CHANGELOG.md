@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-11-16
+
+### Fixed
+- **Nuxt Security Baseline**: Upgrade Nuxt to 4.6.4 and Nitro to 2.13.6, including upstream fixes for leading-double-slash route checks, encoded-slash route rules and development workspace file exposure. Refresh the compatible dependency graph without changing application authentication or E2EE.
+
+### Changed
+- **Dependency Verification**: Guard patched Nuxt/Nitro lockfile floors and document remaining transitive audit findings separately from fixed framework advisories. Supported Node.js versions are unchanged.
+
 ## [0.14.0] - 2026-11-15
 
 ### Added
