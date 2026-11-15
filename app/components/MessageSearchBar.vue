@@ -20,6 +20,7 @@ const currentIndex = ref(0)
 const senderId = ref('')
 const messageType = ref<MessageSearchType>('all')
 const pinnedOnly = ref(false)
+const excludedPhrase = ref('')
 const fromDate = ref('')
 const throughDate = ref('')
 const dateErrorId = useId()
@@ -42,7 +43,7 @@ const senders = computed(() => {
 })
 
 const results = computed(() =>
-  filterMessagesByKeyword(props.messages, props.modelValue, messageType.value, pinnedOnly.value)
+  filterMessagesByKeyword(props.messages, props.modelValue, messageType.value, pinnedOnly.value, excludedPhrase.value)
     .filter((message) => !senderId.value || message.user_id === senderId.value)
     .filter((message) => {
       if (!fromDate.value && !throughDate.value) return true
@@ -56,10 +57,10 @@ const results = computed(() =>
 )
 
 watch(
-  [() => props.modelValue, senderId, fromDate, throughDate, messageType, pinnedOnly, () => results.value.map((message) => message.id)],
-  ([query, sender, from, through, type, pinned, ids], [oldQuery, oldSender, oldFrom, oldThrough, oldType, oldPinned, oldIds]) => {
+  [() => props.modelValue, senderId, fromDate, throughDate, messageType, pinnedOnly, excludedPhrase, () => results.value.map((message) => message.id)],
+  ([query, sender, from, through, type, pinned, excluded, ids], [oldQuery, oldSender, oldFrom, oldThrough, oldType, oldPinned, oldExcluded, oldIds]) => {
     const filtersChanged = query !== oldQuery || sender !== oldSender
-      || from !== oldFrom || through !== oldThrough || type !== oldType || pinned !== oldPinned
+      || from !== oldFrom || through !== oldThrough || type !== oldType || pinned !== oldPinned || excluded !== oldExcluded
     const previousId = oldIds[currentIndex.value]
     const preservedIndex = !filtersChanged ? ids.indexOf(previousId) : -1
     if (preservedIndex >= 0) {
@@ -123,7 +124,7 @@ onMounted(() => {
     />
 
     <span
-      v-if="modelValue.trim() || messageType !== 'all' || pinnedOnly"
+      v-if="modelValue.trim() || messageType !== 'all' || pinnedOnly || excludedPhrase.trim()"
       data-test="search-count"
       role="status"
       aria-live="polite"
@@ -217,8 +218,21 @@ onMounted(() => {
           class="min-w-0 w-32 rounded-md bg-[var(--ap-stage)] text-[var(--ap-text-primary)] [color-scheme:light] dark:[color-scheme:dark] px-1 py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
         />
       </label>
+      <label class="flex items-center gap-1 min-w-0 max-w-full text-[var(--ap-text-secondary)]">
+        Exclude phrase
+        <input
+          v-model="excludedPhrase"
+          type="text"
+          data-test="search-exclude"
+          aria-label="Exclude phrase from loaded messages"
+          placeholder="Optional phrase"
+          autocomplete="off"
+          class="min-w-0 w-32 rounded-md bg-[var(--ap-stage)] text-[var(--ap-text-primary)] placeholder-[var(--ap-text-muted)] px-1 py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+          @keydown="handleKeydown"
+        />
+      </label>
       <span class="text-[10px] text-[var(--ap-text-muted)]">Loaded messages only · Local time</span>
-      <span v-if="messageType !== 'all' || pinnedOnly" class="text-[10px] text-[var(--ap-text-muted)]">Keyword optional</span>
+      <span v-if="messageType !== 'all' || pinnedOnly || excludedPhrase.trim()" class="text-[10px] text-[var(--ap-text-muted)]">Keyword optional</span>
       <p v-if="invalidDateRange" :id="dateErrorId" role="alert" class="basis-full text-[var(--ap-text-primary)]">
         From date must be on or before through date.
       </p>
