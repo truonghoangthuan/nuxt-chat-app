@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-15
+
+### Added
+- **Upcoming Queue Search**: Find queued songs locally by title, artist or the friend who added them, with matching/total counts, clear search and distinct empty/no-match states. Search is independent of history and resets when the panel closes or the room changes.
+
+### Changed
+- **Filtered Queue Actions**: Keep play, remove, move and drag actions tied to original shared queue entries and indices, including hidden neighbors. Clear and Shuffle still affect the whole queue; filtering never changes playback or broadcasts a query.
+
 ## [0.11.0] - 2026-11-10
 
 ### Added
