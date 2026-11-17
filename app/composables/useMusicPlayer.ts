@@ -497,23 +497,23 @@ export function createMusicController(options: MusicControllerOptions = {}) {
     }
 
     const eventConvId = event.conversationId
+    // Delayed broadcasts must stay scoped even when the same video plays in two rooms.
+    if (!eventConvId || (event.state && event.state.conversationId !== eventConvId)) return
     if (eventConvId) {
       if (!sessions.value[eventConvId]) {
         sessions.value[eventConvId] = { track: null, queue: [] }
       }
     }
-    const isActiveRoom = !eventConvId || !activeConversationId.value || eventConvId === activeConversationId.value
+    const isActiveRoom = eventConvId === (activeConversationId.value || currentTrack.value?.conversationId)
 
-    clearFallbackTimer()
+    if (isActiveRoom && event.type !== 'request_state') clearFallbackTimer()
     isApplyingRemoteSync = true
     try {
       if (event.type === 'queue') {
         if (eventConvId && sessions.value[eventConvId] && event.queueOp) {
           sessions.value[eventConvId].queue = applyQueueOp(sessions.value[eventConvId].queue, event.queueOp)
         }
-        if (currentTrack.value && event.conversationId !== currentTrack.value.conversationId) {
-          return
-        }
+        if (!isActiveRoom) return
         if (event.queueOp) {
           queue.value = applyQueueOp(queue.value, event.queueOp)
         }
@@ -522,8 +522,9 @@ export function createMusicController(options: MusicControllerOptions = {}) {
           sessions.value[eventConvId].track = null
           sessions.value[eventConvId].queue = []
         }
-        if (currentTrack.value && currentTrack.value.conversationId === event.conversationId) {
+        if (isActiveRoom) {
           currentTrack.value = null
+          queue.value = []
           currentTimeSec.value = 0
           durationSec.value = 0
           autoplayBlocked.value = false
@@ -588,7 +589,7 @@ export function createMusicController(options: MusicControllerOptions = {}) {
             updatedAt: Date.now(),
           }
         }
-        if (currentTrack.value && currentTrack.value.videoId === event.state?.videoId) {
+        if (isActiveRoom && currentTrack.value?.conversationId === eventConvId && currentTrack.value.videoId === event.state?.videoId) {
           currentTrack.value = {
             ...currentTrack.value,
             isPlaying: false,
@@ -600,14 +601,14 @@ export function createMusicController(options: MusicControllerOptions = {}) {
           }
         }
       } else if (event.type === 'seek') {
-        if (eventConvId && sessions.value[eventConvId]?.track && event.state) {
+        if (eventConvId && sessions.value[eventConvId]?.track && sessions.value[eventConvId].track?.videoId === event.state?.videoId && event.state) {
           sessions.value[eventConvId].track = {
             ...sessions.value[eventConvId].track!,
             positionSec: event.state.positionSec,
             updatedAt: Date.now(),
           }
         }
-        if (currentTrack.value && event.state) {
+        if (isActiveRoom && currentTrack.value?.conversationId === eventConvId && currentTrack.value.videoId === event.state?.videoId && event.state) {
           currentTimeSec.value = event.state.positionSec
           currentTrack.value = {
             ...currentTrack.value,
