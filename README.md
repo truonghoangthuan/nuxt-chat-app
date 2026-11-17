@@ -55,7 +55,7 @@ Pre-built Windows 10/11 desktop installers (with the Ubuntu Circle of Friends de
 ### Shared YouTube Music Room & Media Session
 - **Same-Origin Proxied Audio & Video**: Searches, Vietnam trending feeds, thumbnails, and byte-range media streams route through Nitro server endpoints (`/api/youtube/search`, `/api/youtube/trending`, `/api/youtube/thumbnail`, `/api/youtube/stream`) powered by KOQC Piped—bypassing corporate firewall blocks on third-party media domains.
 - **Synchronized Playback & Picture-in-Picture (PiP)**: Real-time room broadcast sync (`useMusicPlayer.ts`) with a 2-second drift deadband, late-joiner elapsed timestamp handshake, one-click **Tune In** autoplay unblocking, and expandable **Video PiP** (`YouTubeVideoPip.vue`).
-- **Queue Management, Shuffle & History Search**: Drag-and-drop queue reordering, one-click **Shuffle** for upcoming tracks, in-memory **History** search by song title/artist/friend, and encrypted chat activity pills for play/pause/skip/stop milestones.
+- **Queue Management, Play Next, Shuffle & History Search**: Drag-and-drop queue reordering, one-click **Play next** to prioritize an already queued song without interrupting playback, one-click **Shuffle** for upcoming tracks, in-memory **History** search by song title/artist/friend, and encrypted chat activity pills for play/pause/skip/stop milestones.
 - **OS Media Session API**: Syncs track metadata, artwork, scrubber position, and lock-screen / notification-shade transport controls (`play`, `pause`, `nexttrack`, `seekto`) for continuous background playback on mobile PWAs and desktop.
 
 ### Stealth Boss Key Mode & Multi-UI Themes

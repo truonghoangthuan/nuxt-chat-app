@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-17
+
+### Added
+- **Play Queued Song Next**: Prioritize an upcoming song with one click, including search-filtered songs, without duplicating the entry or interrupting current playback. The existing shared queue move keeps older room peers compatible.
+
+### Changed
+- **Upcoming Queue Clarity**: Show the next song from the current queue order and disable prioritization for the already-next entry. Wrap row actions on narrow screens while retaining existing reorder, play and remove controls.
+
 ## [0.15.0] - 2026-11-16
 
 ### Added
