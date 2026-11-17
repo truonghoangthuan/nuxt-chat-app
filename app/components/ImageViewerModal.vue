@@ -2,6 +2,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import type { EncryptedImageMetadata } from '~/types/chat'
 import { useImageAttachmentCache } from '~/composables/useImageAttachmentCache'
+import { canCopyImage, copyImageToClipboard } from '~/utils/imageClipboard'
 
 const props = withDefaults(
   defineProps<{
@@ -32,6 +33,36 @@ const zoom = ref(1)
 const panRef = ref<HTMLElement | null>(null)
 let zoomRevision = 0
 let loadRevision = 0
+let copyRevision = 0
+const copySupported = ref(false)
+const isCopying = ref(false)
+const copyStatus = ref('')
+
+function resetCopy() {
+  ++copyRevision
+  isCopying.value = false
+  copyStatus.value = ''
+}
+
+watch(
+  () => [props.open, props.channelId, props.images, props.initialIndex, currentIndex.value],
+  resetCopy,
+)
+
+async function handleCopy() {
+  if (!props.open || !canZoom.value || !copySupported.value || isCopying.value) return
+  const revision = ++copyRevision
+  isCopying.value = true
+  copyStatus.value = 'Copying image…'
+  try {
+    await copyImageToClipboard(activeImageUrl.value!)
+    if (revision === copyRevision) copyStatus.value = 'Image copied. GIFs copy as a still frame.'
+  } catch {
+    if (revision === copyRevision) copyStatus.value = 'Could not copy image. Allow clipboard access and retry, or use Download.'
+  } finally {
+    if (revision === copyRevision) isCopying.value = false
+  }
+}
 
 function setZoom(value: number) {
   if (!canZoom.value) return
@@ -152,6 +183,7 @@ function goToNext() {
 }
 
 function handleClose() {
+  resetCopy()
   emit('update:open', false)
 }
 
@@ -200,12 +232,14 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
+  copySupported.value = canCopyImage()
   if (typeof window !== 'undefined') {
     window.addEventListener('keydown', handleKeydown)
   }
 })
 
 onUnmounted(() => {
+  resetCopy()
   ++loadRevision
   ++zoomRevision
   if (typeof window !== 'undefined') {
@@ -234,6 +268,16 @@ onUnmounted(() => {
       </div>
 
       <div class="flex items-center gap-2">
+        <button
+          type="button"
+          data-test="lightbox-copy"
+          :disabled="!canZoom || !copySupported || isCopying"
+          class="h-9 px-3 rounded-full text-xs text-white/90 bg-white/10 hover:bg-white/20 border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-blue-400"
+          aria-label="Copy image"
+          :aria-busy="isCopying"
+          :title="copySupported ? 'Copy image as PNG (GIFs copy a still frame)' : 'Image copy requires a supported browser on HTTPS. Use Download instead.'"
+          @click="handleCopy"
+        >Copy image</button>
         <button
           type="button"
           data-test="lightbox-download"
@@ -345,6 +389,7 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <p data-test="lightbox-copy-status" role="status" aria-live="polite" aria-atomic="true" class="shrink-0 px-4 text-center text-xs text-white bg-black/60">{{ copyStatus }}</p>
     <footer class="flex items-center justify-center gap-2 px-4 py-3 shrink-0 text-white bg-black/40">
       <button
         type="button"
