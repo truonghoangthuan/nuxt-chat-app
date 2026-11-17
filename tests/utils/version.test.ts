@@ -3,21 +3,21 @@ import { APP_VERSION, CURRENT_RELEASE, RELEASE_HISTORY, parseChangelog } from '~
 
 describe('Dynamic Version & Changelog Parser (version.ts)', () => {
   it('dynamically parses the current version from CHANGELOG.md', () => {
-    expect(APP_VERSION).toBe('0.17.0')
-    expect(CURRENT_RELEASE.version).toBe('0.17.0')
+    expect(APP_VERSION).toBe('0.17.1')
+    expect(CURRENT_RELEASE.version).toBe('0.17.1')
     expect(CURRENT_RELEASE.date).toBe('2026-11-18')
     expect(CURRENT_RELEASE.highlights.length).toBeGreaterThan(0)
     expect(RELEASE_HISTORY.length).toBeGreaterThanOrEqual(10)
   })
 
-  it('correctly categorizes Added and Changed sections in the current release', () => {
-    const addedCategory = CURRENT_RELEASE.highlights.find(h => h.category === 'Added')
-    expect(addedCategory).toBeDefined()
-    expect(addedCategory!.items.length).toBeGreaterThan(0)
+  it('correctly categorizes the current fix release and previous feature release', () => {
+    const fixedCategory = CURRENT_RELEASE.highlights.find(h => h.category === 'Fixed')
+    expect(fixedCategory).toBeDefined()
+    expect(fixedCategory!.items.length).toBeGreaterThan(0)
 
-    const changedCategory = CURRENT_RELEASE.highlights.find(h => h.category === 'Changed')
-    expect(changedCategory).toBeDefined()
-    expect(changedCategory!.items.length).toBeGreaterThan(0)
+    const featureRelease = RELEASE_HISTORY.find(release => release.version === '0.17.0')!
+    expect(featureRelease.highlights.find(h => h.category === 'Added')?.items.length).toBeGreaterThan(0)
+    expect(featureRelease.highlights.find(h => h.category === 'Changed')?.items.length).toBeGreaterThan(0)
   })
 
   it('parses custom markdown strings cleanly through parseChangelog', () => {

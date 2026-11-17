@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-11-18
+
+### Fixed
+- **Music Room Isolation**: Delayed playback broadcasts update only their conversation's cached session; another room cannot pause or seek the selected song, populate an idle queue, or cancel its auto-advance fallback. Stops clear the matching active queue, and stale seek events cannot reposition a replacement song.
+- **Scoped Music Events**: Ignore unscoped broadcasts and mismatched conversation state while preserving same-room sync, local tune-out, and cached-room state replies.
+
 ## [0.17.0] - 2026-11-18
 
 ### Added
