@@ -65,6 +65,7 @@ Pre-built Windows 10/11 desktop installers (with the Ubuntu Circle of Friends de
 ### Encrypted Attachments & Lightbox
 - **Encrypted Media Grid**: Multi-photo encrypted uploads stored in private Supabase Storage (`message-attachments`) with bounded LRU `blob:` URL caching and automatic storage cleanup on partial failure.
 - **Arrange Before Sending**: Keyboard-accessible **Move earlier / Move later** controls on queued photo previews before sending.
+- **Copy Image**: Choose **Copy image** in the lightbox to paste a decrypted photo without downloading first. Conversion to PNG stays local; GIFs copy a still frame. Requires a supported browser on HTTPS (or localhost) with clipboard permission. Use **Download** for original bytes/animation or when copying is unavailable. This explicitly exports plaintext to your OS clipboard; closing the viewer cannot undo an in-progress system write.
 - **Zoomable Lightbox Viewer (`ImageViewerModal.vue`)**: Full-screen decrypted image viewer with 100%–400% zoom, pan, keyboard shortcuts (`+`/`=`, `-`, `0`, Left/Right arrows, `Escape`), and custom conversation wallpapers (`chat-backgrounds`).
 
 ### Multiplayer Games & Interactive Activities
