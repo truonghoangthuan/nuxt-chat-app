@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-18
+
+### Added
+- **Copy Image**: Copy a decrypted lightbox image directly to the system clipboard as a PNG without saving a file. Conversion stays in the browser; GIFs copy a still frame. The action requires a supported secure browser and explicit user interaction.
+
+### Changed
+- **Clipboard Feedback**: Announce copying, success and permission errors; retain Download for original image bytes and animation. Image/conversation changes and dialog teardown suppress stale feedback without claiming to undo an already requested clipboard write.
+
 ## [0.16.0] - 2026-11-17
 
 ### Added
