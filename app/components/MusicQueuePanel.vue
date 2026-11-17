@@ -212,6 +212,14 @@ function formatRelativeTime(isoString: string): string {
     <div class="max-h-72 overflow-y-auto p-3 space-y-1.5">
       <!-- Queue Tab Content -->
       <template v-if="activeTab === 'queue'">
+        <p
+          v-if="queue.length"
+          data-test="queue-up-next"
+          role="status"
+          aria-atomic="true"
+          class="text-xs text-[var(--ap-text-primary)] truncate"
+          :title="queue[0].title"
+        >Up next: {{ queue[0].title }}</p>
         <p data-test="queue-duration-summary" class="text-[11px] text-[var(--ap-text-secondary)]">
           Upcoming time: {{ queueDuration }} · Excludes current song
         </p>
@@ -295,8 +303,19 @@ function formatRelativeTime(isoString: string): string {
             </div>
           </div>
 
-          <!-- Action buttons: Move up/down, Play now, Remove -->
-          <div class="flex items-center gap-1 shrink-0">
+          <!-- Keep queue prioritization distinct from immediate playback. -->
+          <div class="flex items-center justify-end flex-wrap max-w-24 sm:max-w-none gap-1 shrink-0">
+            <button
+              type="button"
+              data-test="queue-play-next"
+              :disabled="index === 0"
+              :aria-label="`Play ${item.title} next`"
+              :title="index === 0 ? 'Already next in queue' : 'Play next without interrupting the current song'"
+              class="p-1 rounded text-[var(--ap-text-secondary)] hover:text-[var(--ap-text-primary)] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-500 transition cursor-pointer"
+              @click="emit('move', item.id, 0)"
+            >
+              <ListStart class="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
             <!-- Move up button -->
             <button
               type="button"
