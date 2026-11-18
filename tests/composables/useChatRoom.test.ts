@@ -1137,6 +1137,67 @@ describe('useChatRoom sendImages orchestration & immutability guard', () => {
     expect(parsedDecrypted.caption).toBe('My retry caption')
   })
 
+  it('coalesces overlapping image retries without competing uploads or cleanup', async () => {
+    const room = useChatRoom()
+    room.activeChannelId.value = 'ch-general'
+    mockUpload.mockResolvedValueOnce({ data: null, error: new Error('Offline') })
+    await room.sendImages([new File(['photo'], 'retry.jpg', { type: 'image/jpeg' })], 'Keep caption')
+    const clientId = room.messages.value[0].client_id
+    let finishUpload!: (value: any) => void
+    const upload = new Promise(resolve => { finishUpload = resolve })
+    mockUpload.mockImplementation(() => upload)
+    room.activeChannelId.value = 'ch-other'
+
+    const first = room.retryMessage(clientId)
+    const second = room.retryMessage(clientId)
+    await vi.waitFor(() => expect(mockUpload.mock.calls.length).toBeGreaterThanOrEqual(2))
+    finishUpload({ data: { path: 'ok' }, error: null })
+    await Promise.all([first, second])
+
+    expect(mockUpload).toHaveBeenCalledTimes(2) // one failed send + one retry
+    expect(mockInsert).toHaveBeenCalledTimes(1)
+    expect(mockRemove).not.toHaveBeenCalled()
+    const row = mockInsert.mock.calls[0][0]
+    expect(row.client_id).toBe(clientId)
+    expect(row.conversation_id).toBe('ch-general')
+    expect(JSON.parse(await decryptContent(testKey, row.content, 'ch-general')).caption).toBe('Keep caption')
+    expect(room.messages.value[0].status).toBe('sent')
+  })
+
+  it('coalesces text retries by client ID while allowing other messages and later attempts', async () => {
+    const room = useChatRoom()
+    room.activeChannelId.value = 'ch-general'
+    room.messages.value = ['retry-a', 'retry-b'].map(clientId => ({
+      id: clientId, client_id: clientId, conversation_id: 'ch-general',
+      user_id: 'u-alice', content: `Text ${clientId}`, status: 'failed' as const,
+      created_at: '2026-10-20T12:00:00.000Z',
+    }))
+    let finishInsert!: (value: any) => void
+    const insert = new Promise(resolve => { finishInsert = resolve })
+    mockInsertSingle.mockImplementation(() => insert)
+    const first = room.retryMessage('retry-a')
+    const duplicate = room.retryMessage('retry-a')
+    const independent = room.retryMessage('retry-b')
+    await vi.waitFor(() => expect(mockInsert.mock.calls.length).toBeGreaterThanOrEqual(2))
+    finishInsert({ data: null, error: new Error('Still offline') })
+    await Promise.all([first, duplicate, independent])
+
+    expect(mockInsert).toHaveBeenCalledTimes(2)
+    expect(mockInsert.mock.calls.map(([row]: any[]) => row.client_id).sort()).toEqual(['retry-a', 'retry-b'])
+    expect(room.messages.value.map((message: ChatMessage) => message.status)).toEqual(['failed', 'failed'])
+    for (const [row] of mockInsert.mock.calls) {
+      expect(await decryptContent(testKey, row.content, 'ch-general')).toBe(`Text ${row.client_id}`)
+    }
+
+    mockInsertSingle.mockRejectedValueOnce(new Error('Network rejection'))
+    await room.retryMessage('retry-a')
+    expect(mockInsert).toHaveBeenCalledTimes(3)
+    expect(room.messages.value[0].status).toBe('failed')
+    mockInsertSingle.mockResolvedValueOnce({ data: null, error: new Error('Retry allowed') })
+    await room.retryMessage('retry-a')
+    expect(mockInsert).toHaveBeenCalledTimes(4)
+  })
+
   it('retryMessage safely aborts if pending image files are missing from memory', async () => {
     const room = useChatRoom()
     room.activeChannelId.value = 'ch-general'
