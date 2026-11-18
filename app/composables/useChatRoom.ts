@@ -1648,7 +1648,23 @@ export function useChatRoom() {
     await sendMessage(JSON.stringify(payload), replyToId)
   }
 
+  const inFlightRetries = new Map<string, Promise<void>>()
+
   async function retryMessage(clientId: string): Promise<void> {
+    const existing = inFlightRetries.get(clientId)
+    if (existing) return existing
+
+    // Register before delivery starts so all retry entry points share one attempt.
+    const attempt = Promise.resolve().then(() => deliverRetry(clientId))
+    inFlightRetries.set(clientId, attempt)
+    try {
+      await attempt
+    } finally {
+      if (inFlightRetries.get(clientId) === attempt) inFlightRetries.delete(clientId)
+    }
+  }
+
+  async function deliverRetry(clientId: string): Promise<void> {
     const retrying = messagesStore.markMessageRetrying(clientId)
     if (!retrying) return
 
